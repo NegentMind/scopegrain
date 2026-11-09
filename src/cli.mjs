@@ -36,6 +36,7 @@ import {
   ensureSessionsDir, getSession, prepareSession, prepareSessionRecord,
   recordSession, resumeSession,
 } from './core/sessions.mjs';
+import { getWorkspace, prepareWorkspace } from './core/workspaces.mjs';
 
 const PATH_LABELS = {
   plans: 'Ruta de planes',
@@ -74,6 +75,14 @@ const COMMANDS = {
     flags: ['--project', '--config'],
     pos: 0,
     usage: 'mcp --project PATH [--config REL]',
+  },
+  'workspace show': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'workspace show --project PATH [--config REL]',
+  },
+  'workspace init': {
+    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
+    usage: 'workspace init --project PATH [--config REL] [--input FILE] [--apply]',
   },
   'task create': {
     flags: ['--project', '--config', '--title', '--contract', '--author', '--scope',
@@ -646,6 +655,17 @@ function finishCreation(ctx, key, record, file, flags) {
   return { mode: 'applied', applied: true, [key]: record, ...result };
 }
 
+function cmdWorkspace(sub, flags) {
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'), config: flags['--config'],
+  });
+  if (sub === 'show') return getWorkspace(ctx);
+  const input = Object.hasOwn(flags, '--input')
+    ? readInputFile(flags['--input'], 'workspace input') : {};
+  const prepared = prepareWorkspace(ctx, input);
+  return finishCreation(ctx, 'workspace', prepared.workspace, prepared.file, flags);
+}
+
 function cmdTypedArtifact(family, sub, positional, flags) {
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
@@ -767,7 +787,7 @@ export async function run(argv, io) {
       io.stdout(JSON.stringify(helpResult(), null, 2));
       return 0;
     }
-    const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource',
+    const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace',
       'specification', 'design', 'outcome', 'approval', 'methodology']);
     let cmdKey;
     let spec;
@@ -836,6 +856,8 @@ export async function run(argv, io) {
       result = cmdWorkflow(rest[0], flags);
     } else if (cmdKey.startsWith('task ')) {
       result = await cmdTask(cmdKey.slice(5), rest, flags, io);
+    } else if (cmdKey.startsWith('workspace ')) {
+      result = cmdWorkspace(cmdKey.slice(10), flags);
     } else if (cmdKey.startsWith('catalog ')) {
       result = cmdCatalog(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('resource ')) {

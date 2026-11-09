@@ -19,6 +19,8 @@ tandas acotadas ni resultados historicos.
 | Foundation integral inicial | `npm test` | Exit 1: 505 tests reportados, 501 pass, 4 fail, 0 skipped, 0 cancelled |
 | Foundation diagnostico | 4 archivos del intento fallido | Exit 0: 126 pass, 0 fail, 0 skipped, 0 cancelled |
 | Foundation integral serial | `npm test`, un archivo a la vez | Exit 0: 536 pass, 0 fail, 0 skipped, 0 cancelled |
+| Workspace compatibilidad inicial | 4 archivos, antes del endurecimiento final | Exit 0: 47 pass, 0 fail, 0 skipped, 0 cancelled |
+| Workspace focalizada final | `tests/workspaces.test.mjs` | Exit 0: 25 pass, 0 fail, 0 skipped, 0 cancelled |
 | Pilotos en anfitriones | Pendientes | No certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
@@ -42,6 +44,18 @@ de cuatro archivos estan en
 La integral serial autorizada esta en
 `.tasksystem/verification/scopegrain-foundation-serial-full-suite-1794255293.log`.
 Estos archivos son locales, ignorados y no acompanan un clon publico.
+
+La identidad de workspace se verifico por separado de foundation. La tanda
+inicial cubrio workspace, CLI, foundation y config. La revision posterior
+agrego invalidacion permanente de bindings obsoletos y comparaciones
+`dev`/`ino` con BigInt. Sus cuatro regresiones fallaron antes del cambio;
+la focalizada final aprobo 25 pruebas. Un filtro de help C2-E aprobo una
+prueba en una ejecucion separada; no se suma a las otras tandas.
+Los logs son `.tasksystem/verification/scopegrain-workspaces-green-final-1794257535.log`,
+`scopegrain-workspaces-rework-red-1794258058.log`,
+`scopegrain-workspaces-rework-green-final-1794258101.log` y
+`scopegrain-workspaces-help-1794257497.log` bajo la misma carpeta.
+No se repitio la integral de foundation ni se valido VantaDB con este bloque.
 
 El intento integral foundation reporto errores `UNKNOWN` en operaciones de
 E/S y archivos de prueba abortados. El diagnostico registro un evento System

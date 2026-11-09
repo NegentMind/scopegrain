@@ -72,6 +72,29 @@ CLI; el servidor MCP si requiere las dependencias declaradas en
    node .\bin\tasksystem.mjs doctor --project "C:\ruta\mi-proyecto"
    ```
 
+## Identidad de workspace
+
+Tras crear la config, el enrolamiento es explicito y separado de `init`:
+
+```powershell
+node .\bin\scopegrain.mjs workspace init --project "C:\ruta\mi-proyecto"
+node .\bin\scopegrain.mjs workspace init --project "C:\ruta\mi-proyecto" --apply
+node .\bin\scopegrain.mjs workspace show --project "C:\ruta\mi-proyecto"
+```
+
+Sin `--apply`, `workspace init` solo presenta un plan y sus IDs no quedan
+reservados. Para elegir areas, `--input FILE` acepta un archivo JSON como
+`{"areas":[{"key":"api","name":"API"}]}`; sin input se propone el area
+`project` con el nombre actual del proyecto. El descriptor se guarda en `paths.state/workspace.json`,
+incluida una ruta de estado legacy o personalizada. `show` no lo crea.
+
+Si ya existe, una solicitud vacia o con las mismas areas por clave y nombre
+conserva sus bytes; una especificacion distinta produce `WORKSPACE_CONFLICT`.
+`WORKSPACE_NOT_FOUND` indica ausencia; un binding interno cuya metadata haya
+cambiado o desaparecido falla con `WORKSPACE_STALE`. Los IDs y las areas son
+declaraciones de alcance, no identidad autenticada ni permisos del sistema.
+Este bloque no conecta VantaDB, journal, sincronizacion o autorizacion MCP.
+
 ## Personalizacion
 
 - La metodologia se pregunta despues de los anfitriones y antes de la ruta

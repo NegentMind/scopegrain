@@ -17,6 +17,7 @@ src/core/fsx.mjs          Helpers sincronicos de filesystem
 src/core/paths.mjs        Rutas relativas seguras, contencion, anti-symlink
 src/core/config.mjs       Contrato de config.json, answers y colisiones
 src/core/context.mjs      Vincula project root explicito + config cargada
+src/core/workspaces.mjs   Identidad por proyecto, areas y autorizacion interna de scope
 src/core/policy.mjs       Carga las politicas canonicas del runtime instalado
 src/core/tasks.mjs        Documentos de tarea, createTask, getTask, listTasks
 src/core/catalog.mjs      Catalogo activo validado y proyeccion de recursos
@@ -59,6 +60,17 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
 - Sin `--config`, la seleccion reconoce `.scopegrain/config.json` y la
   config legacy `.tasksystem/config.json`; dos entradas producen
   `CONFIG_AMBIGUOUS`. Una seleccion explicita no hace fallback.
+- Un descriptor en `paths.state/workspace.json` identifica un unico
+  `projectRoot`, proyecto, repositorio logico y areas. Se crea solo mediante
+  enrolamiento explicito, independiente de bootstrap y config V1. Un binding
+  interno conserva grants por area y exige todos los IDs de un scope;
+  revalida la raiz y el digest antes de autorizar o resolver el repositorio.
+  Una metadata ausente produce `WORKSPACE_NOT_FOUND`; si desaparece o cambia
+  al revalidarlo, ese binding queda invalidado permanentemente con
+  `WORKSPACE_STALE`; se requiere un nuevo binding explicito.
+- Las areas son scopes logicos, no ACL del sistema operativo ni sandbox.
+  Esta capa no implementa journal, VantaDB, sincronizacion ni autorizacion MCP;
+  no autentica identidades ni aisla actores con acceso al mismo filesystem.
 - `policy/workflow.json` define estados, aristas, acciones y aceptacion
   base. `policy/methodology.json` define el contrato metodologico.
   Los gates agregan controles; no crean otra maquina de estados.
