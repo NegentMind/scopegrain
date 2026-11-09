@@ -1,4 +1,4 @@
-// Host variants: opencode V1/V2 dirs, antigravity app-cli/ide, emitAgents,
+// Host variants: opencode V2, antigravity app-cli/ide, emitAgents,
 // selectionRequired metadata, no host-root writes, alias bridges.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,22 +15,18 @@ function cfg(hosts) {
     { ...DEFAULT_ANSWERS, hosts }, {});
 }
 
-test('opencode emits v1+v2 variant dirs with their own permission fm', () => {
+test('opencode emits only the documented V2 variant', () => {
   const { files, activationPlan } = renderNativeAdapters(
     cfg(['opencode']), { configRel: CFG });
-  const v1 = files.find((f) => f.rel.includes('/opencode/v1/'));
   const v2 = files.find((f) => f.rel.includes('/opencode/v2/'));
-  assert.ok(v1 && v2);
-  const v1agent = files.find((f) =>
-    f.rel.includes('/opencode/v1/') && f.rel.endsWith('reviewer.md'));
+  assert.ok(v2);
+  assert.ok(!files.some((f) => f.rel.includes('/opencode/v1/')));
   const v2agent = files.find((f) =>
     f.rel.includes('/opencode/v2/') && f.rel.endsWith('reviewer.md'));
-  assert.ok(v1agent.content.toString('utf8').includes('bash: deny'));
   assert.ok(v2agent.content.toString('utf8').includes('effect: deny'));
   const ve = activationPlan.entries.filter((e) => e.host === 'opencode');
-  assert.ok(ve.every((e) => e.selectionRequired === true));
-  assert.ok(ve.some((e) => e.variant === 'v1')
-    && ve.some((e) => e.variant === 'v2'));
+  assert.ok(ve.length > 0);
+  assert.ok(ve.every((e) => e.selectionRequired === false && e.variant === 'v2'));
   assert.ok(ve.every((e) => e.compatibility === 'documented-only'));
 });
 

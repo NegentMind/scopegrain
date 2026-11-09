@@ -91,7 +91,7 @@ persistirlo (`DOCUMENT_TOO_LARGE`).
 | lesson | memory/lessons |
 | handoff | memory/handoffs |
 
-Por defecto, todos esos destinos viven bajo `.tasksystem/`, no `docs/`.
+Por defecto, todos esos destinos viven bajo `.scopegrain/`, no `docs/`.
 Un proyecto puede conservar rutas antiguas explicitamente elegidas; nunca
 se mueven o eliminan archivos existentes por un cambio de defaults.
 
@@ -102,9 +102,9 @@ tipo de carpeta ni una certificacion de los archivos citados.
 
 ## Aprobaciones y acciones
 
-La nueva superficie CLI/MCP tiene una tanda focalizada ejecutada y la suite
-integral local se completo; sus resultados y limites se describen en
-[verificacion](verification.md). Los pilotos nativos siguen pendientes.
+La suite integral local de foundation se completo con un archivo de test a
+la vez. Los pilotos nativos siguen pendientes; ver los resultados y limites
+en [verificacion](verification.md).
 
 Las operaciones `approval target/create/show/answer` separan identificacion
 del contenido, pregunta, lectura y respuesta. Previsualizar una respuesta

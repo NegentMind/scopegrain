@@ -1,5 +1,5 @@
 // Native adapter proposals: projection shape, no host writes, policy-exact
-// frontmatter, codex TOML, V2+V1 opencode fragments, activation plan.
+// frontmatter, codex TOML, V2 opencode fragment, activation plan.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -64,18 +64,15 @@ test('frontmatter: permission lines land INSIDE the YAML fence', () => {
   const dh = devinCmd.content.toString('utf8').split(/^---$/m)[1];
   assert.ok(dh.includes('triggers:\n  - user'));
   // OpenCode commands land in command root, not skill root.
-  // OpenCode emits V1 and V2 variants with their own permission frontmatter.
+  // OpenCode emits the V2 variant with its permission frontmatter.
   const ocCmd = files.find((f) =>
     f.rel.endsWith('/opencode/v2/.opencode/commands/tasksystem-assess-release.md'));
   assert.ok(ocCmd);
   assert.ok(ocCmd.content.toString('utf8').startsWith('---\ndescription:'));
-  const ocAgentV1 = files.find((f) =>
-    f.rel.endsWith('/opencode/v1/.opencode/agents/tasksystem-reviewer.md'));
   const ocAgentV2 = files.find((f) =>
     f.rel.endsWith('/opencode/v2/.opencode/agents/tasksystem-reviewer.md'));
-  assert.ok(ocAgentV1 && ocAgentV2);
-  assert.ok(ocAgentV1.content.toString('utf8')
-    .split(/^---$/m)[1].includes('bash: deny'));
+  assert.ok(ocAgentV2);
+  assert.ok(!files.some((f) => f.rel.includes('/opencode/v1/')));
   assert.ok(ocAgentV2.content.toString('utf8')
     .split(/^---$/m)[1].includes('effect: deny'));
 });
@@ -134,13 +131,14 @@ test('activation plan is metadata only: manual merge, no hooks/apply', () => {
   }
 });
 
-test('opencode emits V2 plus separate V1 proposal in bootstrap', () => {
+test('opencode emits only the V2 proposal in bootstrap', () => {
   const dir = makeTempDir('native-boot');
   try {
-    const plan = prepareInit({ projectRoot: dir, answers: DEFAULT_ANSWERS });
+    const plan = prepareInit({ projectRoot: dir, configRel: CFG_REL,
+      answers: DEFAULT_ANSWERS });
     const rels = plan.files.map((f) => f.rel);
     assert.ok(rels.includes('.tasksystem/integrations/opencode-mcp.json'));
-    assert.ok(rels.includes('.tasksystem/integrations/opencode-v1-mcp.json'));
+    assert.ok(!rels.includes('.tasksystem/integrations/opencode-v1-mcp.json'));
     assert.ok(rels.includes(
       '.tasksystem/integrations/native/activation-plan.json'));
     applyPlan(dir, plan.files);
@@ -148,10 +146,7 @@ test('opencode emits V2 plus separate V1 proposal in bootstrap', () => {
       `${dir}/.tasksystem/integrations/opencode-mcp.json`, 'utf8'));
     assert.equal(v2.mcp.servers.tasksystem.type, 'local');
     assert.equal(v2.mcp.servers.tasksystem.disabled, true);
-    const v1 = JSON.parse(fs.readFileSync(
-      `${dir}/.tasksystem/integrations/opencode-v1-mcp.json`, 'utf8'));
-    assert.equal(v1.mcp.tasksystem.enabled, false);
-    assert.equal(v1.mcp.tasksystem.type, 'local');
+    assert.ok(!exists(dir, '.tasksystem/integrations/opencode-v1-mcp.json'));
     const ap = JSON.parse(fs.readFileSync(
       `${dir}/.tasksystem/integrations/native/activation-plan.json`, 'utf8'));
     assert.equal(ap.activation, 'manual-review-only');
@@ -197,7 +192,8 @@ test('host-interpolated literals abort before any write', () => {
 test('policy files project verbatim under cfgDir/policy', () => {
   const dir = makeTempDir('pol-proj');
   try {
-    const plan = prepareInit({ projectRoot: dir, answers: DEFAULT_ANSWERS });
+    const plan = prepareInit({ projectRoot: dir, configRel: CFG_REL,
+      answers: DEFAULT_ANSWERS });
     const wf = plan.files.find(
       (f) => f.rel === '.tasksystem/policy/workflow.json');
     const lim = plan.files.find(

@@ -11,16 +11,18 @@ implementations. The `tasksystem-` namespace avoids replacing built-ins.
 ## Status
 
 Documented formats and local fixture tests are not native certification.
+The foundation suite completed locally with one test file at a time; see
+[verification](verification.md) for its scope and separate earlier runs.
 No host was activated by these changes. Initialization creates proposals
 under the selected configuration directory, normally
-`.tasksystem/integrations/`; intended active paths below are NOT written
+`.scopegrain/integrations/`; intended active paths below are NOT written
 automatically.
 
 | Host | Invocation proposal | Intended skill path | Intended role path |
 | --- | --- | --- | --- |
 | Claude Code | `/tasksystem-NAME` | `.claude/skills/<name>/SKILL.md` | `.claude/agents/<name>.md` |
 | Codex | `$tasksystem-NAME` | `.agents/skills/<name>/SKILL.md` | `.codex/agents/*.toml` plus declarations |
-| OpenCode V1/V2 | `/tasksystem-NAME` | `.opencode/skills/<name>/SKILL.md` | `.opencode/agents/<name>.md`, variant-specific |
+| OpenCode V2 | `/tasksystem-NAME` | `.opencode/skills/<name>/SKILL.md` | `.opencode/agents/<name>.md` |
 | Devin CLI/Local | `/tasksystem-NAME` | `.devin/skills/<name>/SKILL.md` | `.devin/agents/<name>.md` |
 | Antigravity App/CLI | `/tasksystem-NAME` | `.agents/skills/<name>/SKILL.md` | `.agents/agents/<name>.md` |
 | Antigravity IDE | `/tasksystem-NAME` | `.agents/skills/<name>/SKILL.md` | None assumed; skills-only proposal |
@@ -32,10 +34,9 @@ and snapshot is insufficient.
 
 ## Explicit Variants
 
-OpenCode V1 and V2 are separate proposals. V1 uses `permission` and its
-own MCP shape; V2 uses `permissions`, `mcp.servers` and `disabled`.
-Select from the installed version and inspect the corresponding activation
-plan. Never merge both formats or assume a V2 example works on V1.
+Only OpenCode V2 proposals are generated, using `permissions`,
+`mcp.servers` and `disabled`. Existing V1 files are not deleted. Inspect the
+activation plan and do not assume a V2 proposal works on V1.
 
 Antigravity App/CLI and IDE are separate surfaces. The App/CLI proposal
 includes documented custom agents; the IDE proposal does not infer that
@@ -56,7 +57,7 @@ Selected read-only roles receive host-specific restrictions:
 
 - Claude: requested read-tool list.
 - Codex: requested read-only filesystem sandbox.
-- OpenCode: V1 edit/bash/task denial or V2 edit/shell/subagent denial.
+- OpenCode V2: requested edit/shell/subagent denial.
 - Devin: custom subagent tool allowlist.
 - Antigravity App/CLI: requested documented read-tool list; IDE has no
   custom-agent restriction proposal because agents are not assumed there.

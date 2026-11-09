@@ -15,7 +15,8 @@ import {
 test('.gitattributes covers every configDir file plus itself, root skipped', () => {
   const dir = makeTempDir('ga');
   try {
-    const plan = prepareInit({ projectRoot: dir, answers: DEFAULT_ANSWERS });
+    const plan = prepareInit({ projectRoot: dir, configRel: '.tasksystem/config.json',
+      answers: DEFAULT_ANSWERS });
     const attrs = plan.files.find((f) => f.rel === '.tasksystem/.gitattributes');
     assert.ok(attrs);
     const text = attrs.content.toString('utf8');

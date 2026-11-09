@@ -6,12 +6,12 @@ import { fileURLToPath } from 'node:url';
 import { err } from './errors.mjs';
 import { lstatOrNull, mkdirpSync, readFileLimited, removeIfExists } from './fsx.mjs';
 import {
-  assertDestination, isSameOrAncestor, portableKey, resolveInside,
+  isSameOrAncestor, portableKey, resolveInside,
 } from './paths.mjs';
 import {
-  DEFAULT_CONFIG_PATH, assertAnswersMatchConfig,
+  assertAnswersMatchConfig,
   assertNoCollisions, configDirOf, createConfig,
-  loadConfig, validateAnswers,
+  loadConfig, resolveConfigPath, validateAnswers,
 } from './config.mjs';
 import { inspectProject } from '../discovery/inspect.mjs';
 import { renderAdapters } from '../hosts/render.mjs';
@@ -63,7 +63,7 @@ export function buildInitPlan({
   projectRoot, configRel, config, configContent, discovery, discoveryContent,
   templatesDir = TEMPLATES_DIR, installRoot = null,
 }) {
-  const cfgRel = assertDestination(configRel || DEFAULT_CONFIG_PATH, 'configPath');
+  const cfgRel = resolveConfigPath(projectRoot, configRel);
   assertNoCollisions(config.paths, cfgRel, config.hosts);
 
   const configDir = configDirOf(cfgRel);
@@ -298,7 +298,7 @@ export function applyPlan(projectRoot, files) {
 
 export function prepareInit({ projectRoot, configRel, answers }) {
   validateAnswers(answers); // early validation before any plan work
-  const cfgRel = assertDestination(configRel || DEFAULT_CONFIG_PATH, 'configPath');
+  const cfgRel = resolveConfigPath(projectRoot, configRel);
   const existing = checkExistingConfig(projectRoot, cfgRel, answers);
   const discovery = inspectProject(projectRoot);
 

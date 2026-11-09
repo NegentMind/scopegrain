@@ -208,6 +208,6 @@ test('interactive versioning asks each category and rejects bad replies', async 
     assert.equal(code, 0);
     assert.equal(plansAsked, 2); // invalid reply re-asked, then accepted
     assert.ok(io.out.stderr.some((s) => s.includes('yes o no')));
-    assert.ok(!exists(dir, '.tasksystem/config.json')); // 'no' confirm
+    assert.ok(!exists(dir, '.scopegrain/config.json')); // 'no' confirm
   } finally { cleanup(dir); }
 });

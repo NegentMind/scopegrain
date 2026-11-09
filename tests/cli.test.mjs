@@ -59,7 +59,7 @@ test('extra positionals are rejected before any write', async () => {
       ['init', '--project', dir, '--answers', answersFile, 'typo', '--apply'], io);
     assert.equal(code, 1);
     assert.equal(JSON.parse(io.out.stderr[0]).error.code, 'INVALID_ARGS');
-    assert.ok(!exists(dir, '.tasksystem/config.json'));
+    assert.ok(!exists(dir, '.scopegrain/config.json'));
     assert.ok(!exists(dir, 'AGENTS.md'));
   } finally { cleanup(dir); cleanup(answersFile); }
 });
@@ -72,7 +72,7 @@ test('init --answers without --apply is a dry-run and writes nothing', async () 
     assert.equal(await run(
       ['init', '--project', dir, '--answers', answersFile], io), 0);
     assert.equal(lastJson(io).mode, 'dry-run');
-    assert.ok(!exists(dir, '.tasksystem/config.json'));
+    assert.ok(!exists(dir, '.scopegrain/config.json'));
     assert.ok(!exists(dir, 'AGENTS.md'));
   } finally { cleanup(dir); cleanup(answersFile); }
 });
@@ -85,7 +85,7 @@ test('init --answers --apply creates the plan once', async () => {
     assert.equal(await run(
       ['init', '--project', dir, '--answers', answersFile, '--apply'], io), 0);
     assert.equal(lastJson(io).mode, 'applied');
-    assert.ok(exists(dir, '.tasksystem/config.json'));
+    assert.ok(exists(dir, '.scopegrain/config.json'));
     assert.ok(exists(dir, 'CLAUDE.md'));
     const io2 = fakeIO();
     assert.equal(await run(
@@ -100,7 +100,7 @@ test('init without --answers refuses non-interactive sessions', async () => {
     const io = fakeIO({ tty: false });
     assert.equal(await run(['init', '--project', dir], io), 1);
     assert.equal(JSON.parse(io.out.stderr[0]).error.code, 'INTERACTIVE_REQUIRED');
-    assert.ok(!exists(dir, '.tasksystem/config.json'));
+    assert.ok(!exists(dir, '.scopegrain/config.json'));
   } finally { cleanup(dir); }
 });
 

@@ -56,7 +56,7 @@ templates/hosts/      Formatos nativos generados desde fuentes canonicas
 policy/               Politicas que el codigo realmente valida
 catalog/              Inventarios historicos de procedencia/triage
 docs/                 Documentacion del producto, no artefactos de tareas
-.tasksystem/          Planes, task files, informes, reviews, memoria y estado
+.scopegrain/          Planes, task files, informes, reviews, memoria y estado
 legacy/               Copia local de procedencia, nunca fuente activa implicita
 ```
 

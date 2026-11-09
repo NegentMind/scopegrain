@@ -137,7 +137,7 @@ test('TTY: order hosts<mode<configPath; fresh default organic; cancel=no write',
       catch { return null; } }).find((o) => o && o.mode === 'plan');
     assert.equal(plan.methodology, 'organic-sdd');
     // Default 'no' confirm -> zero writes.
-    assert.equal(fs.existsSync(`${dir}/.tasksystem`), false);
+    assert.equal(fs.existsSync(`${dir}/.scopegrain`), false);
   } finally { cleanup(dir); }
 });
 
@@ -168,7 +168,7 @@ test('TTY: explicit manual/sdd selection stored; invalid->valid re-prompts', asy
           s === 'Metodo invalido: use manual, organic-sdd o sdd.'));
       }
       const cfg = JSON.parse(fs.readFileSync(
-        `${dir}/.tasksystem/config.json`, 'utf8'));
+        `${dir}/.scopegrain/config.json`, 'utf8'));
       assert.equal(cfg.methodology, mode);
     } finally { cleanup(dir); }
   }

@@ -254,7 +254,8 @@ function loadNativeVariants({ installRoot = INSTALL_ROOT } = {}) {
         typeof s === 'string' ? s.toLowerCase() : ''));
       if (sset.size !== va.surfaces.length
           || !va.surfaces.every((s) => SURFACES.has(s))
-          || va.selectionRequired !== true
+          || (typeof va.selectionRequired !== 'boolean'
+            || (list.length > 1 && va.selectionRequired !== true))
           || typeof va.emitAgents !== 'boolean'
           || typeof va.agentFrontmatter !== 'string'
           || typeof va.readOnlyAgentFrontmatter !== 'string'

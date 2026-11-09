@@ -8,10 +8,10 @@ anfitrion. Separa el contexto y los contratos de trabajo de las
 convenciones de cada herramienta, y ofrece una ruta ligera o formal segun
 los hechos y riesgos declarados.
 
-El producto se llama Scopegrain. Los nombres tecnicos existentes
+El producto se llama Scopegrain. `scopegrain` es una nueva entrada CLI;
 `tasksystem`, `tasksystem-harness`, `.tasksystem` y los prefijos MCP
-`tasksystem_` se mantienen por compatibilidad; no son comandos nuevos ni
-una promesa de publicacion de paquetes.
+`tasksystem_` se mantienen por compatibilidad. Esto no implica publicacion
+de un paquete.
 
 ## Flujo de trabajo
 
@@ -47,9 +47,9 @@ MCP opcional requiere las dependencias declaradas en `package.json`.
 Desde la raiz del repositorio:
 
 ```powershell
-node ./bin/tasksystem.mjs inspect --project "C:\ruta\mi-proyecto"
-node ./bin/tasksystem.mjs init --project "C:\ruta\mi-proyecto"
-node ./bin/tasksystem.mjs doctor --project "C:\ruta\mi-proyecto"
+node ./bin/scopegrain.mjs inspect --project "C:\ruta\mi-proyecto"
+node ./bin/scopegrain.mjs init --project "C:\ruta\mi-proyecto"
+node ./bin/scopegrain.mjs doctor --project "C:\ruta\mi-proyecto"
 ```
 
 `inspect` no escribe ni ejecuta los comandos que descubre. `init` interactivo
@@ -68,6 +68,9 @@ Con `--answers` y sin `--apply`, `init` solo presenta el plan. Agregar
 de comandos ni el reemplazo de contenido existente. `--yes` y `--force` no
 son opciones de bypass. Las rutas de artefactos deben permanecer dentro del
 proyecto; una configuracion alternativa se indica con `--config`.
+La config predeterminada es `.scopegrain/config.json`; si solo existe
+`.tasksystem/config.json`, se usa sin migrarla. Si existen ambas entradas,
+se requiere `--config` explicito; una ruta explicita no tiene fallback.
 Consultar el [ejemplo de respuestas](examples/answers.json) y su
 [esquema](schemas/answers.schema.json).
 
@@ -124,8 +127,8 @@ corresponden a `manual`; el ejemplo de respuestas incluido selecciona
 
 ## Anfitriones y limites de confianza
 
-Se generan propuestas, comprobadas en fixtures locales, para Claude Code,
-Codex, OpenCode, Devin Local/CLI y Google Antigravity. Los puentes nativos
+Se generan propuestas para Claude Code, Codex, OpenCode V2, Devin Local/CLI
+y Google Antigravity. Los puentes nativos
 y fragmentos MCP son propuestas para revision y activacion manual, no
 integraciones certificadas ni una garantia de equivalencia de permisos o
 comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver
@@ -150,11 +153,13 @@ comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver
 
 ## Verificacion
 
-La suite local completa termino con 522 pruebas aprobadas y ninguna fallida
-en Windows, Node.js v26.8.1 y npm 11.6.0; la tanda focalizada CLI/MCP
-registro 31 aprobadas. El alcance, los resultados historicos y la reproduccion
-se documentan en [verificacion](docs/verification.md). Estas pruebas no
-certifican los cinco anfitriones ni una ejecucion real del trabajo declarado.
+La suite integral local del bloque foundation termino con 536 pruebas
+aprobadas, ninguna fallida y ninguna omitida en Windows, Node.js v26.8.1 y
+npm 11.6.0; uso concurrencia de un archivo de test. Una tanda focalizada
+manual previa registro 163 aprobadas. Son ejecuciones separadas; el alcance
+y los resultados historicos estan en [verificacion](docs/verification.md).
+Las pruebas no certifican los cinco anfitriones ni una ejecucion real del
+trabajo declarado.
 El [workflow de GitHub Actions](.github/workflows/verify.yml) se activa solo
 manualmente y aun no se ha ejecutado.
 

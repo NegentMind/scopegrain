@@ -303,6 +303,25 @@ test('native variants: missing surfaces and empty hosts rejected', () => {
     agentFrontmatter: '', readOnlyAgentFrontmatter: '',
     compatibility: 'documented-only', modelSelection: 'host-policy',
     permissionScope: 'x', sources: ['https://a.dev/x'] };
+  const variantHosts = (opencode) => ({
+    opencode, antigravity: [{ ...variant, surfaces: ['ide'] }],
+  });
+  writeJson(dir, 'policy/native-variants.json', { schemaVersion: 1,
+    hosts: variantHosts([{ ...variant, surfaces: ['cli'], selectionRequired: false }]) });
+  assert.ok(renderNativeAdapters(cfg, options).files.length > 0);
+  for (const invalid of [null, 0, 'false']) {
+    writeJson(dir, 'policy/native-variants.json', { schemaVersion: 1,
+      hosts: variantHosts([{ ...variant, surfaces: ['cli'], selectionRequired: invalid }]) });
+    assert.throws(() => renderNativeAdapters(cfg, options),
+      (e) => e.code === 'POLICY_MALFORMED');
+  }
+  writeJson(dir, 'policy/native-variants.json', { schemaVersion: 1,
+    hosts: variantHosts([
+      { ...variant, surfaces: ['cli'], selectionRequired: false },
+      { ...variant, id: 'v8', surfaces: ['cli'] },
+    ]) });
+  assert.throws(() => renderNativeAdapters(cfg, options),
+    (e) => e.code === 'POLICY_MALFORMED');
   writeJson(dir, 'policy/native-variants.json', { schemaVersion: 1, hosts: {} });
   writeJson(dir, 'policy/native-adapters.json', JSON.parse(fs.readFileSync(
     'policy/native-adapters.json', 'utf8')));

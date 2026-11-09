@@ -64,7 +64,7 @@ instalaciones, escritura fuera del alcance ni relajacion de permisos.
 
 Disponibles como datos de configuracion: nombre, idioma, anfitriones, metodologia,
 rutas, versionado por categoria y propuestas de verificacion. Los
-artefactos operativos usan `.tasksystem/` por defecto; la documentacion
+artefactos operativos usan `.scopegrain/` por defecto; la documentacion
 del producto es un entregable separado. Las decisiones del propietario no
 deben recalcularse ni reemplazarse silenciosamente.
 

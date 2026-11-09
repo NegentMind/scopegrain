@@ -3,11 +3,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { applyPlan, prepareInit } from '../src/core/bootstrap.mjs';
+import { applyPlan, prepareInit as prepareLegacyInit } from '../src/core/bootstrap.mjs';
 import {
   VALID_ANSWERS, cleanup, exists, makeTempDir, readJson, trySymlink,
   writeFile, writeJson,
 } from './helpers.mjs';
+
+function prepareInit(options) {
+  return prepareLegacyInit({ configRel: '.tasksystem/config.json', ...options });
+}
 
 const GEN = [
   '.tasksystem/config.json',

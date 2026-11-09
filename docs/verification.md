@@ -2,9 +2,10 @@
 
 ## Estado Actual
 
-La suite integral local posterior a la migracion y Organic/SDD termino con
-522 pruebas aprobadas en Windows, Node.js v26.8.1 y npm 11.6.0. No sumar
-tandas acotadas ni resultados historicos como si fueran una suite unica.
+La suite integral del bloque foundation termino con 536 pruebas aprobadas,
+0 fallidas, 0 omitidas y 0 canceladas en Windows, Node.js v26.8.1 y npm
+11.6.0. Se ejecuto con concurrencia limitada a un archivo de test. No sumar
+tandas acotadas ni resultados historicos.
 
 | Bloque | Referencia | Evidencia observada |
 | --- | --- | --- |
@@ -14,6 +15,10 @@ tandas acotadas ni resultados historicos como si fueran una suite unica.
 | Suite integral inicial | `npm test` | Exit 1: 520 pass, 1 fail, 0 skipped, 0 cancelled |
 | Reparacion focalizada | `tests/review-corrections.test.mjs` | Exit 0: 12 pass, 0 fail, 0 skipped, 0 cancelled |
 | Suite integral posterior | `npm test` | Exit 0: 522 pass, 0 fail, 0 skipped, 0 cancelled |
+| Foundation focalizada manual | 18 archivos | Exit 0: 163 pass, 0 fail, 0 skipped, 0 cancelled |
+| Foundation integral inicial | `npm test` | Exit 1: 505 tests reportados, 501 pass, 4 fail, 0 skipped, 0 cancelled |
+| Foundation diagnostico | 4 archivos del intento fallido | Exit 0: 126 pass, 0 fail, 0 skipped, 0 cancelled |
+| Foundation integral serial | `npm test`, un archivo a la vez | Exit 0: 536 pass, 0 fail, 0 skipped, 0 cancelled |
 | Pilotos en anfitriones | Pendientes | No certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
@@ -28,11 +33,43 @@ respectivamente, en `.tasksystem/verification/publication-full-suite-1794189732.
 `.tasksystem/verification/publication-full-suite-recheck-1794190295.log`.
 Estos logs tambien permanecen ignorados y no acompanan un clon publico.
 
-La integral inicial fallo porque una prueba obsoleta esperaba `INVALID_ARGS`
-para `catalog list --project`, opcion ya admitida; el contexto sin
-configuracion devolvio `CONFIG_NOT_FOUND`. Se corrigio la prueba y se anadio
-una regresion del snapshot del proyecto, sin cambiar el runtime. La tanda
-focalizada y la integral posterior son ejecuciones separadas.
+La tanda focalizada foundation fue ejecutada manualmente por el propietario;
+su resumen esta en `.tasksystem/verification/scopegrain-foundation-owner-results.md`
+y no registra versiones de Node/npm. La integral inicial y la reproduccion
+de cuatro archivos estan en
+`.tasksystem/verification/scopegrain-foundation-full-suite-1794250002.log` y
+`.tasksystem/verification/scopegrain-foundation-four-file-repro-1794250596.log`.
+La integral serial autorizada esta en
+`.tasksystem/verification/scopegrain-foundation-serial-full-suite-1794255293.log`.
+Estos archivos son locales, ignorados y no acompanan un clon publico.
+
+El intento integral foundation reporto errores `UNKNOWN` en operaciones de
+E/S y archivos de prueba abortados. El diagnostico registro un evento System
+2004 de memoria virtual baja durante ese intento; no demuestra la causa
+concreta de cada error ni una fuga de memoria. Se acoto el runner a un
+archivo de test a la vez, sin omitir casos ni relajar controles. La
+[documentacion de Node](https://raw.githubusercontent.com/nodejs/node/v26.8.1/doc/api/cli.md)
+describe `--test-concurrency`, y la
+[documentacion de Microsoft](https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/troubleshoot-application-service-memory-leaks)
+describe el evento 2004 y sus limites de diagnostico.
+
+La regresion filtrada del script fallo antes de cambiarlo, como se registra en
+`.tasksystem/verification/scopegrain-foundation-concurrency-red-1794255277.log`;
+ese filtro no es una suite completa. El script actual es
+`node --test --test-concurrency=1 tests/*.test.mjs`.
+
+La ejecucion integral serial duro aproximadamente 19 minutos y 13 segundos.
+El workflow manual reserva 45 minutos por job para dejar margen a la
+preparacion y a diferencias entre runners; no se ha ejecutado en CI y ese
+presupuesto no demuestra su duracion en Linux, Windows ni otras versiones
+de Node.
+
+La integral inicial del bloque anterior fallo porque una prueba obsoleta
+esperaba `INVALID_ARGS` para `catalog list --project`, opcion ya admitida;
+el contexto sin configuracion devolvio `CONFIG_NOT_FOUND`. Se corrigio la
+prueba y se anadio una regresion del snapshot del proyecto, sin cambiar el
+runtime. La tanda focalizada y la integral posterior son ejecuciones
+separadas.
 
 Los checks y reviews sinteticos de fixtures prueban el mecanismo, no una
 ejecucion nativa, identidad autenticada o un resultado real del producto.

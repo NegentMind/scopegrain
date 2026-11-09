@@ -12,7 +12,8 @@ import {
 
 function bootstrapped() {
   const dir = makeTempDir('doctor');
-  applyPlan(dir, prepareInit({ projectRoot: dir, answers: VALID_ANSWERS }).files);
+  applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.tasksystem/config.json',
+    answers: VALID_ANSWERS }).files);
   const ctx = resolveContext({ project: dir });
   return { dir, ctx };
 }
@@ -52,7 +53,8 @@ test('adding a lockfile after init changes fingerprint presence', () => {
   const dir = makeTempDir('doctor-lock');
   try {
     writeJson(dir, 'package.json', { name: 'x', scripts: { test: 't' } });
-    applyPlan(dir, prepareInit({ projectRoot: dir, answers: VALID_ANSWERS }).files);
+    applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.tasksystem/config.json',
+      answers: VALID_ANSWERS }).files);
     const ctx = resolveContext({ project: dir });
     assert.equal(runDoctor(ctx).changedDiscovery, false);
     writeFile(dir, 'package-lock.json', '{}');

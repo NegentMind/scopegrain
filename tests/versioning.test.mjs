@@ -1,4 +1,4 @@
-// Versioning and default-path cases (owner decision: .tasksystem workspace).
+// Versioning and default-path cases.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,9 +12,9 @@ import {
   cleanup, exists, makeTempDir, readJson, writeJson,
 } from './helpers.mjs';
 
-test('default proposals stay inside .tasksystem, never under docs/', () => {
+test('default proposals stay inside .scopegrain, never under docs/', () => {
   for (const [k, v] of Object.entries(DEFAULT_PATH_PROPOSALS)) {
-    assert.ok(v.startsWith('.tasksystem/'), `${k} -> ${v}`);
+    assert.ok(v.startsWith('.scopegrain/'), `${k} -> ${v}`);
     assert.ok(!v.startsWith('docs'), `${k} must not default into docs`);
   }
 });
@@ -98,7 +98,7 @@ test('init applies versioning files; root .gitignore untouched', () => {
   try {
     writeJson(dir, 'package.json', { name: 'x' });
     const prepared = prepareInit({
-      projectRoot: dir, answers: {
+      projectRoot: dir, configRel: '.tasksystem/config.json', answers: {
         ...DEFAULT_ANSWERS,
         versioning: { ...ALL_VERSIONING_FALSE, tasks: true },
       },
@@ -120,7 +120,8 @@ test('init applies versioning files; root .gitignore untouched', () => {
 test('old config without versioning loads and re-inits as no-op', () => {
   const dir = makeTempDir('oldcfg');
   try {
-    applyPlan(dir, prepareInit({ projectRoot: dir, answers: VALID_ANSWERS }).files);
+    applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.tasksystem/config.json',
+      answers: VALID_ANSWERS }).files);
     const cfg = readJson(dir, '.tasksystem/config.json');
     delete cfg.versioning; // simulate a pre-versioning config file
     writeJson(dir, '.tasksystem/config.json', cfg);

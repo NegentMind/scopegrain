@@ -77,8 +77,7 @@ export function trySymlink(target, linkPath, type = 'junction') {
   }
 }
 
-// Deliberate CUSTOM path fixture (kept for backward-compat coverage).
-// New-default answers mirror policy/onboarding-defaults.json.
+// Deliberate legacy paths retained for backward-compat coverage.
 export const DEFAULT_ANSWERS = {
   ...VALID_ANSWERS,
   paths: {
@@ -117,6 +116,7 @@ export function makeCatalogFixture(root, { entries = null, files = {} } = {}) {
 export function bootstrappedCtx(answers) {
   const dir = makeTempDir('boot');
   const plan = prepareInit({ projectRoot: dir,
+    configRel: '.tasksystem/config.json',
     answers: answers ?? { ...DEFAULT_ANSWERS, hosts: ['claude'] } });
   applyPlan(dir, plan.files);
   return { dir, ctx: resolveContext({ project: dir }), plan };

@@ -9,10 +9,11 @@
   },
   "license": "UNLICENSED",
   "bin": {
+    "scopegrain": "./bin/scopegrain.mjs",
     "tasksystem": "./bin/tasksystem.mjs"
   },
   "scripts": {
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.27.1",

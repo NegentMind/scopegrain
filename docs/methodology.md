@@ -13,8 +13,8 @@ cambio. La inspeccion de manifiestos tampoco demuestra comprension semantica.
 La clasificacion, tareas/planes V2, configuracion, aprobaciones, evidencia y
 gates ACT/ACCEPT estan implementados. Los bloques de evidencia y gates tienen
 pruebas acotadas registradas en [verificacion](verification.md).
-La nueva superficie CLI/MCP tiene una tanda especifica ejecutada y la suite
-integral local se completo; el alcance figura en
+La suite integral local de foundation se completo con un archivo de test a
+la vez; el alcance y las ejecuciones separadas figuran en
 [verificacion](verification.md). Los pilotos nativos siguen pendientes;
 esta guia no acredita comportamiento dentro de un anfitrion.
 

@@ -259,7 +259,8 @@ test('catalog list --project uses workspace snapshot and does not write', async 
   const dir = makeTempDir('rc-catalog');
   const empty = makeTempDir('rc-no-config');
   try {
-    applyPlan(dir, prepareInit({ projectRoot: dir, answers: DEFAULT_ANSWERS }).files);
+    applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.tasksystem/config.json',
+      answers: DEFAULT_ANSWERS }).files);
     const configFile = path.join(dir, '.tasksystem', 'config.json');
     const catalogFile = path.join(dir, '.tasksystem', 'catalog.json');
     const catalog = JSON.parse(fs.readFileSync(catalogFile, 'utf8'));

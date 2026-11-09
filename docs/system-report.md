@@ -8,8 +8,9 @@ tareas, evidencia y continuidad en un proyecto. No inventa Organic ni SDD:
 aplica estas metodologias como procedimientos y controles al trabajo
 registrado. No es un ejecutor autonomo de agentes ni de modelos.
 
-El producto conserva `tasksystem`, `tasksystem-harness`, `.tasksystem` y
-`tasksystem_` como identificadores tecnicos de compatibilidad. El nombre de
+El producto incorpora la entrada `scopegrain` y conserva `tasksystem`,
+`tasksystem-harness`, `.tasksystem` y `tasksystem_` como identificadores
+tecnicos de compatibilidad. El nombre de
 producto no implica una migracion automatica de comandos o registros.
 El [README](../README.md) contiene el inicio rapido.
 
@@ -121,7 +122,7 @@ Los perfiles optativos no instalan stacks ni autorizan herramientas.
 
 ## 6. Datos y ubicaciones
 
-Por defecto, el proyecto coloca bajo `.tasksystem/`:
+Por defecto, el proyecto coloca bajo `.scopegrain/`:
 
 | Datos | Ubicacion habitual |
 | --- | --- |
@@ -241,7 +242,7 @@ Las rutas siguientes son destinos propuestos, no archivos activados por
 | --- | --- |
 | Claude Code | Skills y agentes bajo `.claude/`; lista de lectura solicitada para roles restringidos. |
 | Codex | Skills bajo `.agents/skills/`; roles `.codex/agents/` y declaracion TOML para fusion manual. |
-| OpenCode V1/V2 | Puentes bajo `.opencode/`; V1 usa `permission`, V2 `permissions` y `mcp.servers`, sin mezclar variantes. |
+| OpenCode V2 | Puentes bajo `.opencode/`; V2 usa `permissions` y `mcp.servers`. Archivos V1 anteriores se conservan. |
 | Devin Local/CLI | Skills y agentes bajo `.devin/`; allowlist propuesta para subagentes personalizados. Cloud no es equivalente certificado. |
 | Antigravity App/CLI | Skills y agentes propuestos bajo `.agents/`; MCP propuesto deshabilitado hasta revision. |
 | Antigravity IDE | Propuesta de skills; no se asume soporte de agentes personalizados. |
@@ -298,8 +299,14 @@ La tanda focalizada de CLI/MCP ejecutada con autorizacion termino con
 resultados historicos estan en [verificacion](verification.md). No se deben
 sumar tandas historicas como si fueran una sola suite del estado actual.
 
-La suite integral local posterior termino con **522 pass, 0 fail, 0 skipped
-y 0 cancelled**, exit 0, en Windows con Node.js v26.8.1 y npm 11.6.0.
+La suite integral local del bloque anterior termino con **522 pass**, exit 0.
+En foundation, la tanda manual focalizada registro **163 pass**, la integral
+inicial **501 pass y 4 fail** sobre 505 tests reportados, y la reproduccion
+diagnostica de cuatro archivos **126 pass**, exit 0. La integral posterior,
+con un archivo de test a la vez, termino con **536 pass, 0 fail, 0 skipped y
+0 cancelled**, exit 0, en Windows con Node.js v26.8.1 y npm 11.6.0. Son
+ejecuciones separadas, no cifras sumables. El intento fallido coincidio con
+un evento de memoria virtual baja; esto no demuestra la causa de cada error.
 Los pilotos nativos no se han ejecutado y CI no se ha despachado. Estas
 pruebas no certifican anfitriones, versiones o sistemas operativos no probados.
 
@@ -309,7 +316,7 @@ El [workflow de verificacion](../.github/workflows/verify.yml) esta definido
 para activacion manual `workflow_dispatch`; no se ha ejecutado. Su matriz
 declara Node 22 y 24 sobre `ubuntu-latest` y `windows-latest`, con
 `contents: read`, acciones oficiales fijadas por SHA, checkout sin
-credenciales persistentes y limite de 20 minutos por job.
+credenciales persistentes y limite de 45 minutos por job.
 
 Solo en runners, instala dependencias con `--ignore-scripts`,
 `--no-package-lock`, `--no-audit` y `--no-fund`, y ejecuta `npm test`.

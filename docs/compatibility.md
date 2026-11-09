@@ -10,7 +10,7 @@ certifica comportamiento equivalente entre productos.
 | --- | --- | --- | --- |
 | Claude Code | `CLAUDE.md` (raiz) | `integrations/claude-mcp.json` con `mcpServers.tasksystem` (`type: stdio`) | Documental; requiere aprobacion del usuario en el anfitrion |
 | Codex | `AGENTS.md` (raiz) | `integrations/codex-mcp.toml` (`[mcp_servers.tasksystem]`) | Documental; el proyecto requiere trust en Codex |
-| OpenCode V2 | `AGENTS.md` (raiz) | `integrations/opencode-mcp.json` (`mcp.servers.tasksystem`, `disabled:true`) | Documental; propuesta V1 separada, no activar ambas |
+| OpenCode V2 | `AGENTS.md` (raiz) | `integrations/opencode-mcp.json` (`mcp.servers.tasksystem`, `disabled:true`) | Documental; sin certificacion nativa |
 | Devin Local/CLI | `AGENTS.md` (raiz) | `integrations/devin-mcp.json` (`mcpServers.tasksystem` sin `type`) | Documental para Local/CLI; Devin Cloud no se considera equivalente |
 | Google Antigravity | Propuestas App/CLI e IDE diferenciadas | `integrations/antigravity-mcp.json` y propuesta nativa revisable | Generacion local; sin piloto nativo ni agentes asumidos en IDE |
 
@@ -28,8 +28,9 @@ certifica comportamiento equivalente entre productos.
   referencias externas en texto plano no se expanden automaticamente, por
   eso el entrypoint instruye leer el archivo de instrucciones. El fragmento
   usa el formato V2 `mcp.servers.<name>` con `type:"local"`,
-  `command:[...]`, `disabled:true`. El formato V1 anterior queda en
-  `opencode-v1-mcp.json` con `enabled:false`.
+  `command:[...]`, `disabled:true`. Ya no se genera una propuesta V1; los
+  archivos V1 existentes no se eliminan. Su antigua ruta se conserva
+  reservada para evitar colisiones.
 - **Devin Local/CLI:** `AGENTS.md` en la raiz es la recomendacion oficial;
   Local comparte las customizaciones del CLI. El fragmento sigue la forma
   `mcpServers` con `command`/`args` del archivo de configuracion MCP

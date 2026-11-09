@@ -4,13 +4,13 @@
   "hosts": ["claude", "codex", "opencode", "devin", "antigravity"],
   "methodology": "organic-sdd",
   "paths": {
-    "plans": ".tasksystem/plans",
-    "tasks": ".tasksystem/tasks",
-    "reports": ".tasksystem/reports",
-    "research": ".tasksystem/research",
-    "decisions": ".tasksystem/decisions",
-    "memory": ".tasksystem/memory",
-    "state": ".tasksystem/state"
+    "plans": ".scopegrain/plans",
+    "tasks": ".scopegrain/tasks",
+    "reports": ".scopegrain/reports",
+    "research": ".scopegrain/research",
+    "decisions": ".scopegrain/decisions",
+    "memory": ".scopegrain/memory",
+    "state": ".scopegrain/state"
   },
   "versioning": {
     "plans": false,

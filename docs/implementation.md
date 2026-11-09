@@ -10,7 +10,7 @@ vigentes se especifican en [workflows](workflows.md),
 [mapa de migracion](component-migration.md), con
 [Organic y SDD](methodology.md) para los gates actuales. Los requisitos adicionales
 incluyen catalogo canonico, planes DAG, artefactos, sesiones con presupuesto
-registrado, workspace `.tasksystem/` y versionado preguntado por categoria.
+registrado, workspace `.scopegrain/` y versionado preguntado por categoria.
 
 ## Limites de esta entrega
 
@@ -65,7 +65,7 @@ inspectProject(projectRoot) devuelve {schemaVersion:1, stacks:[], evidence:[],
 commands:[], fingerprint, warnings:[]}. No writes ni shell ni red.
 Recorrido por carpetas: profundidad maxima 4, maximo 1000 entradas; excluir
 .git, node_modules, vendor, .venv, venv, target, dist, build, coverage, legacy,
-.tasksystem y nombres que comiencen por punto excepto .github.
+.tasksystem, .scopegrain y nombres que comiencen por punto excepto .github.
 Nunca seguir symlinks/junctions. No leer .env, llaves ni credenciales.
 Leer solamente manifiestos de lista permitida con limite de 128 KiB:
 package.json, Cargo.toml, pyproject.toml, go.mod, pom.xml, composer.json,
@@ -98,13 +98,13 @@ createConfig(projectRoot, answers, discovery) produce:
   "locale": "es",
   "hosts": ["claude", "codex", "opencode", "devin"],
   "paths": {
-    "plans": ".tasksystem/plans",
-    "tasks": ".tasksystem/tasks",
-    "reports": ".tasksystem/reports",
-    "research": ".tasksystem/research",
-    "decisions": ".tasksystem/decisions",
-    "memory": ".tasksystem/memory",
-    "state": ".tasksystem/state"
+    "plans": ".scopegrain/plans",
+    "tasks": ".scopegrain/tasks",
+    "reports": ".scopegrain/reports",
+    "research": ".scopegrain/research",
+    "decisions": ".scopegrain/decisions",
+    "memory": ".scopegrain/memory",
+    "state": ".scopegrain/state"
   },
   "verification": {"mode": "manual", "commands": []},
   "discovery": {"fingerprint": "", "stacks": [], "evidence": []}
@@ -120,8 +120,11 @@ a false en todas las categorias para compatibilidad.
 locale solo es es o en; hosts conocidos, no duplicados, al menos uno.
 Validar tipos, version y claves; rechazar desconocidas en las respuestas y
 en la configuracion para no ignorar errores tipograficos.
-Config predeterminada .tasksystem/config.json, --config alternativo relativo
-al project root. No guardar rutas absolutas al proyecto en config compartida.
+Config predeterminada .scopegrain/config.json; si solo existe la config
+legacy .tasksystem/config.json, se selecciona sin migrar. Ambas entradas
+requieren --config explicito; una ruta explicita no hace fallback.
+--config es relativo al project root. No guardar rutas absolutas al proyecto
+en config compartida.
 loadConfig(projectRoot,configPath) valida sin mutar.
 La configuracion y todos los destinos deben ser relativos, sin .., NUL,
 colon, unidades Windows, UNC ni segmentos vacios; rechazar rutas absolutas
@@ -188,8 +191,8 @@ Claude: propuesta .mcp.json {"mcpServers":{"tasksystem":{"type":"stdio",
 "command":"node","args":[SERVER,"--project",ROOT,"--config",CONFIG]}}}.
 Devin Local/CLI: misma envoltura mcpServers y command/args, sin type.
 Codex: fragmento para .codex/config.toml [mcp_servers.tasksystem] con command
-y args. OpenCode: opencode.json formato {"mcp":{"tasksystem":{"type":"local",
-"command":["node",SERVER,"--project",ROOT,"--config",CONFIG],"enabled":true}}}.
+y args. OpenCode V2: formato {"mcp":{"servers":{"tasksystem":{"type":"local",
+"command":["node",SERVER,"--project",ROOT,"--config",CONFIG],"disabled":true}}}}.
 No prometer perfil de permisos ni subagentes equivalentes; no registrar
 automaticamente servidores ni servicios terceros.
 

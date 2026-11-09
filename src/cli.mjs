@@ -3,7 +3,7 @@
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { err, toErrorPayload } from './core/errors.mjs';
-import { DEFAULT_CONFIG_PATH, DEFAULT_PATH_PROPOSALS, KNOWN_HOSTS, PATH_KEYS, VERSIONING_KEYS, loadConfig, validateMethodologyMode } from './core/config.mjs';
+import { DEFAULT_PATH_PROPOSALS, KNOWN_HOSTS, PATH_KEYS, VERSIONING_KEYS, loadConfig, resolveConfigPath, validateMethodologyMode } from './core/config.mjs';
 import { resolveContext } from './core/context.mjs';
 import { resolveProjectRoot } from './core/paths.mjs';
 import { prepareInit, applyPlan, preflightPlan } from './core/bootstrap.mjs';
@@ -220,12 +220,13 @@ const WORKFLOW_ALIAS_FLAGS = [
 
 function helpResult() {
   return {
-    usage: 'tasksystem <command> [options]  |  tasksystem --help',
+    usage: 'scopegrain <command> [options]  |  scopegrain --help',
     commands: Object.entries(COMMANDS).map(([name, c]) => ({
       command: c.usage,
       description: name,
     })),
     notes: [
+      'tasksystem remains a compatible CLI alias',
       '--yes and --force are not supported; confirmation is always explicit',
       'results are JSON on stdout; errors are JSON on stderr with exit code 1',
       'JSON creation previews do not reserve IDs; use IDs returned by --apply',
@@ -325,8 +326,7 @@ async function askInteractive(io, projectRoot, configFlag, existing) {
     }
     io.stderr('Metodo invalido: use manual, organic-sdd o sdd.');
   }
-  const configRel = await io.ask('Ruta de configuracion',
-    configFlag || DEFAULT_CONFIG_PATH);
+  const configRel = await io.ask('Ruta de configuracion', configFlag);
   answers.paths = {};
   for (const key of PATH_KEYS) {
     answers.paths[key] = await io.ask(PATH_LABELS[key],
@@ -367,7 +367,7 @@ function planJson(prepared) {
 async function cmdInit(flags, io) {
   const projectRoot = resolveProjectRoot(requireFlag(flags, '--project'));
   let answers;
-  let configRel = flags['--config'] || null;
+  let configRel = resolveConfigPath(projectRoot, flags['--config']);
   const interactive = !flags['--answers'];
   let existing = null;
   if (interactive) {
@@ -375,9 +375,8 @@ async function cmdInit(flags, io) {
       throw err('INTERACTIVE_REQUIRED',
         'init without --answers requires a terminal; no implicit writes');
     }
-    const cfgCandidate = configRel || DEFAULT_CONFIG_PATH;
     try {
-      existing = loadConfig(projectRoot, cfgCandidate).config;
+      existing = loadConfig(projectRoot, configRel).config;
     } catch (e) {
       if (e.code !== 'CONFIG_NOT_FOUND') throw e;
     }

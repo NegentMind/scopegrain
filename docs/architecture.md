@@ -9,7 +9,8 @@ perezosa al arrancar.
 ## Modulos
 
 ```text
-bin/tasksystem.mjs        Entrada del binario; delega en src/cli.mjs
+bin/scopegrain.mjs        Entrada del binario; delega en src/cli.mjs
+bin/tasksystem.mjs        Alias compatible; delega en src/cli.mjs
 src/cli.mjs               Parser de comandos y flujos interactivos; IO inyectable
 src/core/errors.mjs       Errores {code, message} (TaskError)
 src/core/fsx.mjs          Helpers sincronicos de filesystem
@@ -55,6 +56,9 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
 
 - Toda ruta de proyecto viene de `--project` o de la configuracion cargada;
   nada se deriva ascendiendo desde la instalacion.
+- Sin `--config`, la seleccion reconoce `.scopegrain/config.json` y la
+  config legacy `.tasksystem/config.json`; dos entradas producen
+  `CONFIG_AMBIGUOUS`. Una seleccion explicita no hace fallback.
 - `policy/workflow.json` define estados, aristas, acciones y aceptacion
   base. `policy/methodology.json` define el contrato metodologico.
   Los gates agregan controles; no crean otra maquina de estados.
@@ -68,7 +72,7 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
 - Los procedimientos los interpreta el anfitrion. TaskSystem no crea
   clientes LLM ni ejecuta subagentes por tener una definicion de rol.
 - La politica de onboarding propone todos los artefactos dentro de
-  `.tasksystem/`; las ocho preferencias de versionado no autorizan
+  `.scopegrain/`; las ocho preferencias de versionado no autorizan
   modificar el Git del proyecto ni publicar datos privados.
 
 ## Decisiones relevantes
@@ -85,7 +89,10 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   fingerprint de descubrimiento no cambio, se preserva el objeto config
   completo y los bytes originales de `config.json` y `discovery.json`
   (formato, orden, comandos de verificacion aprobados, evidencia original);
-  la reejecucion es un no-op real. Si `discovery.json` fue borrado, se
+  la reejecucion es un no-op cuando tambien coinciden los demas contenidos
+  generados. Un snapshot antiguo OpenCode V1/V2 puede producir
+  `PLAN_CONFLICT` con el generador V2, sin modificar los archivos anteriores.
+  Si `discovery.json` fue borrado, se
   replantea como archivo nuevo con la serializacion actual. Si cambio el
   fingerprint, los contenidos difieren y el preflight bloquea con
   conflicto explicito (reconciliacion manual).
@@ -110,8 +117,8 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
 - **Descubrimiento:** profundidad <=4, <=1000 entradas, manifiestos <=128
   KiB de una lista permitida; sin seguir enlaces; carpetas puntuales
   excluidas (`.git`, `node_modules`, `vendor`, `.venv`, `venv`, `target`,
-  `dist`, `build`, `coverage`, `legacy`, `.tasksystem`, y todo nombre que
-  comience por punto salvo `.github`).
+  `dist`, `build`, `coverage`, `legacy`, `.tasksystem`, `.scopegrain`, y todo
+  nombre que comience por punto salvo `.github`).
 - **Fingerprint:** sha256 sobre el arreglo ordenado de
   `JSON.stringify([ruta, tamano, contenido])` por manifiesto admitido, mas
   `JSON.stringify([ruta, 'lockfile'])` por cada lockfile reconocido

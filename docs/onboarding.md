@@ -41,7 +41,7 @@ CLI; el servidor MCP si requiere las dependencias declaradas en
      `schemas/answers.schema.json`. El esquema solo documenta forma; la
      contencion y los symlinks se validan en runtime.
 
-3. **Archivos generados** (junto a la config, por defecto `.tasksystem/`):
+3. **Archivos generados** (junto a la config, por defecto `.scopegrain/`):
 
    | Archivo | Origen |
    | --- | --- |
@@ -83,7 +83,7 @@ CLI; el servidor MCP si requiere las dependencias declaradas en
   para degradar un proyecto que ya usa otro modo: la diferencia es conflicto.
   Ver [Organic y SDD](methodology.md).
 
-- Todos los artefactos operativos se proponen dentro de `.tasksystem/`:
+- Todos los artefactos operativos se proponen dentro de `.scopegrain/`:
   planes, task files, reports/reviews, research, decisions, memory y state.
   La documentacion destinada a usuarios del producto es un entregable
   distinto y conserva las convenciones de ese proyecto.
@@ -97,6 +97,11 @@ CLI; el servidor MCP si requiere las dependencias declaradas en
   retira archivos que Git ya seguia; eso requiere decision del propietario.
 - Config fuera de la ruta por defecto: `--config "ruta/relativa/config.json"`
   en `init` (pregunta interactiva o flag) y en los comandos posteriores.
+- Sin `--config`, se usa `.scopegrain/config.json`, o el archivo legacy
+  `.tasksystem/config.json` si es la unica config presente. Si existen ambas
+  entradas, `CONFIG_AMBIGUOUS` exige seleccion explicita. Una seleccion
+  explicita ausente o invalida no recurre a otra config; directorios sin
+  entrada `config.json` no cuentan como config.
 - Las rutas de artefactos son relativas al proyecto; no se aceptan destinos
   reservados (`.git`, `node_modules`, `legacy`, `.opencode`). Los fragmentos
   MCP machine-local si pueden contener rutas absolutas de la instalacion y
@@ -107,10 +112,13 @@ CLI; el servidor MCP si requiere las dependencias declaradas en
 
 ## Re-init y cambios de manifiestos
 
-- Reejecutar `init` con la misma config y respuestas es no-op.
+- Reejecutar `init` con la misma config y respuestas es no-op si todos los
+  contenidos generados coinciden.
 - Esa propiedad supone las mismas fuentes canonicas del harness.
   Al actualizar TaskSystem pueden aparecer conflictos de contenido
   generado; no existe `--force` para sobrescribirlos ni migracion automatica.
+  Un snapshot OpenCode V1/V2 anterior puede bloquearse con `PLAN_CONFLICT`;
+  se conservan todos sus bytes y archivos V1.
 - Si los manifiestos cambiaron (fingerprint distinto), `init` se detiene con
   conflicto sobre `config.json`/`discovery.json`; `doctor` ademas reporta
   `changedDiscovery:true` para avisar antes.

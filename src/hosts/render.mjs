@@ -79,19 +79,6 @@ function renderOpencode(serverPath, projectRoot, configRel) {
   }, null, 2) + '\n';
 }
 
-// Legacy OpenCode V1 proposal, preserved separately.
-function renderOpencodeV1(serverPath, projectRoot, configRel) {
-  return JSON.stringify({
-    mcp: {
-      tasksystem: {
-        type: 'local',
-        command: ['node', ...stdioArgs(serverPath, projectRoot, configRel)],
-        enabled: false,
-      },
-    },
-  }, null, 2) + '\n';
-}
-
 // Antigravity (.agents/mcp_config.json): disabled:true proposal, stdio.
 function renderAntigravity(serverPath, projectRoot, configRel) {
   return JSON.stringify({
@@ -112,14 +99,6 @@ const RENDERERS = {
   devin: { file: 'devin-mcp.json', format: 'json', render: renderDevin },
   antigravity: { file: 'antigravity-mcp.json', format: 'json',
     render: renderAntigravity },
-};
-
-// Extra fragments emitted alongside a host's primary file. The V1 OpenCode
-// proposal is kept as a distinct reserved destination, never merged.
-const EXTRA_FILES = {
-  opencode: [
-    { file: 'opencode-v1-mcp.json', format: 'json', render: renderOpencodeV1 },
-  ],
 };
 
 // renderAdapters(config, {projectRoot, configPath, instructionsPath,
@@ -149,15 +128,6 @@ export function renderAdapters(config, opts) {
       machineLocal: true,
       content: spec.render(serverPath, projectRoot, configRel),
     });
-    for (const extra of EXTRA_FILES[host] || []) {
-      files.push({
-        host,
-        relativePath: `integrations/${extra.file}`,
-        format: extra.format,
-        machineLocal: true,
-        content: extra.render(serverPath, projectRoot, configRel),
-      });
-    }
   }
   return {
     files,

@@ -1,6 +1,6 @@
 // Configuration contract: validation, creation and loading.
 // The canonical workflow policy lives in policy/workflow.json; this module
-// only models .tasksystem/config.json and init answers.
+// models project configuration and init answers.
 import { err } from './errors.mjs';
 import { lstatOrNull, readJsonFile } from './fsx.mjs';
 import {
@@ -24,7 +24,20 @@ export const VERSIONING_KEYS = [
   'plans', 'tasks', 'reports', 'reviews', 'research', 'decisions',
   'memory', 'state',
 ];
-export const DEFAULT_CONFIG_PATH = '.tasksystem/config.json';
+export const DEFAULT_CONFIG_PATH = '.scopegrain/config.json';
+export const LEGACY_CONFIG_PATH = '.tasksystem/config.json';
+
+export function resolveConfigPath(projectRoot, configPath) {
+  if (configPath !== undefined && configPath !== null) {
+    return assertDestination(configPath, 'configPath');
+  }
+  const current = lstatOrNull(resolveInside(projectRoot, DEFAULT_CONFIG_PATH, 'config'));
+  const legacy = lstatOrNull(resolveInside(projectRoot, LEGACY_CONFIG_PATH, 'config'));
+  if (current && legacy) {
+    throw err('CONFIG_AMBIGUOUS', 'multiple config entries found; select one with --config');
+  }
+  return legacy ? LEGACY_CONFIG_PATH : DEFAULT_CONFIG_PATH;
+}
 
 // Proposal defaults come verbatim from policy/onboarding-defaults.json;
 // never accepted implicitly: every category is asked and stored explicitly.
@@ -190,6 +203,7 @@ export function generatedFilePaths(configRel, hosts) {
     const ext = host === 'codex' ? 'toml' : 'json';
     files.push(`${prefix}integrations/${host}-mcp.${ext}`);
     if (host === 'opencode') {
+      // Retain the legacy destination reservation to prevent collisions.
       files.push(`${prefix}integrations/opencode-v1-mcp.json`);
     }
   }
@@ -276,8 +290,8 @@ export function validateConfigObject(config) {
 }
 
 // Load and validate without mutating. configPath is project-relative.
-export function loadConfig(projectRoot, configPath = DEFAULT_CONFIG_PATH) {
-  const configRel = assertDestination(configPath, 'configPath');
+export function loadConfig(projectRoot, configPath) {
+  const configRel = resolveConfigPath(projectRoot, configPath);
   const abs = resolveInside(projectRoot, configRel, 'config');
   const st = lstatOrNull(abs);
   if (!st) throw err('CONFIG_NOT_FOUND', `config not found: ${configRel}`);

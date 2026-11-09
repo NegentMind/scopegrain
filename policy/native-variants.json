@@ -3,27 +3,11 @@
   "hosts": {
     "opencode": [
       {
-        "id": "v1",
-        "surfaces": [
-          "cli"
-        ],
-        "selectionRequired": true,
-        "emitAgents": true,
-        "agentFrontmatter": "mode: subagent\n",
-        "readOnlyAgentFrontmatter": "permission:\n  edit: deny\n  bash: deny\n  task: deny\n",
-        "permissionScope": "Requested V1 edit/bash/task denial. Does not authenticate MCP or certify runtime enforcement.",
-        "compatibility": "documented-only",
-        "sources": [
-          "https://github.com/anomalyco/opencode/blob/v2.1.2/services/www/src/docs/content/migrate-v1.mdx"
-        ],
-        "modelSelection": "host-policy"
-      },
-      {
         "id": "v2",
         "surfaces": [
           "cli"
         ],
-        "selectionRequired": true,
+        "selectionRequired": false,
         "emitAgents": true,
         "agentFrontmatter": "mode: subagent\n",
         "readOnlyAgentFrontmatter": "permissions:\n  - action: edit\n    resource: \"*\"\n    effect: deny\n  - action: shell\n    resource: \"*\"\n    effect: deny\n  - action: subagent\n    resource: \"*\"\n    effect: deny\n",
