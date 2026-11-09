@@ -21,6 +21,8 @@ tandas acotadas ni resultados historicos.
 | Foundation integral serial | `npm test`, un archivo a la vez | Exit 0: 536 pass, 0 fail, 0 skipped, 0 cancelled |
 | Workspace compatibilidad inicial | 4 archivos, antes del endurecimiento final | Exit 0: 47 pass, 0 fail, 0 skipped, 0 cancelled |
 | Workspace focalizada final | `tests/workspaces.test.mjs` | Exit 0: 25 pass, 0 fail, 0 skipped, 0 cancelled |
+| Journal compatibilidad inicial | Journal, workspace y bootstrap | Exit 0: 66 pass, 0 fail, 0 skipped, 0 cancelled |
+| Journal focalizada final | `tests/journal.test.mjs`, tras revision | Exit 0: 29 pass, 0 fail, 0 skipped, 0 cancelled |
 | Pilotos en anfitriones | Pendientes | No certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
@@ -56,6 +58,22 @@ Los logs son `.tasksystem/verification/scopegrain-workspaces-green-final-1794257
 `scopegrain-workspaces-rework-green-final-1794258101.log` y
 `scopegrain-workspaces-help-1794257497.log` bajo la misma carpeta.
 No se repitio la integral de foundation ni se valido VantaDB con este bloque.
+
+El kernel de journal se verifico con snapshots, reserva activa, carreras
+create-to-noop, fallos de fuente/marcador, ACK idempotente y scopes all-of.
+La revision encontro que una reserva activa sin indice podia parecer una
+cola vacia. Tres regresiones de lectura fallaron antes de la correccion;
+la focalizada final aprobo 29 pruebas. La tanda previa de compatibilidad
+aprobo 66 pruebas y no se suma a la final. Los logs locales son
+`.tasksystem/verification/scopegrain-journal-green-complete-1794262437.log`,
+`scopegrain-journal-listing-red-1794263030.log` y
+`scopegrain-journal-listing-green-1794263051.log` bajo la misma carpeta.
+El RED inicial por modulo ausente se conserva separadamente en
+`scopegrain-journal-red-1794261393.log`; no prueba fallos de comportamiento.
+Este kernel sigue siendo interno y create-only: no activa escritores
+publicos, recuperacion automatica, captura, CLI/MCP ni VantaDB. La reserva
+incompleta se conserva hasta una reconciliacion explicita futura.
+No se repitio la integral ni se ejecutaron pilotos nativos con este bloque.
 
 El intento integral foundation reporto errores `UNKNOWN` en operaciones de
 E/S y archivos de prueba abortados. El diagnostico registro un evento System

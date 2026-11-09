@@ -100,6 +100,25 @@ export function loadLimits() {
   return d;
 }
 
+export function loadJournalPolicy() {
+  const d = loadPolicyFile('journal.json', 'journal policy');
+  const keys = ['schemaVersion', 'maxOperationEvents', 'maxPendingOperations',
+    'defaultPageSize', 'maxPageSize'];
+  if (Object.keys(d).some((key) => !keys.includes(key))
+      || keys.some((key) => !Object.hasOwn(d, key))) {
+    throw err('POLICY_MALFORMED', 'journal policy has missing or unknown keys');
+  }
+  for (const key of keys.slice(1)) {
+    if (!Number.isSafeInteger(d[key]) || d[key] <= 0) {
+      throw err('POLICY_MALFORMED', `journal.${key} must be a positive safe integer`);
+    }
+  }
+  if (d.defaultPageSize > d.maxPageSize) {
+    throw err('POLICY_MALFORMED', 'journal.defaultPageSize exceeds maxPageSize');
+  }
+  return d;
+}
+
 // Authored methodology policy (policy/methodology.json): modes, defaults,
 // risk categories, gated states, research escalation and false capabilities.
 // Immutable declared facts — never tunable thresholds. Validated against

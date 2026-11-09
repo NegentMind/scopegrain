@@ -275,3 +275,11 @@ export function resolveWorkspaceRepository(bound, repositoryId) {
   revalidate(state);
   return state.ctx.projectRoot;
 }
+
+export function resolveWorkspaceState(bound) {
+  const state = binding(bound);
+  revalidate(state);
+  const stateRel = assertDestination(state.ctx.config.paths.state, 'paths.state');
+  resolveInside(state.ctx.projectRoot, stateRel, 'paths.state');
+  return Object.freeze({ projectRoot: state.ctx.projectRoot, stateRel });
+}

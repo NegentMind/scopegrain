@@ -18,6 +18,7 @@ src/core/paths.mjs        Rutas relativas seguras, contencion, anti-symlink
 src/core/config.mjs       Contrato de config.json, answers y colisiones
 src/core/context.mjs      Vincula project root explicito + config cargada
 src/core/workspaces.mjs   Identidad por proyecto, areas y autorizacion interna de scope
+src/core/journal.mjs      Journal interno create-only y outbox acotado
 src/core/policy.mjs       Carga las politicas canonicas del runtime instalado
 src/core/tasks.mjs        Documentos de tarea, createTask, getTask, listTasks
 src/core/catalog.mjs      Catalogo activo validado y proyeccion de recursos
@@ -69,8 +70,21 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   al revalidarlo, ese binding queda invalidado permanentemente con
   `WORKSPACE_STALE`; se requiere un nuevo binding explicito.
 - Las areas son scopes logicos, no ACL del sistema operativo ni sandbox.
-  Esta capa no implementa journal, VantaDB, sincronizacion ni autorizacion MCP;
-  no autentica identidades ni aisla actores con acceso al mismo filesystem.
+  La capa de workspace no conecta VantaDB ni implementa sincronizacion o
+  autorizacion MCP; no autentica identidades ni aisla actores con acceso al
+  mismo filesystem.
+- El journal interno create-only guarda snapshots, intent y outbox antes de
+  crear fuentes; solo una creacion completa permite el marcador committed.
+  Un resultado incierto conserva la reserva activa y bloquea nuevas
+  creaciones hasta una reconciliacion explicita futura. Un fallo al limpiar
+  la reserva tras el marcador tambien bloquea escrituras, sin repetir la
+  creacion. La paginacion del outbox no es una frontera de sincronizacion.
+- Un ack local es una declaracion del adaptador, no prueba de ejecucion remota.
+  Antes de exponer el journal a herramientas no confiables hacen falta
+  adaptadores tipados y ownership de registros. No hay integracion de
+  escritores, captura automatica ni VantaDB en este bloque. El lock es
+  cooperativo; no garantiza transacciones OS ni detecta toda manipulacion de
+  head o historial sin una auditoria integral separada.
 - `policy/workflow.json` define estados, aristas, acciones y aceptacion
   base. `policy/methodology.json` define el contrato metodologico.
   Los gates agregan controles; no crean otra maquina de estados.

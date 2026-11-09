@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "maxOperationEvents": 101,
+  "maxPendingOperations": 10000,
+  "defaultPageSize": 50,
+  "maxPageSize": 100
+}

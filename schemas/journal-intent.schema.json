@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Scopegrain journal intent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "operationId", "state", "createdAt", "events"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "operationId": {"$ref": "#/$defs/uuid"},
+    "state": {"const": "prepared"},
+    "createdAt": {"$ref": "#/$defs/timestamp"},
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion", "eventId", "operationId", "journalSequence",
+          "workspaceId", "projectId", "repositoryId", "areaIds", "sourceKind",
+          "recordId", "sourceRevision", "sourceRel", "previousHash", "sourceHash",
+          "snapshotRef", "operation", "createdAt"
+        ],
+        "properties": {
+          "schemaVersion": {"const": 1},
+          "eventId": {"$ref": "#/$defs/uuid"},
+          "operationId": {"$ref": "#/$defs/uuid"},
+          "journalSequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+          "workspaceId": {"$ref": "#/$defs/uuid"},
+          "projectId": {"$ref": "#/$defs/uuid"},
+          "repositoryId": {"$ref": "#/$defs/uuid"},
+          "areaIds": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"$ref": "#/$defs/uuid"}
+          },
+          "sourceKind": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$"},
+          "recordId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$"},
+          "sourceRevision": {
+            "anyOf": [{"type": "null"},
+              {"type": "integer", "minimum": 0, "maximum": 9007199254740991}]
+          },
+          "sourceRel": {"type": "string", "minLength": 1},
+          "previousHash": {"type": "null"},
+          "sourceHash": {"$ref": "#/$defs/hash"},
+          "snapshotRef": {"type": "string", "minLength": 1},
+          "operation": {"const": "create"},
+          "createdAt": {"$ref": "#/$defs/timestamp"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "timestamp": {
+      "type": "string",
+      "description": "Canonical Date.toISOString value, validated at runtime."
+    }
+  },
+  "description": "Runtime validates policy limits, identity relationships, sequences, paths, hashes and scope."
+}
