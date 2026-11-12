@@ -19,6 +19,7 @@ src/core/config.mjs       Contrato de config.json, answers y colisiones
 src/core/context.mjs      Vincula project root explicito + config cargada
 src/core/workspaces.mjs   Identidad por proyecto, areas y autorizacion interna de scope
 src/core/journal.mjs      Journal interno create-only y outbox acotado
+src/integrations/vantadb.mjs  Proyeccion MCP interna de eventos confirmados
 src/core/policy.mjs       Carga las politicas canonicas del runtime instalado
 src/core/tasks.mjs        Documentos de tarea, createTask, getTask, listTasks
 src/core/catalog.mjs      Catalogo activo validado y proyeccion de recursos
@@ -81,10 +82,20 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   creacion. La paginacion del outbox no es una frontera de sincronizacion.
 - Un ack local es una declaracion del adaptador, no prueba de ejecucion remota.
   Antes de exponer el journal a herramientas no confiables hacen falta
-  adaptadores tipados y ownership de registros. No hay integracion de
-  escritores, captura automatica ni VantaDB en este bloque. El lock es
-  cooperativo; no garantiza transacciones OS ni detecta toda manipulacion de
-  head o historial sin una auditoria integral separada.
+  adaptadores tipados y ownership de registros. El lock es cooperativo; no
+  garantiza transacciones OS ni detecta toda manipulacion de head o historial
+  sin una auditoria integral separada.
+- La proyeccion VantaDB es un puente interno, inyectado y sin proceso nativo:
+  envia solo eventos historicos confirmados y snapshots verificados por
+  `memory_get`/`memory_put`, con claves inmutables y readback. Permite
+  reconciliacion al reintentar explicitamente, sin prometer CAS ni una sola
+  escritura fisica. El ack local
+  declara lo verificado por el adaptador, no autentica el backend. La entrega
+  del estado actual requiere ownership y comprobaciones de hash posteriores;
+  no hay activacion de escritores, captura automatica, gateway ni motor.
+  Un lease cooperativo limita el trabajador sin retener el lock del journal
+  durante llamadas remotas; el timeout es contrato del cliente futuro, no
+  garantia para callbacks arbitrarios.
 - `policy/workflow.json` define estados, aristas, acciones y aceptacion
   base. `policy/methodology.json` define el contrato metodologico.
   Los gates agregan controles; no crean otra maquina de estados.
