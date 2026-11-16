@@ -23,6 +23,7 @@ tandas acotadas ni resultados historicos.
 | Workspace focalizada final | `tests/workspaces.test.mjs` | Exit 0: 25 pass, 0 fail, 0 skipped, 0 cancelled |
 | Journal compatibilidad inicial | Journal, workspace y bootstrap | Exit 0: 66 pass, 0 fail, 0 skipped, 0 cancelled |
 | Journal focalizada final | `tests/journal.test.mjs`, tras revision | Exit 0: 29 pass, 0 fail, 0 skipped, 0 cancelled |
+| Proyeccion MCP interna | Proyeccion y MCP in-memory, 2026-11-16 | Exit 0: 28 pass, 0 fail, 0 skipped, 0 cancelled |
 | Pilotos en anfitriones | Pendientes | No certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
@@ -74,6 +75,21 @@ Este kernel sigue siendo interno y create-only: no activa escritores
 publicos, recuperacion automatica, captura, CLI/MCP ni VantaDB. La reserva
 incompleta se conserva hasta una reconciliacion explicita futura.
 No se repitio la integral ni se ejecutaron pilotos nativos con este bloque.
+
+El puente interno de proyeccion del commit `d5a23a5` se reviso y verifico
+por separado mediante
+`node --test --test-concurrency=1 tests/vantadb-projection.test.mjs tests/mcp.test.mjs`.
+La ejecucion aprobo 28 pruebas sin fallos, omisiones ni cancelaciones,
+con salida 0 y duracion de 19369.9938 ms. El log local es
+`.tasksystem/verification/2026-11-16-vantadb-projection-green-1794801914.log`;
+el RED inicial por modulo ausente permanece en
+`.tasksystem/verification/scopegrain-vantadb-projection-red-1794264898.log`.
+Estos logs estan ignorados y no acompanan automaticamente un clon.
+Se verificaron scopes all-of, snapshots y chunks, respuestas MCP tipadas,
+conflictos, respuestas perdidas, readback, lease y ACK local recuperable.
+El transporte in-memory no certifica el ejecutable VantaDB, sus proveedores
+de embeddings ni una base real. No se inicio un motor ni se repitio la
+suite integral. Este bloque no activa escritores publicos ni captura.
 
 El intento integral foundation reporto errores `UNKNOWN` en operaciones de
 E/S y archivos de prueba abortados. El diagnostico registro un evento System
@@ -217,7 +233,7 @@ Desde la raiz de TaskSystem:
 ```powershell
 npm test
 # equivalente:
-node --test tests/*.test.mjs
+node --test --test-concurrency=1 tests/*.test.mjs
 ```
 
 ## Verificacion por area (mas acotada)
