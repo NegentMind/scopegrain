@@ -80,6 +80,11 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   creaciones hasta una reconciliacion explicita futura. Un fallo al limpiar
   la reserva tras el marcador tambien bloquea escrituras, sin repetir la
   creacion. La paginacion del outbox no es una frontera de sincronizacion.
+- El seam interno `applyJournaledRecordCreation` es para adaptadores tipados
+  de confianza: el kernel genera una vez operationId/createdAt, entrega una
+  copia congelada al callback sincrono y valida el resultado como cualquier
+  cambio. Todas las fuentes propuestas deben ser creaciones nuevas; un noop
+  es conflicto, nunca adopcion. No es API JSON, CLI ni captura activada.
 - Un ack local es una declaracion del adaptador, no prueba de ejecucion remota.
   Antes de exponer el journal a herramientas no confiables hacen falta
   adaptadores tipados y ownership de registros. El lock es cooperativo; no

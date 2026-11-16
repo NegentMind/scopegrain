@@ -10,8 +10,8 @@ import { canonicalDigest } from '../src/core/digests.mjs';
 import { loadJournalPolicy, loadLimits } from '../src/core/policy.mjs';
 import { bindWorkspace, prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
-  ackJournalEvent, applyJournaledCreation, getJournalEvent, getJournalOperation,
-  listJournalPending, readJournalSnapshot,
+  ackJournalEvent, applyJournaledCreation, applyJournaledRecordCreation,
+  getJournalEvent, getJournalOperation, listJournalPending, readJournalSnapshot,
 } from '../src/core/journal.mjs';
 import { VALID_ANSWERS, cleanup, makeTempDir, trySymlink, writeFile, writeJson }
   from './helpers.mjs';
@@ -828,4 +828,97 @@ test('bound project root removal and junction replacement deny journal access', 
     assert.throws(() => applyJournaledCreation(f.bound, [change([f.a], 'records/item')]),
       (e) => e.code === 'SYMLINK_REJECTED');
   } finally { cleanup(f.dir); cleanup(moved); }
+});
+
+test('strict record seam shares one frozen generated identity across both events', () => {
+  const f = fixture();
+  try {
+    let seen;
+    const result = applyJournaledRecordCreation(f.bound, (identity) => {
+      seen = identity;
+      assert.equal(Object.isFrozen(identity), true);
+      const operationId = identity.operationId;
+      try { identity.operationId = 'mutated-caller-value'; } catch { /* strict modules */ }
+      assert.equal(identity.operationId, operationId);
+      assert.equal(new Date(identity.createdAt).toISOString(), identity.createdAt);
+      return [
+        change([f.a], 'records/capture', 'note', 'note-id'),
+        { ...change([f.b], 'records/ownership', 'sidecar', 'note-id'),
+          sourceKind: 'record-ownership' },
+      ];
+    });
+    assert.equal(result.status, 'committed');
+    assert.equal(result.journalState, 'confirmed');
+    assert.equal(result.operationId, seen.operationId);
+    assert.equal(result.eventIds.length, 2);
+    const loaded = getJournalOperation(f.bound, result.operationId);
+    assert.equal(loaded.intent.operationId, seen.operationId);
+    assert.equal(loaded.intent.createdAt, seen.createdAt);
+    for (const eventId of result.eventIds) {
+      const { event } = getJournalEvent(f.bound, result.operationId, eventId);
+      assert.equal(event.operationId, seen.operationId);
+      assert.equal(event.createdAt, seen.createdAt);
+    }
+  } finally { cleanup(f.dir); }
+});
+
+test('strict record seam rejects invalid callbacks and returns before any write', () => {
+  const f = fixture();
+  try {
+    const before = tree(f.dir);
+    for (const callback of [null, 7, 'callback', {}, []]) {
+      assert.throws(() => applyJournaledRecordCreation(f.bound, callback),
+        (e) => e.code === 'INVALID_JOURNAL_INPUT');
+    }
+    assert.throws(() => applyJournaledRecordCreation(f.bound,
+      async () => [change([f.a], 'records/item')]),
+      (e) => e.code === 'INVALID_JOURNAL_INPUT');
+    for (const value of [undefined, 'x', {}, [{ bad: true }]]) {
+      assert.throws(() => applyJournaledRecordCreation(f.bound, () => value),
+        (e) => e.code === 'INVALID_JOURNAL_INPUT');
+    }
+    assert.deepEqual(tree(f.dir), before);
+  } finally { cleanup(f.dir); }
+});
+
+test('strict record seam rejects existing matching files before any reservation', () => {
+  for (const variant of ['all-noop', 'mixed']) {
+    const f = fixture();
+    try {
+      writeFile(f.dir, 'records/item', 'content');
+      const before = tree(f.dir);
+      const changes = [change([f.a], 'records/item', 'content')];
+      if (variant === 'mixed') {
+        changes.push(change([f.a], 'records/new', 'fresh', 'record-2'));
+      }
+      assert.throws(() => applyJournaledRecordCreation(f.bound, () => changes),
+        (e) => e.code === 'JOURNAL_SOURCE_CONFLICT');
+      assert.deepEqual(tree(f.dir), before);
+      assert.equal(fs.existsSync(path.join(f.dir, 'records', 'new')), false);
+    } finally { cleanup(f.dir); }
+  }
+});
+
+test('strict record seam rejects a noop introduced before under-lock preflight', () => {
+  const f = fixture();
+  const open = fs.openSync;
+  try {
+    const lockFile = path.join(f.journal, '.lock');
+    fs.openSync = function (file, flags, ...args) {
+      const fd = open.call(this, file, flags, ...args);
+      if (file === lockFile && flags === 'wx') {
+        writeFile(f.dir, 'records/item', 'content-item');
+      }
+      return fd;
+    };
+    assert.throws(() => applyJournaledRecordCreation(f.bound,
+      () => [change([f.a], 'records/item', 'content-item')]),
+      (e) => e.code === 'JOURNAL_SOURCE_CONFLICT');
+    assert.equal(fs.readFileSync(path.join(f.dir, 'records', 'item'), 'utf8'), 'content-item');
+    assert.equal(fs.existsSync(path.join(f.journal, 'head.json')), false);
+    assert.equal(fs.existsSync(path.join(f.journal, 'operations')), false);
+    assert.equal(fs.existsSync(path.join(f.journal, 'outbox')), false);
+    assert.equal(fs.existsSync(path.join(f.journal, 'snapshots')), false);
+    assert.equal(fs.existsSync(lockFile), false);
+  } finally { fs.openSync = open; cleanup(f.dir); }
 });

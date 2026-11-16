@@ -646,9 +646,9 @@ function saveSnapshot(loc, event, content) {
   writeNew(loc, rel, content);
 }
 
-function prepareIntent(bound, loc, candidates, head) {
-  const operationId = crypto.randomUUID();
-  const createdAt = new Date().toISOString();
+function prepareIntent(bound, loc, candidates, head, identity = null) {
+  const operationId = identity?.operationId ?? crypto.randomUUID();
+  const createdAt = identity?.createdAt ?? new Date().toISOString();
   const events = candidates.map((candidate, index) => {
     const sourceHash = digestBytes(candidate.file.content);
     return {
@@ -674,7 +674,7 @@ function pendingResult(intent, cause) {
   };
 }
 
-function lockedCreation(bound, changes, loc, policy) {
+function lockedCreation(bound, changes, loc, policy, identity = null) {
   resolveWorkspaceState(bound);
   const head = readHead(loc);
   if (head.activeOperation !== null) {
@@ -695,6 +695,9 @@ function lockedCreation(bound, changes, loc, policy) {
   }
   const planned = preflightPlan(loc.root, changes.map((change) => change.file));
   const candidates = changes.filter((_, index) => planned[index].action === 'create');
+  if (identity && candidates.length !== changes.length) {
+    throw err('JOURNAL_SOURCE_CONFLICT', 'record creation requires all-new sources');
+  }
   if (!candidates.length) return unchanged(planned);
   if (pending.length >= policy.maxPendingOperations) {
     throw err('JOURNAL_CAPACITY', 'journal pending capacity reached');
@@ -702,7 +705,7 @@ function lockedCreation(bound, changes, loc, policy) {
   if (head.lastSequence > Number.MAX_SAFE_INTEGER - candidates.length) {
     throw err('JOURNAL_SEQUENCE_EXHAUSTED', 'journal sequence exhausted');
   }
-  const intent = prepareIntent(bound, loc, candidates, head);
+  const intent = prepareIntent(bound, loc, candidates, head, identity);
   validateIntent(intent, intent.operationId, loc, policy);
   const intentBytes = jsonBytes(intent);
   const intentDigest = canonicalDigest(intent);
@@ -758,18 +761,12 @@ function lockedCreation(bound, changes, loc, policy) {
   return result;
 }
 
-export function applyJournaledCreation(bound, changes) {
-  const loc = location(bound);
-  const policy = loadJournalPolicy();
-  const validated = validateChanges(bound, changes, loc, policy);
-  const initial = preflightPlan(loc.root, validated.map((change) => change.file));
-  if (initial.every((file) => file.action === 'noop')) return unchanged(initial);
-  const initialCreates = validated.filter((_, index) => initial[index].action === 'create');
+function applyCreation(bound, validated, loc, policy, identity = null) {
   const lock = acquire(loc);
   let result;
   let failure;
   try {
-    result = lockedCreation(bound, initialCreates, loc, policy);
+    result = lockedCreation(bound, validated, loc, policy, identity);
   } catch (e) {
     failure = e;
   } finally {
@@ -782,6 +779,39 @@ export function applyJournaledCreation(bound, changes) {
   }
   if (failure) throw failure;
   return result;
+}
+
+export function applyJournaledCreation(bound, changes) {
+  const loc = location(bound);
+  const policy = loadJournalPolicy();
+  const validated = validateChanges(bound, changes, loc, policy);
+  const initial = preflightPlan(loc.root, validated.map((change) => change.file));
+  if (initial.every((file) => file.action === 'noop')) return unchanged(initial);
+  const initialCreates = validated.filter((_, index) => initial[index].action === 'create');
+  return applyCreation(bound, initialCreates, loc, policy);
+}
+
+// Internal seam for typed adapters: the kernel generates the operation
+// identity once, hands a frozen copy to the trusted synchronous callback
+// and validates whatever it returns like any other change set. Every
+// proposed source must be new — an existing matching file is a conflict,
+// never adoption of foreign bytes.
+export function applyJournaledRecordCreation(bound, createChanges) {
+  if (typeof createChanges !== 'function') {
+    throw err('INVALID_JOURNAL_INPUT', 'record creation requires a callback');
+  }
+  const identity = Object.freeze({
+    operationId: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+  });
+  const loc = location(bound);
+  const policy = loadJournalPolicy();
+  const validated = validateChanges(bound, createChanges(identity), loc, policy);
+  const initial = preflightPlan(loc.root, validated.map((change) => change.file));
+  if (!initial.every((file) => file.action === 'create')) {
+    throw err('JOURNAL_SOURCE_CONFLICT', 'record creation requires all-new sources');
+  }
+  return applyCreation(bound, validated, loc, policy, identity);
 }
 
 function recoveryInput(operationId, options) {

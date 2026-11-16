@@ -25,6 +25,7 @@ tandas acotadas ni resultados historicos.
 | Journal focalizada final | `tests/journal.test.mjs`, tras revision | Exit 0: 29 pass, 0 fail, 0 skipped, 0 cancelled |
 | Proyeccion MCP interna | Proyeccion y MCP in-memory, 2026-11-16 | Exit 0: 28 pass, 0 fail, 0 skipped, 0 cancelled |
 | Recuperacion explicita del journal | 5 archivos del plan, 2026-11-16 | Exit 0: 83 pass, 0 fail, 0 skipped, 0 cancelled |
+| Seam estricto del journal (Task 1) | 3 archivos del plan, 2026-11-16 | Exit 0: 74 pass, 0 fail, 0 skipped, 0 cancelled |
 | Pilotos en anfitriones | Pendientes | No certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
@@ -116,6 +117,19 @@ del sistema operativo; con puntero activo nulo el listado acotado no
 detecta indices historicos ausentes, por lo que una pagina vacia no prueba
 sincronizacion global. No se ejecuto la suite integral ni ningun proceso
 nativo con este bloque.
+
+El seam interno estricto `applyJournaledRecordCreation` (Task 1 del plan de
+captura) se verifico por separado en Node.js v26.8.1 mediante
+`node --test --test-concurrency=1 tests/journal.test.mjs tests/journal-recovery.test.mjs tests/vantadb-projection.test.mjs`.
+La ejecucion aprobo 74 pruebas sin fallos, omisiones ni cancelaciones,
+con salida 0 y duracion de 18901.9009 ms. El log local es
+`.tasksystem/verification/2026-11-16-record-seam-green-1794804847.log`
+y el RED por export ausente esta en
+`2026-11-16-record-seam-red-1794804797.log`. Las regresiones cubren la
+identidad congelada compartida, callbacks invalidos, noop inicial y noop
+inyectado antes del preflight bajo lock, sin fuentes ni reserva. No se
+suma al gate 83 ni a otras tandas; sigue siendo un seam interno sin
+captura activada.
 
 El intento integral foundation reporto errores `UNKNOWN` en operaciones de
 E/S y archivos de prueba abortados. El diagnostico registro un evento System
