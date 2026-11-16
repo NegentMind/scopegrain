@@ -256,17 +256,30 @@ export function getArtifact(ctx, kind, id) {
   } catch {
     throw err('ARTIFACT_MALFORMED', `artifact ${id} contains malformed JSON`);
   }
-  try {
-    a = validateArtifactShape(a, kind, `artifact ${id}`);
-    validateStoredReferences(ctx, a, `artifact ${id}`);
-  } catch (e) {
-    if (e && (e.code === 'ARTIFACT_MALFORMED')) throw e;
-    throw err('ARTIFACT_MALFORMED', `artifact ${id} failed validation: ${e.message}`);
-  }
+  a = validateArtifactDocument(ctx, a, kind, `artifact ${id}`);
   if (a.id.toLowerCase() !== id.toLowerCase()) {
     throw err('ARTIFACT_MALFORMED', `artifact id does not match filename`);
   }
   validateArtifactBindings(ctx, a, `artifact ${id}`);
+  return a;
+}
+
+// Shape + stored-reference validation shared by getArtifact and typed
+// stores that already proved which bytes to trust (owned records validate
+// snapshot bytes through this helper instead of rereading the file).
+// Non-shape failures are wrapped as ARTIFACT_MALFORMED with the caller's
+// label, matching the read-path contract.
+export function validateArtifactDocument(ctx, artifact, kind,
+    label = 'artifact') {
+  let a;
+  try {
+    a = validateArtifactShape(artifact, kind, label);
+    validateStoredReferences(ctx, a, label);
+  } catch (e) {
+    if (e && (e.code === 'ARTIFACT_MALFORMED')) throw e;
+    throw err('ARTIFACT_MALFORMED',
+      `${label} failed validation: ${e.message}`);
+  }
   return a;
 }
 
