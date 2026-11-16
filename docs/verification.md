@@ -31,6 +31,7 @@ ni resultados historicos.
 | Store de capturas tipado (Task 3) | 3 archivos del plan, 2026-11-16 | Exit 0: 60 pass, 0 fail, 0 skipped, 0 cancelled |
 | CLI capture create/show (Task 4) | Gate enfocado de 8 archivos, 2026-11-16 | Exit 0: 121 pass, 0 fail, 0 skipped, 0 cancelled |
 | Integral actual | `npm test` serial, 2026-11-16 | Exit 0: 673 pass, 0 fail, 0 skipped, 0 cancelled |
+| Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |
 | Pilotos en anfitriones | Pendientes | No certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
@@ -189,6 +190,21 @@ salida 0 y duracion de 322695.5689 ms; el log completo esta en
 la referencia integral actual, no un rerun del gate 121 ni una
 certificacion de CI, ejecucion nativa o conformidad en anfitriones; los
 conteos anteriores no se suman a ella.
+
+Despues se ejecuto una vez la receta privada de piloto MCP nativo, con una
+base nueva y datos sinteticos. El ejecutable instalado anuncio `vantadb
+0.9.0`; el resultado fue `passed-storage-only`, salida 0. Cuatro eventos
+inmutables y sus snapshots UTF8/BOM, binarios y vacios conservaron sus bytes
+tras reiniciar el proceso. El proxy rechazo solicitudes sin credenciales
+con 401 en ambas sesiones. Los registros observados no contienen vectores.
+La ruta de modelo ausente fue deliberada: `StrictUnavailable` no prueba
+que falten modelos en el equipo ni certifica recuperacion semantica.
+El log es `.tasksystem/verification/2026-11-16-native-probe-1794808334.log`;
+las respuestas crudas estan en
+`.tasksystem/verification/2026-11-16-native-mcp-5a2e5113-1b51-41f7-a7b9-86a19526e666.json`.
+La receta, base y evidencia son privadas e ignoradas; no acompanan un clon.
+No se activo una integracion publica ni se modifico VantaDB; tampoco se uso
+contenido real. Este piloto no se suma a las 673 pruebas de la suite.
 
 El intento integral foundation reporto errores `UNKNOWN` en operaciones de
 E/S y archivos de prueba abortados. El diagnostico registro un evento System
