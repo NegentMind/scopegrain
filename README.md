@@ -74,6 +74,9 @@ se requiere `--config` explicito; una ruta explicita no tiene fallback.
 Consultar el [ejemplo de respuestas](examples/answers.json) y su
 [esquema](schemas/answers.schema.json).
 
+Para operaciones del journal, consulte la
+[guia de recuperacion explicita](docs/journal-recovery.md).
+
 ## Organic y SDD
 
 La metodologia se selecciona al incorporar el proyecto:

@@ -85,6 +85,11 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   adaptadores tipados y ownership de registros. El lock es cooperativo; no
   garantiza transacciones OS ni detecta toda manipulacion de head o historial
   sin una auditoria integral separada.
+- La recuperacion explicita valida la operacion y sus scopes bajo el lock,
+  conserva un recibo inmutable y nunca adopta ni modifica las fuentes.
+  Solo un marcador existente permite finalizar como committed; el abandono
+  conserva un resultado no confirmado. Sin reserva activa el listado no
+  detecta indices historicos ausentes; una pagina vacia no prueba sincronizacion.
 - La proyeccion VantaDB es un puente interno, inyectado y sin proceso nativo:
   envia solo eventos historicos confirmados y snapshots verificados por
   `memory_get`/`memory_put`, con claves inmutables y readback. Permite

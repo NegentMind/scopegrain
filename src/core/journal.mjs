@@ -22,6 +22,8 @@ const EVENT_KEYS = [
 ];
 const INTENT_KEYS = ['schemaVersion', 'operationId', 'state', 'createdAt', 'events'];
 const COMMIT_KEYS = ['schemaVersion', 'operationId', 'intentDigest', 'state', 'confirmedAt'];
+const RECOVERY_KEYS = ['schemaVersion', 'operationId', 'intentDigest', 'action',
+  'sourceOutcome', 'reason', 'decidedAt'];
 const EVIDENCE_KEYS = [
   'backendId', 'remoteNamespace', 'remoteKey', 'eventDigest', 'sourceHash', 'confirmedAt',
 ];
@@ -186,22 +188,39 @@ function atomicHead(loc, head) {
 function acquire(loc) {
   const rel = sub(loc, '.lock');
   const token = crypto.randomUUID();
+  let owner;
   try {
-    writeNew(loc, rel, Buffer.from(token));
+    const stats = writeNew(loc, rel, Buffer.from(token));
+    owner = { dev: stats.dev, ino: stats.ino };
   } catch (e) {
     if (e.code === 'EEXIST') throw err('JOURNAL_LOCKED', 'journal lock already exists');
     throw e;
   }
-  return token;
+  return { token, owner };
 }
 
-function release(loc, token) {
+function release(loc, lock) {
   const rel = sub(loc, '.lock');
+  const abs = absolute(loc, rel);
+  function checkOwner() {
+    let current;
+    try {
+      current = fs.lstatSync(abs, { bigint: true });
+    } catch (e) {
+      if (e.code === 'ENOENT') throw err('JOURNAL_LOCKED', 'journal lock was removed');
+      throw e;
+    }
+    if (!current.isFile() || current.dev !== lock.owner.dev || current.ino !== lock.owner.ino) {
+      throw err('JOURNAL_LOCKED', 'journal lock was replaced');
+    }
+  }
+  checkOwner();
   const bytes = readBytes(loc, rel);
-  if (!bytes.equals(Buffer.from(token))) {
+  if (!bytes.equals(Buffer.from(lock.token))) {
     throw err('JOURNAL_LOCKED', 'journal lock token was replaced');
   }
-  fs.unlinkSync(absolute(loc, rel));
+  checkOwner();
+  fs.unlinkSync(abs);
 }
 
 function directory(loc, rel, limit) {
@@ -326,6 +345,20 @@ function validateCommit(value, operationId, intentDigest) {
       || !time(value.confirmedAt)) throw err(code, 'journal commit has invalid fields');
 }
 
+function validateRecovery(value, operationId, intentDigest, state) {
+  const code = 'JOURNAL_MALFORMED';
+  plain(value, RECOVERY_KEYS, RECOVERY_KEYS, code, 'recovery receipt');
+  if (value.schemaVersion !== 1 || value.operationId !== operationId
+      || value.intentDigest !== intentDigest || typeof value.reason !== 'string'
+      || value.reason.trim() === '' || !time(value.decidedAt)
+      || !['finalize-committed', 'abandon-prepared'].includes(value.action)
+      || (value.action === 'finalize-committed'
+        ? value.sourceOutcome !== 'committed' || state !== 'committed'
+        : value.sourceOutcome !== 'unconfirmed' || state !== 'prepared')) {
+    throw err(code, 'recovery receipt is invalid or inconsistent with commit');
+  }
+}
+
 function operation(loc, operationId, policy) {
   if (!uuid(operationId)) throw err('INVALID_JOURNAL_INPUT', 'operationId must be a UUID');
   const base = sub(loc, `operations/${operationId}`);
@@ -337,7 +370,14 @@ function operation(loc, operationId, policy) {
     validateCommit(readJson(loc, commitRel, 'JOURNAL_MALFORMED'), operationId, intentDigest);
     state = 'committed';
   }
-  return { intent, intentDigest, state };
+  const receiptRel = `${base}/recovery.json`;
+  let recovery = null;
+  if (lstatOrNull(absolute(loc, receiptRel))) {
+    recovery = readJson(loc, receiptRel, 'JOURNAL_MALFORMED');
+    validateRecovery(recovery, operationId, intentDigest, state);
+    if (recovery.action === 'abandon-prepared') state = 'abandoned';
+  }
+  return { intent, intentDigest, state, recovery };
 }
 
 function authorizeEvent(bound, event) {
@@ -472,6 +512,9 @@ export function listJournalPending(bound, options = {}) {
   const next = [];
   for (const operationId of pending) {
     const loaded = indexedOperation(loc, operationId, policy);
+    if (loaded.state === 'abandoned') {
+      throw err('JOURNAL_RECOVERY_REQUIRED', 'abandoned operation requires cleanup');
+    }
     if (operationId === head.activeOperation?.operationId
         && loaded.intentDigest !== head.activeOperation.intentDigest) {
       throw err('JOURNAL_MALFORMED', 'active operation digest mismatch');
@@ -512,7 +555,7 @@ export function ackJournalEvent(bound, operationId, eventId, evidence) {
   validateEvidence(evidence, event, 'INVALID_JOURNAL_INPUT', false);
   if (loaded.state !== 'committed') throw err('JOURNAL_NOT_COMMITTED', 'operation is not committed');
   verifiedSnapshot(loc, event);
-  const token = acquire(loc);
+  const lock = acquire(loc);
   try {
     resolveWorkspaceState(bound);
     loaded = operation(loc, operationId, policy);
@@ -540,7 +583,7 @@ export function ackJournalEvent(bound, operationId, eventId, evidence) {
       }
     }
   } finally {
-    release(loc, token);
+    release(loc, lock);
   }
 }
 
@@ -722,7 +765,7 @@ export function applyJournaledCreation(bound, changes) {
   const initial = preflightPlan(loc.root, validated.map((change) => change.file));
   if (initial.every((file) => file.action === 'noop')) return unchanged(initial);
   const initialCreates = validated.filter((_, index) => initial[index].action === 'create');
-  const token = acquire(loc);
+  const lock = acquire(loc);
   let result;
   let failure;
   try {
@@ -731,7 +774,141 @@ export function applyJournaledCreation(bound, changes) {
     failure = e;
   } finally {
     try {
-      release(loc, token);
+      release(loc, lock);
+    } catch (e) {
+      if (result) result.warnings.push(toErrorPayload(e));
+      else if (!failure) failure = e;
+    }
+  }
+  if (failure) throw failure;
+  return result;
+}
+
+function recoveryInput(operationId, options) {
+  if (!uuid(operationId)) throw err('INVALID_JOURNAL_INPUT', 'operationId must be a UUID');
+  const keys = ['action', 'expectedIntentDigest', 'reason'];
+  plain(options, keys, keys, 'INVALID_JOURNAL_INPUT', 'recovery options');
+  const input = { action: options.action, expectedIntentDigest: options.expectedIntentDigest,
+    reason: options.reason };
+  if (!['finalize-committed', 'abandon-prepared'].includes(input.action)
+      || !hash(input.expectedIntentDigest)
+      || typeof input.reason !== 'string' || input.reason.trim() === '') {
+    throw err('INVALID_JOURNAL_INPUT', 'recovery options have invalid fields');
+  }
+  jsonBytes({ schemaVersion: 1, operationId, intentDigest: input.expectedIntentDigest,
+    action: input.action, sourceOutcome: input.action === 'finalize-committed'
+      ? 'committed' : 'unconfirmed', reason: input.reason,
+    decidedAt: '2026-01-01T00:00:00.000Z' });
+  return input;
+}
+
+function recoveryData(bound, operationId, input) {
+  const loc = location(bound);
+  const policy = loadJournalPolicy();
+  const loaded = operation(loc, operationId, policy);
+  for (const event of loaded.intent.events) authorizeEvent(bound, event);
+  if (loaded.intentDigest !== input.expectedIntentDigest) {
+    throw err('JOURNAL_RECOVERY_CONFLICT', 'expected intent digest differs');
+  }
+  if (loaded.recovery && (loaded.recovery.action !== input.action
+      || loaded.recovery.reason !== input.reason
+      || loaded.recovery.intentDigest !== input.expectedIntentDigest)) {
+    throw err('JOURNAL_RECOVERY_CONFLICT', 'recovery decision differs from receipt');
+  }
+  const pendingEventIds = [];
+  for (const event of loaded.intent.events) {
+    verifiedSnapshot(loc, event);
+    const ack = readAck(loc, operationId, event);
+    if (ack && loaded.state !== 'committed') {
+      throw err('JOURNAL_MALFORMED', 'uncommitted operation has an acknowledgement');
+    }
+    if (!ack && loaded.state === 'committed') pendingEventIds.push(event.eventId);
+  }
+  const head = readHead(loc);
+  const lastSequence = loaded.intent.events.at(-1).journalSequence;
+  if (head.lastSequence < lastSequence) {
+    throw err('JOURNAL_MALFORMED', 'journal head precedes operation');
+  }
+  if (head.activeOperation) {
+    if (head.activeOperation.operationId !== operationId) {
+      throw err('JOURNAL_RECOVERY_CONFLICT', 'another operation is active');
+    }
+    if (head.activeOperation.intentDigest !== loaded.intentDigest
+        || head.lastSequence !== lastSequence) {
+      throw err('JOURNAL_MALFORMED', 'active operation does not match journal head');
+    }
+  }
+  const indexRel = sub(loc, `outbox/${operationId}.json`);
+  const hasIndex = Boolean(lstatOrNull(absolute(loc, indexRel)));
+  if (hasIndex) indexedOperation(loc, operationId, policy);
+  if ((input.action === 'finalize-committed' && loaded.state !== 'committed')
+      || (input.action === 'abandon-prepared' && loaded.state === 'committed')) {
+    throw err('JOURNAL_RECOVERY_CONFLICT', 'recovery action does not match operation state');
+  }
+  if (input.action === 'finalize-committed' && pendingEventIds.length && !hasIndex
+      && outbox(loc, policy).length >= policy.maxPendingOperations) {
+    throw err('JOURNAL_CAPACITY', 'journal pending capacity reached');
+  }
+  return { loc, loaded, head, pendingEventIds, indexRel, hasIndex, policy };
+}
+
+function recoveryResult(operationId, input, data, mode, recovery = data.loaded.recovery) {
+  return {
+    mode, operationId, intentDigest: data.loaded.intentDigest,
+    action: input.action, reason: input.reason,
+    state: mode === 'applied' && input.action === 'abandon-prepared'
+      ? 'abandoned' : data.loaded.state,
+    sourceOutcome: input.action === 'finalize-committed' ? 'committed' : 'unconfirmed',
+    preservesSources: true, pendingEventIds: data.pendingEventIds, recovery, warnings: [],
+  };
+}
+
+export function prepareJournalRecovery(bound, operationId, options) {
+  const input = recoveryInput(operationId, options);
+  const data = recoveryData(bound, operationId, input);
+  return recoveryResult(operationId, input, data, 'dry-run');
+}
+
+export function recoverJournalOperation(bound, operationId, options) {
+  const input = recoveryInput(operationId, options);
+  const initial = recoveryData(bound, operationId, input);
+  resolveWorkspaceState(bound);
+  const lock = acquire(initial.loc);
+  let result;
+  let failure;
+  try {
+    const data = recoveryData(bound, operationId, input);
+    let receipt = data.loaded.recovery;
+    if (!receipt) {
+      receipt = { schemaVersion: 1, operationId, intentDigest: data.loaded.intentDigest,
+        action: input.action, sourceOutcome: input.action === 'finalize-committed'
+          ? 'committed' : 'unconfirmed', reason: input.reason, decidedAt: new Date().toISOString() };
+      resolveWorkspaceState(bound);
+      writeNew(data.loc, sub(data.loc, `operations/${operationId}/recovery.json`),
+        jsonBytes(receipt));
+    }
+    if (input.action === 'finalize-committed' && data.pendingEventIds.length && !data.hasIndex) {
+      resolveWorkspaceState(bound);
+      writeNew(data.loc, data.indexRel, jsonBytes({
+        schemaVersion: 1, operationId, intentDigest: data.loaded.intentDigest,
+      }));
+    }
+    if (data.head.activeOperation) {
+      resolveWorkspaceState(bound);
+      atomicHead(data.loc, { schemaVersion: 1, lastSequence: data.head.lastSequence,
+        activeOperation: null });
+    }
+    if (data.hasIndex && (input.action === 'abandon-prepared' || !data.pendingEventIds.length)) {
+      resolveWorkspaceState(bound);
+      indexedOperation(data.loc, operationId, data.policy);
+      fs.unlinkSync(absolute(data.loc, data.indexRel));
+    }
+    result = recoveryResult(operationId, input, data, 'applied', receipt);
+  } catch (e) {
+    failure = e;
+  } finally {
+    try {
+      release(initial.loc, lock);
     } catch (e) {
       if (result) result.warnings.push(toErrorPayload(e));
       else if (!failure) failure = e;

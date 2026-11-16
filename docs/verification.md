@@ -24,6 +24,7 @@ tandas acotadas ni resultados historicos.
 | Journal compatibilidad inicial | Journal, workspace y bootstrap | Exit 0: 66 pass, 0 fail, 0 skipped, 0 cancelled |
 | Journal focalizada final | `tests/journal.test.mjs`, tras revision | Exit 0: 29 pass, 0 fail, 0 skipped, 0 cancelled |
 | Proyeccion MCP interna | Proyeccion y MCP in-memory, 2026-11-16 | Exit 0: 28 pass, 0 fail, 0 skipped, 0 cancelled |
+| Recuperacion explicita del journal | 5 archivos del plan, 2026-11-16 | Exit 0: 83 pass, 0 fail, 0 skipped, 0 cancelled |
 | Pilotos en anfitriones | Pendientes | No certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
@@ -90,6 +91,31 @@ conflictos, respuestas perdidas, readback, lease y ACK local recuperable.
 El transporte in-memory no certifica el ejecutable VantaDB, sus proveedores
 de embeddings ni una base real. No se inicio un motor ni se repitio la
 suite integral. Este bloque no activa escritores publicos ni captura.
+
+La recuperacion explicita del journal se verifico por separado en Node.js
+v26.8.1 mediante el gate acotado del plan:
+`node --test --test-concurrency=1 tests/journal-recovery.test.mjs tests/cli-journal.test.mjs tests/journal.test.mjs tests/vantadb-projection.test.mjs tests/cli.test.mjs`.
+La ejecucion aprobo 83 pruebas sin fallos, omisiones ni cancelaciones,
+con salida 0 y duracion de 59222.3097 ms. El log local es
+`.tasksystem/verification/2026-11-16-journal-recovery-rework-green-1794803352.log`.
+El RED de la revision reprodujo cuatro fallos antes de la correccion en
+`.tasksystem/verification/2026-11-16-journal-recovery-rework-red-1794803301.log`
+y el RED inicial por exports ausentes esta en
+`2026-11-16-journal-recovery-red-1794802852.log`; el gate intermedio de
+79 pruebas y estas ejecuciones no se suman entre si ni a otras tandas.
+La revision detecto dos defectos corregidos con regresiones: un lock
+reemplazado por otro archivo con el mismo token (identidad `dev`/`ino`
+distinta, comprobada ademas de token antes de unlink) y una restauracion
+de indice que podia exceder `maxPendingOperations` sin un conteo acotado
+de nombres del outbox antes de cualquier escritura.
+La recuperacion aprobada preserva fuentes ausentes, parciales, coincidentes
+o ajenas sin adoptarlas ni modificarlas; nunca crea un marcador de commit
+a partir de bytes coincidentes. Limites: el lock sigue siendo cooperativo
+y las comprobaciones de identidad/token no constituyen un unlink atomico
+del sistema operativo; con puntero activo nulo el listado acotado no
+detecta indices historicos ausentes, por lo que una pagina vacia no prueba
+sincronizacion global. No se ejecuto la suite integral ni ningun proceso
+nativo con este bloque.
 
 El intento integral foundation reporto errores `UNKNOWN` en operaciones de
 E/S y archivos de prueba abortados. El diagnostico registro un evento System

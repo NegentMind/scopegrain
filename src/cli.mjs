@@ -36,7 +36,9 @@ import {
   ensureSessionsDir, getSession, prepareSession, prepareSessionRecord,
   recordSession, resumeSession,
 } from './core/sessions.mjs';
-import { getWorkspace, prepareWorkspace } from './core/workspaces.mjs';
+import { bindWorkspace, getWorkspace, prepareWorkspace } from './core/workspaces.mjs';
+import { getJournalOperation, prepareJournalRecovery, recoverJournalOperation }
+  from './core/journal.mjs';
 
 const PATH_LABELS = {
   plans: 'Ruta de planes',
@@ -83,6 +85,14 @@ const COMMANDS = {
   'workspace init': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
     usage: 'workspace init --project PATH [--config REL] [--input FILE] [--apply]',
+  },
+  'journal show': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'journal show OPERATION --project PATH [--config REL]',
+  },
+  'journal recover': {
+    flags: ['--project', '--config', '--input', '--apply'], pos: 1,
+    usage: 'journal recover OPERATION --project PATH [--config REL] --input FILE [--apply]',
   },
   'task create': {
     flags: ['--project', '--config', '--title', '--contract', '--author', '--scope',
@@ -666,6 +676,19 @@ function cmdWorkspace(sub, flags) {
   return finishCreation(ctx, 'workspace', prepared.workspace, prepared.file, flags);
 }
 
+function cmdJournal(sub, positional, flags) {
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'), config: flags['--config'],
+  });
+  const workspace = getWorkspace(ctx);
+  const bound = bindWorkspace(ctx, { areaIds: workspace.areas.map((area) => area.id) });
+  if (sub === 'show') return getJournalOperation(bound, positional[0]);
+  const input = readInputFile(requireFlag(flags, '--input'), 'journal recovery input');
+  return flags['--apply']
+    ? recoverJournalOperation(bound, positional[0], input)
+    : prepareJournalRecovery(bound, positional[0], input);
+}
+
 function cmdTypedArtifact(family, sub, positional, flags) {
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
@@ -787,7 +810,7 @@ export async function run(argv, io) {
       io.stdout(JSON.stringify(helpResult(), null, 2));
       return 0;
     }
-    const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace',
+    const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal',
       'specification', 'design', 'outcome', 'approval', 'methodology']);
     let cmdKey;
     let spec;
@@ -858,6 +881,8 @@ export async function run(argv, io) {
       result = await cmdTask(cmdKey.slice(5), rest, flags, io);
     } else if (cmdKey.startsWith('workspace ')) {
       result = cmdWorkspace(cmdKey.slice(10), flags);
+    } else if (cmdKey.startsWith('journal ')) {
+      result = cmdJournal(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('catalog ')) {
       result = cmdCatalog(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('resource ')) {

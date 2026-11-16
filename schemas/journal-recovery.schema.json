@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Scopegrain journal recovery",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "operationId", "intentDigest", "action", "sourceOutcome", "reason", "decidedAt"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "operationId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "intentDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "action": {"enum": ["finalize-committed", "abandon-prepared"]},
+    "sourceOutcome": {"enum": ["committed", "unconfirmed"]},
+    "reason": {"type": "string", "pattern": "\\S"},
+    "decidedAt": {
+      "type": "string",
+      "description": "Canonical Date.toISOString value, validated at runtime."
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"action": {"const": "finalize-committed"}}},
+      "then": {"properties": {"sourceOutcome": {"const": "committed"}}},
+      "else": {"properties": {"sourceOutcome": {"const": "unconfirmed"}}}
+    }
+  ],
+  "description": "Runtime binds the receipt to the exact intent, validates commit coherence and all event scopes, and never infers commit from source bytes."
+}
