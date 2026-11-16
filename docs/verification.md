@@ -3,10 +3,10 @@
 ## Estado Actual
 
 La ultima ejecucion integral (`npm test`, serial por archivo) termino con
-673 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
-Node.js v26.8.1 y npm 11.6.0. La integral historica del bloque foundation
-(536) se conserva abajo como referencia pasada. No sumar tandas acotadas
-ni resultados historicos.
+699 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
+Node.js v26.8.1 y npm 11.6.0. Las integrales anteriores de capturas CLI
+(673) y foundation (536) se conservan abajo como referencias pasadas.
+No sumar tandas acotadas ni resultados historicos.
 
 | Bloque | Referencia | Evidencia observada |
 | --- | --- | --- |
@@ -30,7 +30,9 @@ ni resultados historicos.
 | Contratos de datos de captura (Task 2) | 1 archivo del plan, 2026-11-16 | Exit 0: 9 pass, 0 fail, 0 skipped, 0 cancelled |
 | Store de capturas tipado (Task 3) | 3 archivos del plan, 2026-11-16 | Exit 0: 60 pass, 0 fail, 0 skipped, 0 cancelled |
 | CLI capture create/show (Task 4) | Gate enfocado de 8 archivos, 2026-11-16 | Exit 0: 121 pass, 0 fail, 0 skipped, 0 cancelled |
-| Integral actual | `npm test` serial, 2026-11-16 | Exit 0: 673 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral capturas CLI | `npm test` serial, 2026-11-16 | Exit 0: 673 pass, 0 fail, 0 skipped, 0 cancelled |
+| Ownership spec V2 tras revision | Gate focalizado de 3 archivos, 2026-11-16 | Exit 0: 35 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral actual | `npm test` serial, 2026-11-16 | Exit 0: 699 pass, 0 fail, 0 skipped, 0 cancelled |
 | Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |
 | Control nativo de embeddings | Modelo/runtime locales existentes, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; fase positiva aprobada, controles negativos fallidos |
 | Pilotos en anfitriones | Pendientes | No certificados |
@@ -188,11 +190,37 @@ mediante `npm test`, que invoca
 npm 11.6.0. Aprobo 673 pruebas sin fallos, omisiones ni cancelaciones, con
 salida 0 y duracion de 322695.5689 ms; el log completo esta en
 `.tasksystem/verification/2026-11-16-integral-npmtest-1794807643.log`. Es
-la referencia integral actual, no un rerun del gate 121 ni una
+la referencia integral del bloque CLI de capturas, no un rerun del gate 121 ni una
 certificacion de CI, ejecucion nativa o conformidad en anfitriones; los
 conteos anteriores no se suman a ella.
 
-Despues se ejecuto una vez la receta privada de piloto MCP nativo, con una
+El bloque de ownership de especificaciones V2 comparte validadores puros
+y prueba de creacion con las capturas, sin alterar los escritores legacy.
+La revision detecto la perdida de la guardia de tipo string de
+`sourceHash`: el RED reprodujo la aceptacion indebida de un array antes
+de restaurarla. El control causal esta en
+`.tasksystem/verification/2026-11-16-ownedspec-hashguard-red-1794812682.log`
+(8 pass, 1 fail); la tanda posterior a la revision aprobo 35 pruebas
+sin fallos, omisiones ni cancelaciones, salida 0 y 4441.2723 ms, mediante
+`node --test --test-concurrency=1 tests/record-ownership-data.test.mjs tests/capture-data.test.mjs tests/owned-specifications.test.mjs`.
+Su log es
+`.tasksystem/verification/2026-11-16-ownedspec-rework-green-1794812910.log`.
+El gate inicial de 79 pruebas es anterior a esa correccion; los conjuntos
+son distintos y sus conteos no se suman.
+
+Tras la revision completa se ejecuto una unica integral con `npm test`
+serial, Node.js v26.8.1 y npm 11.6.0: 699 pass, 0 fail, 0 skipped,
+0 cancelled, salida 0 y 1354533.5285 ms. Es la referencia integral actual.
+El log completo, incluidas versiones y salida real, esta en
+`.tasksystem/verification/2026-11-16-integral-npmtest-1794813511.log`.
+Son 26 casos nuevos en los dos archivos de ownership, incluidos en las
+699 pruebas, no adicionales a ellas. No hubo reintentos de la integral.
+El nuevo store es opt-in y core-only; no hay CLI de specs con ownership,
+protocolo mutable, productor automatico ni activacion nativa en este bloque.
+Esta integral no sustituye el gate nativo de embeddings bloqueado.
+
+Antes de este bloque de ownership se ejecuto una vez la receta privada de
+piloto MCP nativo, con una
 base nueva y datos sinteticos. El ejecutable instalado anuncio `vantadb
 0.9.0`; el resultado fue `passed-storage-only`, salida 0. Cuatro eventos
 inmutables y sus snapshots UTF8/BOM, binarios y vacios conservaron sus bytes

@@ -21,6 +21,9 @@ src/core/workspaces.mjs   Identidad por proyecto, areas y autorizacion interna d
 src/core/journal.mjs      Journal interno create-only y outbox acotado
 src/core/capture-data.mjs Contratos puros de notas/ownership de captura
 src/core/captures.mjs     Store tipado de capturas con prueba journal
+src/core/record-ownership-data.mjs Primitivas puras del sidecar de ownership (capture/spec rev0)
+src/core/record-ownership.mjs Prueba compartida de creacion committed de dos eventos
+src/core/owned-specifications.mjs Store tipado de specs V2 con ownership probado
 src/integrations/vantadb.mjs  Proyeccion MCP interna de eventos confirmados
 src/core/policy.mjs       Carga las politicas canonicas del runtime instalado
 src/core/tasks.mjs        Documentos de tarea, createTask, getTask, listTasks
@@ -97,6 +100,17 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   afirmacion aportada, no identidad autenticada, verdad activa ni
   autorizacion. Sin listados, escritor generico ni captura automatica; el
   CLI `capture create|show` solo aplica este contrato.
+- La prueba de ownership de creacion es compartida entre stores tipados:
+  `record-ownership.mjs` exige sidecar canonico, scope autorizado,
+  operacion committed de exactamente dos eventos create, snapshots
+  iguales a los bytes actuales y fuente actual igual al snapshot;
+  `record-ownership-data.mjs` cierra la forma del sidecar capture/spec
+  revision0. `createOwnedSpecificationStore(ctx, options)` opt-in aplica
+  esa prueba a specs V2 creados via `prepareSpecification` dentro del seam
+  estricto; las areas logicas del grant viven en el sidecar/eventos y son
+  distintas de las rutas declaradas en `spec.data.scope`. Los getters
+  estructurales legacy (`getArtifact`, `getSpecification`) validan forma y
+  bindings pero no implican ownership ni adopcion.
 - Un ack local es una declaracion del adaptador, no prueba de ejecucion remota.
   Antes de exponer el journal a herramientas no confiables hacen falta
   adaptadores tipados y ownership de registros. El lock es cooperativo; no
