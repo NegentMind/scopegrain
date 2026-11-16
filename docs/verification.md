@@ -32,6 +32,7 @@ ni resultados historicos.
 | CLI capture create/show (Task 4) | Gate enfocado de 8 archivos, 2026-11-16 | Exit 0: 121 pass, 0 fail, 0 skipped, 0 cancelled |
 | Integral actual | `npm test` serial, 2026-11-16 | Exit 0: 673 pass, 0 fail, 0 skipped, 0 cancelled |
 | Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |
+| Control nativo de embeddings | Modelo/runtime locales existentes, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; fase positiva aprobada, controles negativos fallidos |
 | Pilotos en anfitriones | Pendientes | No certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
@@ -205,6 +206,20 @@ las respuestas crudas estan en
 La receta, base y evidencia son privadas e ignoradas; no acompanan un clon.
 No se activo una integracion publica ni se modifico VantaDB; tampoco se uso
 contenido real. Este piloto no se suma a las 673 pruebas de la suite.
+
+La prueba funcional posterior uso pesos y runtime ONNX ya existentes,
+copias propias y textos sinteticos. Con DLL valida pasaron generacion y
+persistencia; el gate completo fallo con salida 1 porque, con DLL
+deliberadamente ausente y modelos presentes, `capabilities` anuncio
+`StrictUnavailable` pero `embed_texts` por defecto y el auto-embed de
+`memory_put` devolvieron `fallback:false`, y se persistio un vector384.
+La llamada con modelo explicito rechazo correctamente ese runtime ausente.
+La activacion nativa automatica permanece bloqueada; no se aplico un
+workaround ni se modifico VantaDB. Log privado:
+`.tasksystem/verification/2026-11-16-embedding-probe-1794810035.log`;
+respuestas:
+`.tasksystem/verification/2026-11-16-native-embedding-46c95621-1f91-4eab-99bb-31839b70a884.json`.
+Esta prueba no es un benchmark de recuperacion ni se suma a la integral.
 
 El intento integral foundation reporto errores `UNKNOWN` en operaciones de
 E/S y archivos de prueba abortados. El diagnostico registro un evento System
