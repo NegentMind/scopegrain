@@ -26,6 +26,7 @@ tandas acotadas ni resultados historicos.
 | Proyeccion MCP interna | Proyeccion y MCP in-memory, 2026-11-16 | Exit 0: 28 pass, 0 fail, 0 skipped, 0 cancelled |
 | Recuperacion explicita del journal | 5 archivos del plan, 2026-11-16 | Exit 0: 83 pass, 0 fail, 0 skipped, 0 cancelled |
 | Seam estricto del journal (Task 1) | 3 archivos del plan, 2026-11-16 | Exit 0: 74 pass, 0 fail, 0 skipped, 0 cancelled |
+| Contratos de datos de captura (Task 2) | 1 archivo del plan, 2026-11-16 | Exit 0: 9 pass, 0 fail, 0 skipped, 0 cancelled |
 | Pilotos en anfitriones | Pendientes | No certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
@@ -130,6 +131,18 @@ identidad congelada compartida, callbacks invalidos, noop inicial y noop
 inyectado antes del preflight bajo lock, sin fuentes ni reserva. No se
 suma al gate 83 ni a otras tandas; sigue siendo un seam interno sin
 captura activada.
+
+Los contratos puros de datos de captura (`src/core/capture-data.mjs` y los
+schemas `capture`/`record-ownership`, Task 2 del plan) se verificaron por
+separado en Node.js v26.8.1 mediante
+`node --test --test-concurrency=1 tests/capture-data.test.mjs`.
+La ejecucion aprobo 9 pruebas sin fallos, omisiones ni cancelaciones,
+con salida 0 y duracion de 140.4566 ms. El log local es
+`.tasksystem/verification/2026-11-16-capture-data-green-1794805218.log`
+y el RED por modulo ausente esta en
+`2026-11-16-capture-data-red-1794805181.log`. Son validadores puros: no
+afirman persistencia, captura activada ni ownership probado. No se suma
+al gate 74 ni a otras tandas.
 
 El intento integral foundation reporto errores `UNKNOWN` en operaciones de
 E/S y archivos de prueba abortados. El diagnostico registro un evento System

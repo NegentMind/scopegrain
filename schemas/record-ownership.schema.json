@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Scopegrain capture ownership",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "sourceKind", "recordId", "sourceRevision", "sourceRel", "sourceHash", "operationId", "scope", "createdAt"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "sourceKind": {"const": "capture"},
+    "recordId": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "sourceRevision": {"const": 0},
+    "sourceRel": {"type": "string", "description": "Exact configured memory/captures/UUID.json path, checked at runtime; no caller path."},
+    "sourceHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "operationId": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "scope": {"$ref": "capture.schema.json#/$defs/scope"},
+    "createdAt": {"type": "string", "description": "Canonical Date.toISOString, equal to owning intent/event createdAt and note capturedAt."}
+  },
+  "description": "Ownership requires a committed exact two-event operation, matching immutable snapshots, scopes, current sidecar bytes and current source bytes. A sidecar alone is not proof."
+}
