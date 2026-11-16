@@ -78,6 +78,151 @@ viven en el sidecar y en los eventos del journal, mientras que
 `spec.data.scope` declara rutas de contencion del artefacto y nunca
 deriva grants.
 
+## CLI
+
+El flag booleano `--owned`, sin valor, selecciona este store solamente en
+`specification create` y `specification show`. Usos de ayuda:
+
+```text
+specification create --project PATH --input FILE [--owned] [--apply]
+specification show --project PATH UUID [--owned]
+```
+
+`--config REL` sigue seleccionando una configuracion explicita en ambos
+comandos; las rutas `plans` y `state` son las de esa configuracion. La
+seleccion de config conserva las reglas del [inicio](../README.md#inicio):
+dos configs requieren seleccion explicita y una ruta explicita no tiene
+fallback. `--input FILE` se resuelve desde el directorio de trabajo actual,
+no desde el proyecto. No hay `--yes`, `--force`, override de destino ni
+posicionales adicionales; `show` no acepta `--apply` ni `--input`.
+`--owned` no se admite en otras familias de comandos.
+
+### Enrolamiento y areas
+
+La config debe existir y el workspace debe estar enrolado explicitamente.
+Para un proyecto configurado aun no enrolado:
+
+```powershell
+node ./bin/scopegrain.mjs workspace init --project "C:\ruta\mi-proyecto"
+node ./bin/scopegrain.mjs workspace init --project "C:\ruta\mi-proyecto" --apply
+node ./bin/scopegrain.mjs workspace show --project "C:\ruta\mi-proyecto"
+```
+
+El primer comando solo muestra la propuesta; `--apply` confirma el
+enrolamiento. Si ya existe, consultar `workspace show` y usar sus IDs.
+Las operaciones owned no crean ni adoptan un workspace implicitamente;
+sin enrolamiento fallan con `WORKSPACE_NOT_FOUND`.
+
+Como en `capture`, el CLI local toma de la metadata del workspace
+enrolado grants para **todas** sus areas. Esto no autentica un actor ni
+implementa ACL o aislamiento del sistema operativo. Cada registro debe
+pedir sus propias `areaIds` explicitamente y satisfacer autorizacion
+all-of: todas las areas solicitadas deben estar concedidas. Los grants
+locales no amplian las areas del registro ni infieren un scope desde
+`specification.scope`.
+
+### Entrada owned
+
+El JSON externo es cerrado y contiene solo `{ areaIds, specification }`.
+`specification` es la entrada estructurada raw existente de
+`prepareSpecification`, no un artefacto almacenado ni su objeto `data`.
+No se aceptan `origin`, IDs de registro/operacion, revision, destinos de
+almacenamiento ni hashes aportados por el caller. Los IDs de requisitos y
+escenarios si pertenecen al contrato de la especificacion.
+
+Ejemplo completo de `owned-spec.json`: el UUID
+`11111111-1111-4111-8111-111111111111` es **solo un valor de ejemplo**,
+sintacticamente valido. **SUSTITUIR por un UUID REAL de area devuelto por
+`workspace show`** antes de usarlo; el ejemplo no funciona literalmente
+por el mero hecho de tener un UUID valido.
+
+```json
+{
+  "areaIds": ["11111111-1111-4111-8111-111111111111"],
+  "specification": {
+    "title": "Validar solicitudes",
+    "originalRequest": "Rechazar solicitudes sin titulo.",
+    "outcome": {
+      "statement": "Las solicitudes sin titulo se rechazan.",
+      "evidencePlan": "Comprobar casos con titulo presente y ausente."
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "statement": "El titulo debe estar presente.",
+        "scenarios": [
+          {
+            "id": "SC-1",
+            "given": "Una solicitud sin titulo",
+            "when": "Se valida la solicitud",
+            "then": "Se rechaza por titulo ausente"
+          }
+        ]
+      }
+    ],
+    "scope": ["src"],
+    "constraints": [],
+    "nonGoals": [],
+    "openQuestions": [],
+    "references": []
+  }
+}
+```
+
+Tras sustituir el area y revisar el contenido:
+
+```powershell
+node ./bin/scopegrain.mjs specification create --project "C:\ruta\mi-proyecto" --input owned-spec.json --owned
+node ./bin/scopegrain.mjs specification create --project "C:\ruta\mi-proyecto" --input owned-spec.json --owned --apply
+```
+
+No hay un JSON Schema estatico nuevo para esta envoltura. Los validadores
+del core definen el contrato owned; `schemas/record-ownership.schema.json`
+conserva su alcance exclusivo de capture, no valida sidecars de specs.
+
+### Resultados y compatibilidad
+
+El CLI devuelve literalmente los valores del core: `prepare` sin
+`--apply`, `create` con `--apply` y `get` en `show`; no agrega un wrapper
+ni afirmaciones de ownership propias. Las formas de creacion son las
+descritas arriba para el store.
+
+- La vista previa no escribe ni reserva IDs (`reservesIds: false`); su
+  identidad es provisional y no se reutiliza al aplicar.
+- `--apply` autoriza las escrituras tipadas, nunca ejecutar comandos,
+  productores o hooks. El resultado conserva el recibo `journal` completo
+  y su incertidumbre; `ownershipConfirmed` solo es true con operacion
+  committed y confirmed. No reintentar a ciegas un resultado incierto.
+- `show --owned` recibe el UUID real de `record.id` devuelto al crear,
+  canonico en minusculas. Devuelve `{ record, ownership,
+  locator: { operationId, eventId }, isCurrentSource: true,
+  memoryConsulted: false }` solo tras probar commit y bytes actuales.
+  Si falta la prueba o hay deriva, falla cerrado: no consulta el getter
+  legacy, historial ni memoria, ni adopta archivos o sidecars plausibles.
+
+Sin `--owned`, los flujos validos legacy siguen siendo el valor por
+defecto incluso si existe un workspace; no requieren enrolamiento.
+`create` recibe directamente la especificacion raw, sin envoltura
+`areaIds`/`specification`, y conserva la forma legacy de resultado
+(`artifact`, `applied`, `files`), sin crear ownership ni journal. No se
+autodetecta el modo por la entrada. `show` legacy es una lectura
+estructural: puede leer un V2 owned, pero no verifica ni implica su prueba
+de ownership.
+
+### Entrada JSON UTF8
+
+El lector JSON comun del CLI, no solo el modo owned, limita primero los
+bytes: `INPUT_TOO_LARGE` prevalece sobre cualquier error de codificacion.
+Dentro del limite, UTF8 invalido se rechaza con `MALFORMED_JSON` antes del
+parseo JSON, con la misma forma de mensaje que un error de sintaxis; no se
+sustituyen bytes invalidos silenciosamente por U+FFFD.
+
+U+FFFD literal valido, acentos precompuestos o combinados, emojis, escapes
+de surrogates y finales CRLF siguen admitidos sin normalizar el texto.
+El BOM no se elimina: conserva el rechazo de `JSON.parse` con
+`MALFORMED_JSON`. Los controles existentes de seguridad de archivos no
+cambian.
+
 ## Errores
 
 - `INVALID_OWNED_SPEC_INPUT`: constructor, DTO externo, areas y UUID.
@@ -89,6 +234,9 @@ deriva grants.
   `SCOPE_DENIED`, `WORKSPACE_STALE`, `SYMLINK_REJECTED`, `FILE_ANCESTOR`,
   `DOCUMENT_TOO_LARGE`, `JOURNAL_*`, `ARTIFACT_MALFORMED`,
   `SPEC_STRUCTURED_REQUIRED` y la familia de entrada de specs.
+- En el CLI, `MALFORMED_JSON` cubre sintaxis y UTF8 invalidos;
+  `INPUT_TOO_LARGE` se comprueba antes de decodificar. El modo owned
+  requiere enrolamiento existente (`WORKSPACE_NOT_FOUND` si falta).
 
 ## Limites
 
@@ -98,8 +246,9 @@ deriva grants.
   autenticada, autenticidad de la peticion original, verdad activa ni
   permiso de borrado.
 - No hay listado/escaneo, puntero al ultimo, supersesion de specs,
-  productor automatico, superficie CLI para este store todavia ni
-  activacion nativa de VantaDB (bloqueada independientemente).
+  productor automatico ni hooks conectados. La activacion nativa y
+  embeddings de VantaDB siguen bloqueados por `7c2c8be`, independientemente
+  de esta superficie CLI.
 - Los archivos sin ownership nunca se adoptan: un artefacto plausible con
   sidecar sin la operacion committed de dos eventos no tiene ownership, y
   los artefactos legacy V1 fallan el requisito estructurado V2. Los

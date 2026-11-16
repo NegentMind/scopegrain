@@ -111,6 +111,9 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   distintas de las rutas declaradas en `spec.data.scope`. Los getters
   estructurales legacy (`getArtifact`, `getSpecification`) validan forma y
   bindings pero no implican ownership ni adopcion.
+- El CLI `specification create|show --owned` adapta el store sin cambiar el
+  modo legacy por defecto; contrato y limites en la
+  [guia de ownership](record-ownership.md#cli).
 - Un ack local es una declaracion del adaptador, no prueba de ejecucion remota.
   Antes de exponer el journal a herramientas no confiables hacen falta
   adaptadores tipados y ownership de registros. El lock es cooperativo; no

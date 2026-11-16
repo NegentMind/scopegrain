@@ -80,6 +80,8 @@ captura tipadas con ownership probado, consulte
 [capturas selectivas](docs/captures.md). Para la prueba de ownership
 compartida de creaciones (capturas y specs V2), consulte
 [creacion con ownership probado](docs/record-ownership.md).
+El CLI `specification create|show --owned` es opt-in explicito y conserva
+el modo legacy por defecto.
 
 ## Organic y SDD
 

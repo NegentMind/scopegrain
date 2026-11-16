@@ -20,8 +20,8 @@ import {
 
 const MISSING = '00000000-0000-4000-8000-000000000000';
 const USAGES = [
-  'specification create --project PATH --input FILE [--apply]',
-  'specification show --project PATH UUID',
+  'specification create --project PATH --input FILE [--owned] [--apply]',
+  'specification show --project PATH UUID [--owned]',
   'design create --project PATH --input FILE [--apply]',
   'outcome create --project PATH --input FILE [--apply]',
   'approval target --project PATH --input FILE',

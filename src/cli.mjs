@@ -26,6 +26,7 @@ import {
 import {
   getSpecification, prepareDesign, prepareSpecification,
 } from './core/specifications.mjs';
+import { createOwnedSpecificationStore } from './core/owned-specifications.mjs';
 import { prepareOutcomeEvidence } from './core/outcomes.mjs';
 import {
   answerApproval, describeApprovalTarget, getApproval, prepareApproval,
@@ -58,7 +59,7 @@ const VALUE_FLAGS = new Set([
   '--query', '--interaction', '--spec', '--design', '--plan', '--to',
   '--outcome-evidence',
 ]);
-const BOOL_FLAGS = new Set(['--apply', '--help']);
+const BOOL_FLAGS = new Set(['--apply', '--help', '--owned']);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
 // Per-command flag whitelist and exact positional count (after 'task <sub>').
@@ -126,12 +127,12 @@ const COMMANDS = {
     usage: 'task check-action --project PATH ID ACTION',
   },
   'specification create': {
-    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
-    usage: 'specification create --project PATH --input FILE [--apply]',
+    flags: ['--project', '--config', '--input', '--apply', '--owned'], pos: 0,
+    usage: 'specification create --project PATH --input FILE [--owned] [--apply]',
   },
   'specification show': {
-    flags: ['--project', '--config'], pos: 1,
-    usage: 'specification show --project PATH UUID',
+    flags: ['--project', '--config', '--owned'], pos: 1,
+    usage: 'specification show --project PATH UUID [--owned]',
   },
   'design create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
@@ -259,6 +260,7 @@ function helpResult() {
       'results are JSON on stdout; errors are JSON on stderr with exit code 1',
       'JSON creation previews do not reserve IDs; use IDs returned by --apply',
       'Methodology checks and stored approvals are not native tool permissions',
+      '--owned opts specification create/show into journal ownership; legacy behavior stays unchanged without it',
     ],
   };
 }
@@ -307,7 +309,11 @@ function readInputFile(file, label) {
       `${label} exceeds ${loadLimits().maxDocumentBytes} bytes`);
   }
   try {
-    return JSON.parse(limited.content.toString('utf8'));
+    const text = limited.content.toString('utf8');
+    if (!Buffer.from(text, 'utf8').equals(limited.content)) {
+      throw err('MALFORMED_JSON', `malformed JSON in ${label}: ${abs}`);
+    }
+    return JSON.parse(text);
   } catch {
     throw err('MALFORMED_JSON', `malformed JSON in ${label}: ${abs}`);
   }
@@ -713,6 +719,20 @@ function cmdJournal(sub, positional, flags) {
     : prepareJournalRecovery(bound, positional[0], input);
 }
 
+function cmdOwnedSpecification(sub, positional, flags) {
+  const project = requireFlag(flags, '--project');
+  const input = sub === 'create'
+    ? readInputFile(requireFlag(flags, '--input'), 'owned specification input')
+    : null;
+  const ctx = resolveContext({ project, config: flags['--config'] });
+  const workspace = getWorkspace(ctx);
+  const store = createOwnedSpecificationStore(ctx, {
+    areaIds: workspace.areas.map((area) => area.id),
+  });
+  if (sub === 'show') return store.get(positional[0]);
+  return flags['--apply'] ? store.create(input) : store.prepare(input);
+}
+
 function cmdTypedArtifact(family, sub, positional, flags) {
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
@@ -917,6 +937,8 @@ export async function run(argv, io) {
       result = cmdPlan(cmdKey.slice(5), rest, flags);
     } else if (cmdKey.startsWith('artifact ')) {
       result = cmdArtifact(cmdKey.slice(9), rest, flags);
+    } else if (positional[0] === 'specification' && flags['--owned']) {
+      result = cmdOwnedSpecification(positional[1], rest, flags);
     } else if (['specification', 'design', 'outcome'].includes(positional[0])) {
       result = cmdTypedArtifact(positional[0], positional[1], rest, flags);
     } else if (cmdKey.startsWith('approval ')) {

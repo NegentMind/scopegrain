@@ -3,9 +3,10 @@
 ## Estado Actual
 
 La ultima ejecucion integral (`npm test`, serial por archivo) termino con
-699 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
-Node.js v26.8.1 y npm 11.6.0. Las integrales anteriores de capturas CLI
-(673) y foundation (536) se conservan abajo como referencias pasadas.
+770 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
+Node.js v26.8.1 y npm 11.6.0. Las integrales anteriores de ownership spec
+(699), capturas CLI (673) y foundation (536) se conservan como referencias
+pasadas.
 No sumar tandas acotadas ni resultados historicos.
 
 | Bloque | Referencia | Evidencia observada |
@@ -32,7 +33,9 @@ No sumar tandas acotadas ni resultados historicos.
 | CLI capture create/show (Task 4) | Gate enfocado de 8 archivos, 2026-11-16 | Exit 0: 121 pass, 0 fail, 0 skipped, 0 cancelled |
 | Integral capturas CLI | `npm test` serial, 2026-11-16 | Exit 0: 673 pass, 0 fail, 0 skipped, 0 cancelled |
 | Ownership spec V2 tras revision | Gate focalizado de 3 archivos, 2026-11-16 | Exit 0: 35 pass, 0 fail, 0 skipped, 0 cancelled |
-| Integral actual | `npm test` serial, 2026-11-16 | Exit 0: 699 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral ownership spec core | `npm test` serial, 2026-11-16 | Exit 0: 699 pass, 0 fail, 0 skipped, 0 cancelled |
+| CLI spec owned y UTF8 | Gate focalizado de 4 archivos, 2026-11-16 | Exit 0: 97 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral actual | `npm test` serial, 2026-11-16 | Exit 0: 770 pass, 0 fail, 0 skipped, 0 cancelled |
 | Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |
 | Control nativo de embeddings | Modelo/runtime locales existentes, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; fase positiva aprobada, controles negativos fallidos |
 | Pilotos en anfitriones | Pendientes | No certificados |
@@ -210,14 +213,48 @@ son distintos y sus conteos no se suman.
 
 Tras la revision completa se ejecuto una unica integral con `npm test`
 serial, Node.js v26.8.1 y npm 11.6.0: 699 pass, 0 fail, 0 skipped,
-0 cancelled, salida 0 y 1354533.5285 ms. Es la referencia integral actual.
+0 cancelled, salida 0 y 1354533.5285 ms. Es la referencia de ese bloque core.
 El log completo, incluidas versiones y salida real, esta en
 `.tasksystem/verification/2026-11-16-integral-npmtest-1794813511.log`.
 Son 26 casos nuevos en los dos archivos de ownership, incluidos en las
 699 pruebas, no adicionales a ellas. No hubo reintentos de la integral.
-El nuevo store es opt-in y core-only; no hay CLI de specs con ownership,
-protocolo mutable, productor automatico ni activacion nativa en este bloque.
+En ese bloque el store era opt-in y core-only; no habia CLI de specs con ownership,
+protocolo mutable, productor automatico ni activacion nativa.
 Esta integral no sustituye el gate nativo de embeddings bloqueado.
+
+La ampliacion CLI posterior incorpora `specification create|show --owned`
+sin cambiar el modo legacy por defecto. Un repro aislado previo confirmo
+que `readInputFile` aceptaba un byte `0xff` dentro de `originalRequest`
+y persistia U+FFFD en un artefacto legacy. Se corrigio el lector comun:
+limite de bytes, roundtrip UTF8 exacto y luego parseo, sin prohibir U+FFFD
+valido ni normalizar el texto. El repro esta en
+`.tasksystem/verification/2026-11-16-cli-utf8-repro-1794815485.log`.
+El RED inicial se conserva en
+`.tasksystem/verification/2026-11-16-cli-owned-task1-red.log`: incluyo
+un fallo de fixture por ruta reservada, corregido antes de GREEN, ademas
+de los fallos de modo aun ausente y perdida UTF8. La expectativa de error
+de un UUID desconocido se reconcilio con `OWNED_SPEC_NOT_FOUND` del core;
+no se cambio el core para satisfacer el shorthand erroneo del plan.
+
+El gate focalizado aprobo 97 pruebas, 0 fallos, omisiones o cancelaciones,
+salida 0 y 60057.2735 ms:
+`node --test --test-concurrency=1 tests/cli-utf8.test.mjs tests/cli-owned-specifications.test.mjs tests/cli-captures.test.mjs tests/cli-methodology.test.mjs`.
+Su log completo esta en
+`.tasksystem/verification/2026-11-16-owned-spec-cli-green-1794816091.log`.
+
+Tras revisar todos los tests, fuente y documentacion, y una segunda
+revision en contexto separado sin hallazgos que requirieran cambios,
+se congelo el codigo y se ejecuto una unica integral `npm test` serial:
+770 pass, 0 fail, 0 skipped, 0 cancelled, salida 0 y 510701.96 ms,
+Node.js v26.8.1 y npm 11.6.0. El log crudo con versiones, comando, salidas
+y codigo real es
+`.tasksystem/verification/2026-11-16-owned-spec-cli-integral-1794816546.log`.
+El chequeo de whitespace con `cr-at-eol` acotado al proceso termino
+tambien con salida 0, sin escribir configuracion Git. No hubo reintentos,
+filtros ni omisiones de la integral; la focalizada no se suma al total.
+Estos logs son locales e ignorados, no acompanan automaticamente un clon.
+Este bloque no activa productores automaticos, hooks, protocolo mutable
+ni VantaDB nativo; tampoco repite ni sustituye el control de embeddings.
 
 Antes de este bloque de ownership se ejecuto una vez la receta privada de
 piloto MCP nativo, con una
