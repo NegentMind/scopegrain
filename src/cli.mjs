@@ -39,6 +39,7 @@ import {
 import { bindWorkspace, getWorkspace, prepareWorkspace } from './core/workspaces.mjs';
 import { getJournalOperation, prepareJournalRecovery, recoverJournalOperation }
   from './core/journal.mjs';
+import { createCaptureStore } from './core/captures.mjs';
 
 const PATH_LABELS = {
   plans: 'Ruta de planes',
@@ -93,6 +94,14 @@ const COMMANDS = {
   'journal recover': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 1,
     usage: 'journal recover OPERATION --project PATH [--config REL] --input FILE [--apply]',
+  },
+  'capture create': {
+    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
+    usage: 'capture create --project PATH [--config REL] --input FILE [--apply]',
+  },
+  'capture show': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'capture show UUID --project PATH [--config REL]',
   },
   'task create': {
     flags: ['--project', '--config', '--title', '--contract', '--author', '--scope',
@@ -676,6 +685,21 @@ function cmdWorkspace(sub, flags) {
   return finishCreation(ctx, 'workspace', prepared.workspace, prepared.file, flags);
 }
 
+function cmdCapture(sub, positional, flags) {
+  const project = requireFlag(flags, '--project');
+  // The bounded input is read before context/workspace resolution so a
+  // malformed payload is reported as itself, never masked or trusted.
+  const input = sub === 'create'
+    ? readInputFile(requireFlag(flags, '--input'), 'capture input') : null;
+  const ctx = resolveContext({ project, config: flags['--config'] });
+  const workspace = getWorkspace(ctx);
+  const store = createCaptureStore(ctx, {
+    areaIds: workspace.areas.map((area) => area.id), origin: 'local-cli',
+  });
+  if (sub === 'show') return store.get(positional[0]);
+  return flags['--apply'] ? store.create(input) : store.prepare(input);
+}
+
 function cmdJournal(sub, positional, flags) {
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
@@ -810,7 +834,7 @@ export async function run(argv, io) {
       io.stdout(JSON.stringify(helpResult(), null, 2));
       return 0;
     }
-    const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal',
+    const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
       'specification', 'design', 'outcome', 'approval', 'methodology']);
     let cmdKey;
     let spec;
@@ -883,6 +907,8 @@ export async function run(argv, io) {
       result = cmdWorkspace(cmdKey.slice(10), flags);
     } else if (cmdKey.startsWith('journal ')) {
       result = cmdJournal(cmdKey.slice(8), rest, flags);
+    } else if (cmdKey.startsWith('capture ')) {
+      result = cmdCapture(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('catalog ')) {
       result = cmdCatalog(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('resource ')) {

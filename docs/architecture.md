@@ -95,7 +95,8 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   con los bytes actuales y fuente actual igual al snapshot; no adopta
   archivos plausibles ni devuelve historial como actual. Una nota es una
   afirmacion aportada, no identidad autenticada, verdad activa ni
-  autorizacion. Sin listados, escritor generico ni captura automatica.
+  autorizacion. Sin listados, escritor generico ni captura automatica; el
+  CLI `capture create|show` solo aplica este contrato.
 - Un ack local es una declaracion del adaptador, no prueba de ejecucion remota.
   Antes de exponer el journal a herramientas no confiables hacen falta
   adaptadores tipados y ownership de registros. El lock es cooperativo; no

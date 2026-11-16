@@ -75,7 +75,9 @@ Consultar el [ejemplo de respuestas](examples/answers.json) y su
 [esquema](schemas/answers.schema.json).
 
 Para operaciones del journal, consulte la
-[guia de recuperacion explicita](docs/journal-recovery.md).
+[guia de recuperacion explicita](docs/journal-recovery.md). Para notas de
+captura tipadas con ownership probado, consulte
+[capturas selectivas](docs/captures.md).
 
 ## Organic y SDD
 
@@ -186,6 +188,7 @@ circuito activo y sujeto a revision de procedencia y derechos.
 - [Organic, SDD, aprobaciones y limites de evidencia](docs/methodology.md)
 - [Workflows y continuidad](docs/workflows.md)
 - [Verificacion y reproduccion](docs/verification.md)
+- [Capturas selectivas tipadas](docs/captures.md)
 - [Informe completo del sistema](docs/system-report.md)
 - [Contrato del producto](docs/product-contract.md)
 - [Contrato de implementacion](docs/implementation.md)

@@ -2,10 +2,11 @@
 
 ## Estado Actual
 
-La suite integral del bloque foundation termino con 536 pruebas aprobadas,
-0 fallidas, 0 omitidas y 0 canceladas en Windows, Node.js v26.8.1 y npm
-11.6.0. Se ejecuto con concurrencia limitada a un archivo de test. No sumar
-tandas acotadas ni resultados historicos.
+La ultima ejecucion integral (`npm test`, serial por archivo) termino con
+673 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
+Node.js v26.8.1 y npm 11.6.0. La integral historica del bloque foundation
+(536) se conserva abajo como referencia pasada. No sumar tandas acotadas
+ni resultados historicos.
 
 | Bloque | Referencia | Evidencia observada |
 | --- | --- | --- |
@@ -28,6 +29,8 @@ tandas acotadas ni resultados historicos.
 | Seam estricto del journal (Task 1) | 3 archivos del plan, 2026-11-16 | Exit 0: 74 pass, 0 fail, 0 skipped, 0 cancelled |
 | Contratos de datos de captura (Task 2) | 1 archivo del plan, 2026-11-16 | Exit 0: 9 pass, 0 fail, 0 skipped, 0 cancelled |
 | Store de capturas tipado (Task 3) | 3 archivos del plan, 2026-11-16 | Exit 0: 60 pass, 0 fail, 0 skipped, 0 cancelled |
+| CLI capture create/show (Task 4) | Gate enfocado de 8 archivos, 2026-11-16 | Exit 0: 121 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral actual | `npm test` serial, 2026-11-16 | Exit 0: 673 pass, 0 fail, 0 skipped, 0 cancelled |
 | Pilotos en anfitriones | Pendientes | No certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
@@ -158,9 +161,34 @@ sin validar destinos inseguros (ancestro archivo o junction) y `get`
 podia leer la fuente actual con un binding ya revocado tras la ultima
 lectura de snapshot. La ejecucion intermedia de 55 pruebas no se suma.
 El store crea la nota y su sidecar en una operacion journal recuperable y
-`get` exige prueba committed de dos eventos; no hay CLI, captura
-automatica, recoleccion por anfitriones ni resolucion de preferencia
-activa o verdad actual.
+`get` exige prueba committed de dos eventos; a esa fecha no habia CLI,
+captura automatica, recoleccion por anfitriones ni resolucion de
+preferencia activa o verdad actual.
+
+La superficie CLI `capture create|show` (Task 4 del plan) se verifico en
+Node.js v26.8.1 con el gate enfocado final de 8 archivos:
+`node --test --test-concurrency=1 tests/capture-data.test.mjs tests/captures.test.mjs tests/cli-captures.test.mjs tests/journal.test.mjs tests/journal-recovery.test.mjs tests/vantadb-projection.test.mjs tests/cli-journal.test.mjs tests/cli.test.mjs`.
+La ejecucion aprobo 121 pruebas sin fallos, omisiones ni cancelaciones,
+con salida 0 y duracion de 22355.7746 ms. El log local es
+`.tasksystem/verification/2026-11-16-final8-green-1794807260.log` y el
+RED previo (0 aprobadas, 7 fallos por comando desconocido) esta en
+`2026-11-16-cli-captures-red-1794807224.log`. El gate incluye las pruebas
+MCP existentes de proyeccion en memoria; no certifica conformidad nativa
+ni global. `capture` es escritura manual tipada (vista previa por defecto,
+`--apply` explicito, grants all-of del workspace); los productores
+automaticos, la recoleccion por anfitriones y el backend nativo siguen
+sin estar conectados. Los conteos de tandas previas (9, 60, 74, 83) no se
+suman a este gate ni entre si.
+
+Tras el gate enfocado se ejecuto una unica vez la suite integral autorizada
+mediante `npm test`, que invoca
+`node --test --test-concurrency=1 tests/*.test.mjs` en Node.js v26.8.1 y
+npm 11.6.0. Aprobo 673 pruebas sin fallos, omisiones ni cancelaciones, con
+salida 0 y duracion de 322695.5689 ms; el log completo esta en
+`.tasksystem/verification/2026-11-16-integral-npmtest-1794807643.log`. Es
+la referencia integral actual, no un rerun del gate 121 ni una
+certificacion de CI, ejecucion nativa o conformidad en anfitriones; los
+conteos anteriores no se suman a ella.
 
 El intento integral foundation reporto errores `UNKNOWN` en operaciones de
 E/S y archivos de prueba abortados. El diagnostico registro un evento System
@@ -177,7 +205,8 @@ La regresion filtrada del script fallo antes de cambiarlo, como se registra en
 ese filtro no es una suite completa. El script actual es
 `node --test --test-concurrency=1 tests/*.test.mjs`.
 
-La ejecucion integral serial duro aproximadamente 19 minutos y 13 segundos.
+La ejecucion integral serial de foundation duro aproximadamente 19 minutos
+y 13 segundos.
 El workflow manual reserva 45 minutos por job para dejar margen a la
 preparacion y a diferencias entre runners; no se ha ejecutado en CI y ese
 presupuesto no demuestra su duracion en Linux, Windows ni otras versiones

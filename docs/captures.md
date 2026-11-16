@@ -11,7 +11,7 @@ no activa coleccion automatica, no recolecta archivos arbitrarios (lee solo
 los archivos gestionados que el propio contrato nombra), no lee
 conversaciones, y no integra backends nativos ni procesos.
 
-## Store
+## Store (core)
 
 ```js
 import { createCaptureStore } from '../src/core/captures.mjs';
@@ -83,5 +83,53 @@ por las APIs conocidas del journal, sin escaneo.
   `WORKSPACE_STALE`, `SYMLINK_REJECTED`, `DOCUMENT_TOO_LARGE` y `JOURNAL_*`
   se conservan del kernel.
 
-No hay CLI, escritor generico, endpoints de conversacion ni activacion de
-anfitriones en este slice.
+## CLI
+
+El CLI expone exactamente dos comandos agrupados sobre el store; el
+proyecto ya debe estar enrolado: config creada y
+`node ./bin/scopegrain.mjs workspace init --project "C:\ruta\mi-proyecto" --apply`
+(sin `--apply` el enrolamiento es solo vista previa). Los grants de area
+se derivan del workspace registrado; `workspace show` devuelve los IDs de
+sus areas:
+
+```powershell
+node ./bin/scopegrain.mjs capture create --project "C:\ruta\mi-proyecto" --input capture.json
+node ./bin/scopegrain.mjs capture create --project "C:\ruta\mi-proyecto" --input capture.json --apply
+node ./bin/scopegrain.mjs capture show "66666666-6666-6666-6666-666666666666" --project "C:\ruta\mi-proyecto"
+```
+
+Los placeholders (`<area-id-del-workspace>`, el UUID del ejemplo) deben
+reemplazarse por IDs reales devueltos por `workspace show` y por
+`capture create --apply`/`capture show`.
+
+(`tasksystem` sigue siendo un alias compatible.) `--input` es una ruta del
+directorio de trabajo actual, no relativa al proyecto. `--config REL`
+selecciona una configuracion explicita; las rutas de memoria y estado se
+heredan de esa configuracion, nunca se escriben por defecto. Sin `--apply`,
+`create` es una vista previa de solo lectura con identidad provisional;
+`--apply` devuelve el valor completo del core, incluido el resultado del
+journal con sus recibos e incertidumbre preservados. En `create` no hay
+`--force`, `--yes` ni seleccion de destino, namespace, hash o ID propio
+por linea de comandos; `show` acepta el UUID del registro y `supersedes`
+referencia una nota previa.
+
+Entrada minima (`capture.json`):
+
+```json
+{"category": "decision", "title": "Elegir X", "summary": "Razon breve",
+  "areaIds": ["<area-id-del-workspace>"], "basis": "declared",
+  "subjectId": null, "supersedes": null}
+```
+
+Para corregir una nota, se crea una nueva con `supersedes` apuntando al ID
+anterior; exige la misma `category`, `subjectId` y conjunto exacto de
+areas, y una preferencia `inferred` nunca reemplaza una `declared`. Las
+versiones anteriores se conservan intactas: no hay borrado ni puntero
+mutable, y el historial queda disponible por las APIs conocidas del
+journal.
+
+Esta superficie es escritura manual tipada: los productores automaticos de
+capturas, hooks de anfitrion y la recoleccion de conversaciones siguen sin
+estar conectados. Las notas de captura son registros propios, no migran
+tareas ni aprobaciones formales, y el texto libre no se declara libre de
+secretos ni clasificado automaticamente.
