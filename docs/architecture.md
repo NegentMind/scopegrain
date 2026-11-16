@@ -19,6 +19,8 @@ src/core/config.mjs       Contrato de config.json, answers y colisiones
 src/core/context.mjs      Vincula project root explicito + config cargada
 src/core/workspaces.mjs   Identidad por proyecto, areas y autorizacion interna de scope
 src/core/journal.mjs      Journal interno create-only y outbox acotado
+src/core/capture-data.mjs Contratos puros de notas/ownership de captura
+src/core/captures.mjs     Store tipado de capturas con prueba journal
 src/integrations/vantadb.mjs  Proyeccion MCP interna de eventos confirmados
 src/core/policy.mjs       Carga las politicas canonicas del runtime instalado
 src/core/tasks.mjs        Documentos de tarea, createTask, getTask, listTasks
@@ -85,6 +87,15 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   copia congelada al callback sincrono y valida el resultado como cualquier
   cambio. Todas las fuentes propuestas deben ser creaciones nuevas; un noop
   es conflicto, nunca adopcion. No es API JSON, CLI ni captura activada.
+- `createCaptureStore(ctx, options)` ata un binding autentico y una copia
+  privada de config; solo crea la forma capture bajo `paths.memory` y la de
+  ownership bajo `paths.state`, ambas en una unica operacion journal
+  estricta de dos eventos. `get` exige sidecar canonico, scope autorizado,
+  operacion committed de exactamente dos eventos, snapshots que coincidan
+  con los bytes actuales y fuente actual igual al snapshot; no adopta
+  archivos plausibles ni devuelve historial como actual. Una nota es una
+  afirmacion aportada, no identidad autenticada, verdad activa ni
+  autorizacion. Sin listados, escritor generico ni captura automatica.
 - Un ack local es una declaracion del adaptador, no prueba de ejecucion remota.
   Antes de exponer el journal a herramientas no confiables hacen falta
   adaptadores tipados y ownership de registros. El lock es cooperativo; no
