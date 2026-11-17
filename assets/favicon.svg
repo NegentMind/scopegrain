@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Scopegrain brand asset — original vector work, generated for the Scopegrain project, 2026-11-17 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="t">
+  <title id="t">Scopegrain favicon</title>
+  <style>
+    .bg { fill: #F6F7F3; }
+    .ink { fill: #1A2923; }
+    .corner { fill: none; stroke: #1A2923; stroke-width: 30; }
+    .clay { fill: #BF4F2B; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #1A2923; }
+      .ink { fill: #F6F7F3; }
+      .corner { stroke: #F6F7F3; }
+    }
+  </style>
+  <!-- Neutral chip keeps the mark legible on light and dark browser chrome -->
+  <rect class="bg" width="512" height="512" rx="72"/>
+  <!-- Open scope frames -->
+  <path class="corner" d="M66.2 215.3 L66.2 66.2 L215.3 66.2"/>
+  <path class="corner" d="M296.7 445.8 L445.8 445.8 L445.8 296.7"/>
+  <!-- Scope-to-grain staircase, reduced for small sizes -->
+  <rect class="ink" x="102.3" y="301.2" width="104" height="104"/>
+  <rect class="ink" x="233.4" y="247" width="67.8" height="67.8"/>
+  <rect class="clay" x="341.9" y="97.8" width="33.9" height="33.9"/>
+  <rect class="ink" x="387.1" y="97.8" width="33.9" height="33.9"/>
+  <rect class="ink" x="341.9" y="143" width="33.9" height="33.9"/>
+  <rect class="ink" x="387.1" y="143" width="33.9" height="33.9"/>
+</svg>

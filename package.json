@@ -1,9 +1,21 @@
 {
-  "name": "tasksystem-harness",
+  "name": "scopegrain",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Project-neutral engineering harness for coding agents",
+  "files": [
+    "bin",
+    "src",
+    "policy",
+    "resources",
+    "schemas",
+    "templates",
+    "docs",
+    "examples",
+    "README*.md",
+    "LICENSE*"
+  ],
   "engines": {
     "node": ">=22"
   },

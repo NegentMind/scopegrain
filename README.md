@@ -153,8 +153,9 @@ corresponden a `manual`; el ejemplo de respuestas incluido selecciona
 
 ## Anfitriones y limites de confianza
 
-Se generan propuestas para Claude Code, Codex, OpenCode V2, Devin Local/CLI
-y Google Antigravity. Los puentes nativos
+Se generan propuestas para Claude Code, Codex, OpenCode V2, Devin Local/CLI,
+Google Antigravity y Hermes Agent (provisional, formato sin verificar). Los
+puentes nativos
 y fragmentos MCP son propuestas para revision y activacion manual, no
 integraciones certificadas ni una garantia de equivalencia de permisos o
 comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver

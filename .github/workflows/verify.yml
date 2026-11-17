@@ -1,5 +1,12 @@
 name: Manual Verification
 
+# NOTE (2026-11-17): This workflow has NEVER run remotely. It is
+# configuration only, triggered exclusively via workflow_dispatch, and no
+# execution evidence exists yet on any matrix cell (Node 22/24 x
+# ubuntu-latest/windows-latest). Local suite evidence lives in
+# docs/verification.md; treat this file as unverified CI config until its
+# first real run is recorded.
+
 on:
   workflow_dispatch:
 

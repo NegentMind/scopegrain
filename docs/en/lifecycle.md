@@ -1,0 +1,181 @@
+# Product lifecycle
+
+> English version of the canonical document (`../lifecycle.md`).
+
+The lifecycle block (`src/core/lifecycle.mjs`) completes the harness's
+operational surface: `init` creates, `doctor` diagnoses, and this
+module covers adopt, update, backup, restore and uninstall. Each verb
+exposes a read-only preview (`prepare*`) and, where applicable, a
+mutating operation (`apply*`) with create-only semantics.
+
+Common rules:
+
+- Previews do not write, do not create directories and do not reserve
+  identifiers. A `prepare` is never proof that the state remains the
+  same.
+- Each `apply` re-runs its `prepare` internally and re-verifies bytes,
+  destinations and hashes immediately before mutating.
+- Nothing existing is overwritten or merged: occupied destinations are
+  reported conflicts, and every write uses exclusive `wx` via
+  `applyPlan` (full preflight and rollback of only what was created).
+- Paths are validated with `assertDestination`/`resolveInside`: no
+  absolute paths, drive letters, UNC, `..`, reserved prefixes
+  (`.git`/`node_modules`/`legacy`/`.opencode`) or linked ancestors.
+  Symlinks are never followed; they are reported and skipped.
+- Inputs are closed objects; unknown keys produce
+  `LIFECYCLE_INVALID_INPUT`. The config is cloned before use.
+- `ctx` is the result of `resolveContext`: `{projectRoot, configPath,
+  configDir, config}`.
+
+## adopt
+
+`prepareAdopt(projectRoot, options?)` detects an already initialized
+project and reports what adopting would link. There is no `applyAdopt`:
+adoption writes nothing.
+
+```js
+{
+  mode: 'dry-run', projectRoot, configRel, config,
+  workspace, journalState, status, issues
+}
+```
+
+- `configRel` is the resolved config (`.scopegrain/config.json` or
+  `.tasksystem/config.json`); `options.config` forces an explicit
+  path. Without a valid config it stays `null` with an issue
+  (`CONFIG_NOT_FOUND`, `CONFIG_AMBIGUOUS`, `MALFORMED_JSON`, ...).
+- `config` summarizes `{name, locale, hosts, methodology, paths}`
+  when the config loads.
+- `workspace` summarizes `{rel, workspaceId, revision, areas}` when
+  valid enrollment exists; absence is neutral (enrollment is opt-in),
+  a malformed descriptor is an issue.
+- `journalState`: `absent` (no journal directory), `idle`, `active`
+  (head with `activeOperation`), `attention` (malformed head, absent
+  head with history, or the journal is not a directory) or `unknown`
+  when the config does not load and paths are indeterminable.
+- `status`: `adoptable` or `attention`. Adoption never reinitializes:
+  to initialize a project without config, `init` is used.
+
+## update
+
+`prepareUpdate(ctx, {installRoot?}?)` rebuilds the plan of
+harness-generated files (templates, policies, catalog resources, host
+fragments) preserving the on-disk bytes of
+`config.json`/`discovery.json`, and classifies each file:
+
+| action | meaning |
+| --- | --- |
+| `create` | destination absent; can be created |
+| `noop` | bytes identical to the generated ones |
+| `conflict` | different destination, link, directory or internal collision |
+
+`applyUpdate(ctx, {installRoot?}?)` creates only the `create` entries;
+`conflict` entries are reported and never overwritten. `config.json`
+is reported but stays out of the write set: the configuration belongs
+to the project, it is not a refreshable resource. A destination that
+appears between the preview and the apply aborts everything with
+`PLAN_CONFLICT`. Unlike `applyActivation` in
+[hosts](native-hosts.md), which is all-or-nothing, `update` applies
+partially: viable `create` entries are written even while `conflict`
+entries are reported.
+
+## backup
+
+`prepareBackup(ctx, {destination})` produces the export manifest: the
+config file plus every regular file under the seven declared `paths.*`
+(includes `state/` with `workspace.json`, `journal/` and the ownership
+sidecars). Each entry carries `{rel, sha256, bytes}`. Links and
+non-regular files are skipped and listed in `issues[]`; they are never
+followed.
+
+`destination` is required, project-relative and cannot overlap
+(ancestor in either direction) the config or any `paths.*` — a bundle
+inside a scanned source would include itself
+(`BACKUP_DESTINATION_OVERLAP`). Reserved prefixes, absolute paths,
+drive letters and `..` are rejected at the boundary.
+
+`applyBackup(ctx, {destination})` rereads and rehashes each source; a
+source that changed since the preview is skipped (`skipped`) rather
+than exporting bytes under a stale hash. It writes create-only:
+
+```text
+<destination>/manifest.json        {schemaVersion:1, kind:'scopegrain-backup',
+                                    createdAt, source:{configRel}, entries:[]}
+<destination>/files/<rel>          content tree with relative paths
+```
+
+A prior bundle or any existing byte at the destination produces
+`PLAN_CONFLICT` before writing anything. The tree entry limit is
+`MAX_MANIFEST_ENTRIES` (10000); exceeding it produces
+`BACKUP_CAPACITY`.
+
+## restore
+
+`prepareRestore(projectRoot, bundleRel)` reads the bundle's
+`manifest.json` (closed schema: `RESTORE_MANIFEST_MISSING`,
+`RESTORE_MANIFEST_MALFORMED`, `RESTORE_ENTRY_INVALID`), verifies each
+payload `<bundle>/files/<rel>` against its sha256 and classifies:
+
+| action | reason |
+| --- | --- |
+| `create` | destination absent and payload verified |
+| `skip` | `payload-missing`, `payload-hash-mismatch`, `identical`, `self-referential` (entry inside the bundle) |
+| `conflict` | existing destination with different bytes, link or non-regular |
+
+`applyRestore(projectRoot, bundleRel)` creates only the `create`
+entries, writing the verified payload bytes. Conflicts are reported,
+never merged or overwritten. A destination that appears between
+classification and writing aborts the whole batch with
+`PLAN_CONFLICT`.
+
+## uninstall
+
+`prepareUninstall(ctx, {installRoot?}?)` enumerates only files
+demonstrably created by the harness:
+
+- the config (`reason:'config'`),
+- each generated file whose on-disk bytes are identical to what the
+  current installation would produce (`reason:'generated'`), or whose
+  sha256 matches the project snapshot entry (`reason:
+  'snapshot-pinned'` — unmodified files from an earlier installation
+  that the current one no longer reproduces),
+- each regular file under `paths.state` (`reason:'state'`).
+
+Every candidate carries `{rel, sha256, bytes, reason}`. Generated files
+that differ stay in `leftBehind` with reason `diverged`; links and
+non-regular files are also left behind. Artifact paths
+(`plans`/`tasks`/`reports`/`research`/`decisions`/`memory`) contain
+user and agent work: they are never enumerated.
+
+`applyUninstall(ctx, {installRoot?}?)` re-enumerates, rereads and
+rehashes each candidate and deletes only regular files whose bytes
+still match the preview hash. A file that changed stays in
+`leftBehind` with `changed-since-preview`; a link or non-regular with
+`not-regular`. Then it removes emptied harness directories bottom-up
+(ancestors of deleted files inside the config directory,
+`paths.state` or the top-level generated directories); the project
+root is never removed and nothing else is written.
+
+## Diagnosis in doctor
+
+`doctor` adds two read-only checks:
+
+- `workspace-enrollment`: reports `not enrolled`, `enrolled` or fails
+  if the descriptor exists but is not a valid regular file.
+- `journal`: reports `no journal`, `no recorded operations`,
+  `journal idle`, or fails on a malformed/non-regular head or a
+  pending `activeOperation` (explicit recovery still belongs to the
+  journal; see [journal recovery](journal-recovery.md)).
+
+## Limits
+
+- None of this is a serializable transaction: the `apply`
+  re-verifications bound the window, they do not eliminate it.
+  Coordinating concurrent writers remains the operator's
+  responsibility.
+- Hashes prove bytes, not provenance or identity; a file with content
+  identical to the generated one is considered the harness's.
+- Backups do not encrypt or authenticate the bundle: the manifest
+  allows verifying internal integrity, not authorship.
+- Uninstall does not touch the project's Git, branches, tags or
+  history; nor files outside the enumerated set.
