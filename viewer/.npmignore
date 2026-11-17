@@ -1,0 +1,10 @@
+# .npmignore takes precedence over .gitignore when packing: keep
+# node_modules and sources out, but ship the built dist/ that the
+# loopback API mounts same-origin.
+node_modules
+src
+public
+*.ts
+*.json
+vite.config.ts
+components.json

@@ -11,6 +11,9 @@
 // - Strict route/method whitelist; unknown paths are 404, non-GET methods
 //   405, malformed query params 400. Errors are {error:{code,message}}.
 import http from 'node:http';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { err, toErrorPayload } from '../core/errors.mjs';
 import { resolveContext } from '../core/context.mjs';
 import { createApiQueries, parseListOptions } from './queries.mjs';
@@ -21,6 +24,64 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1']);
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 7731;
 const MAX_URL_BYTES = 4096;
+
+// The viewer build is mounted same-origin when it ships with the package
+// (viewer/dist inside the tarball). Absent the build, non-/api paths stay
+// 404 — the JSON API alone is still fully usable.
+const VIEWER_DIST = fileURLToPath(
+  new URL('../../viewer/dist/', import.meta.url));
+const STATIC_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8',
+};
+
+function sendStatic(res, segments) {
+  if (segments.some((s) => s === '.' || s === '..')) {
+    sendError(res, 400, 'INVALID_PATH', 'path contains traversal segments');
+    return;
+  }
+  const rel = segments.join('/');
+  const root = path.resolve(VIEWER_DIST);
+  const candidate = path.resolve(root, rel === '' ? 'index.html' : rel);
+  if (candidate !== root && !candidate.startsWith(root + path.sep)) {
+    sendError(res, 400, 'INVALID_PATH', 'path escapes the viewer root');
+    return;
+  }
+  let file = null;
+  if (existsSync(candidate) && statSync(candidate).isFile()) {
+    file = candidate;
+  } else if (path.extname(candidate) === '') {
+    const index = path.join(root, 'index.html');
+    if (existsSync(index)) file = index;
+  }
+  if (file === null) {
+    sendError(res, 404, 'NOT_FOUND',
+      rel === '' ? 'viewer build is not installed' : `not found: /${rel}`);
+    return;
+  }
+  const body = readFileSync(file);
+  const type = STATIC_TYPES[path.extname(file).toLowerCase()]
+    ?? 'application/octet-stream';
+  res.writeHead(200, {
+    'Content-Type': type,
+    'Content-Length': body.length,
+    // Hashed assets are content-addressed; index.html is not.
+    'Cache-Control': path.basename(file) === 'index.html'
+      ? 'no-store' : 'public, max-age=31536000, immutable',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  res.end(body);
+}
 
 // Route table: method whitelist is GET only. `query` lists the permitted
 // query-string keys per endpoint (strict schemas, nothing else passes).
@@ -137,6 +198,10 @@ export function createApiHandler(options) {
           .map((s) => decodeURIComponent(s));
       } catch {
         sendError(res, 400, 'INVALID_PATH', 'path is not valid percent-encoding');
+        return;
+      }
+      if (segments[0] !== 'api') {
+        sendStatic(res, segments);
         return;
       }
       const matched = matchRoute(segments);

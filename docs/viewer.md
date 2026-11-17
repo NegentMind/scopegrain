@@ -15,8 +15,17 @@ model and no TLS. Do not expose the port.
 
 ## Running
 
-The CLI wiring lands in a later wave; today the server is started from the
-module:
+```powershell
+scopegrain view --project PATH [--host 127.0.0.1|::1] [--port N]
+```
+
+`view` starts the loopback API and, when the viewer build ships with the
+package (`viewer/dist`), mounts it same-origin: `/` serves the SPA with
+`index.html` fallback for client paths, hashed assets under `/assets/`
+are cache-immutable, and traversal escapes are rejected. Without a build
+present the API alone still answers under `/api`.
+
+Started from the module:
 
 ```js
 import { createApiServer } from './src/api/server.mjs';

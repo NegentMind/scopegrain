@@ -13,6 +13,7 @@
     "templates",
     "docs",
     "examples",
+    "viewer/dist",
     "README*.md",
     "LICENSE*"
   ],
