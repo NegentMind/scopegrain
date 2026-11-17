@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
-import { lstatOrNull, readFileLimited } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, readFileLimited } from './fsx.mjs';
 import { assertDestination, resolveInside } from './paths.mjs';
 import { loadLimits, loadOnboardingDefaults } from './policy.mjs';
 import { canonicalDigest } from './digests.mjs';
@@ -250,9 +250,11 @@ export function getArtifact(ctx, kind, id) {
   if (limited.exceeded) {
     throw err('ARTIFACT_MALFORMED', `artifact ${id} exceeds document limit`);
   }
+  const text = decodeUtf8Strict(
+    limited.content, 'ARTIFACT_MALFORMED', `artifact ${id}`);
   let a;
   try {
-    a = JSON.parse(limited.content.toString('utf8'));
+    a = JSON.parse(text);
   } catch {
     throw err('ARTIFACT_MALFORMED', `artifact ${id} contains malformed JSON`);
   }

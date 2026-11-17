@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
 import { err } from './errors.mjs';
-import { readFileLimited, readJsonFile } from './fsx.mjs';
+import { decodeUtf8Strict, readFileLimited, readJsonFile } from './fsx.mjs';
 
 const LIMIT_BYTES = 1048576; // 1MiB policy-file bound (no policy/fsx cycle)
 
@@ -63,7 +63,8 @@ function loadPolicyFile(name, label) {
       throw err('POLICY_MALFORMED',
         `${label} exceeds ${LIMIT_BYTES} bytes: policy/${name}`);
     }
-    data = JSON.parse(limited.content.toString('utf8'));
+    data = JSON.parse(decodeUtf8Strict(
+      limited.content, 'POLICY_MALFORMED', `${label}: policy/${name}`));
   } catch (e) {
     if (e && e.code === 'ENOENT') {
       throw err('POLICY_NOT_FOUND', `${label} not found: policy/${name}`);

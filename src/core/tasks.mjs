@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
-import { lstatOrNull, mkdirpSync, readFileLimited, writeFileExclusive } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited, writeFileExclusive } from './fsx.mjs';
 import { assertDestination, isSameOrAncestor, resolveInside }
   from './paths.mjs';
 import { knownStates, loadLimits, loadPolicy } from './policy.mjs';
@@ -163,9 +163,11 @@ function readTaskFile(file, id) {
   if (limited.exceeded) {
     throw err('TASK_MALFORMED', `task ${id} exceeds document limit`);
   }
+  const text = decodeUtf8Strict(
+    limited.content, 'TASK_MALFORMED', `task ${id}`);
   let parsed;
   try {
-    parsed = JSON.parse(limited.content.toString('utf8'));
+    parsed = JSON.parse(text);
   } catch {
     throw err('TASK_MALFORMED', `task ${id} contains malformed JSON`);
   }

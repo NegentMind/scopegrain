@@ -13,7 +13,7 @@ import {
 import { loadLimits, loadMethodologyPolicy, loadOnboardingDefaults }
   from './policy.mjs';
 
-export const KNOWN_HOSTS = ['claude', 'codex', 'opencode', 'devin', 'antigravity'];
+export const KNOWN_HOSTS = ['claude', 'codex', 'opencode', 'devin', 'antigravity', 'hermes'];
 export const LOCALES = ['es', 'en'];
 export const PATH_KEYS = [
   'plans', 'tasks', 'reports', 'research', 'decisions', 'memory', 'state',

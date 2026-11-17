@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { canonicalDigest, canonicalJSON } from '../core/digests.mjs';
 import { err, toErrorPayload } from '../core/errors.mjs';
-import { readFileLimited } from '../core/fsx.mjs';
+import { decodeUtf8Strict, readFileLimited } from '../core/fsx.mjs';
 import { ackJournalEvent, getJournalEvent, listJournalPending, readJournalSnapshot }
   from '../core/journal.mjs';
 import { resolveInside } from '../core/paths.mjs';
@@ -39,7 +39,8 @@ function readPolicy() {
   try {
     const result = readFileLimited(POLICY_PATH, POLICY_LIMIT);
     if (result.exceeded) throw err('POLICY_MALFORMED', 'projection policy exceeds limit');
-    value = JSON.parse(result.content.toString('utf8'));
+    value = JSON.parse(decodeUtf8Strict(
+      result.content, 'POLICY_MALFORMED', 'projection policy'));
   } catch (e) {
     if (e.code === 'POLICY_MALFORMED') throw e;
     if (e.code === 'ENOENT') throw err('POLICY_NOT_FOUND', 'projection policy not found');

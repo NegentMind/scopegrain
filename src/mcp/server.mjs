@@ -4,6 +4,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { toErrorPayload } from '../core/errors.mjs';
+import { decodeUtf8Strict } from '../core/fsx.mjs';
 import { resolveContext } from '../core/context.mjs';
 import { runDoctor } from '../core/doctor.mjs';
 import { inspectProject } from '../discovery/inspect.mjs';
@@ -25,6 +26,14 @@ const PROTOCOL_NOTE = 'stdout is reserved for MCP protocol; logs go to stderr';
 const READ_ONLY = {
   readOnlyHint: true, destructiveHint: false, openWorldHint: false,
 };
+
+// Tool-argument bounds. The stdio transport parses a whole JSON-RPC line
+// before validation, so caps live in BOTH layers: per-field zod maxLength
+// (advertised in tools/list) and a serialized-args ceiling in strictify
+// (direct handler calls bypass zod entirely). Every legit arg is far below
+// these values (UUID 36, sha256 64, plan key <= 64).
+const MAX_ARG_CHARS = 4096;
+const MAX_ARGS_BYTES = 65536;
 
 function textResult(value) {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] };
@@ -48,12 +57,24 @@ function wrap(fn) {
 }
 
 // Strict input: unknown tool arguments are rejected at the handler level,
-// not silently stripped by schema parsing.
+// not silently stripped by schema parsing. The serialized-args ceiling is
+// checked first - it also covers direct handler calls that skip zod.
 function strictify(tools) {
   for (const t of tools) {
     const allowed = new Set(Object.keys(t.config.inputSchema ?? {}));
     const inner = t.handler;
     t.handler = async (args) => {
+      let argBytes;
+      try {
+        argBytes = Buffer.byteLength(JSON.stringify(args ?? {}), 'utf8');
+      } catch {
+        return errorResult(
+          err('INVALID_ARGS', 'tool arguments are not JSON-serializable'));
+      }
+      if (argBytes > MAX_ARGS_BYTES) {
+        return errorResult(err('INVALID_ARGS',
+          `tool arguments exceed ${MAX_ARGS_BYTES} bytes`));
+      }
       for (const k of Object.keys(args || {})) {
         if (!allowed.has(k)) {
           return errorResult(
@@ -101,7 +122,7 @@ export function createMCPTools(ctx, z) {
       name: 'tasksystem_get_task',
       config: {
         description: 'Get one task by UUID',
-        inputSchema: { id: z.string().describe('task UUID') },
+        inputSchema: { id: z.string().max(MAX_ARG_CHARS).describe('task UUID') },
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ id }) => getTask(ctx, id)),
@@ -111,8 +132,8 @@ export function createMCPTools(ctx, z) {
       config: {
         description: 'Check whether policy allows an action in the task state',
         inputSchema: {
-          taskId: z.string().describe('task UUID'),
-          action: z.string().describe('action name, e.g. read, edit, verify'),
+          taskId: z.string().max(MAX_ARG_CHARS).describe('task UUID'),
+          action: z.string().max(MAX_ARG_CHARS).describe('action name, e.g. read, edit, verify'),
         },
         annotations: READ_ONLY,
       },
@@ -122,7 +143,7 @@ export function createMCPTools(ctx, z) {
       name: 'tasksystem_catalog_list',
       config: {
         description: 'List catalog entries, optionally filtered by kind',
-        inputSchema: { kind: z.string().optional().describe('entry kind') },
+        inputSchema: { kind: z.string().max(MAX_ARG_CHARS).optional().describe('entry kind') },
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ kind }) => {
@@ -151,8 +172,8 @@ export function createMCPTools(ctx, z) {
       config: {
         description: 'Get one catalog resource with verbatim content',
         inputSchema: {
-          kind: z.string().describe('entry kind'),
-          id: z.string().describe('entry id'),
+          kind: z.string().max(MAX_ARG_CHARS).describe('entry kind'),
+          id: z.string().max(MAX_ARG_CHARS).describe('entry id'),
         },
         annotations: READ_ONLY,
       },
@@ -163,7 +184,9 @@ export function createMCPTools(ctx, z) {
           kind: r.kind, id: r.id,
           path: catalogDestRel(r), sourcePath: r.path,
           resourceRoot: ctx.configDir,
-          description: r.description, content: r.content.toString('utf8'),
+          description: r.description,
+          content: decodeUtf8Strict(r.content,
+            'CATALOG_MALFORMED', `catalog resource ${r.kind}/${r.id}`),
         };
       }),
     },
@@ -172,11 +195,11 @@ export function createMCPTools(ctx, z) {
       config: {
         description: 'Read-only workflow packet for a catalog command',
         inputSchema: {
-          command: z.string(),
-          mode: z.string().optional(),
-          taskId: z.string().optional(),
-          host: z.string().optional(),
-          profile: z.string().optional(),
+          command: z.string().max(MAX_ARG_CHARS),
+          mode: z.string().max(MAX_ARG_CHARS).optional(),
+          taskId: z.string().max(MAX_ARG_CHARS).optional(),
+          host: z.string().max(MAX_ARG_CHARS).optional(),
+          profile: z.string().max(MAX_ARG_CHARS).optional(),
           interaction: z.enum(['direct', 'guided']).optional(),
         },
         annotations: READ_ONLY,
@@ -188,8 +211,8 @@ export function createMCPTools(ctx, z) {
       config: {
         description: 'Search workspace snapshot resource metadata (read-only)',
         inputSchema: {
-          kind: z.string().optional(),
-          query: z.string().optional(),
+          kind: z.string().max(MAX_ARG_CHARS).optional(),
+          query: z.string().max(MAX_ARG_CHARS).optional(),
         },
         annotations: READ_ONLY,
       },
@@ -199,7 +222,7 @@ export function createMCPTools(ctx, z) {
       name: 'tasksystem_resource_diagnose',
       config: {
         description: 'Diagnose one snapshot resource vs its pinned hash (read-only)',
-        inputSchema: { kind: z.string(), id: z.string() },
+        inputSchema: { kind: z.string().max(MAX_ARG_CHARS), id: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
       },
       handler: wrap(async (a) => diagnoseResource(ctx, a)),
@@ -208,7 +231,7 @@ export function createMCPTools(ctx, z) {
       name: 'tasksystem_plan_get',
       config: {
         description: 'Get one stored plan by key',
-        inputSchema: { key: z.string() },
+        inputSchema: { key: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ key }) => getPlan(ctx, key)),
@@ -217,7 +240,7 @@ export function createMCPTools(ctx, z) {
       name: 'tasksystem_plan_next',
       config: {
         description: 'Dependency readiness of a plan from actual task state',
-        inputSchema: { key: z.string() },
+        inputSchema: { key: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ key }) => ({ tasks: nextPlanTasks(ctx, key) })),
@@ -226,7 +249,7 @@ export function createMCPTools(ctx, z) {
       name: 'tasksystem_artifact_get',
       config: {
         description: 'Get one stored artifact by kind and UUID',
-        inputSchema: { kind: z.string(), id: z.string() },
+        inputSchema: { kind: z.string().max(MAX_ARG_CHARS), id: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ kind, id }) => getArtifact(ctx, kind, id)),
@@ -235,7 +258,7 @@ export function createMCPTools(ctx, z) {
       name: 'tasksystem_specification_get',
       config: {
         description: 'Read a structured specification by UUID for the bound project.',
-        inputSchema: { id: z.string().describe('structured specification UUID') },
+        inputSchema: { id: z.string().max(MAX_ARG_CHARS).describe('structured specification UUID') },
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ id }) => getSpecification(ctx, id)),
@@ -244,7 +267,7 @@ export function createMCPTools(ctx, z) {
       name: 'tasksystem_approval_get',
       config: {
         description: 'Read a stored content-bound approval by SHA-256 ID.',
-        inputSchema: { id: z.string().describe('approval SHA-256 ID') },
+        inputSchema: { id: z.string().max(MAX_ARG_CHARS).describe('approval SHA-256 ID') },
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ id }) => getApproval(ctx, id)),
@@ -254,9 +277,9 @@ export function createMCPTools(ctx, z) {
       config: {
         description: 'Check declared methodology gates for ACT or ACCEPT without writing.',
         inputSchema: {
-          taskId: z.string().describe('task UUID'),
+          taskId: z.string().max(MAX_ARG_CHARS).describe('task UUID'),
           to: z.enum(['ACT', 'ACCEPT']).optional().describe('methodology gate to inspect; defaults to ACT'),
-          outcomeEvidenceId: z.string().optional().describe('optional outcome report UUID for an ACCEPT preview'),
+          outcomeEvidenceId: z.string().max(MAX_ARG_CHARS).optional().describe('optional outcome report UUID for an ACCEPT preview'),
         },
         annotations: READ_ONLY,
       },
@@ -266,7 +289,7 @@ export function createMCPTools(ctx, z) {
       name: 'tasksystem_session_get',
       config: {
         description: 'Get one stored session by UUID',
-        inputSchema: { id: z.string() },
+        inputSchema: { id: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ id }) => getSession(ctx, id)),
@@ -275,7 +298,7 @@ export function createMCPTools(ctx, z) {
       name: 'tasksystem_session_resume',
       config: {
         description: 'Session usage plus actual task state and guidance reference',
-        inputSchema: { id: z.string() },
+        inputSchema: { id: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ id }) => resumeSession(ctx, id)),
@@ -315,13 +338,25 @@ export async function startMCPServer({ project, config }) {
 const invokedAs = process.argv[1] ? path.resolve(process.argv[1]) : '';
 if (invokedAs && invokedAs === fileURLToPath(import.meta.url)) {
   const argv = process.argv.slice(2);
-  const pIdx = argv.indexOf('--project');
-  const project = pIdx >= 0 ? argv[pIdx + 1] : null;
-  const cIdx = argv.indexOf('--config');
-  const config = cIdx >= 0 ? argv[cIdx + 1] : undefined;
-  startMCPServer({ project, config }).catch((e) => {
-    const payload = toErrorPayload(e);
+  // A flag without a value must not swallow the next flag: missing or
+  // '--'-prefixed values are absent, not arguments.
+  const flagValue = (flag) => {
+    const i = argv.indexOf(flag);
+    const v = i >= 0 ? argv[i + 1] : undefined;
+    return v !== undefined && !v.startsWith('--') ? v : undefined;
+  };
+  const project = flagValue('--project');
+  if (!project) {
+    const payload = toErrorPayload(
+      err('INVALID_ARGS', 'mcp requires --project PATH'));
     process.stderr.write(JSON.stringify({ error: payload }) + '\n');
     process.exitCode = 1;
-  });
+  } else {
+    const config = flagValue('--config');
+    startMCPServer({ project, config }).catch((e) => {
+      const payload = toErrorPayload(e);
+      process.stderr.write(JSON.stringify({ error: payload }) + '\n');
+      process.exitCode = 1;
+    });
+  }
 }

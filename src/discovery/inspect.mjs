@@ -2,7 +2,8 @@
 // Only allowlisted manifests are opened, with size, depth and entry bounds.
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { lstatOrNull, readDirBounded, readFileLimited } from '../core/fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited }
+  from '../core/fsx.mjs';
 import { resolveProjectRoot } from '../core/paths.mjs';
 
 const MAX_DEPTH = 4;
@@ -108,7 +109,7 @@ function inspectPackageJson(dirAbs, relDir, content, out) {
   let pkg;
   const source = relDir ? `${relDir}/package.json` : 'package.json';
   try {
-    pkg = JSON.parse(content.toString('utf8'));
+    pkg = JSON.parse(decodeUtf8Strict(content, 'MALFORMED_JSON', source));
   } catch {
     out.warnings.push({
       code: 'MALFORMED_JSON',
@@ -238,8 +239,26 @@ export function inspectProject(projectInput) {
         fingerprintParts.push(JSON.stringify([relPath, limited.size, null]));
         continue;
       }
+      // Non-roundtrippable UTF-8 means the manifest bytes cannot be
+      // faithfully represented as text: fingerprinting the lossy decode
+      // would let distinct corruptions collide, so the file is marked
+      // unread (mirroring the too-large path) with an explicit warning.
+      let manifestText;
+      try {
+        manifestText = decodeUtf8Strict(
+          limited.content, 'MANIFEST_MALFORMED', relPath);
+      } catch {
+        out.warnings.push({
+          code: 'MANIFEST_MALFORMED',
+          message: 'manifest is not valid UTF-8; content skipped',
+          path: relPath,
+        });
+        out.evidence.push({ type: 'manifest', path: relPath, read: false });
+        fingerprintParts.push(JSON.stringify([relPath, limited.size, null]));
+        continue;
+      }
       out.evidence.push({ type: 'manifest', path: relPath, read: true });
-      fingerprintParts.push(JSON.stringify([relPath, limited.size, limited.content.toString('utf8')]));
+      fingerprintParts.push(JSON.stringify([relPath, limited.size, manifestText]));
       if (dirent.name === 'package.json') {
         inspectPackageJson(dir, rel, limited.content, out);
       }

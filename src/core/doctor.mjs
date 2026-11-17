@@ -3,7 +3,7 @@
 // and never asserts that a host or service is installed.
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { lstatOrNull, readFileLimited } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, readFileLimited } from './fsx.mjs';
 import { resolveInside } from './paths.mjs';
 import { PATH_KEYS, configDirOf } from './config.mjs';
 import { inspectProject } from '../discovery/inspect.mjs';
@@ -12,6 +12,7 @@ import {
   catalogFiles, checkCatalog, loadWorkspaceCatalog,
 } from './catalog.mjs';
 import { loadLimits } from './policy.mjs';
+import { validateWorkspace, workspaceFileRel } from './workspaces.mjs';
 
 const REQUIRED_TEMPLATES = [
   'hosts/native-resource.md',
@@ -158,7 +159,8 @@ export function runDoctor(ctx, opts = {}) {
         if (limited.exceeded) {
           push('discovery', false, `${discoveryRel} exceeds document limit`);
         } else {
-          rec = JSON.parse(limited.content.toString('utf8'));
+          rec = JSON.parse(decodeUtf8Strict(
+            limited.content, 'MALFORMED_JSON', discoveryRel));
         }
       } catch {
         push('discovery', false, `${discoveryRel} contains malformed JSON`);
@@ -231,6 +233,75 @@ export function runDoctor(ctx, opts = {}) {
   if (expected.length > 0
       && !warnings.some((w) => w.startsWith('generated'))) {
     push('generated', true, 'generated files match current fragments');
+  }
+
+  // Lifecycle diagnostics (read-only): workspace enrollment and journal
+  // head. These report state only; recovery stays with journal recovery.
+  {
+    const stateRel = config.paths.state;
+    const wsRel = workspaceFileRel(ctx);
+    const wsAbs = resolveInside(projectRoot, wsRel, 'workspace file');
+    const wst = lstatOrNull(wsAbs);
+    if (!wst) {
+      push('workspace-enrollment', true, 'not enrolled');
+    } else if (wst.isSymbolicLink() || !wst.isFile()) {
+      push('workspace-enrollment', false, `${wsRel} is not a regular file`);
+    } else {
+      try {
+        const limited = readFileLimited(wsAbs, loadLimits().maxDocumentBytes);
+        if (limited.exceeded) {
+          push('workspace-enrollment', false,
+            `${wsRel} exceeds document limit`);
+        } else {
+          const ws = validateWorkspace(JSON.parse(decodeUtf8Strict(
+            limited.content, 'MALFORMED_JSON', wsRel)));
+          push('workspace-enrollment', true,
+            `enrolled revision ${ws.revision} (${ws.areas.length} areas)`);
+        }
+      } catch (e) {
+        push('workspace-enrollment', false, `${e.code}: ${e.message}`);
+      }
+    }
+
+    const journalRel = `${stateRel}/journal`;
+    const jAbs = resolveInside(projectRoot, journalRel, 'journal');
+    const jst = lstatOrNull(jAbs);
+    if (!jst) {
+      push('journal', true, 'no journal');
+    } else if (jst.isSymbolicLink() || !jst.isDirectory()) {
+      push('journal', false, `${journalRel} is not a directory`);
+    } else {
+      const headAbs = resolveInside(
+        projectRoot, `${journalRel}/head.json`, 'journal head');
+      const hst = lstatOrNull(headAbs);
+      if (!hst) {
+        push('journal', true, 'no recorded operations');
+      } else if (hst.isSymbolicLink() || !hst.isFile()) {
+        push('journal', false, 'journal head is not a regular file');
+      } else {
+        try {
+          const limited = readFileLimited(headAbs, loadLimits().maxDocumentBytes);
+          if (limited.exceeded) {
+            push('journal', false, 'journal head exceeds document limit');
+          } else {
+            const head = JSON.parse(decodeUtf8Strict(
+              limited.content, 'JOURNAL_MALFORMED', 'journal head'));
+            if (head === null || typeof head !== 'object' || Array.isArray(head)
+                || head.schemaVersion !== 1) {
+              push('journal', false, 'journal head has invalid fields');
+            } else if (head.activeOperation !== null
+                && head.activeOperation !== undefined) {
+              push('journal', false,
+                'journal has an active operation; explicit recovery required');
+            } else {
+              push('journal', true, 'journal idle');
+            }
+          }
+        } catch (e) {
+          push('journal', false, `journal head unreadable: ${e.message}`);
+        }
+      }
+    }
   }
 
   let current = null;

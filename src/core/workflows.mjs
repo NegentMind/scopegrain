@@ -3,6 +3,7 @@
 // the workspace snapshot, never silently from the installation.
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
+import { decodeUtf8Strict } from './fsx.mjs';
 import {
   catalogDestRel, getResource, loadWorkspaceCatalog, resolveInvocation,
   validateProfile,
@@ -29,7 +30,8 @@ function resolveResources(kind, ids, catalog) {
     out.push({
       kind, id: canon,
       description: r.description, path: catalogDestRel(r),
-      content: r.content.toString('utf8'),
+      content: decodeUtf8Strict(
+        r.content, 'CATALOG_MALFORMED', `catalog resource ${kind}/${canon}`),
     });
   }
   return out;
@@ -126,7 +128,8 @@ export function buildWorkflowPacket(ctx, opts = {}) {
         .filter((a) => a.id === alias.id).map((a) => a.mode))] : command.modes,
       description: command.description,
       path: catalogDestRel(command),
-      content: command.content.toString('utf8'),
+      content: decodeUtf8Strict(command.content,
+        'CATALOG_MALFORMED', `catalog resource command/${command.id}`),
     },
     interaction,
     host: opts.host ?? null,

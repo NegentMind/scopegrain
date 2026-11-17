@@ -46,6 +46,18 @@ export function readFileLimited(p, maxBytes) {
   }
 }
 
+// Strict UTF-8 decode: toString('utf8') rewrites invalid byte sequences to
+// U+FFFD, so a byte-exact roundtrip is the only reliable corruption check.
+// Valid literal U+FFFD bytes (EF BF BD) roundtrip and still decode.
+// `code` is the caller's domain code for stored malformed data.
+export function decodeUtf8Strict(bytes, code, label) {
+  const text = bytes.toString('utf8');
+  if (!Buffer.from(text, 'utf8').equals(bytes)) {
+    throw err(code, `${label} is not roundtrippable UTF-8`);
+  }
+  return text;
+}
+
 export function readJsonFile(p, label, maxBytes = 1048576) {
   let limited;
   try {
@@ -58,8 +70,13 @@ export function readJsonFile(p, label, maxBytes = 1048576) {
     throw err('DOCUMENT_TOO_LARGE',
       `${label} exceeds ${maxBytes} bytes: ${p}`);
   }
+  // Non-roundtrippable bytes are malformed input: the file cannot decode
+  // to faithful JSON text, so it shares the MALFORMED_JSON domain code a
+  // syntactically broken document already produces.
+  const text = decodeUtf8Strict(
+    limited.content, 'MALFORMED_JSON', `${label}: ${p}`);
   try {
-    return JSON.parse(limited.content.toString('utf8'));
+    return JSON.parse(text);
   } catch {
     throw err('MALFORMED_JSON', `malformed JSON in ${label}: ${p}`);
   }

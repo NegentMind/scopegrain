@@ -4,7 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { err } from './errors.mjs';
-import { lstatOrNull, mkdirpSync, readFileLimited, removeIfExists } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited, removeIfExists } from './fsx.mjs';
 import {
   isSameOrAncestor, portableKey, resolveInside,
 } from './paths.mjs';
@@ -37,7 +37,8 @@ function readTemplate(name, templatesDir = TEMPLATES_DIR) {
     throw err('TEMPLATE_TOO_LARGE',
       `template exceeds ${loadLimits().maxDocumentBytes} bytes: ${name}`);
   }
-  return limited.content.toString('utf8');
+  return decodeUtf8Strict(
+    limited.content, 'TEMPLATE_MALFORMED', `template ${name}`);
 }
 
 export function renderTemplate(text, vars) {

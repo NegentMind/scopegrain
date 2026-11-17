@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { err } from './errors.mjs';
-import { lstatOrNull, readFileLimited } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, readFileLimited } from './fsx.mjs';
 import { isInside, portableKey, resolveInside, toCanonicalRelative } from './paths.mjs';
 import { loadLimits } from './policy.mjs';
 
@@ -94,9 +94,12 @@ function readEntryContent(root, rel, containmentRoot = root) {
 // Shared authored profile shape validation (exact keys, string lists,
 // activation string, externalServices string array, id match).
 export function validateProfile(id, content) {
+  const text = Buffer.isBuffer(content)
+    ? decodeUtf8Strict(content, 'PROFILE_MALFORMED', `profile ${id}`)
+    : content;
   let p;
   try {
-    p = JSON.parse(Buffer.isBuffer(content) ? content.toString('utf8') : content);
+    p = JSON.parse(text);
   } catch {
     throw err('PROFILE_MALFORMED', `profile ${id} is not valid JSON`);
   }
@@ -155,7 +158,8 @@ export function loadCatalog({
   const manifestAbs = safeResourceAbs(installRoot, rel, root);
   let manifest;
   try {
-    manifest = JSON.parse(limitedDoc(manifestAbs, 'catalog manifest').toString('utf8'));
+    manifest = JSON.parse(decodeUtf8Strict(
+      limitedDoc(manifestAbs, 'catalog manifest'), 'CATALOG_MALFORMED', rel));
   } catch (e) {
     if (e && e.code === 'CATALOG_MISSING_FILE') {
       throw err(isSnapshot ? 'WORKSPACE_CATALOG_MISSING' : 'CATALOG_NOT_FOUND',
@@ -604,7 +608,8 @@ export function loadLegacyInventory({ installRoot = INSTALL_ROOT } = {}) {
   const abs = resolveInside(installRoot, LEGACY_REL, 'legacy inventory');
   let data;
   try {
-    data = JSON.parse(limitedDoc(abs, 'legacy inventory').toString('utf8'));
+    data = JSON.parse(decodeUtf8Strict(
+      limitedDoc(abs, 'legacy inventory'), 'LEGACY_MALFORMED', 'legacy inventory'));
   } catch (e) {
     if (e && e.code === 'CATALOG_MISSING_FILE') {
       throw err('LEGACY_NOT_FOUND', 'catalog/legacy-inventory.json not found');
@@ -675,9 +680,11 @@ function loadClassification(opts = {}) {
   if (limited.exceeded) {
     throw err('LEGACY_MALFORMED', 'classification exceeds document limit');
   }
+  const text = decodeUtf8Strict(
+    limited.content, 'LEGACY_MALFORMED', 'legacy classification');
   let data;
   try {
-    data = JSON.parse(limited.content.toString('utf8'));
+    data = JSON.parse(text);
   } catch {
     throw err('LEGACY_MALFORMED', 'classification is not valid JSON');
   }
