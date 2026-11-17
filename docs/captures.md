@@ -133,3 +133,112 @@ capturas, hooks de anfitrion y la recoleccion de conversaciones siguen sin
 estar conectados. Las notas de captura son registros propios, no migran
 tareas ni aprobaciones formales, y el texto libre no se declara libre de
 secretos ni clasificado automaticamente.
+
+## Productores selectivos de propuestas (core)
+
+`src/core/capture-proposals.mjs` genera **propuestas** de captura a partir
+de actividad ya registrada del harness; nunca crea capturas por si mismo.
+Es una superficie pura y opt-in: no intercepta conversaciones, no escribe
+en el store ni en disco, no consulta backends de memoria y no promueve
+inferencias a hechos. El cableado hacia `store.create` queda para la capa
+CLI; aqui solo se produce el DTO revisado.
+
+Una propuesta es un objeto cerrado `{schemaVersion:1, proposalId, category,
+statement, provenance, suggestedAreaIds, suggestedSubjectId, evidence}`.
+`statement` es `{kind, title, text, inference}`: `kind:'declared'` solo
+cuando el texto deriva de hechos registrados; todo lo derivado de valores
+ausentes o por defecto queda `kind:'inferred'` con `inference` nombrando la
+derivacion (`harness-default`). `proposalId` es un digest sha256 con forma
+de UUID (version 5, semilla con nombre), determinista a partir de
+`operationId`/campo — repetir la llamada produce los mismos IDs, lo que
+permite deduplicar sin persistencia. No es un UUID aleatorio ni identidad
+de un registro almacenado.
+
+```js
+import { proposeFromJournal, proposeFromInitAnswers, reviewProposal,
+  validateProposal } from '../src/core/capture-proposals.mjs';
+
+const proposals = proposeFromJournal(bound, { sinceSequence: 12 });
+const prefs = proposeFromInitAnswers(answers, { areaIds: [areaId],
+  subjectId: 'owner' });
+const reviewed = reviewProposal(proposals[0], { action: 'approve' });
+// reviewed.input === { areaIds, capture: { category, title, summary,
+//   basis, subjectId, supersedes } } — DTO listo para el store.
+```
+
+### proposeFromJournal(target, options)
+
+- `target` es un binding autentico de `bindWorkspace` o un contexto
+  resuelto `{projectRoot, config}`; con contexto se conceden todas las
+  areas enroladas, igual que el CLI local.
+- Opciones cerradas `{sinceOperationId, sinceSequence, limit}`; los dos
+  `since*` son mutuamente excluyentes (`INVALID_PROPOSAL`).
+  `sinceOperationId` se resuelve via `getJournalOperation` al ultimo
+  `journalSequence` de esa operacion; `sinceSequence` actua como cursor
+  `afterSequence`; `limit` esta acotado por `journal.maxPageSize`.
+- La enumeracion usa `listJournalPending` paginado, la unica lectura de
+  operaciones committed que expone el journal. **Limite estructural:** el
+  outbox solo contiene operaciones con eventos aun no reconocidos; las
+  operaciones committed totalmente reconocidas o sin indice no producen
+  propuestas. Las propuestas son material de revision, no una pista de
+  auditoria. Un journal con operacion abandonada o activa inconsistente
+  propaga `JOURNAL_RECOVERY_REQUIRED` — no se propone sobre un journal que
+  requiere recuperacion.
+- Solo los items `committed` producen propuestas; los eventos
+  `record-ownership` (companeros) nunca proponen por separado.
+- Mapeo: cada evento `create` committed produce una propuesta `event`
+  `declared` (es un hecho registrado). Para `sourceKind:'capture'` se lee
+  el snapshot verificado por hash via `readJournalSnapshot`; si parsea como
+  nota de captura, su titulo/categoria registrados enriquecen el texto
+  (sigue `declared`). Un snapshot ilegible degrada a texto de metadatos,
+  nunca un fallo por un solo evento. Un recibo de recovery en la operacion
+  produce una propuesta `decision` `declared` con `eventId`/`sourceKind`/
+  `recordId` en null. Un `SCOPE_DENIED` al leer la operacion solo omite la
+  propuesta de recovery: los eventos ya autorizados siguen proponiendo.
+
+### proposeFromInitAnswers(answers, options)
+
+- `answers` se valida con `validateAnswers` (sus codigos de dominio se
+  propagan). Opciones cerradas `{areaIds, subjectId}`, ambas opcionales;
+  `suggestedAreaIds` puede quedar `[]` porque las respuestas pueden ser
+  anteriores al enrolamiento.
+- Emite propuestas `preference` en orden fijo: locale, hosts, methodology
+  y una por clave de versionado — todas `declared` por ser respuestas
+  explicitas. Si `methodology` o `versioning` no estaban en las respuestas
+  crudas, la propuesta emitida es `inferred` con
+  `inference:'harness-default'`: los defaults del validador son una
+  derivacion, no una respuesta.
+
+### reviewProposal(proposal, decision)
+
+- Pura. `decision` es cerrada `{action, reason?, changes?}` con `action`
+  en `approve|reject|edit`; `changes` es obligatoria solo en `edit` y
+  prohibida en las demas — nunca se ignora silenciosamente.
+- `reject` devuelve `{status:'rejected'}` y nada mas.
+- `approve`/`edit` devuelven `{status:'approved', input:{areaIds,
+  capture:{...}}}` — el DTO envuelto que la capa CLI entregara al store
+  (el store consume la forma plana; la adaptacion es responsabilidad del
+  CLI). El DTO compuesto se valida con `normalizeCaptureInput`: aprobar
+  una propuesta incompleta (preferencia sin `subjectId`, areas vacias)
+  falla cerrado con `INVALID_CAPTURE_INPUT`.
+- `approve` conserva el `kind` del statement como `basis` — una propuesta
+  `inferred` aprobada queda `inferred` (sin promocion). `edit` remarca
+  `basis:'declared'` porque el texto pasa a ser del operador; `changes`
+  admite `title`, `summary`, `category`, `subjectId`, `areaIds` y
+  `supersedes` (`basis` no es editable).
+
+### Errores y limites de los productores
+
+- `INVALID_PROPOSAL` cubre validacion de propuestas, decisiones, opciones
+  y el target. Los codigos de dominio se conservan: `INVALID_CAPTURE_INPUT`,
+  `INVALID_ANSWERS`, `SCOPE_DENIED`, `WORKSPACE_*`, `JOURNAL_*`,
+  `INVALID_JSON_VALUE`.
+- Sin captura de conversaciones: no existe entrada de mensajes,
+  transcripciones ni canales en la API. Sin auto-escritura: productores y
+  `reviewProposal` hacen cero escrituras en filesystem. Sin promocion de
+  inferencia: solo un `edit` explicito del operador produce `declared`.
+  Sin escaneo de archivos del proyecto: las fuentes son el journal
+  (incluidos sus snapshots verificados) y el objeto de respuestas
+  aportado; nada mas se lee.
+- `validateProposal` queda exportada para reutilizar el contrato cerrado
+  en la capa de revision.
