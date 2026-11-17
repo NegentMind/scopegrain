@@ -11,7 +11,7 @@ import { runDoctor } from './core/doctor.mjs';
 import { inspectProject } from './discovery/inspect.mjs';
 import { createTask, getTask, listTasks, prepareTask } from './core/tasks.mjs';
 import { transitionTask, checkAction } from './core/transition.mjs';
-import { readFileLimited } from './core/fsx.mjs';
+import { decodeUtf8Strict, readFileLimited } from './core/fsx.mjs';
 import fs from 'node:fs';
 import { loadLimits, loadMethodologyPolicy } from './core/policy.mjs';
 import { checkCatalog, getResource, legacyGet, legacyList, loadCatalog, loadWorkspaceCatalog } from './core/catalog.mjs';
@@ -43,6 +43,18 @@ import { bindWorkspace, getWorkspace, prepareWorkspace } from './core/workspaces
 import { getJournalOperation, prepareJournalRecovery, recoverJournalOperation }
   from './core/journal.mjs';
 import { createCaptureStore } from './core/captures.mjs';
+import {
+  applyBackup, applyRestore, applyUninstall, applyUpdate,
+  prepareAdopt, prepareBackup, prepareRestore, prepareUninstall, prepareUpdate,
+} from './core/lifecycle.mjs';
+import {
+  buildResearchRecord, investigateProject, suggestAnswers,
+} from './discovery/semantic.mjs';
+import { applyActivation, prepareActivation } from './hosts/activation.mjs';
+import {
+  proposeFromInitAnswers, proposeFromJournal, reviewProposal,
+} from './core/capture-proposals.mjs';
+import { createApiServer } from './api/server.mjs';
 
 const PATH_LABELS = {
   plans: 'Ruta de planes',
@@ -59,9 +71,9 @@ const VALUE_FLAGS = new Set([
   '--title', '--contract', '--author', '--scope', '--revision',
   '--input', '--task', '--mode', '--host', '--profile', '--limit',
   '--query', '--interaction', '--spec', '--design', '--plan', '--to',
-  '--outcome-evidence',
+  '--outcome-evidence', '--from', '--surface', '--since-sequence', '--port',
 ]);
-const BOOL_FLAGS = new Set(['--apply', '--help', '--owned']);
+const BOOL_FLAGS = new Set(['--apply', '--help', '--owned', '--save']);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
 // Per-command flag whitelist and exact positional count (after 'task <sub>').
@@ -248,6 +260,46 @@ const COMMANDS = {
   'session resume': {
     flags: ['--project', '--config'], pos: 1, usage: 'session resume UUID',
   },
+  adopt: {
+    flags: ['--project', '--config', '--apply'], pos: 0,
+    usage: 'adopt --project PATH [--config REL] [--apply]',
+  },
+  update: {
+    flags: ['--project', '--config', '--apply'], pos: 0,
+    usage: 'update --project PATH [--config REL] [--apply]',
+  },
+  backup: {
+    flags: ['--project', '--config', '--to', '--apply'], pos: 0,
+    usage: 'backup --project PATH --to REL [--config REL] [--apply]',
+  },
+  restore: {
+    flags: ['--project', '--from', '--apply'], pos: 0,
+    usage: 'restore --project PATH --from REL [--apply]',
+  },
+  uninstall: {
+    flags: ['--project', '--config', '--apply'], pos: 0,
+    usage: 'uninstall --project PATH [--config REL] [--apply]',
+  },
+  investigate: {
+    flags: ['--project', '--config', '--save'], pos: 0,
+    usage: 'investigate --project PATH [--config REL] [--save]',
+  },
+  'host activate': {
+    flags: ['--project', '--config', '--host', '--surface', '--apply'], pos: 0,
+    usage: 'host activate --project PATH --host NAME [--surface X] [--apply]',
+  },
+  'capture proposals': {
+    flags: ['--project', '--config', '--since-sequence'], pos: 0,
+    usage: 'capture proposals --project PATH [--config REL] [--since-sequence N]',
+  },
+  'capture review': {
+    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
+    usage: 'capture review --project PATH --input FILE [--apply]',
+  },
+  view: {
+    flags: ['--project', '--config', '--port', '--host'], pos: 0,
+    usage: 'view --project PATH [--config REL] [--port N] [--host ADDR]',
+  },
 };
 
 // Aliases are derived from canonical catalog command ids at dispatch time;
@@ -272,6 +324,11 @@ function helpResult() {
       'Methodology checks and stored approvals are not native tool permissions',
       '--owned opts specification create/show into journal ownership; legacy behavior stays unchanged without it',
       '--owned opts design/outcome create/show into journal ownership; new show commands require it',
+      'adopt/update/backup/restore/uninstall preview first; --apply is create-only and never overwrites, merges or reinitializes',
+      'investigate is read-only; --save writes one research record under paths.research when a config resolves',
+      'host activate writes project-local destinations only; global host paths and shared merges are never written',
+      'capture proposals lists review proposals; capture review --apply creates an owned capture only from an approved decision',
+      'view serves a loopback read-only API and keeps running; press Ctrl+C to stop',
     ],
   };
 }
@@ -310,7 +367,15 @@ function requireFlag(flags, name) {
 // CLI JSON inputs are bounded by the authored document limit.
 function readInputFile(file, label) {
   const abs = path.resolve(file);
-  const st = fs.lstatSync(abs);
+  let st;
+  try {
+    st = fs.lstatSync(abs);
+  } catch (e) {
+    if (e && e.code === 'ENOENT') {
+      throw err('INPUT_NOT_FOUND', `${label} not found: ${abs}`);
+    }
+    throw e;
+  }
   if (!st.isFile() || st.isSymbolicLink()) {
     throw err('READ_FAILED', `${label} is not a regular file: ${abs}`);
   }
@@ -571,7 +636,8 @@ function cmdCatalog(sub, positional, flags) {
       requestedId: r.requestedId, canonicalId: r.canonicalId,
       resolvedVia: r.resolvedVia,
       description: r.description,
-      content: r.content.toString('utf8'),
+      content: decodeUtf8Strict(r.content,
+        'CATALOG_MALFORMED', `catalog resource ${r.kind}/${r.id}`),
     };
   }
   if (sub === 'check') {
@@ -704,6 +770,8 @@ function cmdWorkspace(sub, flags) {
 
 function cmdCapture(sub, positional, flags) {
   const project = requireFlag(flags, '--project');
+  if (sub === 'proposals') return cmdCaptureProposals(project, flags);
+  if (sub === 'review') return cmdCaptureReview(project, flags);
   // The bounded input is read before context/workspace resolution so a
   // malformed payload is reported as itself, never masked or trusted.
   const input = sub === 'create'
@@ -715,6 +783,66 @@ function cmdCapture(sub, positional, flags) {
   });
   if (sub === 'show') return store.get(positional[0]);
   return flags['--apply'] ? store.create(input) : store.prepare(input);
+}
+
+// Review material, not an audit trail: committed journal operations plus
+// the persisted init answers, bound to every enrolled area like the other
+// capture CLI paths.
+function cmdCaptureProposals(project, flags) {
+  const options = {};
+  if (Object.hasOwn(flags, '--since-sequence')) {
+    options.sinceSequence = decimalInt(
+      flags['--since-sequence'], '--since-sequence');
+  }
+  const ctx = resolveContext({ project, config: flags['--config'] });
+  const workspace = getWorkspace(ctx);
+  const areaIds = workspace.areas.map((area) => area.id);
+  const config = ctx.config;
+  // The persisted config carries the fields init answers carried; both
+  // optional keys are stored, so these proposals are declared.
+  const answers = {
+    name: config.project.name, locale: config.locale, hosts: config.hosts,
+    paths: config.paths, versioning: config.versioning,
+    methodology: config.methodology,
+  };
+  return {
+    proposals: [
+      ...proposeFromJournal(ctx, options),
+      ...proposeFromInitAnswers(answers, { areaIds }),
+    ],
+  };
+}
+
+// Pure review gate: the resolved decision is returned as-is; only an
+// approved decision with --apply feeds the flattened DTO to the store.
+function cmdCaptureReview(project, flags) {
+  const input = readInputFile(
+    requireFlag(flags, '--input'), 'capture review input');
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw err('INVALID_ARGS', 'capture review input must be an object');
+  }
+  for (const key of Object.keys(input)) {
+    if (!['proposal', 'action', 'reason', 'changes'].includes(key)) {
+      throw err('INVALID_ARGS',
+        `capture review input has unknown key '${key}'`);
+    }
+  }
+  const decision = { action: input.action };
+  if (Object.hasOwn(input, 'reason')) decision.reason = input.reason;
+  if (Object.hasOwn(input, 'changes')) decision.changes = input.changes;
+  const review = reviewProposal(input.proposal, decision);
+  if (!flags['--apply']) return { mode: 'dry-run', review };
+  if (review.status !== 'approved') {
+    return { mode: 'applied', applied: false, review };
+  }
+  const ctx = resolveContext({ project, config: flags['--config'] });
+  const workspace = getWorkspace(ctx);
+  const store = createCaptureStore(ctx, {
+    areaIds: workspace.areas.map((area) => area.id), origin: 'local-cli',
+  });
+  const created = store.create(
+    { ...review.input.capture, areaIds: review.input.areaIds });
+  return { ...created, review: { status: review.status } };
 }
 
 function cmdJournal(sub, positional, flags) {
@@ -877,6 +1005,123 @@ function cmdSession(sub, positional, flags) {
   throw err('INVALID_ARGS', `unknown session subcommand '${sub}'`);
 }
 
+// --- Product lifecycle verbs ---------------------------------------------
+// Each verb previews read-only by default; --apply is create-only and every
+// apply re-runs its prepare internally. Nothing is overwritten or merged.
+
+function cmdAdopt(flags) {
+  const project = requireFlag(flags, '--project');
+  const report = prepareAdopt(project, { config: flags['--config'] });
+  if (!flags['--apply']) return report;
+  // --apply performs ONLY the binding actions the report marks adoptable:
+  // workspace enrollment when it is missing and everything else is clean.
+  // It never reinitializes, never overwrites and never ignores attention.
+  const actions = [];
+  if (report.status === 'adoptable' && report.workspace === null
+      && report.config !== null) {
+    const ctx = resolveContext({ project, config: report.configRel });
+    const prepared = prepareWorkspace(ctx, {});
+    const planned = preflightPlan(ctx.projectRoot, [prepared.file]);
+    const result = applyPlan(ctx.projectRoot, planned);
+    actions.push({ action: 'workspace-enrollment',
+      path: prepared.file.rel, created: result.created });
+  }
+  return { ...report, mode: 'applied', applied: actions.length > 0, actions };
+}
+
+function lifecycleCtx(flags) {
+  return resolveContext({
+    project: requireFlag(flags, '--project'), config: flags['--config'],
+  });
+}
+
+function cmdUpdate(flags) {
+  const ctx = lifecycleCtx(flags);
+  return flags['--apply'] ? applyUpdate(ctx) : prepareUpdate(ctx);
+}
+
+function cmdBackup(flags) {
+  const destination = requireFlag(flags, '--to');
+  const ctx = lifecycleCtx(flags);
+  return flags['--apply']
+    ? applyBackup(ctx, { destination }) : prepareBackup(ctx, { destination });
+}
+
+function cmdRestore(flags) {
+  const bundleRel = requireFlag(flags, '--from');
+  const projectRoot = resolveProjectRoot(requireFlag(flags, '--project'));
+  return flags['--apply']
+    ? applyRestore(projectRoot, bundleRel) : prepareRestore(projectRoot, bundleRel);
+}
+
+function cmdUninstall(flags) {
+  const ctx = lifecycleCtx(flags);
+  return flags['--apply'] ? applyUninstall(ctx) : prepareUninstall(ctx);
+}
+
+// Read-only semantic investigation plus answer suggestions. A config is
+// resolved opportunistically: an explicit --config reports its own error,
+// while a project with no config still investigates (and --save then emits
+// the record instead of writing it).
+function cmdInvestigate(flags) {
+  const project = requireFlag(flags, '--project');
+  let ctx = null;
+  try {
+    ctx = resolveContext({ project, config: flags['--config'] });
+  } catch (e) {
+    if (e.code !== 'CONFIG_NOT_FOUND' || Object.hasOwn(flags, '--config')) {
+      throw e;
+    }
+  }
+  const investigation = investigateProject(
+    project, ctx ? { config: ctx.config } : {});
+  const result = { investigation, suggestions: suggestAnswers(investigation) };
+  if (flags['--save']) {
+    const { record, suggestedPath } = buildResearchRecord(investigation);
+    if (ctx === null) {
+      result.research = { saved: false, suggestedPath, record };
+    } else {
+      const rel = `${ctx.config.paths.research}/${suggestedPath}`;
+      const applied = applyPlan(ctx.projectRoot,
+        [{ rel, content: JSON.stringify(record, null, 2) + '\n' }]);
+      result.research = {
+        saved: true, path: rel, suggestedPath, created: applied.created,
+      };
+    }
+  }
+  return result;
+}
+
+// Opt-in host activation: previews/applies generated proposals into
+// project-local destinations only; global and merge-required entries are
+// reported as skipped, never written.
+function cmdHost(flags) {
+  const options = { host: requireFlag(flags, '--host') };
+  if (Object.hasOwn(flags, '--surface')) options.surface = flags['--surface'];
+  const ctx = lifecycleCtx(flags);
+  return flags['--apply']
+    ? applyActivation(ctx, options) : prepareActivation(ctx, options);
+}
+
+// Loopback read-only viewer API. The returned server handle keeps the
+// process alive; the operator stops it with Ctrl+C. The live handle is
+// exposed on io.viewServer so embedders/tests can close it explicitly.
+async function cmdView(flags, io) {
+  const options = {
+    project: requireFlag(flags, '--project'), config: flags['--config'],
+  };
+  if (Object.hasOwn(flags, '--host')) options.host = flags['--host'];
+  if (Object.hasOwn(flags, '--port')) {
+    options.port = decimalInt(flags['--port'], '--port');
+  }
+  const api = createApiServer(options);
+  const bound = await api.listen();
+  if (io !== null && typeof io === 'object') io.viewServer = api;
+  const host = bound.host.includes(':') ? `[${bound.host}]` : bound.host;
+  return { url: `http://${host}:${bound.port}/`,
+    host: bound.host, port: bound.port };
+}
+
 export async function run(argv, io) {
   try {
 
@@ -886,7 +1131,7 @@ export async function run(argv, io) {
       return 0;
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
-      'specification', 'design', 'outcome', 'approval', 'methodology']);
+      'specification', 'design', 'outcome', 'approval', 'methodology', 'host']);
     let cmdKey;
     let spec;
     let aliasCommand = null;
@@ -979,6 +1224,22 @@ export async function run(argv, io) {
       result = cmdApproval(cmdKey.slice(9), rest, flags);
     } else if (cmdKey === 'methodology check') {
       result = cmdMethodology(rest, flags);
+    } else if (cmdKey === 'adopt') {
+      result = cmdAdopt(flags);
+    } else if (cmdKey === 'update') {
+      result = cmdUpdate(flags);
+    } else if (cmdKey === 'backup') {
+      result = cmdBackup(flags);
+    } else if (cmdKey === 'restore') {
+      result = cmdRestore(flags);
+    } else if (cmdKey === 'uninstall') {
+      result = cmdUninstall(flags);
+    } else if (cmdKey === 'investigate') {
+      result = cmdInvestigate(flags);
+    } else if (cmdKey === 'view') {
+      result = await cmdView(flags, io);
+    } else if (cmdKey.startsWith('host ')) {
+      result = cmdHost(flags);
     } else {
       result = cmdSession(cmdKey.slice(8), rest, flags);
     }
