@@ -1,26 +1,30 @@
 # Arquitectura
 
 TaskSystem es un paquete Node.js ESM privado (Node >=22). El nucleo es
-sincronico, sin dependencias externas y sin `child_process`, red ni escritura
-fuera del proyecto explicitamente indicado. El servidor MCP es opcional y
-carga sus dependencias (`@modelcontextprotocol/sdk`, `zod`) de forma
-perezosa al arrancar.
+sincronico, sin dependencias externas y sin `child_process`, sockets ni
+escritura fuera del proyecto explicitamente indicado. El servidor MCP es
+opcional y carga sus dependencias (`@modelcontextprotocol/sdk`, `zod`) de
+forma perezosa al arrancar. La API HTTP local del visor es opt-in:
+`node:http` puro, bind exclusivo a loopback y solo GET; `viewer/` es un
+paquete separado con toolchain propio.
 
 ## Modulos
 
 ```text
 bin/scopegrain.mjs        Entrada del binario; delega en src/cli.mjs
 bin/tasksystem.mjs        Alias compatible; delega en src/cli.mjs
-src/cli.mjs               Parser de comandos y flujos interactivos; IO inyectable
+src/cli.mjs               Parser de comandos (incl. ciclo de vida, investigate, host activate, capture proposals/review, view) y flujos interactivos; IO inyectable
 src/core/errors.mjs       Errores {code, message} (TaskError)
 src/core/fsx.mjs          Helpers sincronicos de filesystem
 src/core/paths.mjs        Rutas relativas seguras, contencion, anti-symlink
 src/core/config.mjs       Contrato de config.json, answers y colisiones
 src/core/context.mjs      Vincula project root explicito + config cargada
-src/core/workspaces.mjs   Identidad por proyecto, areas y autorizacion interna de scope
-src/core/journal.mjs      Journal interno create-only y outbox acotado
+src/core/workspaces.mjs   Identidad por proyecto, areas, autorizacion interna de scope y descriptor owned mutable
+src/core/journal.mjs      Journal interno create/update con CAS bajo lock y outbox acotado
+src/core/record-history.mjs Validadores puros de update changes y coherencia de cadena create/update
 src/core/capture-data.mjs Contratos puros de notas/ownership de captura
 src/core/captures.mjs     Store tipado de capturas con prueba journal
+src/core/capture-proposals.mjs Propuestas deterministicas de captura desde journal e init answers
 src/core/record-ownership-data.mjs Primitivas puras del sidecar (capture/spec/design/report rev0)
 src/core/record-ownership.mjs Prueba compartida de creacion committed de dos eventos
 src/core/owned-specifications.mjs Store tipado de specs V2 con ownership probado
@@ -32,28 +36,35 @@ src/core/tasks.mjs        Documentos de tarea, createTask, getTask, listTasks
 src/core/catalog.mjs      Catalogo activo validado y proyeccion de recursos
 src/core/resource-recovery.mjs Busqueda, diagnostico y restauracion por hash
 src/core/workflows.mjs    Paquetes de procedimiento/contexto, sin ejecucion LLM
-src/core/plans.mjs        Planes DAG y readiness desde tareas actuales
+src/core/plans.mjs        Planes DAG, readiness desde tareas actuales y store owned mutable
 src/core/artifacts.mjs    Artefactos operativos inmutables por UUID
 src/core/specification-data.mjs Forma y tipos de especificacion/design
 src/core/outcome-data.mjs  Forma del informe vinculado de resultado
 src/core/specifications.mjs Especificaciones estructuradas y design vinculado
-src/core/approvals.mjs    Aprobaciones por contenido, pregunta y respuesta CAS
+src/core/approvals.mjs    Aprobaciones por contenido, pregunta/respuesta CAS y store owned mutable
 src/core/digests.mjs      JSON canonico y proyecciones estaticas
 src/core/methodology-data.mjs Clasificacion pura y referencias de escenarios
 src/core/formal-bindings.mjs Lecturas independientes y digests de relaciones
 src/core/outcomes.mjs     Preparacion de informe vinculado al REVIEW actual
 src/core/methodology.mjs  Gates ACT/ACCEPT y acciones efectivas compartidas
-src/core/sessions.mjs     Operaciones registradas, CAS, presupuesto y resume
+src/core/sessions.mjs     Operaciones registradas, CAS, presupuesto, resume y store owned mutable
 src/core/versioning.mjs   Ignore propio y propuestas externas por categoria
 src/core/evidence.mjs     Validacion de verification/review (attestations)
-src/core/transition.mjs   Transiciones CAS con lock por tarea, checkAction
+src/core/transition.mjs   Transiciones CAS con lock por tarea, checkAction y store owned mutable
 src/core/bootstrap.mjs    Plan de init, preflight, apply con rollback
 src/core/doctor.mjs       Chequeo de salud de solo lectura
+src/core/lifecycle.mjs    adopt/update/backup/restore/uninstall: previews y applies create-only
 src/discovery/inspect.mjs Escaneo acotado de manifiestos
+src/discovery/semantic.mjs Investigacion semantica acotada de solo lectura
 src/hosts/render.mjs      Fragmentos de integracion por anfitrion
-src/hosts/native.mjs      Propuestas nativas versionadas y activacion manual
+src/hosts/native.mjs      Propuestas nativas versionadas para seis hosts (Hermes provisional)
+src/hosts/activation.mjs  Activacion opt-in create-only de propuestas locales al proyecto
 src/adapters/            Entradas compatibles hacia src/hosts
 src/mcp/server.mjs        Servidor MCP stdio de solo lectura
+src/api/server.mjs        API JSON local read-only: loopback unico, solo GET
+src/api/queries.mjs       Fachada de consulta con cotas duras para la API local
+viewer/                   Visor local read-only (Vite/React/TS/Tailwind/shadcn), paquete aparte
+assets/                   Recursos graficos SVG del proyecto
 ```
 
 ## Flujo de datos
@@ -81,17 +92,29 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   La capa de workspace no conecta VantaDB ni implementa sincronizacion o
   autorizacion MCP; no autentica identidades ni aisla actores con acceso al
   mismo filesystem.
-- El journal interno create-only guarda snapshots, intent y outbox antes de
-  crear fuentes; solo una creacion completa permite el marcador committed.
+- El journal interno guarda snapshots, intent y outbox antes de mutar
+  fuentes; solo una aplicacion completa permite el marcador committed,
+  tanto en creates (`wx` exclusivo) como en updates CAS (dos fases:
+  temporales fsync junto al destino, re-check de `previousHash` y rename).
   Un resultado incierto conserva la reserva activa y bloquea nuevas
-  creaciones hasta una reconciliacion explicita futura. Un fallo al limpiar
+  escrituras hasta una reconciliacion explicita futura. Un fallo al limpiar
   la reserva tras el marcador tambien bloquea escrituras, sin repetir la
-  creacion. La paginacion del outbox no es una frontera de sincronizacion.
+  operacion. La paginacion del outbox no es una frontera de sincronizacion.
 - El seam interno `applyJournaledRecordCreation` es para adaptadores tipados
   de confianza: el kernel genera una vez operationId/createdAt, entrega una
   copia congelada al callback sincrono y valida el resultado como cualquier
   cambio. Todas las fuentes propuestas deben ser creaciones nuevas; un noop
   es conflicto, nunca adopcion. No es API JSON, CLI ni captura activada.
+- El seam mutable `applyJournaledRecordUpdate` es el gemelo estricto: cada
+  change declara `previousHash` y la `sourceRevision` esperada; el CAS de
+  bytes se comprueba antes del lock, bajo el lock antes de reservar
+  secuencias y otra vez tras el staging de temporales. Las pre-imagenes
+  quedan como snapshots content-addressed de auditoria sin restauracion
+  automatica; no hay operaciones mixtas create/update.
+  `record-history.mjs` aporta los validadores puros de cadena
+  (`validateUpdateChange`, `resultingSourceRevision`,
+  `validateRecordTransition`); el journal no indexa por record y la
+  coherencia es un check del modelo de lectura.
 - `createCaptureStore(ctx, options)` ata un binding autentico y una copia
   privada de config; solo crea la forma capture bajo `paths.memory` y la de
   ownership bajo `paths.state`, ambas en una unica operacion journal
@@ -137,6 +160,18 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   report prueba bytes presentes y procedencia, sin volver a leer la tarea
   ni reevaluar sus bindings actuales. Los gates metodologicos siguen
   juzgando vigencia y elegibilidad para ACCEPT.
+- Cinco stores owned mutables opt-in reutilizan ambos seams:
+  `createOwnedTaskStore` (transition.mjs), `createOwnedApprovalStore`
+  (approvals.mjs), `createOwnedSessionStore` (sessions.mjs),
+  `createOwnedPlanStore` (plans.mjs) y `createOwnedWorkspaceStore`
+  (workspaces.mjs). Cada uno define su sidecar mutable: tarea y
+  aprobacion llevan una `chain` densa bajo `record-ownership/`; sesion y
+  plan usan cabezas de cadena por dominio; el workspace usa un puntero
+  con enrolamiento journal perezoso. El `get` es fail-closed y reprueba la cadena committed hasta
+  el create; no hay adopcion, listados ni `prepareAnswer`; los gates de
+  dominio corren dentro del callback del kernel. Son factorias del core:
+  nada esta cableado a CLI ni MCP. Contrato completo en la
+  [guia de ownership](record-ownership.md#ownership-mutable-con-historial-journal).
 - El CLI `specification create|show --owned` adapta el store sin cambiar el
   modo legacy por defecto ni su nota de ayuda. `design create` y
   `outcome create` aceptan `--owned` opcional; los nuevos `design show` y
@@ -146,7 +181,8 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   ownership. El CLI local usa grants de todas las areas enroladas, pero
   cada entrada sigue pidiendo sus areas explicitas all-of. Sin
   autodeteccion de envolturas, enrolamiento/adopcion implicitos,
-  productores automaticos, hooks ni activacion nativa.
+  productores automaticos ni hooks; la activacion nativa solo existe como
+  comando explicito (`host activate`) y la de VantaDB sigue bloqueada.
   Contrato de resultados, errores y limites en la
   [guia de ownership](record-ownership.md#cli).
 - Un ack local es una declaracion del adaptador, no prueba de ejecucion remota.
@@ -225,6 +261,10 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   cargada al resolverlo o iniciar MCP; cambios requieren nueva resolucion
   o reinicio. Las copias de politicas en el proyecto son referencias,
   no overrides de las politicas del runtime instalado.
+- **Ciclo de vida:** adopt/update/backup/restore/uninstall re-ejecutan su
+  preview dentro del apply antes de mutar (create-only: nada existente se
+  sobrescribe ni se fusiona); uninstall borra solo archivos que siguen
+  byte-identicos al preview.
 - **Descubrimiento:** profundidad <=4, <=1000 entradas, manifiestos <=128
   KiB de una lista permitida; sin seguir enlaces; carpetas puntuales
   excluidas (`.git`, `node_modules`, `vendor`, `.venv`, `venv`, `target`,
@@ -242,10 +282,20 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
 
 - La deteccion de stack se basa en manifiestos, no en `src/`; un stack sin
   manifiesto reconocido permanece desconocido.
-- El escaneo no comprende el proyecto: la investigacion semantica es labor
-  del agente, exigida por las instrucciones generadas.
+- `src/discovery/semantic.mjs` agrega una capa semantica acotada de solo
+  lectura (probes fijos, allowlist de manifiestos, senales con evidencia y
+  confianza, records de investigacion); aun asi el escaneo no comprende el
+  proyecto: la investigacion real sigue siendo labor del agente, exigida
+  por las instrucciones generadas.
 - Las propuestas MCP son fragmentos machine-local; no se fusionan con la
   configuracion activa del anfitrion ni se registran automaticamente.
+  `src/hosts/activation.mjs` aplica opt-in solo propuestas de archivo
+  completo con destino dentro del proyecto (create-only, mismas reglas de
+  bootstrap); los merges en config compartida y las rutas globales (`~/`)
+  son siempre manuales.
+- La API local (`src/api/`) es una comodidad read-only sin auth mas alla
+  del bind loopback: no es un host de produccion y el puerto no debe
+  exponerse.
 - La proyeccion nativa usa formatos de permisos documentados por host,
   sin instalarlos. Sus alcances no son equivalentes ni constituyen
   aislamiento universal del harness; no se generan hooks ejecutables.
@@ -257,3 +307,8 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
 - Los digests vinculan registros/payloads, no el worktree ni los bytes de
   un archivo citado. Identidades, riesgo y resultados son declaraciones.
   Ver [Organic y SDD](methodology.md) para los contratos y limites.
+- Los updates journalizados declaran `previousHash` y `sourceRevision`
+  como procedencia CAS: el kernel rechecka bytes bajo lock pero no
+  verifica la revision contra operaciones previas (no hay indice por
+  record). Escritores ajenos al journal pueden intercalar y la prueba
+  owned falla cerrado ante la deriva, sin prevenirla ni revertirla.

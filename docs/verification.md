@@ -3,10 +3,10 @@
 ## Estado Actual
 
 La ultima ejecucion integral (`npm test`, serial por archivo) termino con
-813 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
-Node.js v26.8.1 y npm 11.6.0. Las integrales anteriores de CLI spec/UTF8
-(770), ownership spec (699), capturas CLI (673) y foundation (536) se
-conservan como referencias pasadas.
+1065 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
+Node.js v26.8.1 y npm 11.6.0. Las integrales anteriores de design/outcome
+(813), CLI spec/UTF8 (770), ownership spec (699), capturas CLI (673) y
+foundation (536) se conservan como referencias pasadas.
 No sumar tandas acotadas ni resultados historicos.
 
 | Bloque | Referencia | Evidencia observada |
@@ -39,7 +39,9 @@ No sumar tandas acotadas ni resultados historicos.
 | Ownership design/outcome, gate inicial | 10 archivos, 2026-11-17 | Exit 1: 195 tests, 191 pass, 4 fail, 0 skipped, 0 cancelled |
 | Ownership design/outcome, fixtures corregidos | 2 archivos nuevos, 2026-11-17 | Exit 0: 43 pass, 0 fail, 0 skipped, 0 cancelled |
 | Ownership design/outcome, snapshots tras rollback | 1 archivo, tras revision | Exit 0: 20 pass, 0 fail, 0 skipped, 0 cancelled |
-| Integral actual | `npm test` serial, 2026-11-17 | Exit 0: 813 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral ownership design/outcome | `npm test` serial, 2026-11-17 | Exit 0: 813 pass, 0 fail, 0 skipped, 0 cancelled |
+| Ola de ampliacion Scopegrain | Gates focalizados por bloque, 2026-11-17 | Lifecycle 22; semantic 24; hosts 28+42; journal-update 131; productores 15; hardening 229 pass + 4 todo (luego wave-3: 501 pass); viewer API 9; owned plans 19; owned workspaces 53; owned tasks 60; owned sessions 19; owned approvals 32+135; CLI wave-2 152; minors-a 22; journal-wedge 178; utf8-wave3 501 |
+| Integral actual | `npm test` serial, 2026-11-17 | Exit 0: 1065 pass, 0 fail, 0 skipped, 0 cancelled |
 | Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |
 | Control nativo de embeddings | Modelo/runtime locales existentes, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; fase positiva aprobada, controles negativos fallidos |
 | Pilotos en anfitriones | Pendientes | No certificados |
@@ -307,6 +309,30 @@ no se suman a su total. Estos logs y los diffs privados estan ignorados
 por Git y no acompanan automaticamente un clon. No se activaron
 productores, hooks, anfitriones ni VantaDB nativo. La evidencia no
 certifica otros sistemas operativos ni la version minima Node.js 22.
+
+La ola de ampliacion siguiente (journal CAS mutable, cinco stores owned
+mutables, lifecycle, descubrimiento semantico, activacion de anfitriones y
+Hermes provisional, productores de capturas, endurecimiento UTF8 y MCP,
+API local y visor React, empaquetado `scopegrain` y documentacion en
+ingles) se verifico por bloques con gates focalizados y una revision
+independiente del arbol combinado. La revision encontro dos defectos
+mayores, ambos corregidos antes de la integral: el store owned de tareas
+reconstruia su cadena escaneando `journal/operations` acotado por
+`maxPendingOperations` (ahora sidecar mutable con `chain`, ops de dos
+eventos); y una reserva de head seguida de un crash antes de escribir el
+intent dejaba el journal sin via de recuperacion (`abandon-prepared` ahora
+tolera el intent ausente verificando el digest del head). Doce hallazgos
+menores se corrigieron o documentaron como limites aceptados.
+
+Con el arbol combinado congelado se ejecuto una unica integral `npm test`
+serial, Node.js v26.8.1 y npm 11.6.0: 1065 pass, 0 fail, 0 skipped,
+0 cancelled, salida 0 y 6700935.6741 ms:
+`.tasksystem/verification/2026-11-17-integral-npmtest-1794931090.log`.
+Los gates focalizados por bloque no se suman al total. Hermes queda
+provisional sin formato verificado; ningun piloto real de anfitrion se
+ejecuto; VantaDB nativo sigue bloqueado por el control negativo de
+embeddings. La evidencia no certifica Node.js 22 ni otros sistemas
+operativos; el workflow manual sigue sin ejecucion remota registrada.
 
 Antes de este bloque de ownership se ejecuto una vez la receta privada de
 piloto MCP nativo, con una
