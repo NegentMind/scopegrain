@@ -33,8 +33,14 @@ certifica comportamiento equivalente entre productos.
   reservada para evitar colisiones.
 - **Devin Local/CLI:** `AGENTS.md` en la raiz es la recomendacion oficial;
   Local comparte las customizaciones del CLI. El fragmento sigue la forma
-  `mcpServers` con `command`/`args` del archivo de configuracion MCP
-  documentado. No se afirma paridad con Devin Cloud.
+  `mcpServers` con `command`/`args` y su destino de merge documentado es
+  `.devin/mcp_config.json` (scope de proyecto, compartido via VCS) desde
+  Devin v3000.3; en versiones anteriores el equivalente era la clave
+  `mcpServers` dentro de `.devin/config.json` (las entradas antiguas se
+  migran automaticamente al archivo dedicado). El scope de usuario es
+  `~/.config/devin/mcp_config.json` (`%APPDATA%\devin\mcp_config.json` en
+  Windows) y el override local gitignored `.devin/mcp_config.local.json`.
+  No se afirma paridad con Devin Cloud.
 - **Antigravity:** App/CLI e IDE no se equiparan. La propuesta App/CLI
   incluye roles; la de IDE solo skills. La convencion `.agents/` compartida
   con otros productos no da aislamiento. Ver
