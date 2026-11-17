@@ -1,3 +1,10 @@
+# TaskSystem
+
+Read `.scopegrain/instructions.md` before working on this repository.
+Project configuration: `.scopegrain/config.json`.
+Existing higher-priority instructions and explicit user decisions still apply.
+TaskSystem provides a workflow, not a sandbox for native agent tools.
+
 # TaskSystem - Repository Instructions
 
 This repository develops a project-neutral engineering harness.
