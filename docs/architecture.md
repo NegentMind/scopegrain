@@ -21,9 +21,11 @@ src/core/workspaces.mjs   Identidad por proyecto, areas y autorizacion interna d
 src/core/journal.mjs      Journal interno create-only y outbox acotado
 src/core/capture-data.mjs Contratos puros de notas/ownership de captura
 src/core/captures.mjs     Store tipado de capturas con prueba journal
-src/core/record-ownership-data.mjs Primitivas puras del sidecar de ownership (capture/spec rev0)
+src/core/record-ownership-data.mjs Primitivas puras del sidecar (capture/spec/design/report rev0)
 src/core/record-ownership.mjs Prueba compartida de creacion committed de dos eventos
 src/core/owned-specifications.mjs Store tipado de specs V2 con ownership probado
+src/core/owned-designs.mjs Store tipado de designs V2 con ownership y binding de spec
+src/core/owned-outcomes.mjs Store tipado de outcomes/report V2 con ownership probado
 src/integrations/vantadb.mjs  Proyeccion MCP interna de eventos confirmados
 src/core/policy.mjs       Carga las politicas canonicas del runtime instalado
 src/core/tasks.mjs        Documentos de tarea, createTask, getTask, listTasks
@@ -104,15 +106,48 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   `record-ownership.mjs` exige sidecar canonico, scope autorizado,
   operacion committed de exactamente dos eventos create, snapshots
   iguales a los bytes actuales y fuente actual igual al snapshot;
-  `record-ownership-data.mjs` cierra la forma del sidecar capture/spec
-  revision0. `createOwnedSpecificationStore(ctx, options)` opt-in aplica
-  esa prueba a specs V2 creados via `prepareSpecification` dentro del seam
-  estricto; las areas logicas del grant viven en el sidecar/eventos y son
-  distintas de las rutas declaradas en `spec.data.scope`. Los getters
-  estructurales legacy (`getArtifact`, `getSpecification`) validan forma y
-  bindings pero no implican ownership ni adopcion.
+  `record-ownership-data.mjs` cierra la forma del sidecar para `capture`,
+  `spec`, `design` y `report`, todos revision0. El JSON Schema estatico
+  `schemas/record-ownership.schema.json` sigue siendo exclusivo de capture:
+  no valida sidecars de spec, design ni report.
+- `createOwnedSpecificationStore(ctx, { areaIds })`,
+  `createOwnedDesignStore(ctx, { areaIds })` y
+  `createOwnedOutcomeStore(ctx, { areaIds })` son stores opt-in congelados
+  con exactamente `prepare`, `create` y `get`. Sus entradas cerradas son
+  `{ areaIds, specification }`, `{ areaIds, design }` y
+  `{ areaIds, outcome }`. Copian config/grants y clonan el DTO anidado a
+  JSON plano; autorizan las areas explicitas all-of antes de preparar.
+  Las areas logicas del grant viven en el sidecar/eventos, no se derivan
+  de las rutas declaradas en `spec.data.scope`.
+- Cada store usa su preparador tipado dentro del seam estricto:
+  `prepareSpecification`, `prepareDesign` o `prepareOutcomeEvidence`.
+  Las fuentes van a `<paths.plans>/specs/<uuid>.json`,
+  `<paths.plans>/designs/<uuid>.json` o `<paths.reports>/<uuid>.json`;
+  los sidecars a `<paths.state>/record-ownership/<sourceKind>/<uuid>.json`.
+  Se conservan dos eventos create/revision0, hash de bytes exactos y
+  recibos completos, incluso inciertos. `prepare` no escribe ni reserva
+  IDs: el ID de preview no se reutiliza al crear. `get` valida los bytes
+  probados del snapshot, no relee la fuente por el getter legacy.
+- El design requiere una spec V2 estructurada cuyo digest coincida,
+  aunque el padre no tenga ownership. `validateArtifactBindings` conserva
+  esa comprobacion tanto en preparacion como en el getter owned, sin
+  releer el design por `getArtifact`. Un outcome se prepara desde la tarea
+  formal real en REVIEW, su verification y bindings sanos; sus digests
+  son derivados, nunca aportados por el caller. El getter owned del
+  report prueba bytes presentes y procedencia, sin volver a leer la tarea
+  ni reevaluar sus bindings actuales. Los gates metodologicos siguen
+  juzgando vigencia y elegibilidad para ACCEPT.
 - El CLI `specification create|show --owned` adapta el store sin cambiar el
-  modo legacy por defecto; contrato y limites en la
+  modo legacy por defecto ni su nota de ayuda. `design create` y
+  `outcome create` aceptan `--owned` opcional; los nuevos `design show` y
+  `outcome show` lo exigen y fallan con `INVALID_ARGS` antes de acceder al
+  contexto si falta. `artifact show design UUID` y
+  `artifact show report UUID` conservan la lectura estructural sin afirmar
+  ownership. El CLI local usa grants de todas las areas enroladas, pero
+  cada entrada sigue pidiendo sus areas explicitas all-of. Sin
+  autodeteccion de envolturas, enrolamiento/adopcion implicitos,
+  productores automaticos, hooks ni activacion nativa.
+  Contrato de resultados, errores y limites en la
   [guia de ownership](record-ownership.md#cli).
 - Un ack local es una declaracion del adaptador, no prueba de ejecucion remota.
   Antes de exponer el journal a herramientas no confiables hacen falta

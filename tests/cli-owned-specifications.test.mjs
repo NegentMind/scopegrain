@@ -168,7 +168,7 @@ test('owned commands require project/input and exact boolean flag/positional sur
   } finally { cleanup(f.dir); }
 });
 
-test('--owned is forbidden outside specification create/show before input access', async (t) => {
+test('--owned is forbidden outside supported typed create/show before input access', async (t) => {
   const f = fixture();
   try {
     const absent = path.join(f.dir, 'never-read-for-owned-on-other-command.json');
@@ -182,8 +182,6 @@ test('--owned is forbidden outside specification create/show before input access
       for (const command of [
         ['capture', 'create', '--input', absent],
         ['capture', 'show', UNKNOWN],
-        ['design', 'create', '--input', absent],
-        ['outcome', 'create', '--input', absent],
         ['task', 'create', '--input', absent],
         ['task', 'show', UNKNOWN],
         ['workspace', 'init', '--input', absent],

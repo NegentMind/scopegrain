@@ -78,10 +78,27 @@ Para operaciones del journal, consulte la
 [guia de recuperacion explicita](docs/journal-recovery.md). Para notas de
 captura tipadas con ownership probado, consulte
 [capturas selectivas](docs/captures.md). Para la prueba de ownership
-compartida de creaciones (capturas y specs V2), consulte
+compartida de creaciones (`capture`, `spec`, `design` y `report`, todos
+revision 0), consulte
 [creacion con ownership probado](docs/record-ownership.md).
 El CLI `specification create|show --owned` es opt-in explicito y conserva
-el modo legacy por defecto.
+el modo legacy por defecto. `design create` y `outcome create` tambien
+aceptan `--owned` opcional; `design show` y `outcome show` lo requieren.
+Sin ese flag, las creaciones conservan sus entradas y resultados legacy,
+sin autodeteccion ni enrolamiento implicito. Las lecturas genericas
+`artifact show design UUID` y `artifact show report UUID` siguen siendo
+estructurales, no pruebas de ownership.
+
+Los stores tipados `createOwnedDesignStore(ctx, { areaIds })` y
+`createOwnedOutcomeStore(ctx, { areaIds })` reciben respectivamente
+`{ areaIds, design }` y `{ areaIds, outcome }` y exponen `prepare`, `create`
+y `get`. Requieren workspace enrolado y areas solicitadas explicitamente;
+los grants locales para todas las areas no sustituyen la autorizacion
+all-of. El design exige una spec V2 estructurada con binding de hash
+valido, no ownership del padre. Crear un outcome exige una tarea formal
+real en REVIEW, verification y bindings sanos; leer su report probado no
+revalida la elegibilidad actual para ACCEPT. Los gates siguen evaluando
+vigencia. No se activan productores, hooks ni integraciones nativas.
 
 ## Organic y SDD
 

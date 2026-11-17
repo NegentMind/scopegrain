@@ -22,8 +22,10 @@ const MISSING = '00000000-0000-4000-8000-000000000000';
 const USAGES = [
   'specification create --project PATH --input FILE [--owned] [--apply]',
   'specification show --project PATH UUID [--owned]',
-  'design create --project PATH --input FILE [--apply]',
-  'outcome create --project PATH --input FILE [--apply]',
+  'design create --project PATH --input FILE [--owned] [--apply]',
+  'design show --project PATH UUID --owned',
+  'outcome create --project PATH --input FILE [--owned] [--apply]',
+  'outcome show --project PATH UUID --owned',
   'approval target --project PATH --input FILE',
   'approval create --project PATH --input FILE [--apply]',
   'approval show --project PATH DIGEST',
@@ -131,7 +133,7 @@ async function advance(f, task, to, evidence) {
   return invoke(f, args);
 }
 
-test('C2-E help exposes exact nine usages, JSON/legacy task usage and notes', async () => {
+test('C2-E help exposes exact eleven usages, JSON/legacy task usage and notes', async () => {
   const io = fakeIO();
   assert.equal(await run(['--help'], io), 0);
   const help = JSON.parse(io.out.stdout[0]);

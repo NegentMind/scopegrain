@@ -13,7 +13,7 @@ const SCOPE_KEYS = ['workspaceId', 'projectId', 'repositoryId', 'areaIds'];
 const OWNERSHIP_KEYS = ['schemaVersion', 'sourceKind', 'recordId',
   'sourceRevision', 'sourceRel', 'sourceHash', 'operationId', 'scope',
   'createdAt'];
-const OWNERSHIP_KINDS = ['capture', 'spec'];
+const OWNERSHIP_KINDS = ['capture', 'spec', 'design', 'report'];
 
 export function assertRecordObject(value, keys, required, code, label) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)
@@ -88,7 +88,8 @@ export function validateRecordScope(value, code, label) {
   recordAreaIds(value.areaIds, code, label);
 }
 
-// Closed nine-field ownership sidecar: capture/spec revision0 only. The
+// Closed nine-field ownership sidecar: capture/spec/design/report
+// revision0 only. The
 // source kind must equal expectedKind exactly - cross-kind sidecars are
 // malformed, never reinterpreted.
 export function validateRecordOwnership(value, expectedKind, options = {}) {

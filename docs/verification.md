@@ -3,10 +3,10 @@
 ## Estado Actual
 
 La ultima ejecucion integral (`npm test`, serial por archivo) termino con
-770 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
-Node.js v26.8.1 y npm 11.6.0. Las integrales anteriores de ownership spec
-(699), capturas CLI (673) y foundation (536) se conservan como referencias
-pasadas.
+813 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
+Node.js v26.8.1 y npm 11.6.0. Las integrales anteriores de CLI spec/UTF8
+(770), ownership spec (699), capturas CLI (673) y foundation (536) se
+conservan como referencias pasadas.
 No sumar tandas acotadas ni resultados historicos.
 
 | Bloque | Referencia | Evidencia observada |
@@ -35,7 +35,11 @@ No sumar tandas acotadas ni resultados historicos.
 | Ownership spec V2 tras revision | Gate focalizado de 3 archivos, 2026-11-16 | Exit 0: 35 pass, 0 fail, 0 skipped, 0 cancelled |
 | Integral ownership spec core | `npm test` serial, 2026-11-16 | Exit 0: 699 pass, 0 fail, 0 skipped, 0 cancelled |
 | CLI spec owned y UTF8 | Gate focalizado de 4 archivos, 2026-11-16 | Exit 0: 97 pass, 0 fail, 0 skipped, 0 cancelled |
-| Integral actual | `npm test` serial, 2026-11-16 | Exit 0: 770 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral CLI spec/UTF8 | `npm test` serial, 2026-11-16 | Exit 0: 770 pass, 0 fail, 0 skipped, 0 cancelled |
+| Ownership design/outcome, gate inicial | 10 archivos, 2026-11-17 | Exit 1: 195 tests, 191 pass, 4 fail, 0 skipped, 0 cancelled |
+| Ownership design/outcome, fixtures corregidos | 2 archivos nuevos, 2026-11-17 | Exit 0: 43 pass, 0 fail, 0 skipped, 0 cancelled |
+| Ownership design/outcome, snapshots tras rollback | 1 archivo, tras revision | Exit 0: 20 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral actual | `npm test` serial, 2026-11-17 | Exit 0: 813 pass, 0 fail, 0 skipped, 0 cancelled |
 | Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |
 | Control nativo de embeddings | Modelo/runtime locales existentes, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; fase positiva aprobada, controles negativos fallidos |
 | Pilotos en anfitriones | Pendientes | No certificados |
@@ -255,6 +259,54 @@ filtros ni omisiones de la integral; la focalizada no se suma al total.
 Estos logs son locales e ignorados, no acompanan automaticamente un clon.
 Este bloque no activa productores automaticos, hooks, protocolo mutable
 ni VantaDB nativo; tampoco repite ni sustituye el control de embeddings.
+
+La ampliacion de ownership a designs V2 y reports de outcome incorpora
+dos stores tipados y CLI opt-in, sin convertir los escritores legacy.
+El getter de design valida el binding de spec desde los bytes probados;
+el getter de outcome prueba el report presente, no su vigencia respecto
+de la tarea mutable ni elegibilidad para ACCEPT. Los gates conservan esa
+responsabilidad. La revision completa se realizo tambien en un contexto
+separado, incluido el diff literal y los cuatro archivos nuevos.
+
+El RED conductual de CLI termino con 23 tests, 4 pass y 19 fail, salida 1:
+`.tasksystem/verification/owned-formal-task1-cli-red-20261117-041450-4162.log`.
+El RED core de
+`.tasksystem/verification/owned-formal-task1-core-red-20261117-041534-2777.log`
+incluye rechazo de los nuevos kinds y fallo de carga por modulos ausentes;
+ese fallo de carga no demuestra comportamiento de un store aun inexistente.
+
+La primera tanda dirigida de diez archivos termino con 195 tests,
+191 pass y 4 fail, sin omisiones ni cancelaciones, salida 1:
+`.tasksystem/verification/2026-11-17-owned-formal-green-1794903811.log`.
+Las cuatro expectativas de los fixtures suponian una fuente presente tras
+un fallo de companion, pero el rollback existente retiro los archivos
+creados en ese escenario. Corregir la expectativa de presencia no cambio
+el kernel ni debilito la prueba de ownership. Una primera repeticion de
+los dos archivos nuevos aun tuvo 41 pass y 2 fail por expectativas
+estructurales restantes:
+`.tasksystem/verification/2026-11-17-owned-formal-rerun-1794904101.log`.
+Tras corregirlas, esos dos archivos aprobaron 43 pruebas sin fallos,
+omisiones ni cancelaciones, salida 0:
+`.tasksystem/verification/2026-11-17-owned-formal-rerun2-1794904138.log`.
+Los otros ocho archivos no cambiaron ni se repitieron; no se presenta
+la combinacion de esas ejecuciones como una unica tanda verde de 195.
+
+La revision posterior preciso que el rollback es best-effort y que la
+prueba no depende de su exito. Se agrego la comprobacion de ambos snapshots
+y sus hashes tras el rollback del fixture. El unico archivo con aserciones
+nuevas se repitio: 20 pass, 0 fail, 0 skipped, 0 cancelled y salida 0:
+`.tasksystem/verification/2026-11-17-owned-formal-rework-1794904550.log`.
+
+Con fuente y tests congelados, la unica integral final `npm test` termino
+con 813 pass, 0 fail, 0 skipped y 0 cancelled, salida 0,
+620603.4447 ms, Node.js v26.8.1 y npm 11.6.0:
+`.tasksystem/verification/2026-11-17-owned-formal-integral-1794904701.log`.
+El log conserva versiones, comando, stdout/stderr y `NPM_TEST_EXIT=0`.
+La integral no tuvo reintentos, filtros ni omisiones; las tandas anteriores
+no se suman a su total. Estos logs y los diffs privados estan ignorados
+por Git y no acompanan automaticamente un clon. No se activaron
+productores, hooks, anfitriones ni VantaDB nativo. La evidencia no
+certifica otros sistemas operativos ni la version minima Node.js 22.
 
 Antes de este bloque de ownership se ejecuto una vez la receta privada de
 piloto MCP nativo, con una

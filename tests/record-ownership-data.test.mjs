@@ -1,5 +1,5 @@
 // Pure shared ownership primitives: closed nine-field sidecar shape for
-// capture/spec revision0 only, canonical clones, no defaults.
+// capture/spec/design/report revision0 only, canonical clones, no defaults.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -29,8 +29,8 @@ function ownership(overrides = {}) {
     createdAt: TIME, ...overrides };
 }
 
-test('capture and spec revision0 sidecars validate and return independent clones', () => {
-  for (const kind of ['capture', 'spec']) {
+test('four owned revision0 kinds validate and return independent clones', () => {
+  for (const kind of ['capture', 'spec', 'design', 'report']) {
     const input = ownership({ sourceKind: kind });
     const out = validateRecordOwnership(input, kind);
     assert.deepEqual(out, input);
@@ -55,9 +55,17 @@ test('cross-kind, unsupported kinds, revisions and schema versions are rejected'
   assert.throws(() => validateRecordOwnership(
     ownership({ sourceKind: 'task' }), 'task'),
     (e) => e.code === 'RECORD_OWNERSHIP_MALFORMED');
+  for (const kind of ['capture', 'spec', 'design', 'report']) {
+    for (const expected of ['capture', 'spec', 'design', 'report']) {
+      if (kind === expected) continue;
+      assert.throws(() => validateRecordOwnership(
+        ownership({ sourceKind: kind }), expected),
+      (e) => e.code === 'RECORD_OWNERSHIP_MALFORMED');
+    }
+  }
   assert.throws(() => validateRecordOwnership(
-    ownership({ sourceKind: 'design' }), 'design'),
-    (e) => e.code === 'RECORD_OWNERSHIP_MALFORMED');
+    ownership({ sourceKind: 'unknown' }), 'unknown'),
+  (e) => e.code === 'RECORD_OWNERSHIP_MALFORMED');
   assert.throws(() => validateRecordOwnership(
     ownership({ sourceRevision: 1 }), 'capture'),
     (e) => e.code === 'RECORD_OWNERSHIP_MALFORMED');
@@ -78,7 +86,7 @@ test('decorated, symbol-keyed, sparse and non-plain shapes are rejected without 
     { enumerable: false, value: 1 });
   for (const bad of [null, undefined, 'x', [], new Date(), getter, sym,
     nonEnum, ownership({ extra: 1 })]) {
-    for (const kind of ['capture', 'spec']) {
+    for (const kind of ['capture', 'spec', 'design', 'report']) {
       assert.throws(() => validateRecordOwnership(bad, kind),
         (e) => e.code === 'RECORD_OWNERSHIP_MALFORMED');
     }

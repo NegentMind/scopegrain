@@ -283,10 +283,10 @@ export function validateArtifactDocument(ctx, artifact, kind,
   return a;
 }
 
-// Design V2 foreign-key check, shared by prepare (pre-serialization) and
-// get: the referenced spec must be a real V2 structured artifact AND hash
-// to the recorded digest — one bounded hop, no cycle.
-function validateArtifactBindings(ctx, a, label) {
+// Design V2 foreign-key check, shared by prepare (pre-serialization), get
+// and owned-store reads: the referenced spec must be a real V2 structured
+// artifact AND hash to the recorded digest — one bounded hop, no cycle.
+export function validateArtifactBindings(ctx, a, label) {
   if (a.kind !== 'design' || a.data === undefined) return;
   const spec = getArtifact(ctx, 'spec', a.data.specId);
   if (spec.schemaVersion !== 2 || spec.data === undefined) {

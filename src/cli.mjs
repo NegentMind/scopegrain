@@ -27,6 +27,8 @@ import {
   getSpecification, prepareDesign, prepareSpecification,
 } from './core/specifications.mjs';
 import { createOwnedSpecificationStore } from './core/owned-specifications.mjs';
+import { createOwnedDesignStore } from './core/owned-designs.mjs';
+import { createOwnedOutcomeStore } from './core/owned-outcomes.mjs';
 import { prepareOutcomeEvidence } from './core/outcomes.mjs';
 import {
   answerApproval, describeApprovalTarget, getApproval, prepareApproval,
@@ -135,12 +137,20 @@ const COMMANDS = {
     usage: 'specification show --project PATH UUID [--owned]',
   },
   'design create': {
-    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
-    usage: 'design create --project PATH --input FILE [--apply]',
+    flags: ['--project', '--config', '--input', '--apply', '--owned'], pos: 0,
+    usage: 'design create --project PATH --input FILE [--owned] [--apply]',
+  },
+  'design show': {
+    flags: ['--project', '--config', '--owned'], pos: 1,
+    usage: 'design show --project PATH UUID --owned',
   },
   'outcome create': {
-    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
-    usage: 'outcome create --project PATH --input FILE [--apply]',
+    flags: ['--project', '--config', '--input', '--apply', '--owned'], pos: 0,
+    usage: 'outcome create --project PATH --input FILE [--owned] [--apply]',
+  },
+  'outcome show': {
+    flags: ['--project', '--config', '--owned'], pos: 1,
+    usage: 'outcome show --project PATH UUID --owned',
   },
   'approval target': {
     flags: ['--project', '--config', '--input'], pos: 0,
@@ -261,6 +271,7 @@ function helpResult() {
       'JSON creation previews do not reserve IDs; use IDs returned by --apply',
       'Methodology checks and stored approvals are not native tool permissions',
       '--owned opts specification create/show into journal ownership; legacy behavior stays unchanged without it',
+      '--owned opts design/outcome create/show into journal ownership; new show commands require it',
     ],
   };
 }
@@ -733,6 +744,26 @@ function cmdOwnedSpecification(sub, positional, flags) {
   return flags['--apply'] ? store.create(input) : store.prepare(input);
 }
 
+function cmdOwnedFormalArtifact(family, sub, positional, flags) {
+  if (!flags['--owned']) {
+    throw err('INVALID_ARGS',
+      `${family} show requires --owned; use artifact show for structural reads`);
+  }
+  const project = requireFlag(flags, '--project');
+  const input = sub === 'create'
+    ? readInputFile(requireFlag(flags, '--input'), `owned ${family} input`)
+    : null;
+  const ctx = resolveContext({ project, config: flags['--config'] });
+  const workspace = getWorkspace(ctx);
+  const factory = family === 'design'
+    ? createOwnedDesignStore : createOwnedOutcomeStore;
+  const store = factory(ctx, {
+    areaIds: workspace.areas.map((area) => area.id),
+  });
+  if (sub === 'show') return store.get(positional[0]);
+  return flags['--apply'] ? store.create(input) : store.prepare(input);
+}
+
 function cmdTypedArtifact(family, sub, positional, flags) {
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
@@ -939,6 +970,9 @@ export async function run(argv, io) {
       result = cmdArtifact(cmdKey.slice(9), rest, flags);
     } else if (positional[0] === 'specification' && flags['--owned']) {
       result = cmdOwnedSpecification(positional[1], rest, flags);
+    } else if (['design', 'outcome'].includes(positional[0])
+        && (flags['--owned'] || positional[1] === 'show')) {
+      result = cmdOwnedFormalArtifact(positional[0], positional[1], rest, flags);
     } else if (['specification', 'design', 'outcome'].includes(positional[0])) {
       result = cmdTypedArtifact(positional[0], positional[1], rest, flags);
     } else if (cmdKey.startsWith('approval ')) {
