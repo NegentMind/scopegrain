@@ -1,7 +1,7 @@
 {
   "name": "mi-proyecto",
   "locale": "es",
-  "hosts": ["claude", "codex", "opencode", "devin", "antigravity"],
+  "hosts": ["claude", "codex", "opencode", "devin", "antigravity", "hermes"],
   "methodology": "organic-sdd",
   "paths": {
     "plans": ".scopegrain/plans",

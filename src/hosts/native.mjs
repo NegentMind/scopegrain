@@ -5,7 +5,8 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { err } from '../core/errors.mjs';
-import { lstatOrNull, readFileLimited } from '../core/fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, readFileLimited }
+  from '../core/fsx.mjs';
 import {
   catalogDestRel, INSTALL_ROOT, loadCatalog,
 } from '../core/catalog.mjs';
@@ -18,6 +19,68 @@ const POLICY_REL = 'policy/native-adapters.json';
 const TPL_RESOURCE = 'templates/hosts/native-resource.md';
 const TPL_AGENT = 'templates/hosts/native-agent.md';
 
+// Provisional hosts: admitted targets whose native format has NOT been
+// verified against an in-repo spec (and which therefore have no
+// policy/native-adapters.json block). They emit a minimal, clearly marked
+// proposal - a JSON descriptor plus review instructions - never fabricated
+// per-resource bridges. Every destination stays manualMerge; global host
+// paths in the descriptor are documentation, never write targets.
+const PROVISIONAL_HOSTS = {
+  hermes: {
+    mergeTarget: '~/.hermes/config.yaml',
+    mergeKey: 'mcp_servers.tasksystem',
+    skillsRoot: '~/.hermes/skills/',
+    permissionScope: 'Provisional only: Hermes roots are global '
+      + '(~/.hermes/) and are never written. No format, permission or '
+      + 'discovery behavior is verified for this host.',
+    sources: [
+      'https://hermes-agent.nousresearch.com/docs/user-guide/configuration',
+      'https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp',
+      'https://hermes-agent.nousresearch.com/docs/user-guide/features/skills',
+      'https://hermes-agent.nousresearch.com/docs/reference/mcp-config-reference',
+    ],
+  },
+};
+
+function provisionalInstructions(host, cfgPrefix) {
+  const spec = PROVISIONAL_HOSTS[host];
+  const srcs = spec.sources.map((s) => `- ${s}`).join('\n');
+  return `# ${host} - provisional integration proposal
+
+Status: PROVISIONAL and unverified. This host is an approved target but
+its native format has not been verified against an in-repo specification.
+Treat every path, key and behavior below as a proposal pending owner
+review; nothing here certifies host behavior.
+
+## Generated artifacts
+
+- \`${cfgPrefix}integrations/native/${host}/${host}-proposal.json\` -
+  machine-readable descriptor of this proposal.
+- \`${cfgPrefix}integrations/${host}-mcp.json\` - machine-local MCP
+  fragment whose \`fragment.mcp_servers\` subtree mirrors the documented
+  \`mcp_servers:\` shape. Strict JSON is valid YAML 1.2, so the subtree
+  can be reviewed as either.
+
+## Manual activation (owner only)
+
+1. Review both generated files; confirm the machine-local absolute paths
+   are still current.
+2. Manually merge the fragment subtree under \`mcp_servers:\` into
+   \`${spec.mergeTarget}\` (key \`${spec.mergeKey}\`), or use the host's
+   own configuration commands. Set \`enabled: true\` only after review.
+3. Host skills live under \`${spec.skillsRoot}\` - a GLOBAL root. The
+   harness never writes global host configuration; copy reviewed content
+   manually if desired, or keep canonical resources inside the config
+   directory of this project.
+
+## Sources consulted (not verified against a live install)
+
+${srcs}
+
+A separate native pilot remains required, exactly as for every host.
+`;
+}
+
 export function loadNativePolicy({ installRoot = INSTALL_ROOT } = {}) {
   const abs = resolveInside(installRoot, POLICY_REL, 'native policy');
   const st = lstatOrNull(abs);
@@ -28,9 +91,11 @@ export function loadNativePolicy({ installRoot = INSTALL_ROOT } = {}) {
   if (limited.exceeded) {
     throw err('POLICY_MALFORMED', 'native policy exceeds document limit');
   }
+  const text = decodeUtf8Strict(
+    limited.content, 'POLICY_MALFORMED', 'native adapters policy');
   let p;
   try {
-    p = JSON.parse(limited.content.toString('utf8'));
+    p = JSON.parse(text);
   } catch {
     throw err('POLICY_MALFORMED', 'native adapters policy is not valid JSON');
   }
@@ -198,9 +263,11 @@ function loadNativeVariants({ installRoot = INSTALL_ROOT } = {}) {
   if (limited.exceeded) {
     throw err('POLICY_MALFORMED', 'native-variants.json exceeds document limit');
   }
+  const text = decodeUtf8Strict(
+    limited.content, 'POLICY_MALFORMED', 'native-variants.json');
   let v;
   try {
-    v = JSON.parse(limited.content.toString('utf8'));
+    v = JSON.parse(text);
   } catch {
     throw err('POLICY_MALFORMED', 'native-variants.json is not valid JSON');
   }
@@ -383,6 +450,49 @@ export function renderNativeAdapters(config, {
   const variants = loadNativeVariants({ installRoot });
 
   for (const host of config.hosts) {
+    // Provisional hosts: minimal marked proposal only. Skipping the
+    // per-resource bridge machinery avoids fabricating an unverified
+    // format; the descriptor points at the machine-local MCP fragment.
+    if (host in PROVISIONAL_HOSTS) {
+      const spec = PROVISIONAL_HOSTS[host];
+      const base = `${cfgPrefix}integrations/native/${host}`;
+      const descriptor = {
+        format: 'provisional',
+        verified: false,
+        host,
+        fragment: `${cfgPrefix}integrations/${host}-mcp.json`,
+        mergeTarget: spec.mergeTarget,
+        mergeKey: spec.mergeKey,
+        skillsRoot: spec.skillsRoot,
+        sources: [...spec.sources],
+        note: 'Global host paths are documentation; the harness never '
+          + 'writes outside the project. Manual merge and review only.',
+      };
+      files.push({
+        rel: `${base}/${host}-proposal.json`,
+        content: JSON.stringify(descriptor, null, 2) + '\n',
+      });
+      files.push({
+        rel: `${base}/instructions.md`,
+        content: provisionalInstructions(host, cfgPrefix),
+      });
+      const meta = {
+        format: 'provisional', compatibility: 'provisional',
+        modelSelection: 'host-policy', permissionScope: spec.permissionScope,
+        manualMerge: true,
+      };
+      entries.push({
+        host, kind: 'fragment', id: 'tasksystem', ...meta,
+        source: `${base}/${host}-proposal.json`,
+        destination: spec.mergeTarget,
+      });
+      entries.push({
+        host, kind: 'instructions', id: 'activation', ...meta,
+        source: `${base}/instructions.md`,
+        destination: `${base}/instructions.md`,
+      });
+      continue;
+    }
     const hp = policy.hosts[host];
     if (!hp) {
       throw err('UNKNOWN_HOST', `no native adapter policy for host '${host}'`);
@@ -422,12 +532,14 @@ export function renderNativeAdapters(config, {
           manualMerge: true,
         });
       };
-      const tplText = (b) => b.toString('utf8');
+      const tplText = (b) =>
+        decodeUtf8Strict(b, 'TEMPLATE_MALFORMED', 'native template');
       for (const e of catalog.entries) {
       const canon = catalogDestRel(e);
       const v = vars(e.kind, e.id, canon);
       const name = nativeName(policy, e.id);
-      const tplText = (b) => b.toString('utf8');
+      const tplText = (b) =>
+        decodeUtf8Strict(b, 'TEMPLATE_MALFORMED', 'native template');
       if (e.kind === 'skill') {
         const body = renderTemplate(tplText(tplResource), v);
         emitV('skill', e.id,
@@ -543,7 +655,12 @@ export function renderNativeAdapters(config, {
 
   const perHost = {};
   for (const host of config.hosts) {
-    perHost[host] = {
+    perHost[host] = host in PROVISIONAL_HOSTS ? {
+      sources: [...PROVISIONAL_HOSTS[host].sources],
+      permissionScope: PROVISIONAL_HOSTS[host].permissionScope,
+      compatibility: 'provisional', modelSelection: 'host-policy',
+      format: 'provisional',
+    } : {
       sources: policy.hosts[host].sources,
       permissionScope: policy.hosts[host].permissionScope,
       compatibility: 'documented-only', modelSelection: 'host-policy',

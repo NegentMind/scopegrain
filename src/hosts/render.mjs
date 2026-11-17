@@ -92,6 +92,29 @@ function renderAntigravity(serverPath, projectRoot, configRel) {
   }, null, 2) + '\n';
 }
 
+// Hermes Agent (~/.hermes/config.yaml): PROVISIONAL - the format is an
+// approved target without a verified in-repo spec. The fragment subtree
+// mirrors the documented mcp_servers shape as strict JSON (valid YAML 1.2)
+// for manual merge only; enabled:false until the owner reviews it.
+function renderHermes(serverPath, projectRoot, configRel) {
+  return JSON.stringify({
+    format: 'provisional',
+    verified: false,
+    note: 'unverified proposal: merge fragment.mcp_servers manually into '
+      + '~/.hermes/config.yaml after review; the harness never writes '
+      + 'global host configuration',
+    fragment: {
+      mcp_servers: {
+        tasksystem: {
+          command: 'node',
+          args: stdioArgs(serverPath, projectRoot, configRel),
+          enabled: false,
+        },
+      },
+    },
+  }, null, 2) + '\n';
+}
+
 const RENDERERS = {
   claude: { file: 'claude-mcp.json', format: 'json', render: renderClaude },
   codex: { file: 'codex-mcp.toml', format: 'toml', render: renderCodex },
@@ -99,6 +122,8 @@ const RENDERERS = {
   devin: { file: 'devin-mcp.json', format: 'json', render: renderDevin },
   antigravity: { file: 'antigravity-mcp.json', format: 'json',
     render: renderAntigravity },
+  hermes: { file: 'hermes-mcp.json', format: 'provisional',
+    render: renderHermes },
 };
 
 // renderAdapters(config, {projectRoot, configPath, instructionsPath,

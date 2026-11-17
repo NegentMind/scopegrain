@@ -5,13 +5,18 @@ kind: guide
 # Native Host Projections
 
 TaskSystem shares canonical procedures and project snapshots across five
-hosts. Native files are thin bridges, not five independently maintained
-implementations. The `tasksystem-` namespace avoids replacing built-ins.
+documented hosts, plus one admitted provisional host (Hermes). Native
+files are thin bridges, not independently maintained implementations.
+The `tasksystem-` namespace avoids replacing built-ins.
 
 ## Status
 
-Documented formats and local fixture tests are not native certification.
-The foundation suite completed locally with one test file at a time; see
+Documented formats and local fixture tests are not native certification —
+for any host, including the provisional one. Structural parse checks on
+applied fixtures verify only that generated files are syntactically
+well-formed, never that a real host binary accepts, discovers or enforces
+them. The foundation suite completed locally with one test file at a
+time; see
 [verification](verification.md) for its scope and separate earlier runs.
 No host was activated by these changes. Initialization creates proposals
 under the selected configuration directory, normally
@@ -26,6 +31,7 @@ automatically.
 | Devin CLI/Local | `/tasksystem-NAME` | `.devin/skills/<name>/SKILL.md` | `.devin/agents/<name>.md` |
 | Antigravity App/CLI | `/tasksystem-NAME` | `.agents/skills/<name>/SKILL.md` | `.agents/agents/<name>.md` |
 | Antigravity IDE | `/tasksystem-NAME` | `.agents/skills/<name>/SKILL.md` | None assumed; skills-only proposal |
+| Hermes Agent (provisional) | None verified | `~/.hermes/skills/` (global; never written) | None assumed |
 
 OpenCode native command bridges additionally target `.opencode/commands/`.
 Commands, skills and roles still refer to the same configured canonical
@@ -50,6 +56,26 @@ a manual merge. Role loading and discovery depend on the installed version.
 
 The `.agents/` convention is shared by products. A namespaced file there
 can still be discovered by more than one host; it is not product isolation.
+
+## Provisional Hosts
+
+Hermes Agent is an admitted host whose native format has NOT been verified
+against an in-repo specification; it has no `policy/native-adapters.json`
+block by design. Instead of fabricated per-resource bridges, selecting
+`hermes` emits exactly two review artifacts under
+`<configDir>/integrations/native/hermes/`:
+
+- `hermes-proposal.json` — a descriptor marked `format: "provisional"`,
+  `verified: false`, pointing at the machine-local MCP fragment and
+  naming its documented manual-merge target
+  (`~/.hermes/config.yaml`, key `mcp_servers.tasksystem`).
+- `instructions.md` — manual activation steps and the sources consulted.
+
+The companion fragment `integrations/hermes-mcp.json` wraps a
+`fragment.mcp_servers` subtree in strict JSON (a valid YAML 1.2 subset,
+so it can be reviewed against the documented YAML shape) with
+`enabled: false`. All Hermes roots are global paths under `~/.hermes/`;
+the harness never writes them — see the activation contract below.
 
 ## Permissions And Models
 
@@ -77,6 +103,41 @@ Devin Cloud behavior is not certified by CLI/Local fixtures.
 Models remain under host policy or an explicit owner choice. No universal
 provider, model identifier, cost estimate or paid call is selected by
 TaskSystem. Availability, router behavior and billing are host-dependent.
+
+## Activation Contract
+
+`src/hosts/activation.mjs` provides the opt-in machinery that materializes
+generated native proposals into project-local host destinations:
+
+- `prepareActivation(ctx, {host, surface?})` returns
+  `{mode: 'dry-run', files: [{rel, action}], skipped, warnings, format}`
+  where `action` is `create`, `conflict` or `noop` under the same checks
+  as `preflightPlan` (planned collisions, containment, links/non-files,
+  bounded identical-bytes comparison). It writes nothing.
+- `applyActivation(ctx, {host, surface?})` re-runs the throwing preflight
+  immediately before writing (`PLAN_CONFLICT` aborts everything), then
+  creates files with exclusive `wx` descriptors and rolls back only the
+  files it created. Existing identical files are `noop`; divergent or
+  linked destinations are conflicts — never overwrites.
+- Only whole new project-local files are applyable. Entries that merge
+  into shared host configuration (`agent-declaration` fragments,
+  `mcp` descriptors) and any destination that is not a canonical
+  project-relative path — including every global `~` path — are reported
+  in `skipped` with warnings and never written. Machine-local MCP
+  fragments under `integrations/<host>-mcp.*` stay manual-merge proposals.
+- `surface` selects a variant id (e.g. `app-cli`, `ide`) or one of its
+  declared surfaces. Because Antigravity variants emit the same
+  destinations with different permissions, omitting a surface there makes
+  duplicated destinations collide into `conflict` — selection is required
+  in practice. For the provisional host, `format` is `'provisional'` and
+  nothing is auto-applied.
+- Proposal bytes are re-derived from catalog and policy at call time; a
+  hand-edited proposal file never propagates into a destination.
+
+Applying activation creates host roots inside the project only
+(`.claude/`, `.codex/`, `.opencode/`, `.devin/`, `.agents/`). It never
+writes global host configuration, never installs hooks or plugins, and
+grants no auto-approval.
 
 ## Activation And Recovery
 
@@ -128,3 +189,9 @@ Official sources consulted during the migration:
   [subagents](https://antigravity.google/docs/subagents),
   [MCP](https://antigravity.google/docs/mcp) and
   [IDE workflows](https://antigravity.google/docs/ide/workflows).
+- Hermes Agent [configuration](https://hermes-agent.nousresearch.com/docs/user-guide/configuration),
+  [MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp),
+  [skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)
+  and [MCP config reference](https://hermes-agent.nousresearch.com/docs/reference/mcp-config-reference)
+  — consulted for the provisional proposal; not verified against a live
+  install.
