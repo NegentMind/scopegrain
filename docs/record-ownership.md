@@ -377,11 +377,268 @@ cambian.
   requiere enrolamiento existente (`WORKSPACE_NOT_FOUND` si falta).
   Omitir `--owned` en los nuevos `design show`/`outcome show` es
   `INVALID_ARGS`, no una seleccion automatica de modo.
+- Las familias mutables usan el mismo esquema por dominio:
+  `INVALID_OWNED_<X>_INPUT` mas `OWNED_<X>_NOT_FOUND`,
+  `OWNED_<X>_MALFORMED`, `OWNED_<X>_NOT_COMMITTED` y
+  `OWNED_<X>_SOURCE_CHANGED`, con las excepciones especificas listadas
+  en [Ownership mutable con historial journal](#ownership-mutable-con-historial-journal).
+
+## Ownership mutable con historial journal
+
+Cinco stores opt-in extienden la misma prueba a registros que cambian.
+El seam nuevo es `applyJournaledRecordUpdate(bound, callback)` en
+`src/core/journal.mjs`, gemelo estricto de
+`applyJournaledRecordCreation`: el kernel genera la identidad de la
+operacion una sola vez, entrega una copia congelada al callback sincrono
+de confianza y valida lo devuelto como update changes de forma cerrada.
+Cada change declara `previousHash` (SHA-256 de los bytes actuales
+esperados) y `sourceRevision` (la revision actual esperada); el CAS de
+bytes se comprueba antes del lock, de nuevo bajo el lock antes de
+reservar secuencias y otra vez tras el staging de temporales y antes de
+los renames (aplicacion en dos fases: temp fsync junto al destino,
+re-check CAS de todos los targets, rename de todos y post-verificacion
+de bytes). Un destino ausente, no regular o con bytes distintos es
+`JOURNAL_SOURCE_CONFLICT` antes de consumir estado del journal. Un
+change cuyo contenido iguala los bytes actuales se filtra; si todos lo
+son, el resultado es `unchanged` sin operacion. Las pre-imagenes se
+persisten como snapshots content-addressed adicionales bajo el hash del
+`previousHash` (auditoria; no hay restauracion automatica) y los recibos
+inciertos se conservan como en create. No hay operaciones mixtas:
+`create` solo acepta fuentes nuevas y `update` solo destinos
+CAS-existentes.
+
+`src/core/record-history.mjs` aporta los validadores puros del modelo:
+`validateUpdateChange` (forma cerrada del change: `sourceRevision`
+entero obligatorio y `previousHash` sha256), `resultingSourceRevision`
+(create conserva la declarada; update produce la esperada + 1) y
+`validateRecordTransition` (un evento update debe nombrar el mismo
+record, esperar la revision que produjo el evento previo y encadenar
+`previousHash` a su `sourceHash`). El journal no mantiene un indice por
+record: la `sourceRevision` declarada es metadato de procedencia que el
+kernel no verifica contra operaciones previas; la coherencia de la
+cadena es un check del modelo de lectura.
+
+Las invariantes compartidas de los cinco stores: opciones cerradas
+`{ areaIds }`, binding autentico y copia privada de config, scope
+autorizado antes de producir contenido, gates de dominio dentro del
+callback del kernel (antes de reservar estado del journal), stores
+congelados, `get` fail-closed que reprueba la cadena committed completa,
+y nunca listados, fallback de historial como actual ni adopcion de
+archivos plausibles. Genesis y mutaciones son operaciones de uno o dos
+eventos segun el store: dos create rev0 para el par fuente+sidecar; dos
+update cuando el sidecar es mutable. Solo el enrolamiento perezoso del
+workspace usa un create de un solo evento (el puntero). Todos conservan
+el recibo `journal` completo, incluido el incierto.
+
+| Store | Factoria y API | Sidecar | Operaciones |
+| --- | --- | --- | --- |
+| Tarea | `createOwnedTaskStore(ctx, { areaIds })` (`src/core/transition.mjs`): `prepare`, `create`, `get`, `transition` | `<paths.state>/record-ownership/task/<uuid>.json`, mutable con `chain` | create: 2 create rev0 (`task` + `record-ownership`); transition: 2 update |
+| Aprobacion | `createOwnedApprovalStore` (`src/core/approvals.mjs`): `prepare`, `create`, `get`, `answer` | `<paths.state>/record-ownership/approval/<sha256>.json`, mutable con `chain` | create: 2 create rev0; answer: 2 update (`approval` + `record-ownership`) |
+| Sesion | `createOwnedSessionStore` (`src/core/sessions.mjs`): `prepare`, `create`, `prepareRecord`, `record`, `get`, `resume` | `<paths.state>/session-ownership/<uuid>.json`, cabeza de cadena mutable | open: 2 create rev0 (`session` + `session-ownership`); record: 2 update |
+| Plan | `createOwnedPlanStore` (`src/core/plans.mjs`): `prepare`, `create`, `get`, `update` | `<paths.state>/plan-ownership/<key>.json`, mutable con `operations` | create: 2 create rev0 (`plan` + `plan-ownership`); update: 2 update |
+| Workspace | `createOwnedWorkspaceStore` (`src/core/workspaces.mjs`): `prepare`, `update`, `get` | `<paths.state>/workspace-ownership.json`, puntero mutable | genesis: 1 create del puntero; update: 2 update (`workspace` + `workspace-ownership`) |
+
+### Tareas owned
+
+La fuente es el mismo `<paths.tasks>/<uuid>.json` del dominio, byte
+identico; el sidecar usa el layout `record-ownership/task/` con un
+validador local de diez campos porque `OWNERSHIP_KINDS` sigue cerrado
+a los kinds inmutables. El sidecar es mutable y lleva `chain`: lista
+densa de operationIds donde `chain[k]` produjo la revision k,
+`chain.at(-1) === operationId` y `chain.length === sourceRevision + 1`
+(misma convencion que aprobaciones, acotada por `maxSessionEvents`).
+
+- **`create`** emite dos eventos create rev0 (`task` y
+  `record-ownership`) en una operacion; `prepare` es el dry-run de
+  siempre, sin reservar IDs.
+- **`transition`** recibe `{ areaIds, transition }` con la misma entrada
+  de `transitionTask`, exige que las areas sean exactamente el scope
+  probado del registro (`SCOPE_DENIED` ante cualquier diferencia) y toma
+  el lock `<id>.json.lock` para bloquear escritores legacy cooperativos
+  durante toda la ventana. Bajo ese lock prueba el ownership vigente y
+  corre `evaluateTaskTransition` (CAS de revision, arista de workflow,
+  evidencia, ACCEPT y gate metodologico) dentro del callback del kernel;
+  emite una operacion de dos eventos update (`task` y sidecar)
+  encadenada a la punta probada.
+- **`get`** recorre la `chain` del sidecar hacia adelante: cada
+  operacion referida debe estar committed con exactamente dos eventos y
+  ambas series (fuente y sidecar) validan con
+  `validateRecordTransition` desde el create; el snapshot del sidecar
+  de cada revision reprueba el prefijo de `chain`. No enumera
+  `journal/operations`. Ademas exige `record.revision ===`
+  `sourceRevision` y bytes actuales iguales a la punta probada.
+- Errores: `INVALID_OWNED_TASK_INPUT`, `OWNED_TASK_NOT_FOUND`,
+  `OWNED_TASK_MALFORMED`, `OWNED_TASK_NOT_COMMITTED` y
+  `OWNED_TASK_SOURCE_CHANGED`; los codigos de dominio
+  (`REVISION_MISMATCH`, `INVALID_TRANSITION`, `METHODOLOGY_BLOCKED`,
+  `TASK_LOCKED`, ...) conservan su significado.
+
+### Aprobaciones owned
+
+El recordId es el digest sha256 de la aprobacion, no un UUID; la fuente
+vive en `<paths.decisions>/approvals/<sha256>.json`. El sidecar mutable
+de diez campos lleva `chain`: lista ordenada de operationIds donde
+`chain[k]` produjo la revision k, `chain.at(-1) === operationId` y
+`chain.length === sourceRevision + 1`.
+
+- **`answer`** exige `{ id, answer, expectedRevision,
+  expectedTargetDigest, actor }` (`comment` opcional) y resuelve
+  `expectedRevision` al
+  `sourceHash` del evento que produjo esa revision dentro de la cadena
+  probada, declarado como `previousHash`: una doble respuesta desde la
+  misma revision declara bytes viejos y el kernel la rechaza con
+  `JOURNAL_SOURCE_CONFLICT` antes de reservar estado. El evento de la
+  fuente declara la `expectedRevision` del caller; el del sidecar, la
+  revision de punta probada. El store owned no ofrece `prepareAnswer`;
+  `prepareApprovalAnswer` legacy sigue existiendo fuera de el.
+- **`get`** recorre la cadena completa: cada operacion committed con
+  exactamente dos eventos (`approval` + `record-ownership`), encadenados
+  por `validateRecordTransition` en ambos streams, y el snapshot del
+  sidecar de cada revision reprueba su prefijo de `chain`. El record de
+  la punta debe declarar `revision === sourceRevision` del sidecar y los
+  bytes actuales deben igualar la punta.
+- Errores: `INVALID_OWNED_APPROVAL_INPUT` y la familia
+  `OWNED_APPROVAL_*` (`NOT_FOUND`, `MALFORMED`, `NOT_COMMITTED`,
+  `SOURCE_CHANGED`); los codigos de dominio (`APPROVAL_INVALID`,
+  `REVISION_MISMATCH`, ...) conservan su significado.
+
+### Sesiones owned
+
+La fuente es el documento legacy byte identico
+`<paths.state>/sessions/<uuid>.json`. El sidecar vive bajo
+`session-ownership/` — no en `record-ownership/`, reservado a companions
+rev0 inmutables — y es la cabeza mutable de la cadena con doce claves
+cerradas, incluidas `previousOperationId` y `createOperationId`. Un
+sidecar rev0 exige `operationId === createOperationId`,
+`previousOperationId === null` y `createdAt === updatedAt`.
+
+- **`create`** (open) es una operacion con dos eventos create rev0
+  (`session` + `session-ownership`).
+- **`record`** emite una operacion con dos eventos update sobre ambos
+  archivos. Todos los gates de dominio — CAS de `expectedRevision`,
+  `checkAction` contra la tarea viva, presupuesto `used < limit` y forma
+  prospectiva completa — corren dentro del callback del kernel, antes de
+  reservar estado del journal. El scope grabado debe igualar
+  exactamente el scope enrolado (`INVALID_OWNED_SESSION_INPUT` si
+  difiere). **`prepareRecord`** es el dry-run: prueba solo la punta
+  (escrituras O(1); las lecturas recorren la cadena, deliberado).
+- **`get`** hace el recorrido backward completo por
+  `previousOperationId` hasta la operacion create rev0: cada operacion
+  committed con exactamente dos eventos, el snapshot del sidecar
+  reproduce el documento enlazado y ambos streams pasan
+  `validateRecordTransition`. **`resume`** devuelve el record probado
+  mas el estado vivo de la tarea.
+- Errores: `INVALID_OWNED_SESSION_INPUT` y `OWNED_SESSION_*`
+  (`NOT_FOUND`, `MALFORMED`, `NOT_COMMITTED`, `SOURCE_CHANGED`).
+
+### Planes owned
+
+La fuente es `<paths.plans>/<key>.json` y el recordId es la `key` del
+plan. El sidecar mutable de once campos lleva `operations`, la lista
+append-only de operationIds: `operations.length === sourceRevision + 1`
+y el ultimo es `operationId`.
+
+- **`create`** emite dos eventos create rev0 (`plan` +
+  `plan-ownership`). Los archivos de tareas miembro se crean antes de la
+  operacion journal por el escritor legacy todo-o-nada, asi que un
+  recibo incierto puede dejar tareas inertes sin referencia (ventana
+  documentada; el orden inverso dejaria un plan committed sin sus
+  tareas, estrictamente peor). Un destino owned existente falla antes
+  con `OWNED_PLAN_CONFLICT`.
+- **`update`** recibe `{ key, expectedRevision, plan }` — sin
+  redeclarar areas: los eventos usan el scope probado del sidecar. La
+  revision debe igualar la punta probada (`OWNED_PLAN_REVISION_CONFLICT`)
+  y el documento completo se revalida: forma y DAG, campos de
+  procedencia inmutables (`schemaVersion`, `authorContext`,
+  `inputDigest`, `createdAt`, `specId`, `designId`), ids de miembros
+  estables por key, miembros nuevos ya existentes en disco y, en planes
+  V2, refs formales coherentes y cobertura total de escenarios
+  (`PLAN_MEMBERSHIP_INVALID`, `INVALID_PLAN`). Bytes identicos
+  devuelven `{ mode: 'unchanged' }` sin consumir journal; si difieren,
+  una operacion de dos eventos update CAS.
+- **`get`** reprueba la cadena entera: cada operacion committed, dos
+  eventos encadenados y snapshot del sidecar byte-reconstruible por
+  prefijo. El readiness (`nextPlanTasks`) es una lectura derivada sobre
+  tareas vivas y no forma parte de la prueba.
+- Errores: `INVALID_OWNED_PLAN_INPUT`, `OWNED_PLAN_NOT_FOUND`,
+  `OWNED_PLAN_MALFORMED`, `OWNED_PLAN_NOT_COMMITTED`,
+  `OWNED_PLAN_SOURCE_CHANGED`, `OWNED_PLAN_CONFLICT` y
+  `OWNED_PLAN_REVISION_CONFLICT`, mas los codigos de dominio legacy.
+
+### Workspace owned
+
+Sin `create`: el descriptor `workspace.json` lo produce el enrolamiento
+explicito. La prueba se ancla en el puntero
+`<paths.state>/workspace-ownership.json`, de seis claves cerradas
+(`schemaVersion`, `workspaceId`, `revision`, `sourceHash`,
+`operationId`, `updatedAt`).
+
+- **Enrolamiento journal perezoso**, no migracion: el primer `update`
+  sin puntero crea la operacion genesis — un unico evento create sobre
+  el puntero cuya `sourceRevision` es la revision vigente del descriptor
+  y cuyo `sourceHash` cubre sus bytes actuales CAS-verificados — y
+  despues aplica el update homogeneo de dos eventos (`workspace` +
+  `workspace-ownership`). Un descriptor nunca journalizado no se
+  adopta: `get` falla con `OWNED_WORKSPACE_NOT_FOUND`. Un recibo de
+  genesis incierto se devuelve como `{ updateApplied: false,
+  updateConfirmed: false }` en vez de chocar con la barrera de operacion
+  pendiente.
+- **`update`** recibe `{ areaIds, workspace }` con `workspace.areas`
+  como reemplazo total emparejado por `key`: una key existente conserva
+  su area id, una nueva recibe UUID fresco. Quitar un area esta
+  deliberadamente rechazado (`INVALID_OWNED_WORKSPACE_INPUT`): los
+  scopes de los eventos se autorizan contra los grants vigentes, y un
+  area eliminada podria dejar permanentemente inautorizables operaciones
+  pendientes o historicas, incluida su recuperacion.
+- Los campos de identidad (`schemaVersion`, `workspaceId`, `projectId`,
+  `repositoryId`, `createdAt`) quedan congelados por construccion; las
+  `sourceRevision` y `previousHash` declarados se derivan de bytes que
+  el propio store leyo, nunca del caller.
+- Cada update committed cambia el digest canonico del descriptor e
+  invalida permanentemente todos los bindings vivos (`WORKSPACE_STALE`
+  latched); el store se re-vincula por llamada para sobrevivir a sus
+  propios updates.
+- **`get`** no enumera operaciones: el puntero nombra la ultima, la
+  forma es estricta (genesis = exactamente un evento create; update =
+  exactamente dos eventos update coherentes) y ambos snapshots deben
+  igualar los bytes presentes.
+- Errores: `INVALID_OWNED_WORKSPACE_INPUT`, `OWNED_WORKSPACE_NOT_FOUND`,
+  `OWNED_WORKSPACE_MALFORMED`, `OWNED_WORKSPACE_NOT_COMMITTED` y
+  `OWNED_WORKSPACE_SOURCE_CHANGED`.
+
+### Limites del ownership mutable
+
+- No hay transacciones entre records: una operacion update cubre los
+  archivos de un mismo record (fuente y, cuando aplica, sidecar), nada
+  mas.
+- El CAS es cooperativo: escritores fuera del journal pueden intercalar.
+  Los escritores legacy producen formatos byte identicos y siguen
+  pudiendo escribir; una escritura externa no corrompe el journal pero
+  invalida la prueba — el siguiente `get` o escritura owned falla
+  cerrado con `*_SOURCE_CHANGED` o `JOURNAL_SOURCE_CONFLICT`. La prueba
+  detecta el cambio; no lo impide ni lo revierte.
+- La `sourceRevision` declarada es procedencia: el kernel no la
+  verifica contra operaciones previas; la coherencia de cadena se
+  comprueba en lectura.
+- Los stores owned mutables son factorias del core opt-in: no estan
+  cableados al CLI ni a MCP.
+- La respuesta de aprobacion owned no tiene `prepareAnswer`; el preview
+  legacy `prepareApprovalAnswer` no produce ni consume ownership.
+- Quitar areas del workspace no es expresable por diseno (riesgo de
+  `SCOPE_DENIED` permanente sobre operaciones pendientes e historicas).
+- El ownership de workspace es perezoso: sin puntero journal no hay
+  prueba.
+- `plan` create puede dejar tareas miembro inertes ante un recibo
+  incierto; no hay compensacion automatica.
+- Las pre-imagenes de update son snapshots de auditoria; ninguna
+  recuperacion las restaura automaticamente.
 
 ## Limites
 
-- Solo `capture`, `spec`, `design` y `report` revision 0 estan soportados.
-  Los documentos mutables necesitan un futuro protocolo CAS/historial,
+- Los companions inmutables de `record-ownership/` siguen limitados a
+  `capture`, `spec`, `design` y `report` revision 0. Los documentos
+  mutables usan el protocolo CAS/historial descrito en
+  [Ownership mutable con historial journal](#ownership-mutable-con-historial-journal),
   no creates falsos.
 - El ownership prueba una creacion scoped del kernel; no identidad
   autenticada, autenticidad de la peticion original, verdad activa ni
