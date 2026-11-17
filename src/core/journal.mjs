@@ -4,9 +4,11 @@ import crypto from 'node:crypto';
 import { preflightPlan, applyPlan } from './bootstrap.mjs';
 import { canonicalDigest } from './digests.mjs';
 import { err, toErrorPayload } from './errors.mjs';
-import { lstatOrNull, readDirBounded, readFileLimited } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited,
+  removeIfExists } from './fsx.mjs';
 import { assertDestination, isSameOrAncestor, resolveInside } from './paths.mjs';
 import { loadJournalPolicy, loadLimits } from './policy.mjs';
+import { isJournalOperation, validateUpdateChange } from './record-history.mjs';
 import { authorizeScope, resolveWorkspaceState } from './workspaces.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -112,8 +114,10 @@ function readBytes(loc, rel, missingCode = 'JOURNAL_NOT_FOUND') {
 
 function readJson(loc, rel, missingCode = 'JOURNAL_NOT_FOUND') {
   const bytes = readBytes(loc, rel, missingCode);
+  const text = decodeUtf8Strict(
+    bytes, 'JOURNAL_MALFORMED', `journal JSON: ${rel}`);
   try {
-    return JSON.parse(bytes.toString('utf8'));
+    return JSON.parse(text);
   } catch {
     throw err('JOURNAL_MALFORMED', `malformed journal JSON: ${rel}`);
   }
@@ -309,9 +313,14 @@ function validateIntent(intent, operationId, loc, policy) {
         || typeof event.recordId !== 'string' || !RECORD.test(event.recordId)
         || (event.sourceRevision !== null
           && (!Number.isSafeInteger(event.sourceRevision) || event.sourceRevision < 0))
-        || event.previousHash !== null || !hash(event.sourceHash)
+        || !hash(event.sourceHash)
         || event.snapshotRef !== sub(loc, `snapshots/${event.sourceHash}.blob`)
-        || event.operation !== 'create' || event.createdAt !== intent.createdAt) {
+        || !isJournalOperation(event.operation)
+        || (event.operation === 'create' && event.previousHash !== null)
+        || (event.operation === 'update'
+          && (!hash(event.previousHash) || !Number.isSafeInteger(event.sourceRevision)
+            || event.sourceRevision < 0))
+        || event.createdAt !== intent.createdAt) {
       throw err(code, 'journal event has invalid fields');
     }
     dense(event.areaIds, code, 'journal event areaIds');
@@ -634,16 +643,20 @@ function unchanged(planned) {
   };
 }
 
-function saveSnapshot(loc, event, content) {
-  const rel = sub(loc, `snapshots/${event.sourceHash}.blob`);
+function saveBlob(loc, hash, content) {
+  const rel = sub(loc, `snapshots/${hash}.blob`);
   if (lstatOrNull(absolute(loc, rel))) {
-    const bytes = verifiedSnapshot(loc, event);
-    if (!bytes.equals(content)) {
+    const bytes = readBytes(loc, rel, 'JOURNAL_SNAPSHOT_MISSING');
+    if (digestBytes(bytes) !== hash || !bytes.equals(content)) {
       throw err('JOURNAL_SNAPSHOT_MISMATCH', 'existing snapshot differs');
     }
     return;
   }
   writeNew(loc, rel, content);
+}
+
+function saveSnapshot(loc, event, content) {
+  saveBlob(loc, event.sourceHash, content);
 }
 
 function prepareIntent(bound, loc, candidates, head, identity = null) {
@@ -658,9 +671,9 @@ function prepareIntent(bound, loc, candidates, head, identity = null) {
       repositoryId: bound.repositoryId, areaIds: [...candidate.areaIds],
       sourceKind: candidate.sourceKind, recordId: candidate.recordId,
       sourceRevision: candidate.sourceRevision, sourceRel: candidate.file.rel,
-      previousHash: null, sourceHash,
+      previousHash: candidate.previousHash ?? null, sourceHash,
       snapshotRef: sub(loc, `snapshots/${sourceHash}.blob`),
-      operation: 'create', createdAt,
+      operation: candidate.operation ?? 'create', createdAt,
     };
   });
   return { schemaVersion: 1, operationId, state: 'prepared', createdAt, events };
@@ -674,8 +687,10 @@ function pendingResult(intent, cause) {
   };
 }
 
-function lockedCreation(bound, changes, loc, policy, identity = null) {
-  resolveWorkspaceState(bound);
+// Shared pre-condition for any journaled write under the lock: an
+// inactive head, a pending outbox of only committed operations and no
+// event sequence beyond the head.
+function writableJournal(loc, policy) {
   const head = readHead(loc);
   if (head.activeOperation !== null) {
     throw err('JOURNAL_RECOVERY_REQUIRED', 'journal has an active operation');
@@ -693,20 +708,22 @@ function lockedCreation(bound, changes, loc, policy, identity = null) {
       readAck(loc, operationId, event);
     }
   }
-  const planned = preflightPlan(loc.root, changes.map((change) => change.file));
-  const candidates = changes.filter((_, index) => planned[index].action === 'create');
-  if (identity && candidates.length !== changes.length) {
-    throw err('JOURNAL_SOURCE_CONFLICT', 'record creation requires all-new sources');
-  }
-  if (!candidates.length) return unchanged(planned);
-  if (pending.length >= policy.maxPendingOperations) {
-    throw err('JOURNAL_CAPACITY', 'journal pending capacity reached');
-  }
-  if (head.lastSequence > Number.MAX_SAFE_INTEGER - candidates.length) {
-    throw err('JOURNAL_SEQUENCE_EXHAUSTED', 'journal sequence exhausted');
-  }
-  const intent = prepareIntent(bound, loc, candidates, head, identity);
-  validateIntent(intent, intent.operationId, loc, policy);
+  return { head, pending };
+}
+
+// Reserve the sequences in head, persist snapshots, intent and outbox in
+// the fixed order. extraBlobs are additional content-addressed snapshot
+// files (update pre-images) written after the per-event post-images.
+// The head reservation stays FIRST on purpose: it allocates the sequence
+// range under the lock, keeps "head exists before any history" true for
+// readHead, and snapshots-before-intent preserves the invariant that a
+// persisted intent implies complete snapshots. Writing the intent before
+// the head would instead orphan an intent claiming sequences the head
+// never reserved (and for a first operation a missing head with history
+// is JOURNAL_MALFORMED). The remaining crash window - head reserved,
+// intent absent - is resolved by missingIntentOperation on the
+// 'abandon-prepared' recovery path, not by reordering.
+function persistIntent(loc, intent, candidates, head, extraBlobs = []) {
   const intentBytes = jsonBytes(intent);
   const intentDigest = canonicalDigest(intent);
   const activeOperation = { operationId: intent.operationId, intentDigest };
@@ -716,26 +733,18 @@ function lockedCreation(bound, changes, loc, policy, identity = null) {
   for (let i = 0; i < candidates.length; i += 1) {
     saveSnapshot(loc, intent.events[i], candidates[i].file.content);
   }
+  for (const blob of extraBlobs) {
+    saveBlob(loc, blob.hash, blob.bytes);
+  }
   writeNew(loc, sub(loc, `operations/${intent.operationId}/intent.json`), intentBytes);
   writeNew(loc, sub(loc, `outbox/${intent.operationId}.json`),
     jsonBytes({ schemaVersion: 1, operationId: intent.operationId, intentDigest }));
-  resolveWorkspaceState(bound);
-  let applied;
-  try {
-    applied = applyPlan(loc.root, candidates.map((candidate) => candidate.file));
-  } catch (e) {
-    return pendingResult(intent, e);
-  }
-  if (applied.created !== candidates.length) {
-    return pendingResult(intent,
-      err('JOURNAL_SOURCE_UNCONFIRMED', 'not every prepared source was created'));
-  }
-  const result = {
-    status: 'committed', operationId: intent.operationId,
-    eventIds: intent.events.map((event) => event.eventId),
-    journalState: 'pending-finalization', pendingMemory: true,
-    result: applied, cause: null, warnings: [],
-  };
+  return { intentDigest, reserved };
+}
+
+// Commit marker, confirmation state and head-pointer cleanup shared by
+// create and update application tails.
+function finalizeOperation(loc, intent, intentDigest, reserved, result) {
   try {
     writeNew(loc, sub(loc, `operations/${intent.operationId}/commit.json`),
       jsonBytes({ schemaVersion: 1, operationId: intent.operationId, intentDigest,
@@ -759,6 +768,43 @@ function lockedCreation(bound, changes, loc, policy, identity = null) {
       'committed operation requires journal head recovery')));
   }
   return result;
+}
+
+function lockedCreation(bound, changes, loc, policy, identity = null) {
+  resolveWorkspaceState(bound);
+  const { head, pending } = writableJournal(loc, policy);
+  const planned = preflightPlan(loc.root, changes.map((change) => change.file));
+  const candidates = changes.filter((_, index) => planned[index].action === 'create');
+  if (identity && candidates.length !== changes.length) {
+    throw err('JOURNAL_SOURCE_CONFLICT', 'record creation requires all-new sources');
+  }
+  if (!candidates.length) return unchanged(planned);
+  if (pending.length >= policy.maxPendingOperations) {
+    throw err('JOURNAL_CAPACITY', 'journal pending capacity reached');
+  }
+  if (head.lastSequence > Number.MAX_SAFE_INTEGER - candidates.length) {
+    throw err('JOURNAL_SEQUENCE_EXHAUSTED', 'journal sequence exhausted');
+  }
+  const intent = prepareIntent(bound, loc, candidates, head, identity);
+  validateIntent(intent, intent.operationId, loc, policy);
+  const { intentDigest, reserved } = persistIntent(loc, intent, candidates, head);
+  resolveWorkspaceState(bound);
+  let applied;
+  try {
+    applied = applyPlan(loc.root, candidates.map((candidate) => candidate.file));
+  } catch (e) {
+    return pendingResult(intent, e);
+  }
+  if (applied.created !== candidates.length) {
+    return pendingResult(intent,
+      err('JOURNAL_SOURCE_UNCONFIRMED', 'not every prepared source was created'));
+  }
+  return finalizeOperation(loc, intent, intentDigest, reserved, {
+    status: 'committed', operationId: intent.operationId,
+    eventIds: intent.events.map((event) => event.eventId),
+    journalState: 'pending-finalization', pendingMemory: true,
+    result: applied, cause: null, warnings: [],
+  });
 }
 
 function applyCreation(bound, validated, loc, policy, identity = null) {
@@ -814,6 +860,215 @@ export function applyJournaledRecordCreation(bound, createChanges) {
   return applyCreation(bound, validated, loc, policy, identity);
 }
 
+// Bounded read of a CAS update target: the path must resolve to an
+// existing regular non-link file whose bytes hash to the declared
+// previousHash. Any drift, absence or exotic entry is a conflict - the
+// caller's view of the world is wrong, never silently reconciled.
+function readCasSource(loc, change) {
+  const abs = absolute(loc, change.file.rel);
+  const stat = lstatOrNull(abs);
+  if (!stat || stat.isSymbolicLink() || !stat.isFile()) {
+    throw err('JOURNAL_SOURCE_CONFLICT',
+      `update source is missing or not a regular file: ${change.file.rel}`);
+  }
+  const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
+  if (limited.exceeded) {
+    throw err('DOCUMENT_TOO_LARGE',
+      `update source exceeds document limit: ${change.file.rel}`);
+  }
+  if (digestBytes(limited.content) !== change.previousHash) {
+    throw err('JOURNAL_SOURCE_CONFLICT',
+      `update source differs from previousHash: ${change.file.rel}`);
+  }
+  return limited.content;
+}
+
+function validateUpdateChanges(bound, changes, loc, policy) {
+  dense(changes, 'INVALID_JOURNAL_INPUT', 'journal changes');
+  if (changes.length > policy.maxOperationEvents) {
+    throw err('INVALID_JOURNAL_INPUT', 'journal operation exceeds event limit');
+  }
+  const records = new Set();
+  return changes.map((change) => {
+    validateUpdateChange(change, 'INVALID_JOURNAL_INPUT', 'journal change');
+    const content = Buffer.from(change.file.content);
+    if (content.length > loadLimits().maxDocumentBytes) {
+      throw err('DOCUMENT_TOO_LARGE', 'journal source exceeds document limit');
+    }
+    const rel = validRel(change.file.rel, loc, 'INVALID_JOURNAL_INPUT');
+    const record = `${change.sourceKind}/${change.recordId}`;
+    if (records.has(record)) {
+      throw err('INVALID_JOURNAL_INPUT', 'duplicate journal record');
+    }
+    records.add(record);
+    const scope = authorizeScope(bound, {
+      workspaceId: bound.workspaceId, projectId: bound.projectId,
+      repositoryId: bound.repositoryId, areaIds: [...change.areaIds],
+    });
+    return {
+      sourceKind: change.sourceKind, recordId: change.recordId,
+      sourceRevision: change.sourceRevision, previousHash: change.previousHash,
+      areaIds: [...scope.areaIds], file: { rel, content }, operation: 'update',
+    };
+  });
+}
+
+function unchangedUpdate(changes) {
+  return {
+    status: 'unchanged', operationId: null, eventIds: [], journalState: 'none',
+    pendingMemory: false,
+    result: { updated: 0, files: changes.map((change) => change.file.rel) },
+    cause: null, warnings: [],
+  };
+}
+
+// fsync'd exclusive temp write next to the update target so the rename
+// stays on the same volume. A failed write removes only our own temp.
+function stageUpdate(abs, content) {
+  const tmp = `${abs}.upd-${crypto.randomUUID()}.tmp`;
+  const fd = fs.openSync(tmp, 'wx');
+  let closed = false;
+  try {
+    const bytes = Buffer.isBuffer(content) ? content : Buffer.from(content);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.writeSync(fd, bytes, offset, bytes.length - offset, offset);
+      if (count <= 0) {
+        throw err('WRITE_FAILED', `update temp write made no progress: ${tmp}`);
+      }
+      offset += count;
+    }
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    closed = true;
+    return tmp;
+  } catch (e) {
+    if (!closed) {
+      try { fs.closeSync(fd); } catch { /* descriptor may already be closed */ }
+    }
+    try { fs.unlinkSync(tmp); } catch { /* best effort: our own temp only */ }
+    throw e;
+  }
+}
+
+// Two-phase apply: stage every new-content temp, re-verify the CAS on
+// ALL targets so no rename happens while any source drifted, rename all,
+// then post-verify each target's bytes. Failures surface as throws or a
+// short updated count - the caller turns either into an unconfirmed op.
+function applyUpdates(loc, changes) {
+  const staged = [];
+  try {
+    for (const change of changes) {
+      const abs = absolute(loc, change.file.rel);
+      staged.push({ abs, tmp: stageUpdate(abs, change.file.content), change });
+    }
+    for (const item of staged) readCasSource(loc, item.change);
+    for (const item of staged) {
+      fs.renameSync(item.tmp, item.abs);
+      item.tmp = null;
+    }
+    let updated = 0;
+    for (const item of staged) {
+      const current = readFileLimited(item.abs, loadLimits().maxDocumentBytes);
+      if (!current.exceeded && current.content.equals(item.change.file.content)) {
+        updated += 1;
+      }
+    }
+    return { updated, files: changes.map((change) => change.file.rel) };
+  } finally {
+    for (const item of staged) {
+      if (item.tmp) removeIfExists(item.tmp);
+    }
+  }
+}
+
+function lockedUpdate(bound, changes, loc, policy, identity) {
+  resolveWorkspaceState(bound);
+  const { head, pending } = writableJournal(loc, policy);
+  // Authoritative CAS under the journal lock, BEFORE any sequence is
+  // reserved: a stale view is a clean conflict, never a consumed intent.
+  const preimages = changes.map((change) => readCasSource(loc, change));
+  if (pending.length >= policy.maxPendingOperations) {
+    throw err('JOURNAL_CAPACITY', 'journal pending capacity reached');
+  }
+  if (head.lastSequence > Number.MAX_SAFE_INTEGER - changes.length) {
+    throw err('JOURNAL_SEQUENCE_EXHAUSTED', 'journal sequence exhausted');
+  }
+  const intent = prepareIntent(bound, loc, changes, head, identity);
+  validateIntent(intent, intent.operationId, loc, policy);
+  const { intentDigest, reserved } = persistIntent(loc, intent, changes, head,
+    changes.map((change, index) => ({
+      hash: change.previousHash, bytes: preimages[index],
+    })));
+  resolveWorkspaceState(bound);
+  let applied;
+  try {
+    applied = applyUpdates(loc, changes);
+  } catch (e) {
+    return pendingResult(intent, e);
+  }
+  if (applied.updated !== changes.length) {
+    return pendingResult(intent,
+      err('JOURNAL_SOURCE_UNCONFIRMED', 'not every prepared update was applied'));
+  }
+  return finalizeOperation(loc, intent, intentDigest, reserved, {
+    status: 'committed', operationId: intent.operationId,
+    eventIds: intent.events.map((event) => event.eventId),
+    journalState: 'pending-finalization', pendingMemory: true,
+    result: applied, cause: null, warnings: [],
+  });
+}
+
+function applyUpdate(bound, validated, loc, policy, identity) {
+  const lock = acquire(loc);
+  let result;
+  let failure;
+  try {
+    result = lockedUpdate(bound, validated, loc, policy, identity);
+  } catch (e) {
+    failure = e;
+  } finally {
+    try {
+      release(loc, lock);
+    } catch (e) {
+      if (result) result.warnings.push(toErrorPayload(e));
+      else if (!failure) failure = e;
+    }
+  }
+  if (failure) throw failure;
+  return result;
+}
+
+// Internal seam for typed adapters updating mutable records: the kernel
+// generates the operation identity once, hands a frozen copy to the
+// trusted synchronous callback and validates whatever it returns as
+// update changes. Every proposed source must exist, be a regular file
+// and hash to the declared previousHash - the compare-and-swap is
+// checked before any reservation and again under the journal lock, then
+// applied by temp+rename. A CAS mismatch, missing source or non-regular
+// target fails closed before any journal state is reserved; apply-phase
+// failures preserve the unconfirmed/prepared receipt exactly like create
+// failures. The CAS is cooperative: writers outside the journal can
+// still interleave, and the declared sourceRevision is provenance
+// metadata the kernel does not verify against prior operations.
+export function applyJournaledRecordUpdate(bound, updateChanges) {
+  if (typeof updateChanges !== 'function') {
+    throw err('INVALID_JOURNAL_INPUT', 'record update requires a callback');
+  }
+  const identity = Object.freeze({
+    operationId: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+  });
+  const loc = location(bound);
+  const policy = loadJournalPolicy();
+  const validated = validateUpdateChanges(bound, updateChanges(identity), loc, policy);
+  const current = validated.map((change) => readCasSource(loc, change));
+  const candidates = validated.filter((_, index) =>
+    !current[index].equals(validated[index].file.content));
+  if (!candidates.length) return unchangedUpdate(validated);
+  return applyUpdate(bound, candidates, loc, policy, identity);
+}
+
 function recoveryInput(operationId, options) {
   if (!uuid(operationId)) throw err('INVALID_JOURNAL_INPUT', 'operationId must be a UUID');
   const keys = ['action', 'expectedIntentDigest', 'reason'];
@@ -832,10 +1087,73 @@ function recoveryInput(operationId, options) {
   return input;
 }
 
+// Resolve a wedged reservation: the head points at an operation whose
+// intent.json was never persisted (crash inside persistIntent between the
+// atomic head write and the intent write). Only 'abandon-prepared' may
+// resolve it; every other action keeps failing closed with the original
+// JOURNAL_NOT_FOUND. The caller proves knowledge of the reservation
+// through expectedIntentDigest, verified against head.activeOperation -
+// the reported digest is the reserved one, never fabricated intent data.
+// Tolerance applies only to genuine absence: the operation directory must
+// hold nothing but an optional matching abandon receipt (kept so a
+// recovery that crashed after persisting its receipt stays resumable),
+// and a present outbox index must match the same digest. A malformed,
+// partial or contradictory artifact still fails closed.
+function missingIntentOperation(loc, policy, operationId, input) {
+  const base = sub(loc, `operations/${operationId}`);
+  if (input.action !== 'abandon-prepared') {
+    throw err('JOURNAL_NOT_FOUND', `journal file not found: ${base}/intent.json`);
+  }
+  let recovery = null;
+  for (const entry of directory(loc, base, 8)) {
+    if (entry.name === 'recovery.json' && entry.isFile()) {
+      recovery = readJson(loc, `${base}/recovery.json`, 'JOURNAL_MALFORMED');
+      validateRecovery(recovery, operationId, input.expectedIntentDigest, 'prepared');
+      if (recovery.action !== input.action || recovery.reason !== input.reason) {
+        throw err('JOURNAL_RECOVERY_CONFLICT', 'recovery decision differs from receipt');
+      }
+      continue;
+    }
+    throw err('JOURNAL_MALFORMED',
+      `unexpected artifact without intent: ${base}/${entry.name}`);
+  }
+  const head = readHead(loc);
+  if (head.activeOperation) {
+    if (head.activeOperation.operationId !== operationId) {
+      throw err('JOURNAL_RECOVERY_CONFLICT', 'another operation is active');
+    }
+    if (head.activeOperation.intentDigest !== input.expectedIntentDigest) {
+      throw err('JOURNAL_RECOVERY_CONFLICT', 'expected intent digest differs');
+    }
+  } else if (!recovery) {
+    throw err('JOURNAL_NOT_FOUND', `journal operation not found: ${operationId}`);
+  }
+  const indexRel = sub(loc, `outbox/${operationId}.json`);
+  const hasIndex = Boolean(lstatOrNull(absolute(loc, indexRel)));
+  if (hasIndex) {
+    const index = readJson(loc, indexRel, 'JOURNAL_MALFORMED');
+    plain(index, ['schemaVersion', 'operationId', 'intentDigest'],
+      ['schemaVersion', 'operationId', 'intentDigest'], 'JOURNAL_MALFORMED', 'outbox index');
+    if (index.schemaVersion !== 1 || index.operationId !== operationId
+        || index.intentDigest !== input.expectedIntentDigest) {
+      throw err('JOURNAL_MALFORMED', 'outbox index does not match reservation');
+    }
+  }
+  const loaded = { intent: null, intentDigest: input.expectedIntentDigest,
+    state: recovery ? 'abandoned' : 'missing', recovery };
+  return { loc, loaded, head, pendingEventIds: [], indexRel, hasIndex, policy };
+}
+
 function recoveryData(bound, operationId, input) {
   const loc = location(bound);
   const policy = loadJournalPolicy();
-  const loaded = operation(loc, operationId, policy);
+  let loaded;
+  try {
+    loaded = operation(loc, operationId, policy);
+  } catch (e) {
+    if (e.code !== 'JOURNAL_NOT_FOUND') throw e;
+    return missingIntentOperation(loc, policy, operationId, input);
+  }
   for (const event of loaded.intent.events) authorizeEvent(bound, event);
   if (loaded.intentDigest !== input.expectedIntentDigest) {
     throw err('JOURNAL_RECOVERY_CONFLICT', 'expected intent digest differs');
@@ -930,7 +1248,9 @@ export function recoverJournalOperation(bound, operationId, options) {
     }
     if (data.hasIndex && (input.action === 'abandon-prepared' || !data.pendingEventIds.length)) {
       resolveWorkspaceState(bound);
-      indexedOperation(data.loc, operationId, data.policy);
+      // A missing intent cannot be reloaded: recoveryData already
+      // validated that index against the head reservation instead.
+      if (data.loaded.intent) indexedOperation(data.loc, operationId, data.policy);
       fs.unlinkSync(absolute(data.loc, data.indexRel));
     }
     result = recoveryResult(operationId, input, data, 'applied', receipt);

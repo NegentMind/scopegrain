@@ -12,6 +12,7 @@ import { bindWorkspace, prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
   ackJournalEvent, applyJournaledCreation, applyJournaledRecordCreation,
   getJournalEvent, getJournalOperation, listJournalPending, readJournalSnapshot,
+  prepareJournalRecovery, recoverJournalOperation,
 } from '../src/core/journal.mjs';
 import { VALID_ANSWERS, cleanup, makeTempDir, trySymlink, writeFile, writeJson }
   from './helpers.mjs';
@@ -921,4 +922,185 @@ test('strict record seam rejects a noop introduced before under-lock preflight',
     assert.equal(fs.existsSync(path.join(f.journal, 'snapshots')), false);
     assert.equal(fs.existsSync(lockFile), false);
   } finally { fs.openSync = open; cleanup(f.dir); }
+});
+
+// Crash seam: persistIntent reserves the head first, so a failed intent
+// write leaves head.activeOperation pointing at an intent.json that never
+// landed - the wedged state this block of tests recovers from.
+function wedgedIntent(f) {
+  const open = fs.openSync;
+  try {
+    fs.openSync = function (file, flags, ...args) {
+      if (flags === 'wx' && String(file).endsWith(`${path.sep}intent.json`)) {
+        const error = new Error('fixture intent failure');
+        error.code = 'EIO';
+        throw error;
+      }
+      return open.call(this, file, flags, ...args);
+    };
+    assert.throws(() => applyJournaledCreation(f.bound, [change([f.a], 'records/item')]));
+  } finally { fs.openSync = open; }
+  const headPath = path.join(f.journal, 'head.json');
+  const head = JSON.parse(fs.readFileSync(headPath));
+  assert.ok(head.activeOperation);
+  const operationId = head.activeOperation.operationId;
+  const operationDir = path.join(f.journal, 'operations', operationId);
+  const intent = path.join(operationDir, 'intent.json');
+  assert.equal(fs.existsSync(intent), false);
+  assert.equal(fs.existsSync(path.join(f.journal, 'outbox', `${operationId}.json`)), false);
+  return { operationId, intentDigest: head.activeOperation.intentDigest,
+    lastSequence: head.lastSequence, headPath, operationDir, intent };
+}
+
+function abandonOptions(wedged, overrides = {}) {
+  return { action: 'abandon-prepared', expectedIntentDigest: wedged.intentDigest,
+    reason: 'wedged reservation', ...overrides };
+}
+
+test('abandon resolves a head reservation whose intent was never persisted', () => {
+  const f = fixture();
+  try {
+    const wedged = wedgedIntent(f);
+    const options = abandonOptions(wedged);
+    assert.throws(() => listJournalPending(f.bound),
+      (e) => e.code === 'JOURNAL_RECOVERY_REQUIRED');
+    assert.throws(() => applyJournaledCreation(f.bound, [change([f.a], 'records/next')]),
+      (e) => e.code === 'JOURNAL_RECOVERY_REQUIRED');
+    assert.throws(() => getJournalOperation(f.bound, wedged.operationId),
+      (e) => e.code === 'JOURNAL_NOT_FOUND');
+    const before = tree(f.dir);
+    const preview = prepareJournalRecovery(f.bound, wedged.operationId, options);
+    assert.equal(preview.mode, 'dry-run');
+    assert.equal(preview.state, 'missing');
+    assert.equal(preview.intentDigest, wedged.intentDigest);
+    assert.equal(preview.action, 'abandon-prepared');
+    assert.equal(preview.sourceOutcome, 'unconfirmed');
+    assert.equal(preview.preservesSources, true);
+    assert.deepEqual(preview.pendingEventIds, []);
+    assert.deepEqual(tree(f.dir), before);
+    const result = recoverJournalOperation(f.bound, wedged.operationId, options);
+    assert.equal(result.mode, 'applied');
+    assert.equal(result.state, 'abandoned');
+    assert.equal(result.intentDigest, wedged.intentDigest);
+    assert.deepEqual(result.pendingEventIds, []);
+    const receipt = JSON.parse(fs.readFileSync(
+      path.join(wedged.operationDir, 'recovery.json')));
+    assert.equal(receipt.action, 'abandon-prepared');
+    assert.equal(receipt.intentDigest, wedged.intentDigest);
+    assert.equal(receipt.sourceOutcome, 'unconfirmed');
+    const head = JSON.parse(fs.readFileSync(wedged.headPath));
+    assert.equal(head.activeOperation, null);
+    assert.equal(head.lastSequence, wedged.lastSequence);
+    assert.deepEqual(listJournalPending(f.bound), { items: [], nextAfterSequence: null });
+    const next = applyJournaledCreation(f.bound,
+      [change([f.a], 'records/next', 'next', 'next')]);
+    assert.equal(next.status, 'committed');
+    assert.equal(getJournalEvent(f.bound, next.operationId, next.eventIds[0])
+      .event.journalSequence, wedged.lastSequence + 1);
+    const again = recoverJournalOperation(f.bound, wedged.operationId, options);
+    assert.equal(again.state, 'abandoned');
+    assert.deepEqual(again.recovery, receipt);
+  } finally { cleanup(f.dir); }
+});
+
+test('abandon unlinks a stranded outbox index for a missing intent', () => {
+  const f = fixture();
+  try {
+    const wedged = wedgedIntent(f);
+    writeJson(f.dir,
+      `.tasksystem/state/journal/outbox/${wedged.operationId}.json`,
+      { schemaVersion: 1, operationId: wedged.operationId,
+        intentDigest: wedged.intentDigest });
+    const result = recoverJournalOperation(f.bound, wedged.operationId,
+      abandonOptions(wedged));
+    assert.equal(result.state, 'abandoned');
+    assert.equal(fs.existsSync(
+      path.join(f.journal, 'outbox', `${wedged.operationId}.json`)), false);
+    assert.equal(JSON.parse(fs.readFileSync(wedged.headPath)).activeOperation, null);
+    const next = applyJournaledCreation(f.bound,
+      [change([f.a], 'records/next', 'next', 'next')]);
+    assert.equal(next.status, 'committed');
+  } finally { cleanup(f.dir); }
+});
+
+test('wedged abandon resumes after head cleanup failure reusing the receipt', () => {
+  const f = fixture();
+  const rename = fs.renameSync;
+  try {
+    const wedged = wedgedIntent(f);
+    const options = abandonOptions(wedged);
+    fs.renameSync = function (from, to, ...args) {
+      if (to === wedged.headPath
+          && JSON.parse(fs.readFileSync(from)).activeOperation === null) {
+        throw new Error('fixture head cleanup failure');
+      }
+      return rename.call(this, from, to, ...args);
+    };
+    assert.throws(() => recoverJournalOperation(f.bound, wedged.operationId, options));
+    fs.renameSync = rename;
+    const receipt = path.join(wedged.operationDir, 'recovery.json');
+    const bytes = fs.readFileSync(receipt);
+    assert.ok(JSON.parse(fs.readFileSync(wedged.headPath)).activeOperation);
+    const result = recoverJournalOperation(f.bound, wedged.operationId, options);
+    assert.equal(result.state, 'abandoned');
+    assert.deepEqual(fs.readFileSync(receipt), bytes);
+    assert.equal(JSON.parse(fs.readFileSync(wedged.headPath)).activeOperation, null);
+    const next = applyJournaledCreation(f.bound,
+      [change([f.a], 'records/next', 'next', 'next')]);
+    assert.equal(next.status, 'committed');
+  } finally { fs.renameSync = rename; cleanup(f.dir); }
+});
+
+test('missing intent recovery still fails closed on conflicts and artifacts', () => {
+  for (const variant of ['malformed-intent', 'commit-marker', 'bad-index',
+    'wrong-digest', 'other-action', 'other-reason', 'foreign-active',
+    'unknown-operation']) {
+    const f = fixture();
+    try {
+      const wedged = wedgedIntent(f);
+      const options = abandonOptions(wedged);
+      let operationId = wedged.operationId;
+      if (variant === 'malformed-intent') fs.writeFileSync(wedged.intent, '{bad');
+      if (variant === 'commit-marker') {
+        fs.writeFileSync(path.join(wedged.operationDir, 'commit.json'), '{}');
+      }
+      if (variant === 'bad-index') {
+        writeJson(f.dir,
+          `.tasksystem/state/journal/outbox/${wedged.operationId}.json`,
+          { schemaVersion: 1, operationId: wedged.operationId,
+            intentDigest: 'a'.repeat(64) });
+      }
+      if (variant === 'wrong-digest') options.expectedIntentDigest = 'a'.repeat(64);
+      if (variant === 'other-action') options.action = 'finalize-committed';
+      if (variant === 'other-reason') options.reason = 'different decision';
+      if (variant === 'foreign-active') {
+        const head = JSON.parse(fs.readFileSync(wedged.headPath));
+        head.activeOperation.operationId = crypto.randomUUID();
+        fs.writeFileSync(wedged.headPath, JSON.stringify(head));
+      }
+      if (variant === 'other-reason' || variant === 'foreign-active') {
+        fs.writeFileSync(path.join(wedged.operationDir, 'recovery.json'),
+          JSON.stringify({ schemaVersion: 1, operationId: wedged.operationId,
+            intentDigest: wedged.intentDigest, action: 'abandon-prepared',
+            sourceOutcome: 'unconfirmed', reason: 'wedged reservation',
+            decidedAt: '2026-11-17T00:00:00.000Z' }));
+      }
+      if (variant === 'unknown-operation') {
+        fs.writeFileSync(wedged.headPath, JSON.stringify({ schemaVersion: 1,
+          lastSequence: wedged.lastSequence, activeOperation: null }));
+        operationId = crypto.randomUUID();
+      }
+      const expected = variant === 'wrong-digest' || variant === 'foreign-active'
+          || variant === 'other-reason'
+        ? 'JOURNAL_RECOVERY_CONFLICT'
+        : variant === 'other-action' || variant === 'unknown-operation'
+          ? 'JOURNAL_NOT_FOUND' : 'JOURNAL_MALFORMED';
+      const before = tree(f.dir);
+      assert.throws(() => prepareJournalRecovery(f.bound, operationId, options),
+        (e) => e.code === expected, variant);
+      assert.throws(() => recoverJournalOperation(f.bound, operationId, options),
+        (e) => e.code === expected, variant);
+      assert.deepEqual(tree(f.dir), before, variant);
+    } finally { cleanup(f.dir); }
+  }
 });
