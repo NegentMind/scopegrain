@@ -8,10 +8,10 @@ certifica comportamiento equivalente entre productos.
 
 | Anfitrion | Punto de entrada | Propuesta MCP generada | Estado |
 | --- | --- | --- | --- |
-| Claude Code | `CLAUDE.md` (raiz) | `integrations/claude-mcp.json` con `mcpServers.tasksystem` (`type: stdio`) | Documental; requiere aprobacion del usuario en el anfitrion |
-| Codex | `AGENTS.md` (raiz) | `integrations/codex-mcp.toml` (`[mcp_servers.tasksystem]`) | Documental; el proyecto requiere trust en Codex |
-| OpenCode V2 | `AGENTS.md` (raiz) | `integrations/opencode-mcp.json` (`mcp.servers.tasksystem`, `disabled:true`) | Documental; sin certificacion nativa |
-| Devin Local/CLI | `AGENTS.md` (raiz) | `integrations/devin-mcp.json` (`mcpServers.tasksystem` sin `type`) | Documental para Local/CLI; Devin Cloud no se considera equivalente |
+| Claude Code | `CLAUDE.md` (raiz) | `integrations/claude-mcp.json` con `mcpServers.scopegrain` (`type: stdio`) | Documental; requiere aprobacion del usuario en el anfitrion |
+| Codex | `AGENTS.md` (raiz) | `integrations/codex-mcp.toml` (`[mcp_servers.scopegrain]`) | Documental; el proyecto requiere trust en Codex |
+| OpenCode V2 | `AGENTS.md` (raiz) | `integrations/opencode-mcp.json` (`mcp.servers.scopegrain`, `disabled:true`) | Documental; sin certificacion nativa |
+| Devin Local/CLI | `AGENTS.md` (raiz) | `integrations/devin-mcp.json` (`mcpServers.scopegrain` sin `type`) | Documental para Local/CLI; Devin Cloud no se considera equivalente |
 | Google Antigravity | Propuestas App/CLI e IDE diferenciadas | `integrations/antigravity-mcp.json` y propuesta nativa revisable | Generacion local; sin piloto nativo ni agentes asumidos en IDE |
 
 ## Notas por fuente

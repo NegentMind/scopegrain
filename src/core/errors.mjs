@@ -1,4 +1,4 @@
-// TaskSystem error primitive: {code, message} carried on Error instances.
+// Scopegrain error primitive: {code, message} carried on Error instances.
 export class TaskError extends Error {
   constructor(code, message) {
     super(message);

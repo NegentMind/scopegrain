@@ -60,7 +60,7 @@ not amount to a security certification.
   with write capability (not necessarily privileged or malicious)
   could create links or files between the check and the write.
 - **No distributed coordination.** The lock covers processes using
-  TaskSystem; other tools can edit task files. The policy check and a
+  Scopegrain; other tools can edit task files. The policy check and a
   session append do not constitute a distributed transaction with the
   host's native tools.
 - **Declared scope and evidence.** A check listed as `pass` does not

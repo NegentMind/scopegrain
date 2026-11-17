@@ -10,15 +10,15 @@ import {
 } from './helpers.mjs';
 
 const EXPECTED_TOOLS = [
-  'tasksystem_inspect', 'tasksystem_status', 'tasksystem_list_tasks',
-  'tasksystem_get_task', 'tasksystem_check_action',
-  'tasksystem_catalog_list', 'tasksystem_catalog_get',
-  'tasksystem_workflow_packet', 'tasksystem_plan_get',
-  'tasksystem_plan_next', 'tasksystem_artifact_get',
-  'tasksystem_session_get', 'tasksystem_session_resume',
-  'tasksystem_resource_search', 'tasksystem_resource_diagnose',
-  'tasksystem_specification_get', 'tasksystem_approval_get',
-  'tasksystem_methodology_check',
+  'scopegrain_inspect', 'scopegrain_status', 'scopegrain_list_tasks',
+  'scopegrain_get_task', 'scopegrain_check_action',
+  'scopegrain_catalog_list', 'scopegrain_catalog_get',
+  'scopegrain_workflow_packet', 'scopegrain_plan_get',
+  'scopegrain_plan_next', 'scopegrain_artifact_get',
+  'scopegrain_session_get', 'scopegrain_session_resume',
+  'scopegrain_resource_search', 'scopegrain_resource_diagnose',
+  'scopegrain_specification_get', 'scopegrain_approval_get',
+  'scopegrain_methodology_check',
 ];
 
 async function depsAvailable() {
@@ -59,7 +59,7 @@ test('descriptors are exactly 18 read-only tools bound to ctx', async (t) => {
     const task = createTask(ctx, {
       title: 'T', contract: 'C', authorContext: 'a', scope: [],
     });
-    const get = tools.find((x) => x.name === 'tasksystem_get_task');
+    const get = tools.find((x) => x.name === 'scopegrain_get_task');
     // Unknown args are rejected outright, never silently redirected.
     const rejected = await get.handler({ id: task.id, project: '/etc' });
     assert.equal(rejected.isError, true);
@@ -68,7 +68,7 @@ test('descriptors are exactly 18 read-only tools bound to ctx', async (t) => {
     assert.equal(parsed.id, task.id);
     const bad = await get.handler({ id: '../escape' });
     assert.equal(bad.isError, true);
-    const check = tools.find((x) => x.name === 'tasksystem_check_action');
+    const check = tools.find((x) => x.name === 'scopegrain_check_action');
     const ok = await check.handler({ taskId: task.id, action: 'read' });
     assert.equal(JSON.parse(ok.content[0].text).allowed, true);
   } finally { cleanup(dir); }
@@ -100,7 +100,7 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     assert.ok(tools.every((x) => x.annotations?.readOnlyHint === true));
     const res = await client.callTool({
-      name: 'tasksystem_check_action',
+      name: 'scopegrain_check_action',
       arguments: { taskId: '00000000-0000-4000-8000-000000000000', action: 'read' },
     });
     assert.equal(res.isError, true); // task does not exist -> isError, not crash

@@ -53,7 +53,7 @@ El puntero `.git` original apuntaba a un gitdir externo
   seguimiento, no una autorizacion ni una excepcion de permisos.
 - Hay presupuesto de operaciones registradas por sesion y comprobacion de
   politica antes de agregarlas. No contabiliza todas las llamadas nativas,
-  tokens ni gasto, y no bloquea herramientas usadas fuera de TaskSystem.
+  tokens ni gasto, y no bloquea herramientas usadas fuera de Scopegrain.
 - Los nombres de archivos generados por el harness usan ASCII. Las rutas
   del proyecto con Unicode se conservan y se aceptan, pero su
   compatibilidad total con todos los anfitriones no esta certificada.

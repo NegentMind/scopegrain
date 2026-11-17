@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:tasksystem:organic-assessment:v1",
+  "$id": "urn:scopegrain:organic-assessment:v1",
   "title": "Organic classification facts embedded in a task",
   "type": "object",
   "additionalProperties": false,

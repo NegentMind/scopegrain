@@ -2,7 +2,7 @@
 
 ## Estado real
 
-TaskSystem tiene un nucleo nuevo, no una conversion completa del harness
+Scopegrain tiene un nucleo nuevo, no una conversion completa del harness
 anterior. El contenido original de esta copia sigue en `legacy/opencode/`;
 no se ha eliminado ni activado automaticamente. La carpeta `.opencode`
 del proyecto de origen no se modifica.
@@ -97,7 +97,7 @@ Ninguna fila afirma que ya esten activados dentro de un anfitrion.
 | `/webperf` | Rendimiento web, solo cuando procede | Perfil web optativo; diferenciar hipotesis estaticas de mediciones reales |
 
 Un comando conversacional y un comando de terminal son interfaces distintas.
-Se generan propuestas con namespace `tasksystem-`, como comandos o skills
+Se generan propuestas con namespace `scopegrain-`, como comandos o skills
 segun el anfitrion. No se promete una sintaxis slash identica ni se activan
 esos archivos al inicializar. Ver [puentes nativos](native-hosts.md).
 

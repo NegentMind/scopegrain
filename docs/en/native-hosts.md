@@ -8,10 +8,10 @@ kind: guide
 > which is already authored in English. Content is identical except for
 > adjusted relative links.
 
-TaskSystem shares canonical procedures and project snapshots across five
+Scopegrain shares canonical procedures and project snapshots across five
 documented hosts, plus one admitted provisional host (Hermes). Native
 files are thin bridges, not independently maintained implementations.
-The `tasksystem-` namespace avoids replacing built-ins.
+The `scopegrain-` namespace avoids replacing built-ins.
 
 ## Status
 
@@ -29,12 +29,12 @@ automatically.
 
 | Host | Invocation proposal | Intended skill path | Intended role path |
 | --- | --- | --- | --- |
-| Claude Code | `/tasksystem-NAME` | `.claude/skills/<name>/SKILL.md` | `.claude/agents/<name>.md` |
-| Codex | `$tasksystem-NAME` | `.agents/skills/<name>/SKILL.md` | `.codex/agents/*.toml` plus declarations |
-| OpenCode V2 | `/tasksystem-NAME` | `.opencode/skills/<name>/SKILL.md` | `.opencode/agents/<name>.md` |
-| Devin CLI/Local | `/tasksystem-NAME` | `.devin/skills/<name>/SKILL.md` | `.devin/agents/<name>.md` |
-| Antigravity App/CLI | `/tasksystem-NAME` | `.agents/skills/<name>/SKILL.md` | `.agents/agents/<name>.md` |
-| Antigravity IDE | `/tasksystem-NAME` | `.agents/skills/<name>/SKILL.md` | None assumed; skills-only proposal |
+| Claude Code | `/scopegrain-NAME` | `.claude/skills/<name>/SKILL.md` | `.claude/agents/<name>.md` |
+| Codex | `$scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | `.codex/agents/*.toml` plus declarations |
+| OpenCode V2 | `/scopegrain-NAME` | `.opencode/skills/<name>/SKILL.md` | `.opencode/agents/<name>.md` |
+| Devin CLI/Local | `/scopegrain-NAME` | `.devin/skills/<name>/SKILL.md` | `.devin/agents/<name>.md` |
+| Antigravity App/CLI | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | `.agents/agents/<name>.md` |
+| Antigravity IDE | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | None assumed; skills-only proposal |
 | Hermes Agent (provisional) | None verified | `~/.hermes/skills/` (global; never written) | None assumed |
 
 OpenCode native command bridges additionally target `.opencode/commands/`.
@@ -72,7 +72,7 @@ block by design. Instead of fabricated per-resource bridges, selecting
 - `hermes-proposal.json` — a descriptor marked `format: "provisional"`,
   `verified: false`, pointing at the machine-local MCP fragment and
   naming its documented manual-merge target
-  (`~/.hermes/config.yaml`, key `mcp_servers.tasksystem`).
+  (`~/.hermes/config.yaml`, key `mcp_servers.scopegrain`).
 - `instructions.md` — manual activation steps and the sources consulted.
 
 The companion fragment `integrations/hermes-mcp.json` wraps a
@@ -106,7 +106,7 @@ Devin Cloud behavior is not certified by CLI/Local fixtures.
 
 Models remain under host policy or an explicit owner choice. No universal
 provider, model identifier, cost estimate or paid call is selected by
-TaskSystem. Availability, router behavior and billing are host-dependent.
+Scopegrain. Availability, router behavior and billing are host-dependent.
 
 ## Activation Contract
 

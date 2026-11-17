@@ -2,7 +2,7 @@
 
 ## Definicion
 
-TaskSystem es un harness local de ingenieria de agentes: convierte solicitudes
+Scopegrain es un harness local de ingenieria de agentes: convierte solicitudes
 en trabajo con contrato, alcance, estado, evidencias, revision y continuidad.
 El nucleo no contiene conocimiento obligatorio de un producto, lenguaje,
 proveedor de modelos ni organizacion concretos.
@@ -17,7 +17,7 @@ El producto separa tres responsabilidades:
 
 | ID | Requisito | Evidencia de cumplimiento requerida |
 | --- | --- | --- |
-| R01 | Todas las modificaciones en TaskSystem | Git independiente; ningun comando de escritura dirigido al origen |
+| R01 | Todas las modificaciones en Scopegrain | Git independiente; ningun comando de escritura dirigido al origen |
 | R02 | No imponer el dominio de VantaDB | Nucleo y plantillas sin comandos de ese producto |
 | R03 | Descubrimiento de cualquier proyecto | Resultados basados en manifiestos; desconocidos y advertencias explicitos |
 | R04 | Investigar antes de implementar | Protocolo de inicio que exige inspeccion semantica por el agente |
@@ -53,7 +53,7 @@ Orden de decision del producto:
 1. Politicas de seguridad del anfitrion y de la organizacion.
 2. Instrucciones explicitas del propietario.
 3. Instrucciones vigentes del proyecto.
-4. Configuracion aprobada de TaskSystem.
+4. Configuracion aprobada de Scopegrain.
 5. Propuestas derivadas del descubrimiento.
 
 Ante contradiccion, detener la accion afectada y consultar.

@@ -142,10 +142,10 @@ test('surface filters variant entries; bogus surface is an error', () => {
   try {
     const app = prepareActivation(ctx, { host: 'antigravity', surface: 'app-cli' });
     const appPaths = app.files.map((f) => f.rel);
-    assert.ok(appPaths.some((r) => r.includes('/agents/tasksystem-')));
+    assert.ok(appPaths.some((r) => r.includes('/agents/scopegrain-')));
     const ide = prepareActivation(ctx, { host: 'antigravity', surface: 'ide' });
     const idePaths = ide.files.map((f) => f.rel);
-    assert.ok(!idePaths.some((r) => r.includes('/agents/tasksystem-')),
+    assert.ok(!idePaths.some((r) => r.includes('/agents/scopegrain-')),
       'ide surface must not emit custom agents');
     assert.ok(idePaths.some((r) => r.startsWith('.agents/skills/')));
     assert.ok(ide.warnings.some((w) => w.includes('.agents')),
@@ -234,7 +234,7 @@ test('merge-required entries are skipped, never applied', () => {
     assert.ok(res.skipped.some((s) => s.destination === '.codex/config.toml'));
     assert.ok(res.warnings.length > 0);
     assert.ok(!exists(dir, '.codex/config.toml'));
-    assert.ok(exists(dir, '.codex/agents/tasksystem-reviewer.toml'));
+    assert.ok(exists(dir, '.codex/agents/scopegrain-reviewer.toml'));
   } finally { cleanup(dir); }
 });
 

@@ -16,14 +16,14 @@ import { cleanup } from './helpers.mjs';
 
 const MISSING = '00000000-0000-4000-8000-000000000000';
 const OLD_NAMES = [
-  'tasksystem_inspect', 'tasksystem_status', 'tasksystem_list_tasks',
-  'tasksystem_get_task', 'tasksystem_check_action', 'tasksystem_catalog_list',
-  'tasksystem_catalog_get', 'tasksystem_workflow_packet', 'tasksystem_plan_get',
-  'tasksystem_plan_next', 'tasksystem_artifact_get', 'tasksystem_session_get',
-  'tasksystem_session_resume', 'tasksystem_resource_search', 'tasksystem_resource_diagnose',
+  'scopegrain_inspect', 'scopegrain_status', 'scopegrain_list_tasks',
+  'scopegrain_get_task', 'scopegrain_check_action', 'scopegrain_catalog_list',
+  'scopegrain_catalog_get', 'scopegrain_workflow_packet', 'scopegrain_plan_get',
+  'scopegrain_plan_next', 'scopegrain_artifact_get', 'scopegrain_session_get',
+  'scopegrain_session_resume', 'scopegrain_resource_search', 'scopegrain_resource_diagnose',
 ];
 const NEW_NAMES = [
-  'tasksystem_specification_get', 'tasksystem_approval_get', 'tasksystem_methodology_check',
+  'scopegrain_specification_get', 'scopegrain_approval_get', 'scopegrain_methodology_check',
 ];
 function filesAndBytes(root) {
   const out = {};
@@ -111,13 +111,13 @@ test('descriptors are exact18, only three additions with lead-authored literal m
     namesContract(tools);
     const byName = new Map(tools.map((t) => [t.name, t]));
     for (const [name, description, fields] of [
-      ['tasksystem_specification_get',
+      ['scopegrain_specification_get',
         'Read a structured specification by UUID for the bound project.',
         { id: 'structured specification UUID' }],
-      ['tasksystem_approval_get',
+      ['scopegrain_approval_get',
         'Read a stored content-bound approval by SHA-256 ID.',
         { id: 'approval SHA-256 ID' }],
-      ['tasksystem_methodology_check',
+      ['scopegrain_methodology_check',
         'Check declared methodology gates for ACT or ACCEPT without writing.',
         { taskId: 'task UUID', to: 'methodology gate to inspect; defaults to ACT',
           outcomeEvidenceId: 'optional outcome report UUID for an ACCEPT preview' }],
@@ -137,13 +137,13 @@ test('direct new handlers return core values and generic artifact_get reads actu
   try {
     const tools = new Map((await descriptors(f)).map((t) => [t.name, t]));
     const cases = [
-      ['tasksystem_specification_get', { id: f.spec.artifact.id },
+      ['scopegrain_specification_get', { id: f.spec.artifact.id },
         getSpecification(f.ctx, f.spec.artifact.id)],
-      ['tasksystem_approval_get', { id: f.approvals.spec.approval.id },
+      ['scopegrain_approval_get', { id: f.approvals.spec.approval.id },
         getApproval(f.ctx, f.approvals.spec.approval.id)],
-      ['tasksystem_methodology_check', { taskId: f.task.id },
+      ['scopegrain_methodology_check', { taskId: f.task.id },
         checkMethodology(f.ctx, { taskId: f.task.id })],
-      ['tasksystem_artifact_get', { kind: 'design', id: f.design.artifact.id },
+      ['scopegrain_artifact_get', { kind: 'design', id: f.design.artifact.id },
         getArtifact(f.ctx, 'design', f.design.artifact.id)],
     ];
     for (const [name, args, expected] of cases) {
@@ -155,7 +155,7 @@ test('direct new handlers return core values and generic artifact_get reads actu
     f.task = seedState(f, f.task);
     const report = outcome(f);
     const opts = { taskId: f.task.id, to: 'ACCEPT', outcomeEvidenceId: report.artifact.id };
-    const result = await readonly(f, () => tools.get('tasksystem_methodology_check').handler(opts));
+    const result = await readonly(f, () => tools.get('scopegrain_methodology_check').handler(opts));
     assert.deepEqual(parsed(result), checkMethodology(f.ctx, opts));
     assert.equal(parsed(result).allowed, true);
   } finally { cleanup(f.dir); }
@@ -170,7 +170,7 @@ test('structured specification MCP read rejects actual legacy V1 spec, direct an
     applyPlan(f.dir, [legacy.file]);
     assert.equal(getArtifact(f.ctx, 'spec', legacy.artifact.id).schemaVersion, 1);
     const tools = await descriptors(f);
-    const tool = tools.find((x) => x.name === 'tasksystem_specification_get');
+    const tool = tools.find((x) => x.name === 'scopegrain_specification_get');
     ownError(await readonly(f, () => tool.handler({ id: legacy.artifact.id })),
       'SPEC_STRUCTURED_REQUIRED');
     await withWire(f, async (client) => {
@@ -187,9 +187,9 @@ test('direct tools reject redirect/extra keys and invalid core DTOs with existin
   try {
     const tools = new Map((await descriptors(f)).map((t) => [t.name, t]));
     for (const [name, args] of [
-      ['tasksystem_specification_get', { id: f.spec.artifact.id }],
-      ['tasksystem_approval_get', { id: f.approvals.spec.approval.id }],
-      ['tasksystem_methodology_check', { taskId: f.task.id }],
+      ['scopegrain_specification_get', { id: f.spec.artifact.id }],
+      ['scopegrain_approval_get', { id: f.approvals.spec.approval.id }],
+      ['scopegrain_methodology_check', { taskId: f.task.id }],
     ]) {
       for (const key of ['project', 'config', 'path', 'extra']) {
         ownError(await readonly(f, () => tools.get(name).handler({
@@ -198,24 +198,24 @@ test('direct tools reject redirect/extra keys and invalid core DTOs with existin
       }
     }
     for (const [name, args, code] of [
-      ['tasksystem_specification_get', {}, 'INVALID_ID'],
-      ['tasksystem_specification_get', { id: '../bad' }, 'INVALID_ID'],
-      ['tasksystem_specification_get', { id: MISSING }, 'ARTIFACT_NOT_FOUND'],
-      ['tasksystem_specification_get', { id: other.spec.artifact.id }, 'ARTIFACT_NOT_FOUND'],
-      ['tasksystem_approval_get', {}, 'APPROVAL_INVALID'],
-      ['tasksystem_approval_get', { id: 'invalid' }, 'APPROVAL_INVALID'],
-      ['tasksystem_approval_get', { id: '0'.repeat(64) }, 'APPROVAL_NOT_FOUND'],
-      ['tasksystem_methodology_check', {}, 'INVALID_ID'],
-      ['tasksystem_methodology_check', { taskId: f.task.id, to: 'VERIFY' }, 'INVALID_STATE'],
-      ['tasksystem_methodology_check', { taskId: MISSING }, 'TASK_NOT_FOUND'],
-      ['tasksystem_methodology_check', { taskId: '../escape' }, 'INVALID_ID'],
-      ['tasksystem_methodology_check', { taskId: f.task.id, outcomeEvidenceId: MISSING }, 'INVALID_ARGS'],
+      ['scopegrain_specification_get', {}, 'INVALID_ID'],
+      ['scopegrain_specification_get', { id: '../bad' }, 'INVALID_ID'],
+      ['scopegrain_specification_get', { id: MISSING }, 'ARTIFACT_NOT_FOUND'],
+      ['scopegrain_specification_get', { id: other.spec.artifact.id }, 'ARTIFACT_NOT_FOUND'],
+      ['scopegrain_approval_get', {}, 'APPROVAL_INVALID'],
+      ['scopegrain_approval_get', { id: 'invalid' }, 'APPROVAL_INVALID'],
+      ['scopegrain_approval_get', { id: '0'.repeat(64) }, 'APPROVAL_NOT_FOUND'],
+      ['scopegrain_methodology_check', {}, 'INVALID_ID'],
+      ['scopegrain_methodology_check', { taskId: f.task.id, to: 'VERIFY' }, 'INVALID_STATE'],
+      ['scopegrain_methodology_check', { taskId: MISSING }, 'TASK_NOT_FOUND'],
+      ['scopegrain_methodology_check', { taskId: '../escape' }, 'INVALID_ID'],
+      ['scopegrain_methodology_check', { taskId: f.task.id, outcomeEvidenceId: MISSING }, 'INVALID_ARGS'],
     ]) {
       ownError(await readonly(f, () => tools.get(name).handler(args)), code);
     }
     fs.writeFileSync(taskFilePath(f.ctx, f.task.id), '{malformed');
     ownError(await readonly(f, () =>
-      tools.get('tasksystem_methodology_check').handler({ taskId: f.task.id })), 'TASK_MALFORMED');
+      tools.get('scopegrain_methodology_check').handler({ taskId: f.task.id })), 'TASK_MALFORMED');
   } finally { cleanup(other.dir); cleanup(f.dir); }
 });
 
@@ -223,7 +223,7 @@ test('blocked methodology is an ordinary allowed:false response, direct and wire
   const f = formalFixture({ approved: false });
   try {
     const tools = await descriptors(f);
-    const tool = tools.find((t) => t.name === 'tasksystem_methodology_check');
+    const tool = tools.find((t) => t.name === 'scopegrain_methodology_check');
     const args = { taskId: f.task.id };
     const direct = parsed(await readonly(f, () => tool.handler(args)));
     assert.equal(direct.allowed, false);
@@ -247,17 +247,17 @@ test('wire registers exact18 strict tools, reads bound records and ACCEPT locato
         assert.equal(tool.inputSchema.additionalProperties, false);
       }
       for (const [name, args, expected] of [
-        ['tasksystem_specification_get', { id: f.spec.artifact.id },
+        ['scopegrain_specification_get', { id: f.spec.artifact.id },
           getSpecification(f.ctx, f.spec.artifact.id)],
-        ['tasksystem_approval_get', { id: f.approvals.spec.approval.id },
+        ['scopegrain_approval_get', { id: f.approvals.spec.approval.id },
           getApproval(f.ctx, f.approvals.spec.approval.id)],
-        ['tasksystem_methodology_check', { taskId: f.task.id },
+        ['scopegrain_methodology_check', { taskId: f.task.id },
           checkMethodology(f.ctx, { taskId: f.task.id })],
-        ['tasksystem_methodology_check', { taskId: f.task.id, to: 'ACCEPT',
+        ['scopegrain_methodology_check', { taskId: f.task.id, to: 'ACCEPT',
           outcomeEvidenceId: report.artifact.id },
         checkMethodology(f.ctx, { taskId: f.task.id, to: 'ACCEPT',
           outcomeEvidenceId: report.artifact.id })],
-        ['tasksystem_artifact_get', { kind: 'design', id: f.design.artifact.id },
+        ['scopegrain_artifact_get', { kind: 'design', id: f.design.artifact.id },
           getArtifact(f.ctx, 'design', f.design.artifact.id)],
       ]) {
         const result = await readonly(f, () => client.callTool({ name, arguments: args }));
@@ -272,14 +272,14 @@ test('wire rejects unknown path/config/project, invalid enums/missing keys and r
   try {
     await withWire(f, async (client) => {
       for (const [name, valid] of [
-        ['tasksystem_specification_get', { id: f.spec.artifact.id }],
-        ['tasksystem_approval_get', { id: f.approvals.spec.approval.id }],
-        ['tasksystem_methodology_check', { taskId: f.task.id }],
+        ['scopegrain_specification_get', { id: f.spec.artifact.id }],
+        ['scopegrain_approval_get', { id: f.approvals.spec.approval.id }],
+        ['scopegrain_methodology_check', { taskId: f.task.id }],
       ]) {
         const cases = [{}, ...['project', 'config', 'path', 'extra'].map((k) => ({
           ...valid, [k]: 'untrusted-redirection',
         }))];
-        if (name === 'tasksystem_methodology_check') cases.push({ ...valid, to: 'VERIFY' });
+        if (name === 'scopegrain_methodology_check') cases.push({ ...valid, to: 'VERIFY' });
         for (const args of cases) {
           const result = await readonly(f, () => client.callTool({ name, arguments: args }));
           assert.equal(result.isError, true);
@@ -288,12 +288,12 @@ test('wire rejects unknown path/config/project, invalid enums/missing keys and r
         }
       }
       for (const [name, args, code] of [
-        ['tasksystem_specification_get', { id: MISSING }, 'ARTIFACT_NOT_FOUND'],
-        ['tasksystem_specification_get', { id: '../bad' }, 'INVALID_ID'],
-        ['tasksystem_approval_get', { id: 'bad' }, 'APPROVAL_INVALID'],
-        ['tasksystem_approval_get', { id: '0'.repeat(64) }, 'APPROVAL_NOT_FOUND'],
-        ['tasksystem_methodology_check', { taskId: MISSING }, 'TASK_NOT_FOUND'],
-        ['tasksystem_methodology_check', {
+        ['scopegrain_specification_get', { id: MISSING }, 'ARTIFACT_NOT_FOUND'],
+        ['scopegrain_specification_get', { id: '../bad' }, 'INVALID_ID'],
+        ['scopegrain_approval_get', { id: 'bad' }, 'APPROVAL_INVALID'],
+        ['scopegrain_approval_get', { id: '0'.repeat(64) }, 'APPROVAL_NOT_FOUND'],
+        ['scopegrain_methodology_check', { taskId: MISSING }, 'TASK_NOT_FOUND'],
+        ['scopegrain_methodology_check', {
           taskId: f.task.id, to: 'ACCEPT', outcomeEvidenceId: '../bad',
         }, 'INVALID_ARGS'],
       ]) {
@@ -301,7 +301,7 @@ test('wire rejects unknown path/config/project, invalid enums/missing keys and r
       }
       fs.writeFileSync(taskFilePath(f.ctx, f.task.id), '{broken');
       ownError(await readonly(f, () => client.callTool({
-        name: 'tasksystem_methodology_check', arguments: { taskId: f.task.id },
+        name: 'scopegrain_methodology_check', arguments: { taskId: f.task.id },
       })), 'TASK_MALFORMED');
     });
   } finally { cleanup(f.dir); }

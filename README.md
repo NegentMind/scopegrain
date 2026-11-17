@@ -8,10 +8,10 @@ anfitrion. Separa el contexto y los contratos de trabajo de las
 convenciones de cada herramienta, y ofrece una ruta ligera o formal segun
 los hechos y riesgos declarados.
 
-El producto se llama Scopegrain. `scopegrain` es una nueva entrada CLI;
-`tasksystem`, `tasksystem-harness`, `.tasksystem` y los prefijos MCP
-`tasksystem_` se mantienen por compatibilidad. Esto no implica publicacion
-de un paquete.
+El producto se llama Scopegrain. `scopegrain` es la entrada CLI y el
+nombre del servidor MCP (tools `scopegrain_*`). El alias de binario
+`tasksystem` y las rutas legadas `.tasksystem` se mantienen por
+compatibilidad. Esto no implica publicacion de un paquete.
 
 ## Flujo de trabajo
 

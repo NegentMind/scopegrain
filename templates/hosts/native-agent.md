@@ -1,4 +1,4 @@
-# TaskSystem Role Bridge
+# Scopegrain Role Bridge
 
 Read `{{instructionsPath}}` and use the project selected by `{{configPath}}`.
 Role: `{{id}}`. Its snapshot entry is `{{resourcePath}}`, indexed by

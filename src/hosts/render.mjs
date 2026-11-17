@@ -1,5 +1,5 @@
 // Host integration proposals. These are reviewable FRAGMENTS, never merged
-// into active host configuration by TaskSystem. serverPath and projectRoot
+// into active host configuration by Scopegrain. serverPath and projectRoot
 // inside are absolute and machine-local: regenerate after moving the
 // installation. --config is rendered as the project-relative POSIX path that
 // loadConfig accepts, validated as contained inside the project root.
@@ -31,7 +31,7 @@ function stdioArgs(serverPath, projectRoot, configRel) {
 function renderClaude(serverPath, projectRoot, configRel) {
   return JSON.stringify({
     mcpServers: {
-      tasksystem: {
+      scopegrain: {
         type: 'stdio',
         command: 'node',
         args: stdioArgs(serverPath, projectRoot, configRel),
@@ -43,7 +43,7 @@ function renderClaude(serverPath, projectRoot, configRel) {
 function renderDevin(serverPath, projectRoot, configRel) {
   return JSON.stringify({
     mcpServers: {
-      tasksystem: {
+      scopegrain: {
         command: 'node',
         args: stdioArgs(serverPath, projectRoot, configRel),
       },
@@ -56,7 +56,7 @@ function renderCodex(serverPath, projectRoot, configRel) {
     .map(tomlString).join(', ');
   return [
     '# Proposed fragment for .codex/config.toml (review before merging)',
-    '[mcp_servers.tasksystem]',
+    '[mcp_servers.scopegrain]',
     'command = "node"',
     `args = [${args}]`,
     '',
@@ -64,12 +64,12 @@ function renderCodex(serverPath, projectRoot, configRel) {
 }
 
 // Authoritative OpenCode V2 shape (opencode.ai/docs/mcp-servers):
-// {mcp:{servers:{tasksystem:{type:'local',command:[tokens],disabled:true}}}}
+// {mcp:{servers:{scopegrain:{type:'local',command:[tokens],disabled:true}}}}
 function renderOpencode(serverPath, projectRoot, configRel) {
   return JSON.stringify({
     mcp: {
       servers: {
-        tasksystem: {
+        scopegrain: {
           type: 'local',
           command: ['node', ...stdioArgs(serverPath, projectRoot, configRel)],
           disabled: true,
@@ -83,7 +83,7 @@ function renderOpencode(serverPath, projectRoot, configRel) {
 function renderAntigravity(serverPath, projectRoot, configRel) {
   return JSON.stringify({
     mcpServers: {
-      tasksystem: {
+      scopegrain: {
         command: 'node',
         args: stdioArgs(serverPath, projectRoot, configRel),
         disabled: true,
@@ -105,7 +105,7 @@ function renderHermes(serverPath, projectRoot, configRel) {
       + 'global host configuration',
     fragment: {
       mcp_servers: {
-        tasksystem: {
+        scopegrain: {
           command: 'node',
           args: stdioArgs(serverPath, projectRoot, configRel),
           enabled: false,

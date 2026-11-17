@@ -54,7 +54,7 @@ alcance probado y las limitaciones se registran en
   ni malicioso) podria crear enlaces o ficheros entre la comprobacion y la
   escritura.
 - **Sin coordinacion distribuida.** El lock cubre procesos que usan
-  TaskSystem; otras herramientas pueden editar los archivos de tareas.
+  Scopegrain; otras herramientas pueden editar los archivos de tareas.
   La comprobacion de politica y el append de una sesion no constituyen
   una transaccion distribuida con las herramientas nativas del anfitrion.
 - **Scope y evidencia declarados.** Que un check figure como `pass` no

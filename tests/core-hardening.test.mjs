@@ -338,7 +338,7 @@ test('native policy strict shape: unknown keys, bad values, readonly ids', () =>
         (e) => e.code === 'POLICY_MALFORMED', skillRoot);
     }
     // Namespace: single-hyphen segments + trailing '-' only.
-    for (const namespace of ['tasksystem--', 'task--sys-', 'Task-',
+    for (const namespace of ['scopegrain--', 'task--sys-', 'Task-',
       'task_system-', 'tasksystem']) {
       writeJson(dir, 'policy/native-adapters.json', { ...pol, namespace });
       assert.throws(() => renderNativeAdapters(

@@ -253,13 +253,13 @@ test('wire-level: SDK rejects unknown tool args before handler', async (t) => {
     await server.connect(st);
     await client.connect(ct);
     const res = await client.callTool({
-      name: 'tasksystem_resource_diagnose',
+      name: 'scopegrain_resource_diagnose',
       arguments: { kind: 'command', id: 'plan-work', project: '/etc' },
     }).catch((e) => e);
     const isErr = res.isError === true || res instanceof Error;
     assert.ok(isErr, 'unknown arg must be rejected at wire level');
     const ok = await client.callTool({
-      name: 'tasksystem_resource_diagnose',
+      name: 'scopegrain_resource_diagnose',
       arguments: { kind: 'command', id: 'plan-work' },
     });
     const parsed = JSON.parse(ok.content[0].text);

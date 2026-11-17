@@ -1,6 +1,6 @@
 # Incorporacion y personalizacion
 
-Guia para incorporar un proyecto a TaskSystem. Todo comando se ejecuta
+Guia para incorporar un proyecto a Scopegrain. Todo comando se ejecuta
 manualmente; el harness propone, el propietario decide.
 
 ## Prerequisito
@@ -138,7 +138,7 @@ Este bloque no conecta VantaDB, journal, sincronizacion o autorizacion MCP.
 - Reejecutar `init` con la misma config y respuestas es no-op si todos los
   contenidos generados coinciden.
 - Esa propiedad supone las mismas fuentes canonicas del harness.
-  Al actualizar TaskSystem pueden aparecer conflictos de contenido
+  Al actualizar Scopegrain pueden aparecer conflictos de contenido
   generado; no existe `--force` para sobrescribirlos ni migracion automatica.
   Un snapshot OpenCode V1/V2 anterior puede bloquearse con `PLAN_CONFLICT`;
   se conservan todos sus bytes y archivos V1.

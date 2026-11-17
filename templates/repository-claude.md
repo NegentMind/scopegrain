@@ -1,4 +1,4 @@
-# TaskSystem
+# Scopegrain
 
 Read AGENTS.md and follow the repository instructions before making changes.
 Read docs/architecture.md for module boundaries.

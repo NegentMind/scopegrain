@@ -11,10 +11,10 @@ separates work context and contracts from each tool's conventions, and
 offers a lightweight or formal route according to the declared facts and
 risks.
 
-The product is called Scopegrain. `scopegrain` is a new CLI entry point;
-`tasksystem`, `tasksystem-harness`, `.tasksystem` and the `tasksystem_`
-MCP prefixes are kept for compatibility. This does not imply publishing
-a package.
+The product is called Scopegrain. `scopegrain` is the CLI entry point
+and the MCP server name (`scopegrain_*` tools). The `tasksystem` binary
+alias and legacy `.tasksystem` paths are kept for compatibility. This
+does not imply publishing a package.
 
 ## Workflow
 

@@ -1,6 +1,6 @@
 {
   "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "$id":"urn:tasksystem:outcome-data:v1",
+  "$id":"urn:scopegrain:outcome-data:v1",
   "title":"Bound outcome evidence data",
   "type":"object",
   "additionalProperties":false,

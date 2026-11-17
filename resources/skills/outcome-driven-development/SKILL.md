@@ -5,7 +5,7 @@ description: Use when agreeing observable acceptance criteria and result evidenc
 # Observable Outcomes
 
 This capability concerns results and evidence; it is NOT the definition of
-ODD in TaskSystem. ODD means Organic Driven Development.
+ODD in Scopegrain. ODD means Organic Driven Development.
 
 Inspect what is already implemented. Agree the intended observable result,
 actors, constraints, non-goals and the evidence that would establish success.

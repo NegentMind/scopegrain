@@ -37,7 +37,7 @@ test('selected hosts project native files; absent hosts generate none', () => {
 test('frontmatter: permission lines land INSIDE the YAML fence', () => {
   const { files } = renderNativeAdapters(cfg(), { configRel: CFG_REL });
   const pipeline = files.find((f) =>
-    f.rel.endsWith('/claude/.claude/skills/tasksystem-pipeline/SKILL.md'));
+    f.rel.endsWith('/claude/.claude/skills/scopegrain-pipeline/SKILL.md'));
   const text = pipeline.content.toString('utf8');
   const header = text.split(/^---$/m)[1];
   assert.ok(header.includes('disable-model-invocation: true'),
@@ -46,31 +46,31 @@ test('frontmatter: permission lines land INSIDE the YAML fence', () => {
   assert.ok(!body.includes('disable-model-invocation: true'),
     'must not leak into body');
   const reviewer = files.find((f) =>
-    f.rel.endsWith('/claude/.claude/agents/tasksystem-reviewer.md'));
+    f.rel.endsWith('/claude/.claude/agents/scopegrain-reviewer.md'));
   const rh = reviewer.content.toString('utf8').split(/^---$/m)[1];
   assert.ok(rh.includes('- Read'), 'readonly tools inside header');
   // Scalars are JSON-quoted so colons/newlines cannot break the fence.
-  assert.ok(header.includes('name: "tasksystem-pipeline"'));
+  assert.ok(header.includes('name: "scopegrain-pipeline"'));
   const rtext = reviewer.content.toString('utf8');
   const rhdr = rtext.split(/^---$/m)[1];
   assert.ok(rhdr.includes('tools:\n  - Read\n  - Grep\n  - Glob'));
   const lead = files.find((f) =>
-    f.rel.endsWith('/claude/.claude/agents/tasksystem-lead.md'));
+    f.rel.endsWith('/claude/.claude/agents/scopegrain-lead.md'));
   assert.ok(!lead.content.toString('utf8').split(/^---$/m)[1]
     .includes('tools:\n  - Read'));
   // Devin trigger frontmatter lands inside the fence too.
   const devinCmd = files.find((f) =>
-    f.rel.endsWith('/devin/.devin/skills/tasksystem-ship/SKILL.md'));
+    f.rel.endsWith('/devin/.devin/skills/scopegrain-ship/SKILL.md'));
   const dh = devinCmd.content.toString('utf8').split(/^---$/m)[1];
   assert.ok(dh.includes('triggers:\n  - user'));
   // OpenCode commands land in command root, not skill root.
   // OpenCode emits the V2 variant with its permission frontmatter.
   const ocCmd = files.find((f) =>
-    f.rel.endsWith('/opencode/v2/.opencode/commands/tasksystem-assess-release.md'));
+    f.rel.endsWith('/opencode/v2/.opencode/commands/scopegrain-assess-release.md'));
   assert.ok(ocCmd);
   assert.ok(ocCmd.content.toString('utf8').startsWith('---\ndescription:'));
   const ocAgentV2 = files.find((f) =>
-    f.rel.endsWith('/opencode/v2/.opencode/agents/tasksystem-reviewer.md'));
+    f.rel.endsWith('/opencode/v2/.opencode/agents/scopegrain-reviewer.md'));
   assert.ok(ocAgentV2);
   assert.ok(!files.some((f) => f.rel.includes('/opencode/v1/')));
   assert.ok(ocAgentV2.content.toString('utf8')
@@ -80,10 +80,10 @@ test('frontmatter: permission lines land INSIDE the YAML fence', () => {
 test('codex TOML roles use JSON-quoted strings + declaration fragments', () => {
   const { files } = renderNativeAdapters(cfg(), { configRel: CFG_REL });
   const role = files.find((f) =>
-    f.rel.endsWith('/codex/.codex/agents/tasksystem-reviewer.toml'));
+    f.rel.endsWith('/codex/.codex/agents/scopegrain-reviewer.toml'));
   assert.ok(role);
   const text = role.content.toString('utf8');
-  assert.ok(text.startsWith('name = "tasksystem-reviewer"'));
+  assert.ok(text.startsWith('name = "scopegrain-reviewer"'));
   assert.ok(text.includes('description = "'));
   assert.ok(text.includes('developer_instructions = "'));
   assert.ok(text.includes('sandbox_mode = "read-only"'));
@@ -92,8 +92,8 @@ test('codex TOML roles use JSON-quoted strings + declaration fragments', () => {
     f.rel.endsWith('/codex/agents-fragment.toml'));
   assert.ok(frag);
   const ftext = frag.content.toString('utf8');
-  assert.ok(ftext.includes('[agents."tasksystem-reviewer"]'));
-  assert.ok(ftext.includes('config_file = "agents/tasksystem-reviewer.toml"'));
+  assert.ok(ftext.includes('[agents."scopegrain-reviewer"]'));
+  assert.ok(ftext.includes('config_file = "agents/scopegrain-reviewer.toml"'));
   const nAgents = files.filter((f) =>
     f.rel.includes('/codex/.codex/agents/')).length;
   assert.equal((ftext.match(/\[agents\./g) || []).length, nAgents);
@@ -144,8 +144,8 @@ test('opencode emits only the V2 proposal in bootstrap', () => {
     applyPlan(dir, plan.files);
     const v2 = JSON.parse(fs.readFileSync(
       `${dir}/.tasksystem/integrations/opencode-mcp.json`, 'utf8'));
-    assert.equal(v2.mcp.servers.tasksystem.type, 'local');
-    assert.equal(v2.mcp.servers.tasksystem.disabled, true);
+    assert.equal(v2.mcp.servers.scopegrain.type, 'local');
+    assert.equal(v2.mcp.servers.scopegrain.disabled, true);
     assert.ok(!exists(dir, '.tasksystem/integrations/opencode-v1-mcp.json'));
     const ap = JSON.parse(fs.readFileSync(
       `${dir}/.tasksystem/integrations/native/activation-plan.json`, 'utf8'));
@@ -163,10 +163,10 @@ test('custom config dir and namespaced ids survive', () => {
     { configRel: 'cfg space/config.json' });
   assert.ok(files.every((f) =>
     f.rel.startsWith('cfg space/integrations/native/claude/')));
-  const skill = files.find((f) => f.rel.includes('/skills/tasksystem-'));
+  const skill = files.find((f) => f.rel.includes('/skills/scopegrain-'));
   assert.ok(skill.content.toString('utf8')
     .includes('`cfg space/instructions.md`'));
-  assert.equal(loadNativePolicy({}).namespace, 'tasksystem-');
+  assert.equal(loadNativePolicy({}).namespace, 'scopegrain-');
 });
 
 test('host-interpolated literals abort before any write', () => {

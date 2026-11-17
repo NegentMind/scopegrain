@@ -31,8 +31,8 @@ function setup(hosts) {
 export function argsOf(content) {
   const parsed = content.trim().startsWith('{') ? JSON.parse(content) : null;
   if (parsed) {
-    const node = parsed.mcpServers?.tasksystem
-      ?? parsed.mcp?.servers?.tasksystem;  // OpenCode V2
+    const node = parsed.mcpServers?.scopegrain
+      ?? parsed.mcp?.servers?.scopegrain;  // OpenCode V2
     return node.args || node.command.slice(1);
   }
   const m = content.match(/^args\s*=\s*(\[.*\])\s*$/m);
@@ -77,19 +77,19 @@ test('host-specific shapes match documented formats', () => {
   const { dir, out } = setup(ALL_HOSTS);
   try {
     const claude = JSON.parse(out.files.find((f) => f.host === 'claude').content);
-    assert.equal(claude.mcpServers.tasksystem.type, 'stdio');
+    assert.equal(claude.mcpServers.scopegrain.type, 'stdio');
     const devin = JSON.parse(out.files.find((f) => f.host === 'devin').content);
-    assert.ok(!('type' in devin.mcpServers.tasksystem));
+    assert.ok(!('type' in devin.mcpServers.scopegrain));
     const ocFiles = out.files.filter((f) => f.host === 'opencode');
     assert.equal(ocFiles.length, 1);
     const oc = JSON.parse(
       ocFiles.find((f) => f.relativePath.endsWith('opencode-mcp.json')).content);
-    assert.equal(oc.mcp.servers.tasksystem.type, 'local');
-    assert.equal(oc.mcp.servers.tasksystem.disabled, true);
-    assert.equal(oc.mcp.servers.tasksystem.command[0], 'node');
+    assert.equal(oc.mcp.servers.scopegrain.type, 'local');
+    assert.equal(oc.mcp.servers.scopegrain.disabled, true);
+    assert.equal(oc.mcp.servers.scopegrain.command[0], 'node');
     assert.ok(!out.files.some((f) => f.relativePath.includes('opencode-v1')));
     const codex = out.files.find((f) => f.host === 'codex');
-    assert.ok(codex.content.includes('[mcp_servers.tasksystem]'));
+    assert.ok(codex.content.includes('[mcp_servers.scopegrain]'));
     assert.ok(codex.content.includes('command = "node"'));
   } finally { cleanup(dir); }
 });

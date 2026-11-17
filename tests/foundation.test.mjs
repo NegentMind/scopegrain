@@ -170,33 +170,37 @@ test('interactive init selects legacy answers and ambiguity asks nothing', async
     applyPlan(dir, prepareInit({
       projectRoot: dir, configRel: LEGACY_CONFIG_PATH, answers: VALID_ANSWERS,
     }).files);
-    const before = tree(dir);
+    // Interactive init persists a resumable wizard session under the default
+    // state dir; exclude it from no-write assertions.
+    const noSession = (t) => Object.fromEntries(Object.entries(t)
+      .filter(([k]) => k !== '.scopegrain' && !k.startsWith('.scopegrain/')));
+    const before = noSession(tree(dir));
     const io = fakeIO({ tty: true });
     assert.equal(await run(['init', '--project', dir], io), 0);
     assert.equal(io.out.asked.find((a) => a.label === 'Ruta de configuracion').def,
       LEGACY_CONFIG_PATH);
     assert.equal(io.out.asked.find((a) => a.label === 'Nombre del proyecto').def,
       VALID_ANSWERS.name);
-    assert.deepEqual(tree(dir), before);
+    assert.deepEqual(noSession(tree(dir)), before);
     writeJson(dir, DEFAULT_CONFIG_PATH, createConfig(dir, currentAnswers, {}));
-    const ambiguous = tree(dir);
+    const ambiguous = noSession(tree(dir));
     const io2 = fakeIO({ tty: true });
     assert.equal(await run(['init', '--project', dir], io2), 1);
     assert.equal(JSON.parse(io2.out.stderr[0]).error.code, 'CONFIG_AMBIGUOUS');
     assert.deepEqual(io2.out.asked, []);
-    assert.deepEqual(tree(dir), ambiguous);
+    assert.deepEqual(noSession(tree(dir)), ambiguous);
     const explicit = fakeIO({ tty: true });
     assert.equal(await run(['init', '--project', dir, '--config',
       LEGACY_CONFIG_PATH], explicit), 0);
     assert.equal(explicit.out.asked.find((a) => a.label === 'Ruta de configuracion').def,
       LEGACY_CONFIG_PATH);
-    assert.deepEqual(tree(dir), ambiguous);
+    assert.deepEqual(noSession(tree(dir)), ambiguous);
     const input = writeJson(dir, 'answers.json', VALID_ANSWERS);
-    const beforeJson = tree(dir);
+    const beforeJson = noSession(tree(dir));
     const io3 = fakeIO();
     assert.equal(await run(['init', '--project', dir, '--answers', input], io3), 1);
     assert.equal(JSON.parse(io3.out.stderr[0]).error.code, 'CONFIG_AMBIGUOUS');
-    assert.deepEqual(tree(dir), beforeJson);
+    assert.deepEqual(noSession(tree(dir)), beforeJson);
   } finally { cleanup(dir); }
 });
 

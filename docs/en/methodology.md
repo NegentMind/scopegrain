@@ -3,7 +3,7 @@
 > English translation of the canonical Spanish document
 > (`../methodology.md`). The Spanish version prevails.
 
-ODD means **Organic Driven Development** in TaskSystem. Observable
+ODD means **Organic Driven Development** in Scopegrain. Observable
 outcomes are acceptance criteria, not another definition of ODD.
 Observability-Driven Development is a different, optional capability.
 
@@ -54,7 +54,7 @@ risk and continuity need. It does not use the number of lines or files.
   original request, scope, classification, verifications and review.
   It does not need fictional formal documents.
 
-MCP does not register or reclassify facts; `tasksystem_methodology_check`
+MCP does not register or reclassify facts; `scopegrain_methodology_check`
 queries gates on existing records and does not authorize tools.
 The agent must investigate and present the real decisions; not invent
 authorization nor reduce a risk to obtain a permitted result.
@@ -166,7 +166,7 @@ work.
 
 There is no serializable transaction across all files nor continuous
 permission locking. Path checks are not an operating-system sandbox
-against hostile concurrent filesystem substitutions. TaskSystem does
+against hostile concurrent filesystem substitutions. Scopegrain does
 not intercept native tools nor turn a prompt chain into a guarantee of
 security or universal absence of hallucinations.
 

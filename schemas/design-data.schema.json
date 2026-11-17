@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:tasksystem:design-data:v1",
+  "$id": "urn:scopegrain:design-data:v1",
   "title": "Structured design binding",
   "type": "object",
   "additionalProperties": false,

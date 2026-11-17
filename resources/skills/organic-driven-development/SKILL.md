@@ -4,7 +4,7 @@ description: Use for engineering requests to establish authority, inspect existi
 ---
 # Organic Driven Development
 
-ODD means Organic Driven Development in TaskSystem. Observable outcomes are
+ODD means Organic Driven Development in Scopegrain. Observable outcomes are
 acceptance criteria; Observability-Driven is a separate optional capability.
 
 1. Establish intent and authority. Explanation, investigation and proposals

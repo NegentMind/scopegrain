@@ -92,7 +92,7 @@ function strictify(tools) {
 export function createMCPTools(ctx, z) {
   return strictify([
     {
-      name: 'tasksystem_inspect',
+      name: 'scopegrain_inspect',
       config: {
         description: 'Read-only manifest discovery for the bound project',
         inputSchema: {},
@@ -101,7 +101,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async () => inspectProject(ctx.projectRoot)),
     },
     {
-      name: 'tasksystem_status',
+      name: 'scopegrain_status',
       config: {
         description: 'Read-only doctor report for the bound project',
         inputSchema: {},
@@ -110,7 +110,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async () => runDoctor(ctx)),
     },
     {
-      name: 'tasksystem_list_tasks',
+      name: 'scopegrain_list_tasks',
       config: {
         description: 'List stored tasks and malformed entries',
         inputSchema: {},
@@ -119,7 +119,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async () => listTasks(ctx)),
     },
     {
-      name: 'tasksystem_get_task',
+      name: 'scopegrain_get_task',
       config: {
         description: 'Get one task by UUID',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS).describe('task UUID') },
@@ -128,7 +128,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async ({ id }) => getTask(ctx, id)),
     },
     {
-      name: 'tasksystem_check_action',
+      name: 'scopegrain_check_action',
       config: {
         description: 'Check whether policy allows an action in the task state',
         inputSchema: {
@@ -140,7 +140,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async ({ taskId, action }) => checkAction(ctx, taskId, action)),
     },
     {
-      name: 'tasksystem_catalog_list',
+      name: 'scopegrain_catalog_list',
       config: {
         description: 'List catalog entries, optionally filtered by kind',
         inputSchema: { kind: z.string().max(MAX_ARG_CHARS).optional().describe('entry kind') },
@@ -168,7 +168,7 @@ export function createMCPTools(ctx, z) {
       }),
     },
     {
-      name: 'tasksystem_catalog_get',
+      name: 'scopegrain_catalog_get',
       config: {
         description: 'Get one catalog resource with verbatim content',
         inputSchema: {
@@ -191,7 +191,7 @@ export function createMCPTools(ctx, z) {
       }),
     },
     {
-      name: 'tasksystem_workflow_packet',
+      name: 'scopegrain_workflow_packet',
       config: {
         description: 'Read-only workflow packet for a catalog command',
         inputSchema: {
@@ -207,7 +207,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async (a) => buildWorkflowPacket(ctx, a)),
     },
     {
-      name: 'tasksystem_resource_search',
+      name: 'scopegrain_resource_search',
       config: {
         description: 'Search workspace snapshot resource metadata (read-only)',
         inputSchema: {
@@ -219,7 +219,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async (a) => findResources(ctx, a)),
     },
     {
-      name: 'tasksystem_resource_diagnose',
+      name: 'scopegrain_resource_diagnose',
       config: {
         description: 'Diagnose one snapshot resource vs its pinned hash (read-only)',
         inputSchema: { kind: z.string().max(MAX_ARG_CHARS), id: z.string().max(MAX_ARG_CHARS) },
@@ -228,7 +228,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async (a) => diagnoseResource(ctx, a)),
     },
     {
-      name: 'tasksystem_plan_get',
+      name: 'scopegrain_plan_get',
       config: {
         description: 'Get one stored plan by key',
         inputSchema: { key: z.string().max(MAX_ARG_CHARS) },
@@ -237,7 +237,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async ({ key }) => getPlan(ctx, key)),
     },
     {
-      name: 'tasksystem_plan_next',
+      name: 'scopegrain_plan_next',
       config: {
         description: 'Dependency readiness of a plan from actual task state',
         inputSchema: { key: z.string().max(MAX_ARG_CHARS) },
@@ -246,7 +246,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async ({ key }) => ({ tasks: nextPlanTasks(ctx, key) })),
     },
     {
-      name: 'tasksystem_artifact_get',
+      name: 'scopegrain_artifact_get',
       config: {
         description: 'Get one stored artifact by kind and UUID',
         inputSchema: { kind: z.string().max(MAX_ARG_CHARS), id: z.string().max(MAX_ARG_CHARS) },
@@ -255,7 +255,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async ({ kind, id }) => getArtifact(ctx, kind, id)),
     },
     {
-      name: 'tasksystem_specification_get',
+      name: 'scopegrain_specification_get',
       config: {
         description: 'Read a structured specification by UUID for the bound project.',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS).describe('structured specification UUID') },
@@ -264,7 +264,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async ({ id }) => getSpecification(ctx, id)),
     },
     {
-      name: 'tasksystem_approval_get',
+      name: 'scopegrain_approval_get',
       config: {
         description: 'Read a stored content-bound approval by SHA-256 ID.',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS).describe('approval SHA-256 ID') },
@@ -273,7 +273,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async ({ id }) => getApproval(ctx, id)),
     },
     {
-      name: 'tasksystem_methodology_check',
+      name: 'scopegrain_methodology_check',
       config: {
         description: 'Check declared methodology gates for ACT or ACCEPT without writing.',
         inputSchema: {
@@ -286,7 +286,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async (a) => checkMethodology(ctx, a)),
     },
     {
-      name: 'tasksystem_session_get',
+      name: 'scopegrain_session_get',
       config: {
         description: 'Get one stored session by UUID',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS) },
@@ -295,7 +295,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async ({ id }) => getSession(ctx, id)),
     },
     {
-      name: 'tasksystem_session_resume',
+      name: 'scopegrain_session_resume',
       config: {
         description: 'Session usage plus actual task state and guidance reference',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS) },
@@ -312,7 +312,7 @@ export async function createMCPServer({ project, config }) {
   const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
   const { z } = await import('zod');
   const ctx = resolveContext({ project, config });
-  const server = new McpServer({ name: 'tasksystem', version: '0.1.0' });
+  const server = new McpServer({ name: 'scopegrain', version: '0.1.0' });
   for (const tool of createMCPTools(ctx, z)) {
     // Explicit strict object schema: the SDK preserves it, so unknown wire
     // args are rejected BEFORE the handler (raw shape would strip them).
@@ -328,7 +328,7 @@ export async function startMCPServer({ project, config }) {
   const { StdioServerTransport } =
     await import('@modelcontextprotocol/sdk/server/stdio.js');
   const { server } = await createMCPServer({ project, config });
-  process.stderr.write(`tasksystem mcp: ${PROTOCOL_NOTE}\n`);
+  process.stderr.write(`scopegrain mcp: ${PROTOCOL_NOTE}\n`);
   await server.connect(new StdioServerTransport());
   return server;
 }

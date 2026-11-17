@@ -1,4 +1,4 @@
-# TaskSystem Project Instructions
+# Scopegrain Project Instructions
 
 Read configuration at `{{configPath}}` and discovery at `{{discoveryPath}}`.
 Resolve operational paths against this project, not the harness installation.
@@ -20,7 +20,7 @@ it does not execute a model, native agent, shell or external service.
    specific package and working directory in a monorepo.
 3. Ask before initialization/re-discovery or changed output locations. Preserve
    existing content; present the complete write plan and conflicts first.
-4. Operational artifacts default to `.tasksystem/`, including reviews. Reuse
+4. Operational artifacts default to `.scopegrain/`, including reviews. Reuse
    approved destinations and versioning choices; do not scatter harness plans,
    reports, decisions or memory into product documentation.
 5. Do not install dependencies, execute discovered scripts, activate hosts or

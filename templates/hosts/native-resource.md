@@ -1,4 +1,4 @@
-# TaskSystem Resource Bridge
+# Scopegrain Resource Bridge
 
 Read `{{instructionsPath}}` and honor the selected project, locale, authority
 and artifact destinations from `{{configPath}}`.

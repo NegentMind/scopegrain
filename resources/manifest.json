@@ -531,8 +531,8 @@
     },
     {
       "kind": "mcp",
-      "id": "tasksystem",
-      "path": "resources/mcps/tasksystem.json",
+      "id": "scopegrain",
+      "path": "resources/mcps/scopegrain.json",
       "description": "Read the harness MCP connection descriptor without starting or reconnecting it."
     },
     {

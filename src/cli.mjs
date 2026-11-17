@@ -1287,7 +1287,7 @@ export async function run(argv, io) {
     }
     if (!spec) {
       throw err('INVALID_ARGS',
-        `unknown command '${positional.slice(0, 2).join(' ')}'; run tasksystem --help`);
+        `unknown command '${positional.slice(0, 2).join(' ')}'; run scopegrain --help`);
     }
     for (const name of Object.keys(flags)) {
       if (name !== '--help' && !spec.flags.includes(name)) {

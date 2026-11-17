@@ -1,6 +1,6 @@
 ---
 name: project-onboarding
-description: Investigate an unfamiliar repository and configure TaskSystem with explicit owner consent before generating artifacts.
+description: Investigate an unfamiliar repository and configure Scopegrain with explicit owner consent before generating artifacts.
 ---
 
 # Project onboarding

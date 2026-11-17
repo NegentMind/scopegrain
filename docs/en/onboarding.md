@@ -3,7 +3,7 @@
 > English translation of the canonical Spanish document
 > (`../onboarding.md`). The Spanish version prevails.
 
-Guide for onboarding a project to TaskSystem. Every command is run
+Guide for onboarding a project to Scopegrain. Every command is run
 manually; the harness proposes, the owner decides.
 
 ## Prerequisite
@@ -147,7 +147,7 @@ connect VantaDB, journal, synchronization or MCP authorization.
 - Re-running `init` with the same config and answers is a no-op if all
   generated contents match.
 - That property assumes the same canonical harness sources. When
-  updating TaskSystem, generated-content conflicts may appear; there is
+  updating Scopegrain, generated-content conflicts may appear; there is
   no `--force` to overwrite them nor automatic migration. An earlier
   OpenCode V1/V2 snapshot can be blocked with `PLAN_CONFLICT`; all its
   bytes and V1 files are preserved.

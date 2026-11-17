@@ -1,6 +1,6 @@
 # Organic y SDD
 
-ODD significa **Organic Driven Development** en TaskSystem. Los resultados
+ODD significa **Organic Driven Development** en Scopegrain. Los resultados
 observables son criterios de aceptacion, no otra definicion de ODD.
 Observability-Driven Development es una capacidad distinta y optativa.
 
@@ -49,7 +49,7 @@ riesgo y necesidad de continuidad. No usa el numero de lineas o archivos.
   solicitud original, alcance, clasificacion, verificaciones y review.
   No necesita documentos formales ficticios.
 
-MCP no registra ni reclasifica hechos; `tasksystem_methodology_check`
+MCP no registra ni reclasifica hechos; `scopegrain_methodology_check`
 consulta gates sobre registros existentes y no autoriza herramientas.
 El agente debe investigar y presentar las decisiones reales; no inventar
 autorizacion ni reducir un riesgo para conseguir un resultado permitido.
@@ -158,7 +158,7 @@ Un informe historico puede consultarse aunque ya no permita aceptar trabajo.
 No existe transaccion serializable entre todos los archivos ni bloqueo
 continuo de permisos. Las comprobaciones de rutas no son un sandbox del
 sistema operativo contra sustituciones concurrentes hostiles del filesystem.
-TaskSystem no intercepta herramientas nativas ni convierte una cadena de
+Scopegrain no intercepta herramientas nativas ni convierte una cadena de
 prompts en garantia de seguridad o ausencia universal de alucinaciones.
 
 La escalada de investigacion es una politica y procedimiento: registrar la

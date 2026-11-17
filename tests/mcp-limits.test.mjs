@@ -32,7 +32,7 @@ test('oversized serialized tool arguments are rejected INVALID_ARGS', async (t) 
   const { dir, ctx } = bootstrappedCtx();
   try {
     const tools = createMCPTools(ctx, z);
-    const search = tools.find((x) => x.name === 'tasksystem_resource_search');
+    const search = tools.find((x) => x.name === 'scopegrain_resource_search');
     // A free-text argument above the serialized ceiling must not reach the
     // handler: direct calls skip zod, so strictify is the real gate.
     const huge = await search.handler({ query: 'q'.repeat(MAX_ARGS_BYTES + 1) });
@@ -41,7 +41,7 @@ test('oversized serialized tool arguments are rejected INVALID_ARGS', async (t) 
     assert.equal(payload.code, 'INVALID_ARGS');
     assert.ok(/exceed/.test(payload.message));
     // Combined args over the ceiling are rejected even when each is small.
-    const packet = tools.find((x) => x.name === 'tasksystem_workflow_packet');
+    const packet = tools.find((x) => x.name === 'scopegrain_workflow_packet');
     const per = 'x'.repeat(Math.floor(MAX_ARGS_BYTES / 2));
     const combined = await packet.handler({ command: per, taskId: per });
     assert.equal(combined.isError, true);
@@ -88,7 +88,7 @@ test('advertised input schemas bound every string argument', async (t) => {
     }
     // An over-limit argument is rejected through the real wire too.
     const res = await client.callTool({
-      name: 'tasksystem_get_task',
+      name: 'scopegrain_get_task',
       arguments: { id: 'x'.repeat(MAX_ARG_CHARS + 1) },
     });
     assert.equal(res.isError, true);

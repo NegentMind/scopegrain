@@ -1048,7 +1048,7 @@ test('mcp catalog_get rejects non-roundtrippable resource bytes (CATALOG_MALFORM
     writeFile(dir, '.tasksystem/commands/c1.md',
       Buffer.concat([Buffer.from('body '), Buffer.from([0xff])]));
     const tools = createMCPTools(ctx, z);
-    const get = tools.find((x) => x.name === 'tasksystem_catalog_get');
+    const get = tools.find((x) => x.name === 'scopegrain_catalog_get');
     const res = await get.handler({ kind: 'command', id: 'c1' });
     assert.equal(res.isError, true);
     const payload = JSON.parse(res.content[0].text);

@@ -1,5 +1,5 @@
 // Runtime context: binds an explicit project root and config location.
-// No path is ever derived by ascending from the TaskSystem installation.
+// No path is ever derived by ascending from the Scopegrain installation.
 import { configDirOf, loadConfig } from './config.mjs';
 import { resolveProjectRoot } from './paths.mjs';
 

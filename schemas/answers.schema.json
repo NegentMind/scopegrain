@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "TaskSystem onboarding answers",
+  "title": "Scopegrain onboarding answers",
   "type": "object",
   "additionalProperties": false,
   "required": ["name", "locale", "hosts", "paths"],

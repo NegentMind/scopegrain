@@ -5,7 +5,7 @@
 
 ## Definition
 
-TaskSystem is a local agent engineering harness: it turns requests into
+Scopegrain is a local agent engineering harness: it turns requests into
 work with contract, scope, state, evidence, review and continuity. The
 core contains no mandatory knowledge of any particular product,
 language, model provider or organization.
@@ -20,7 +20,7 @@ The product separates three responsibilities:
 
 | ID | Requirement | Required compliance evidence |
 | --- | --- | --- |
-| R01 | All modifications inside TaskSystem | Independent Git; no write command directed at the source |
+| R01 | All modifications inside Scopegrain | Independent Git; no write command directed at the source |
 | R02 | Do not impose the VantaDB domain | Core and templates free of that product's commands |
 | R03 | Discovery of any project | Manifest-based results; explicit unknowns and warnings |
 | R04 | Investigate before implementing | Start protocol requiring semantic inspection by the agent |
@@ -57,7 +57,7 @@ Product decision order:
 1. Host and organization security policies.
 2. Explicit owner instructions.
 3. Current project instructions.
-4. Approved TaskSystem configuration.
+4. Approved Scopegrain configuration.
 5. Proposals derived from discovery.
 
 On contradiction, stop the affected action and consult. Do not use

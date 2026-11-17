@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "tasksystem": {
+    "scopegrain": {
       "command": "node",
       "args": [
         "C:/Users/Eros/VantaDB Proyect/TaskSystem/src/mcp/server.mjs",

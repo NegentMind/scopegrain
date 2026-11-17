@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "namespace": "tasksystem-",
+  "namespace": "scopegrain-",
   "activation": "manual-review-only",
   "writeHostRoots": false,
   "installHooks": false,
@@ -23,7 +23,7 @@
       "commandFrontmatter": "disable-model-invocation: true\n",
       "agentFrontmatter": "",
       "readOnlyAgentFrontmatter": "tools:\n  - Read\n  - Grep\n  - Glob\n",
-      "invocation": "/tasksystem-NAME",
+      "invocation": "/scopegrain-NAME",
       "permissionScope": "Selected read-only agent tools only; not path isolation or MCP authentication.",
       "sources": [
         "https://code.claude.com/docs/en/skills",
@@ -38,7 +38,7 @@
       "commandFrontmatter": "",
       "agentFrontmatter": "",
       "readOnlyAgentFrontmatter": "sandbox_mode = \"read-only\"\n",
-      "invocation": "$tasksystem-NAME",
+      "invocation": "$scopegrain-NAME",
       "permissionScope": "Read-only filesystem role sandbox; does not certify MCP side effects or network denial.",
       "sources": [
         "https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/host_roots.rs",
@@ -55,7 +55,7 @@
       "commandFrontmatter": "",
       "agentFrontmatter": "",
       "readOnlyAgentFrontmatter": "",
-      "invocation": "/tasksystem-NAME",
+      "invocation": "/scopegrain-NAME",
       "permissionScope": "Variant-specific permission proposals; choose V1 or V2 after checking the host version. No runtime enforcement is certified.",
       "sources": [
         "https://opencode.ai/docs/commands/",
@@ -71,7 +71,7 @@
       "commandFrontmatter": "triggers:\n  - user\n",
       "agentFrontmatter": "",
       "readOnlyAgentFrontmatter": "allowed-tools:\n  - read\n  - grep\n  - glob\n",
-      "invocation": "/tasksystem-NAME",
+      "invocation": "/scopegrain-NAME",
       "permissionScope": "Custom subagent tool allowlist only; inline skill allowed-tools means auto-approval, not restriction.",
       "sources": [
         "https://docs.devin.ai/cli/extensibility/skills/creating-skills.md",
@@ -86,7 +86,7 @@
       "commandFrontmatter": "",
       "agentFrontmatter": "",
       "readOnlyAgentFrontmatter": "",
-      "invocation": "/tasksystem-NAME",
+      "invocation": "/scopegrain-NAME",
       "permissionScope": "Variant selection required. Shared .agents paths are not host isolation. No native runtime has been certified.",
       "sources": [
         "https://antigravity.google/docs/skills",

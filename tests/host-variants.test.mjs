@@ -37,19 +37,19 @@ test('antigravity: app-cli emits agents, ide skills-only, mcp proposal', () => {
   assert.ok(KNOWN_HOSTS.includes('antigravity'));
   const cliAgent = files.find((f) =>
     f.rel.includes('/antigravity/app-cli/')
-      && f.rel.endsWith('tasksystem-reviewer.md'));
+      && f.rel.endsWith('scopegrain-reviewer.md'));
   assert.ok(cliAgent, 'app-cli must emit agents');
   const fm = cliAgent.content.toString('utf8').split(/^---$/m)[1];
   assert.ok(fm.includes('view_file'));
   assert.ok(!files.some((f) =>
     f.rel.includes('/antigravity/ide/')
-      && f.rel.includes('/agents/tasksystem-')),
+      && f.rel.includes('/agents/scopegrain-')),
     'ide variant must not emit agents');
   const mcp = files.find((f) =>
     f.rel.endsWith('/antigravity/.agents/mcp_config.json'));
   assert.ok(mcp);
   const mcpJson = JSON.parse(mcp.content.toString('utf8'));
-  assert.equal(mcpJson.mcpServers.tasksystem.disabled, true);
+  assert.equal(mcpJson.mcpServers.scopegrain.disabled, true);
   assert.ok(activationPlan.entries.some(
     (e) => e.destination === '.agents/mcp_config.json' && e.manualMerge));
 });
@@ -58,14 +58,14 @@ test('codex TOML includes name; alias bridges exist per alias id', () => {
   const { files } = renderNativeAdapters(cfg(['codex', 'claude']),
     { configRel: CFG });
   const role = files.find((f) =>
-    f.rel.endsWith('/codex/.codex/agents/tasksystem-reviewer.toml'));
+    f.rel.endsWith('/codex/.codex/agents/scopegrain-reviewer.toml'));
   assert.ok(role.content.toString('utf8')
-    .includes('name = "tasksystem-reviewer"'));
+    .includes('name = "scopegrain-reviewer"'));
   const alias = files.find((f) =>
-    f.rel.includes('/claude/') && f.rel.includes('tasksystem-pipeline'));
+    f.rel.includes('/claude/') && f.rel.includes('scopegrain-pipeline'));
   assert.ok(alias, 'alias bridge for pipeline must exist');
   const ab = alias.content.toString('utf8');
-  assert.ok(ab.split(/^---$/m)[1].includes('tasksystem-pipeline'));
+  assert.ok(ab.split(/^---$/m)[1].includes('scopegrain-pipeline'));
 });
 
 test('all outputs confined to cfgDir; no host roots written', () => {

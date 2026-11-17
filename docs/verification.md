@@ -502,7 +502,7 @@ no se promete una ejecucion completa de `npm test` sin ellas.
 
 ## Suite completa
 
-Desde la raiz de TaskSystem:
+Desde la raiz de Scopegrain:
 
 ```powershell
 npm test
@@ -549,7 +549,7 @@ enlaces sin privilegio.
 
 ## Humo de solo lectura (no escribe nada)
 
-Desde la raiz de TaskSystem:
+Desde la raiz de Scopegrain:
 
 ```powershell
 node .\bin\tasksystem.mjs --help
@@ -592,7 +592,7 @@ escribe tras `yes` explicito.
 ## Humo del MCP (opcional, con dependencias instaladas)
 
 ```powershell
-node .\src\mcp\server.mjs --project .\tests\.tmp\humo-proyecto --config ".tasksystem/config.json"
+node .\src\mcp\server.mjs --project .\tests\.tmp\humo-proyecto --config ".scopegrain/config.json"
 ```
 
 Debe quedar a la espera por stdio (protocolo MCP); cerrar con Ctrl+C.

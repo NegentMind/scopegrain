@@ -1,7 +1,7 @@
 # Task and Continuation Data
 
 The installed runtime's canonical workflow and methodology policies govern
-TaskSystem operations. Use metadata returned by the bound runtime; explanatory
+Scopegrain operations. Use metadata returned by the bound runtime; explanatory
 copies in snapshots do not override it. Do not derive a policy path from this
 reference's physical location.
 

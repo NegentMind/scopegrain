@@ -20,5 +20,5 @@ description: Execute a scoped engineering task with acceptance criteria, verific
 10. Save changed files, results, evidence, unresolved risks and next action.
     Stop at the agreed boundary. Never push or publish implicitly.
 
-TaskSystem state checks do not intercept all native host tools. Do not
+Scopegrain state checks do not intercept all native host tools. Do not
 describe the workflow as a sandbox or claim authenticated reviewer identity.

@@ -495,7 +495,7 @@ dependencies; a complete `npm test` run without them is not promised.
 
 ## Complete suite
 
-From the TaskSystem root:
+From the Scopegrain root:
 
 ```powershell
 npm test
@@ -542,7 +542,7 @@ without privilege.
 
 ## Read-only smoke (writes nothing)
 
-From the TaskSystem root:
+From the Scopegrain root:
 
 ```powershell
 node .\bin\tasksystem.mjs --help
@@ -586,7 +586,7 @@ an explicit `yes`.
 ## MCP smoke (optional, with dependencies installed)
 
 ```powershell
-node .\src\mcp\server.mjs --project .\tests\.tmp\humo-proyecto --config ".tasksystem/config.json"
+node .\src\mcp\server.mjs --project .\tests\.tmp\humo-proyecto --config ".scopegrain/config.json"
 ```
 
 It should remain waiting on stdio (MCP protocol); close with Ctrl+C.

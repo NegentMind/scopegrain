@@ -1,11 +1,11 @@
-# TaskSystem
+# Scopegrain
 
 Read `.scopegrain/instructions.md` before working on this repository.
 Project configuration: `.scopegrain/config.json`.
 Existing higher-priority instructions and explicit user decisions still apply.
-TaskSystem provides a workflow, not a sandbox for native agent tools.
+Scopegrain provides a workflow, not a sandbox for native agent tools.
 
-# TaskSystem
+# Scopegrain
 
 Read AGENTS.md and follow the repository instructions before making changes.
 Read docs/architecture.md for module boundaries.

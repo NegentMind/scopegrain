@@ -28,7 +28,7 @@ const TPL_AGENT = 'templates/hosts/native-agent.md';
 const PROVISIONAL_HOSTS = {
   hermes: {
     mergeTarget: '~/.hermes/config.yaml',
-    mergeKey: 'mcp_servers.tasksystem',
+    mergeKey: 'mcp_servers.scopegrain',
     skillsRoot: '~/.hermes/skills/',
     permissionScope: 'Provisional only: Hermes roots are global '
       + '(~/.hermes/) and are never written. No format, permission or '
@@ -388,7 +388,7 @@ function assertSafeLiteral(value, label) {
 
 // renderNativeAdapters(config, {configRel, installRoot}) ->
 //   {files: [{rel, content}], activationPlan}
-// configRel is the project-relative config path (e.g. '.tasksystem/config.json').
+// configRel is the project-relative config path (e.g. '.scopegrain/config.json').
 export function renderNativeAdapters(config, {
   configRel, installRoot = INSTALL_ROOT, catalog: givenCatalog,
   projectRoot, serverPath,
@@ -482,7 +482,7 @@ export function renderNativeAdapters(config, {
         manualMerge: true,
       };
       entries.push({
-        host, kind: 'fragment', id: 'tasksystem', ...meta,
+        host, kind: 'fragment', id: 'scopegrain', ...meta,
         source: `${base}/${host}-proposal.json`,
         destination: spec.mergeTarget,
       });
@@ -633,7 +633,7 @@ export function renderNativeAdapters(config, {
       rel,
       content: JSON.stringify({
         mcpServers: {
-          tasksystem: {
+          scopegrain: {
             command: 'node',
             args: [serverPath
                 ?? path.resolve(installRoot, 'src/mcp/server.mjs'),
@@ -645,7 +645,7 @@ export function renderNativeAdapters(config, {
       }, null, 2) + '\n',
     });
     entries.push({
-      host: 'antigravity', kind: 'mcp', id: 'tasksystem',
+      host: 'antigravity', kind: 'mcp', id: 'scopegrain',
       compatibility: 'documented-only', modelSelection: 'host-policy',
       permissionScope: policy.hosts.antigravity.permissionScope,
       source: rel, destination: '.agents/mcp_config.json',

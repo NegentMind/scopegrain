@@ -8,9 +8,9 @@ tareas, evidencia y continuidad en un proyecto. No inventa Organic ni SDD:
 aplica estas metodologias como procedimientos y controles al trabajo
 registrado. No es un ejecutor autonomo de agentes ni de modelos.
 
-El producto incorpora la entrada `scopegrain` y conserva `tasksystem`,
-`tasksystem-harness`, `.tasksystem` y `tasksystem_` como identificadores
-tecnicos de compatibilidad. El nombre de
+El producto incorpora la entrada `scopegrain` (CLI y servidor MCP, tools
+`scopegrain_*`) y conserva `tasksystem` (alias de binario) y `.tasksystem`
+(rutas legadas) como identificadores tecnicos de compatibilidad. El nombre de
 producto no implica una migracion automatica de comandos o registros.
 El [README](../README.md) contiene el inicio rapido.
 
@@ -223,8 +223,8 @@ Ver [onboarding](onboarding.md) y [workflows](workflows.md).
 
 El servidor MCP ofrece 18 herramientas de solo lectura, estrictamente
 vinculadas al proyecto y configuracion seleccionados al iniciar. Entre ellas
-estan `tasksystem_specification_get`, `tasksystem_approval_get` y
-`tasksystem_methodology_check`. Esta ultima consulta gates sobre registros
+estan `scopegrain_specification_get`, `scopegrain_approval_get` y
+`scopegrain_methodology_check`. Esta ultima consulta gates sobre registros
 existentes; no registra ni reclasifica hechos ni autoriza herramientas.
 
 El transporte opcional es stdio. La carga del SDK es perezosa; las

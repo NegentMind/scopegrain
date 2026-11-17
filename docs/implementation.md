@@ -187,11 +187,11 @@ Siempre pasar --project y --config como args separados al servidor.
 --project es absoluto; --config es relativo al root elegido. Aunque la API de
 renderizado reciba configPath absoluto, comprobar contencion y convertirlo
 antes de serializar, para respetar el contrato de loadConfig.
-Claude: propuesta .mcp.json {"mcpServers":{"tasksystem":{"type":"stdio",
+Claude: propuesta .mcp.json {"mcpServers":{"scopegrain":{"type":"stdio",
 "command":"node","args":[SERVER,"--project",ROOT,"--config",CONFIG]}}}.
 Devin Local/CLI: misma envoltura mcpServers y command/args, sin type.
-Codex: fragmento para .codex/config.toml [mcp_servers.tasksystem] con command
-y args. OpenCode V2: formato {"mcp":{"servers":{"tasksystem":{"type":"local",
+Codex: fragmento para .codex/config.toml [mcp_servers.scopegrain] con command
+y args. OpenCode V2: formato {"mcp":{"servers":{"scopegrain":{"type":"local",
 "command":["node",SERVER,"--project",ROOT,"--config",CONFIG],"disabled":true}}}}.
 No prometer perfil de permisos ni subagentes equivalentes; no registrar
 automaticamente servidores ni servicios terceros.
@@ -243,8 +243,8 @@ createMCPServer({project,config}) construye sin conectar; startMCPServer
 conecta por stdio. createMCPTools(ctx,z) devuelve descriptores
 {name,config,handler} compartidos por registro real y pruebas de handlers.
 Tools de SOLO LECTURA con readOnlyHint:true:
-tasksystem_inspect {}, tasksystem_status {}, tasksystem_list_tasks {},
-tasksystem_get_task {id}, tasksystem_check_action {taskId,action}.
+scopegrain_inspect {}, scopegrain_status {}, scopegrain_list_tasks {},
+scopegrain_get_task {id}, scopegrain_check_action {taskId,action}.
 Compartir implementaciones con CLI. JSON en text content; errores isError
 sin filtrar secretos o stack. stdout exclusivo para protocolo, stderr logs.
 No shell, red, escritura ni tools de aceptacion por MCP en esta base.
@@ -265,7 +265,7 @@ No shell, red, escritura ni tools de aceptacion por MCP en esta base.
 ## Pruebas a escribir, NO ejecutar
 
 Usar node:test y assert; fixtures TEMPORALES bajo tests/.tmp (no fuera de
-TaskSystem). Limpiar solo lo creado por el test. Casos:
+Scopegrain). Limpiar solo lo creado por el test. Casos:
 1. Descubrimiento Node y monorepo con paths con espacios y script real.
 2. src/ sin Cargo.toml no implica Rust; proyecto vacio permanece desconocido.
 3. JSON malformado y manifiesto grande reportados, nunca ejecutados.

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:tasksystem:specification-data:v1",
+  "$id": "urn:scopegrain:specification-data:v1",
   "title": "Structured specification data",
   "type": "object",
   "additionalProperties": false,

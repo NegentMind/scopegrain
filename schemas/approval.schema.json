@@ -1,6 +1,6 @@
 {
   "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "$id":"urn:tasksystem:approval:v1",
+  "$id":"urn:scopegrain:approval:v1",
   "title":"Content-bound approval record",
   "type":"object",
   "additionalProperties":false,

@@ -3,7 +3,7 @@
 > English translation of the canonical Spanish document
 > (`../architecture.md`). The Spanish version prevails.
 
-TaskSystem is a private Node.js ESM package (Node >=22). The core is
+Scopegrain is a private Node.js ESM package (Node >=22). The core is
 synchronous, with no external dependencies, no `child_process`, no
 sockets and no writes outside the explicitly indicated project. The MCP
 server is optional and loads its dependencies
@@ -229,7 +229,7 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operations
   aliases. The generated catalog fixes the project snapshot and hashes;
   packages do not silently substitute their bytes for another
   installation's.
-- Procedures are interpreted by the host. TaskSystem does not create
+- Procedures are interpreted by the host. Scopegrain does not create
   LLM clients or execute subagents because a role definition exists.
 - The onboarding policy proposes all artifacts inside `.scopegrain/`;
   the eight versioning preferences do not authorize modifying the
@@ -317,7 +317,7 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operations
   without installing them. Its scopes are not equivalent and do not
   constitute universal harness isolation; no executable hooks are
   generated.
-- State is controlled only for operations that go through TaskSystem;
+- State is controlled only for operations that go through Scopegrain;
   native tools are not intercepted.
 - Containment checks reject links at validation points, but do not
   constitute operating-system isolation against hostile concurrent

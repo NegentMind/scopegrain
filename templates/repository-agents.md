@@ -1,4 +1,4 @@
-# TaskSystem - Repository Instructions
+# Scopegrain - Repository Instructions
 
 This repository develops a project-neutral engineering harness.
 
