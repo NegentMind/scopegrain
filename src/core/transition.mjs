@@ -14,14 +14,13 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
 import {
-  decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited,
-  removeIfExists, writeFileExclusive,
+  mkdirpSync, removeIfExists, writeFileExclusive,
 } from './fsx.mjs';
 import {
   isTransitionAllowed, knownActions, knownStates, loadLimits,
 } from './policy.mjs';
 import {
-  assertDestination, resolveInside, toCanonicalRelative,
+  assertDestination, resolveInside,
 } from './paths.mjs';
 import {
   getTask, prepareTask, taskFilePath, validateTaskShape,
@@ -31,16 +30,14 @@ import { evaluateMethodology, evaluateTaskActions } from './methodology.mjs';
 import { canonicalJSON } from './digests.mjs';
 import {
   applyJournaledRecordCreation, applyJournaledRecordUpdate,
-  getJournalOperation, readJournalSnapshot,
 } from './journal.mjs';
 import {
-  authorizeScope, bindWorkspace, resolveWorkspaceState,
-} from './workspaces.mjs';
-import {
-  assertRecordObject, cloneRecordJSON, isRecordTime, isRecordUUID,
-  recordAreaIds, validateRecordScope,
-} from './record-ownership-data.mjs';
-import { validateRecordTransition } from './record-history.mjs';
+  authorizeScope, bindOwnedStore, decodeUtf8Strict,
+  normalizeOwnedInput, ownedDocumentBytes, ownedScope, parseOwnedJson,
+  readOwnedCurrent, resolveWorkspaceState, sha256Hex,
+  validateChainOwnership, walkOwnedIndex,
+} from './owned-chain.mjs';
+import { isRecordUUID } from './record-ownership-data.mjs';
 
 const TRANSITION_KEYS = new Set([
   'id', 'to', 'expectedRevision', 'verification', 'review',
@@ -242,30 +239,10 @@ const OWNED_PROOF = {
   notCommitted: 'OWNED_TASK_NOT_COMMITTED',
   sourceChanged: 'OWNED_TASK_SOURCE_CHANGED',
 };
-const OWNED_OPTION_KEYS = ['areaIds'];
-const OWNED_CREATE_KEYS = ['areaIds', 'task'];
-const OWNED_TRANSITION_KEYS = ['areaIds', 'transition'];
-const OWNED_SIDECAR_KEYS = [
-  'schemaVersion', 'sourceKind', 'recordId', 'sourceRevision', 'sourceRel',
-  'sourceHash', 'operationId', 'scope', 'createdAt', 'chain',
-];
-const HASH_RE = /^[0-9a-f]{64}$/;
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
 function ownedMalformed(message) {
   throw err(OWNED_PROOF.malformed, message);
-}
-
-function ownedBytes(value, label) {
-  const bytes = Buffer.from(JSON.stringify(value, null, 2) + '\n', 'utf8');
-  if (bytes.length > loadLimits().maxDocumentBytes) {
-    throw err('DOCUMENT_TOO_LARGE', `${label} exceeds document limit`);
-  }
-  return bytes;
-}
-
-function sha256Hex(bytes) {
-  return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
 // Ten-field mutable ownership sidecar for the 'task' kind: the shared
@@ -276,54 +253,10 @@ function sha256Hex(bytes) {
 // entry must equal operationId; sourceRevision stays under the
 // maxSessionEvents bound like the sibling stores.
 function validateTaskOwnership(value, label = 'task ownership') {
-  const code = OWNED_PROOF.malformed;
-  assertRecordObject(value, OWNED_SIDECAR_KEYS, OWNED_SIDECAR_KEYS, code, label);
-  if (value.schemaVersion !== 1 || value.sourceKind !== 'task'
-      || !isRecordUUID(value.recordId)
-      || !Number.isSafeInteger(value.sourceRevision)
-      || value.sourceRevision < 0
-      || value.sourceRevision >= loadLimits().maxSessionEvents
-      || typeof value.sourceHash !== 'string' || !HASH_RE.test(value.sourceHash)
-      || !isRecordUUID(value.operationId)
-      || !isRecordTime(value.createdAt)) {
-    throw err(code, `${label} has invalid fields`);
-  }
-  let rel;
-  try {
-    if (typeof value.sourceRel !== 'string' || value.sourceRel.includes('\\')) {
-      throw new Error('not canonical');
-    }
-    rel = toCanonicalRelative(value.sourceRel, `${label} sourceRel`);
-  } catch {
-    throw err(code, `${label} sourceRel is not a canonical relative path`);
-  }
-  if (rel !== value.sourceRel) {
-    throw err(code, `${label} sourceRel is not canonical`);
-  }
-  validateRecordScope(value.scope, code, `${label} scope`);
-  const chain = recordAreaIds(value.chain, code, `${label} chain`);
-  if (chain.length !== value.sourceRevision + 1
-      || chain[chain.length - 1] !== value.operationId) {
-    throw err(code, `${label} chain does not match its revision`);
-  }
-  return cloneRecordJSON(value);
-}
-
-// Bounded current-file read under a revalidated binding: containment,
-// no link ancestors, regular file, document limit.
-function readCurrentFile(bound, rel, nonRegularCode) {
-  const { projectRoot } = resolveWorkspaceState(bound);
-  const abs = resolveInside(projectRoot, rel, 'task file');
-  const st = lstatOrNull(abs);
-  if (!st) throw err(OWNED_PROOF.missing, `task file not found: ${rel}`);
-  if (!st.isFile()) {
-    throw err(nonRegularCode, `task file is not regular: ${rel}`);
-  }
-  const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
-  if (limited.exceeded) {
-    throw err('DOCUMENT_TOO_LARGE', `task file exceeds limit: ${rel}`);
-  }
-  return limited.content;
+  return validateChainOwnership(value, {
+    sourceKind: 'task', recordIdOk: isRecordUUID, indexKey: 'chain',
+    maxRevision: loadLimits().maxSessionEvents,
+    code: OWNED_PROOF.malformed, label });
 }
 
 // Proven bytes -> validated task record. Anything not a well-formed
@@ -347,27 +280,6 @@ function parseTaskBytes(bytes, recordId, label = 'task source') {
   return parsed;
 }
 
-function eventScope(event) {
-  return {
-    workspaceId: event.workspaceId, projectId: event.projectId,
-    repositoryId: event.repositoryId, areaIds: event.areaIds,
-  };
-}
-
-// Strict sidecar bytes -> validated ten-field document, shared by the
-// current-file read and each revision's journaled snapshot.
-function parseTaskOwnership(bytes) {
-  let parsed;
-  try {
-    parsed = JSON.parse(
-      decodeUtf8Strict(bytes, OWNED_PROOF.malformed, 'task ownership'));
-  } catch (e) {
-    if (e && e.code === OWNED_PROOF.malformed) throw e;
-    ownedMalformed('task ownership is not JSON');
-  }
-  return validateTaskOwnership(parsed);
-}
-
 // Full mutable proof, fixed order, fail closed: canonical sidecar ->
 // scope authorization -> the chain's committed two-event operations in
 // revision order (a two-create rev0 op, then coherent update pairs on
@@ -377,87 +289,52 @@ function parseTaskOwnership(bytes) {
 // equals the proven tip revision. The journal operations directory is
 // never enumerated: the sidecar's `chain` is the per-record index.
 function proveOwnedTask(bound, recordId, sourceRel, ownershipRel) {
-  const sidecarBytes = readCurrentFile(bound, ownershipRel,
-    OWNED_PROOF.malformed);
-  const owned = parseTaskOwnership(sidecarBytes);
+  const sidecarBytes = readOwnedCurrent(bound, ownershipRel, {
+    missingCode: OWNED_PROOF.missing, nonRegularCode: OWNED_PROOF.malformed,
+    label: 'task ownership' });
+  const owned = validateTaskOwnership(
+    parseOwnedJson(sidecarBytes, OWNED_PROOF.malformed, 'task ownership'));
   if (owned.recordId !== recordId || owned.sourceRel !== sourceRel) {
     ownedMalformed('task ownership does not name this record');
   }
   // Grants are validated before any record content is produced.
   authorizeScope(bound, owned.scope);
   const scopeJson = canonicalJSON(owned.scope);
-  let prevSource = null;
-  let prevSidecar = null;
   let tipSource = null;
   let tipSnapshot = null;
   let tipSidecarSnapshot = null;
   let createRecord = null;
-  for (let k = 0; k < owned.chain.length; k += 1) {
-    const operationId = owned.chain[k];
-    const loaded = getJournalOperation(bound, operationId);
-    if (loaded.state !== 'committed') {
-      throw err(OWNED_PROOF.notCommitted,
-        'task owning operation is not committed');
-    }
-    const events = loaded.intent.events;
-    if (events.length !== 2) {
-      ownedMalformed('task operation is not two events');
-    }
-    const source = events.find((e) => e.sourceKind === 'task');
-    const sidecar = events.find((e) => e.sourceKind === 'record-ownership');
-    if (!source || !sidecar
-        || source.recordId !== recordId || sidecar.recordId !== recordId
-        || source.sourceRel !== sourceRel
-        || sidecar.sourceRel !== ownershipRel
-        || source.createdAt !== loaded.intent.createdAt
-        || sidecar.createdAt !== loaded.intent.createdAt
-        || canonicalJSON(eventScope(source)) !== scopeJson
-        || canonicalJSON(eventScope(sidecar)) !== scopeJson) {
-      ownedMalformed('task operation does not prove this record');
-    }
-    if (k === 0) {
-      if (source.operation !== 'create' || sidecar.operation !== 'create'
-          || source.sourceRevision !== 0 || sidecar.sourceRevision !== 0
-          || source.previousHash !== null || sidecar.previousHash !== null) {
-        ownedMalformed('task owning operation is not a creation');
-      }
-    } else {
-      if (source.operation !== 'update' || sidecar.operation !== 'update') {
-        ownedMalformed('task revision operation is not an update');
-      }
-      validateRecordTransition(prevSource, source, OWNED_PROOF.malformed);
-      validateRecordTransition(prevSidecar, sidecar, OWNED_PROOF.malformed);
-    }
+  for (const hop of walkOwnedIndex(bound, owned.chain, {
+    sourceKind: 'task', sidecarKind: 'record-ownership',
+    recordId, sourceRel, sidecarRel: ownershipRel, scopeJson,
+    code: OWNED_PROOF.malformed, notCommittedCode: OWNED_PROOF.notCommitted,
+    label: 'task' })) {
     // Each revision's sidecar snapshot re-proves the chain prefix.
-    const sidecarSnapshot = readJournalSnapshot(bound, operationId,
-      sidecar.eventId);
-    const revOwned = parseTaskOwnership(sidecarSnapshot);
+    const revOwned = validateTaskOwnership(
+      parseOwnedJson(hop.sidecarSnapshot, OWNED_PROOF.malformed,
+        'task ownership snapshot'));
     if (revOwned.recordId !== recordId || revOwned.sourceRel !== sourceRel
-        || revOwned.sourceRevision !== k
-        || revOwned.operationId !== operationId
-        || revOwned.createdAt !== loaded.intent.createdAt
-        || revOwned.sourceHash !== source.sourceHash
+        || revOwned.sourceRevision !== hop.index
+        || revOwned.operationId !== hop.operationId
+        || revOwned.createdAt !== hop.loaded.intent.createdAt
+        || revOwned.sourceHash !== hop.source.sourceHash
         || canonicalJSON(revOwned.scope) !== scopeJson
         || canonicalJSON(revOwned.chain)
-          !== canonicalJSON(owned.chain.slice(0, k + 1))) {
+          !== canonicalJSON(owned.chain.slice(0, hop.index + 1))) {
       ownedMalformed(
         'task ownership snapshot does not prove this revision');
     }
-    const sourceSnapshot = readJournalSnapshot(bound, operationId,
-      source.eventId);
-    if (k === 0) {
-      createRecord = parseTaskBytes(sourceSnapshot, recordId,
+    if (hop.index === 0) {
+      createRecord = parseTaskBytes(hop.sourceSnapshot, recordId,
         'task create snapshot');
       if (createRecord.revision !== 0
           || createRecord.createdAt !== revOwned.createdAt) {
         ownedMalformed('task create snapshot is not the proven record');
       }
     }
-    prevSource = source;
-    prevSidecar = sidecar;
-    tipSource = source;
-    tipSnapshot = sourceSnapshot;
-    tipSidecarSnapshot = sidecarSnapshot;
+    tipSource = hop.source;
+    tipSnapshot = hop.sourceSnapshot;
+    tipSidecarSnapshot = hop.sidecarSnapshot;
   }
   if (!tipSidecarSnapshot.equals(sidecarBytes)) {
     ownedMalformed('current task ownership differs from its snapshot');
@@ -465,8 +342,9 @@ function proveOwnedTask(bound, recordId, sourceRel, ownershipRel) {
   if (owned.sourceHash !== tipSource.sourceHash) {
     ownedMalformed('task ownership hash differs from the task event');
   }
-  const currentBytes = readCurrentFile(bound, sourceRel,
-    OWNED_PROOF.sourceChanged);
+  const currentBytes = readOwnedCurrent(bound, sourceRel, {
+    missingCode: OWNED_PROOF.missing,
+    nonRegularCode: OWNED_PROOF.sourceChanged, label: 'task' });
   if (!tipSnapshot.equals(currentBytes)) {
     throw err(OWNED_PROOF.sourceChanged,
       'current task source differs from its proven tip');
@@ -484,21 +362,8 @@ function proveOwnedTask(bound, recordId, sourceRel, ownershipRel) {
 }
 
 export function createOwnedTaskStore(ctx, options) {
-  if (ctx === null || typeof ctx !== 'object'
-      || typeof ctx.projectRoot !== 'string'
-      || ctx.config === null || typeof ctx.config !== 'object') {
-    throw err(OWNED_INPUT, 'owned task store requires a resolved context');
-  }
-  assertRecordObject(options, OWNED_OPTION_KEYS, OWNED_OPTION_KEYS,
-    OWNED_INPUT, 'owned task store options');
-  const opts = {
-    areaIds: recordAreaIds(options.areaIds, OWNED_INPUT,
-      'owned task store options'),
-  };
-  const privateCtx = {
-    projectRoot: ctx.projectRoot, config: structuredClone(ctx.config),
-  };
-  const bound = bindWorkspace(privateCtx, { areaIds: opts.areaIds });
+  const { privateCtx, bound } = bindOwnedStore(ctx, options, OWNED_INPUT,
+    'owned task store');
   const tasksRel = assertDestination(privateCtx.config.paths.tasks,
     'paths.tasks');
   const stateRel = assertDestination(privateCtx.config.paths.state,
@@ -508,26 +373,17 @@ export function createOwnedTaskStore(ctx, options) {
     `${stateRel}/record-ownership/task/${recordId}.json`;
 
   function scope(areaIds) {
-    return {
-      workspaceId: bound.workspaceId, projectId: bound.projectId,
-      repositoryId: bound.repositoryId, areaIds: [...areaIds],
-    };
+    return ownedScope(bound, areaIds);
   }
 
   function normalizeCreate(input) {
-    assertRecordObject(input, OWNED_CREATE_KEYS, OWNED_CREATE_KEYS,
-      OWNED_INPUT, 'owned task input');
-    const areaIds = recordAreaIds(input.areaIds, OWNED_INPUT,
-      'owned task input').sort();
-    return { areaIds, task: cloneRecordJSON(input.task) };
+    return normalizeOwnedInput(input, 'task', OWNED_INPUT,
+      'owned task input');
   }
 
   function normalizeTransition(input) {
-    assertRecordObject(input, OWNED_TRANSITION_KEYS,
-      OWNED_TRANSITION_KEYS, OWNED_INPUT, 'owned task transition input');
-    const areaIds = recordAreaIds(input.areaIds, OWNED_INPUT,
-      'owned task transition input').sort();
-    return { areaIds, transition: cloneRecordJSON(input.transition) };
+    return normalizeOwnedInput(input, 'transition', OWNED_INPUT,
+      'owned task transition input');
   }
 
   // Closed sidecar writer: the stored document is the same ten-field
@@ -555,7 +411,7 @@ export function createOwnedTaskStore(ctx, options) {
     if (sourceBytes.length > loadLimits().maxDocumentBytes) {
       throw err('DOCUMENT_TOO_LARGE', 'task source exceeds document limit');
     }
-    ownedBytes(ownershipDoc(record.id, sourceRel, sha256Hex(sourceBytes),
+    ownedDocumentBytes(ownershipDoc(record.id, sourceRel, sha256Hex(sourceBytes),
       0, ZERO_UUID, record.createdAt, scope(normalized.areaIds),
       [ZERO_UUID]), 'task ownership');
     return { mode: 'dry-run', record, sourceRel, ownershipRel,
@@ -580,12 +436,12 @@ export function createOwnedTaskStore(ctx, options) {
       const recordId = record.id;
       const sourceRel = prepared.file.rel;
       const ownershipRel = ownershipRelFor(recordId);
-      const sourceBytes = ownedBytes(record, 'task source');
+      const sourceBytes = ownedDocumentBytes(record, 'task source');
       const owned = ownershipDoc(recordId, sourceRel,
         sha256Hex(sourceBytes), 0, identity.operationId,
         identity.createdAt, scope(normalized.areaIds),
         [identity.operationId]);
-      const sidecarBytes = ownedBytes(owned, 'task ownership');
+      const sidecarBytes = ownedDocumentBytes(owned, 'task ownership');
       built = { record, sourceRel, ownershipRel };
       return [
         { sourceKind: 'task', recordId, sourceRevision: 0,
@@ -639,7 +495,7 @@ export function createOwnedTaskStore(ctx, options) {
           sha256Hex(sourceBytes), next.revision, identity.operationId,
           identity.createdAt, proof.ownership.scope,
           [...proof.ownership.chain, identity.operationId]);
-        const nextSidecarBytes = ownedBytes(nextOwned, 'task ownership');
+        const nextSidecarBytes = ownedDocumentBytes(nextOwned, 'task ownership');
         built = { next };
         return [
           { sourceKind: 'task', recordId,

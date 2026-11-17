@@ -10,7 +10,7 @@ import {
   decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited,
   removeIfExists, writeFileExclusive,
 } from './fsx.mjs';
-import { assertDestination, resolveInside, toCanonicalRelative }
+import { assertDestination, resolveInside }
   from './paths.mjs';
 import { loadLimits } from './policy.mjs';
 import { canonicalDigest, canonicalJSON, taskStaticProjection }
@@ -21,16 +21,13 @@ import { getPlan } from './plans.mjs';
 import { getSpecification } from './specifications.mjs';
 import {
   applyJournaledRecordCreation, applyJournaledRecordUpdate,
-  getJournalOperation, readJournalSnapshot,
 } from './journal.mjs';
-import { validateRecordTransition } from './record-history.mjs';
 import {
-  assertRecordObject, cloneRecordJSON, isRecordTime, isRecordUUID,
-  recordAreaIds, validateRecordScope,
-} from './record-ownership-data.mjs';
-import {
-  authorizeScope, bindWorkspace, resolveWorkspaceState,
-} from './workspaces.mjs';
+  assertRecordObject, authorizeScope, bindOwnedStore, cloneRecordJSON,
+  normalizeOwnedInput, ownedDocumentBytes, ownedScope,
+  parseOwnedJson, readOwnedCurrent, resolveWorkspaceState,
+  sha256Hex, validateChainOwnership, walkOwnedIndex,
+} from './owned-chain.mjs';
 
 const SHA_RE = /^[0-9a-f]{64}$/;
 const UUID_RE =
@@ -638,27 +635,14 @@ const OWNED_CODES = {
   notCommitted: 'OWNED_APPROVAL_NOT_COMMITTED',
   sourceChanged: 'OWNED_APPROVAL_SOURCE_CHANGED',
 };
-const OWNED_OPTION_KEYS = ['areaIds'];
-const OWNED_CREATE_KEYS = ['areaIds', 'target'];
 const OWNED_ANSWER_REQUIRED = [
   'id', 'answer', 'expectedRevision', 'expectedTargetDigest', 'actor',
 ];
-const OWNERSHIP_KEYS = [
-  'schemaVersion', 'sourceKind', 'recordId', 'sourceRevision',
-  'sourceRel', 'sourceHash', 'operationId', 'scope', 'createdAt', 'chain',
-];
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+const isSha256 = (value) => typeof value === 'string' && SHA_RE.test(value);
 
 function ownedMalformed(message) {
   throw err(OWNED_CODES.malformed, message);
-}
-
-function strictUtf8(bytes, label) {
-  const text = bytes.toString('utf8');
-  if (!Buffer.from(text, 'utf8').equals(bytes)) {
-    ownedMalformed(`stored ${label} is not roundtrippable UTF-8`);
-  }
-  return text;
 }
 
 function boundedBytes(bytes, label) {
@@ -668,73 +652,21 @@ function boundedBytes(bytes, label) {
   return bytes;
 }
 
-function documentBytes(value, label) {
-  return boundedBytes(
-    Buffer.from(JSON.stringify(value, null, 2) + '\n', 'utf8'), label);
-}
-
-function hashBytes(bytes) {
-  return crypto.createHash('sha256').update(bytes).digest('hex');
-}
-
 // Closed 10-field mutable sidecar: tip metadata plus the ordered
 // operation chain (chain[k] produced revision k, chain.at(-1) ===
 // operationId, length === sourceRevision + 1). Distinct from the
 // rev0-only shared validator: approval ids are sha256 digests, not
 // UUIDs, and the record mutates.
 function validateApprovalOwnership(value, label = 'approval ownership') {
-  const code = OWNED_CODES.malformed;
-  assertRecordObject(value, OWNERSHIP_KEYS, OWNERSHIP_KEYS, code, label);
-  if (value.schemaVersion !== 1 || value.sourceKind !== 'approval'
-      || typeof value.recordId !== 'string' || !SHA_RE.test(value.recordId)
-      || !Number.isSafeInteger(value.sourceRevision)
-      || value.sourceRevision < 0
-      || value.sourceRevision >= loadLimits().maxSessionEvents
-      || typeof value.sourceHash !== 'string' || !SHA_RE.test(value.sourceHash)
-      || !isRecordUUID(value.operationId)
-      || !isRecordTime(value.createdAt)) {
-    ownedMalformed(`${label} has invalid fields`);
-  }
-  let rel;
-  try {
-    if (typeof value.sourceRel !== 'string' || value.sourceRel.includes('\\')) {
-      throw new Error('not canonical');
-    }
-    rel = toCanonicalRelative(value.sourceRel, `${label} sourceRel`);
-  } catch {
-    ownedMalformed(`${label} sourceRel is not a canonical relative path`);
-  }
-  if (rel !== value.sourceRel) {
-    ownedMalformed(`${label} sourceRel is not canonical`);
-  }
-  validateRecordScope(value.scope, code, `${label} scope`);
-  const chain = recordAreaIds(value.chain, code, `${label} chain`);
-  if (chain.length !== value.sourceRevision + 1
-      || chain[chain.length - 1] !== value.operationId) {
-    ownedMalformed(`${label} chain does not match its revision`);
-  }
-  return cloneRecordJSON(value);
-}
-
-function eventScope(event) {
-  return { workspaceId: event.workspaceId, projectId: event.projectId,
-    repositoryId: event.repositoryId, areaIds: event.areaIds };
+  return validateChainOwnership(value, {
+    sourceKind: 'approval', recordIdOk: isSha256, indexKey: 'chain',
+    maxRevision: loadLimits().maxSessionEvents,
+    code: OWNED_CODES.malformed, label });
 }
 
 export function createOwnedApprovalStore(ctx, options) {
-  if (ctx === null || typeof ctx !== 'object'
-      || typeof ctx.projectRoot !== 'string'
-      || ctx.config === null || typeof ctx.config !== 'object') {
-    throw err(OWNED_INPUT,
-      'owned approval store requires a resolved context');
-  }
-  assertRecordObject(options, OWNED_OPTION_KEYS, OWNED_OPTION_KEYS,
-    OWNED_INPUT, 'owned approval store options');
-  const opts = { areaIds: recordAreaIds(options.areaIds, OWNED_INPUT,
-    'owned approval store options') };
-  const privateCtx = { projectRoot: ctx.projectRoot,
-    config: structuredClone(ctx.config) };
-  const bound = bindWorkspace(privateCtx, { areaIds: opts.areaIds });
+  const { privateCtx, bound } = bindOwnedStore(ctx, options, OWNED_INPUT,
+    'owned approval store');
   const decisionsRel = assertDestination(privateCtx.config.paths.decisions,
     'paths.decisions');
   const stateRel = assertDestination(privateCtx.config.paths.state,
@@ -744,8 +676,7 @@ export function createOwnedApprovalStore(ctx, options) {
     `${stateRel}/record-ownership/approval/${recordId}.json`;
 
   function scope(areaIds) {
-    return { workspaceId: bound.workspaceId, projectId: bound.projectId,
-      repositoryId: bound.repositoryId, areaIds: [...areaIds] };
+    return ownedScope(bound, areaIds);
   }
 
   function ownership(recordId, sourceRel, sourceHash, revision, operationId,
@@ -757,32 +688,9 @@ export function createOwnedApprovalStore(ctx, options) {
     });
   }
 
-  // Bounded current-file read with binding revalidation, containment,
-  // regular-file and size checks; codes are phase-selected.
-  function readCurrent(rel, missingCode, nonRegularCode, label) {
-    const { projectRoot } = resolveWorkspaceState(bound);
-    const abs = resolveInside(projectRoot, rel, `${label} file`);
-    const st = lstatOrNull(abs);
-    if (!st) throw err(missingCode, `${label} file not found: ${rel}`);
-    if (!st.isFile()) {
-      throw err(nonRegularCode, `${label} file is not regular: ${rel}`);
-    }
-    const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
-    if (limited.exceeded) {
-      throw err('DOCUMENT_TOO_LARGE', `${label} file exceeds limit: ${rel}`);
-    }
-    return limited.content;
-  }
-
   function parseOwned(bytes, label) {
-    let parsed;
-    try {
-      parsed = JSON.parse(strictUtf8(bytes, label));
-    } catch (e) {
-      if (e.code === OWNED_CODES.malformed) throw e;
-      ownedMalformed(`${label} is not JSON`);
-    }
-    return validateApprovalOwnership(parsed, label);
+    return validateApprovalOwnership(
+      parseOwnedJson(bytes, OWNED_CODES.malformed, label), label);
   }
 
   // Full tip proof in the fixed order: sidecar -> shape -> scope ->
@@ -792,8 +700,9 @@ export function createOwnedApprovalStore(ctx, options) {
   function readOwnedApproval(recordId) {
     const sourceRel = sourceRelFor(recordId);
     const ownershipRel = ownershipRelFor(recordId);
-    const sidecarBytes = readCurrent(ownershipRel, OWNED_CODES.missing,
-      OWNED_CODES.malformed, 'approval ownership');
+    const sidecarBytes = readOwnedCurrent(bound, ownershipRel, {
+      missingCode: OWNED_CODES.missing,
+      nonRegularCode: OWNED_CODES.malformed, label: 'approval ownership' });
     const owned = parseOwned(sidecarBytes, 'approval ownership');
     if (owned.recordId !== recordId || owned.sourceRel !== sourceRel) {
       ownedMalformed('approval ownership does not name this record');
@@ -802,69 +711,33 @@ export function createOwnedApprovalStore(ctx, options) {
     authorizeScope(bound, owned.scope);
     const scopeJson = canonicalJSON(owned.scope);
     const sourceHashes = [];
-    let prevApproval = null;
-    let prevSidecar = null;
     let tipApproval = null;
     let tipSnapshot = null;
     let tipSidecarSnapshot = null;
-    for (let k = 0; k < owned.chain.length; k += 1) {
-      const operationId = owned.chain[k];
-      const loaded = getJournalOperation(bound, operationId);
-      if (loaded.state !== 'committed') {
-        throw err(OWNED_CODES.notCommitted,
-          'approval owning operation is not committed');
-      }
-      const events = loaded.intent.events;
-      if (events.length !== 2) {
-        ownedMalformed('approval operation is not two events');
-      }
-      const app = events.find((e) => e.sourceKind === 'approval');
-      const own = events.find((e) => e.sourceKind === 'record-ownership');
-      if (!app || !own
-          || app.recordId !== recordId || own.recordId !== recordId
-          || app.sourceRel !== sourceRel || own.sourceRel !== ownershipRel
-          || app.createdAt !== loaded.intent.createdAt
-          || own.createdAt !== loaded.intent.createdAt
-          || canonicalJSON(eventScope(app)) !== scopeJson
-          || canonicalJSON(eventScope(own)) !== scopeJson) {
-        ownedMalformed('approval operation does not prove this record');
-      }
-      if (k === 0) {
-        if (app.operation !== 'create' || own.operation !== 'create'
-            || app.sourceRevision !== 0 || own.sourceRevision !== 0
-            || app.previousHash !== null || own.previousHash !== null) {
-          ownedMalformed('approval owning operation is not a creation');
-        }
-      } else {
-        if (app.operation !== 'update' || own.operation !== 'update') {
-          ownedMalformed('approval revision operation is not an update');
-        }
-        validateRecordTransition(prevApproval, app, OWNED_CODES.malformed);
-        validateRecordTransition(prevSidecar, own, OWNED_CODES.malformed);
-      }
+    for (const hop of walkOwnedIndex(bound, owned.chain, {
+      sourceKind: 'approval', sidecarKind: 'record-ownership',
+      recordId, sourceRel, sidecarRel: ownershipRel, scopeJson,
+      code: OWNED_CODES.malformed,
+      notCommittedCode: OWNED_CODES.notCommitted,
+      label: 'approval' })) {
       // Each revision's sidecar snapshot re-proves the chain prefix.
-      const sidecarSnapshot = readJournalSnapshot(bound, operationId,
-        own.eventId);
-      const revOwned = parseOwned(sidecarSnapshot,
+      const revOwned = parseOwned(hop.sidecarSnapshot,
         'approval ownership snapshot');
       if (revOwned.recordId !== recordId || revOwned.sourceRel !== sourceRel
-          || revOwned.sourceRevision !== k
-          || revOwned.operationId !== operationId
-          || revOwned.createdAt !== loaded.intent.createdAt
-          || revOwned.sourceHash !== app.sourceHash
+          || revOwned.sourceRevision !== hop.index
+          || revOwned.operationId !== hop.operationId
+          || revOwned.createdAt !== hop.loaded.intent.createdAt
+          || revOwned.sourceHash !== hop.source.sourceHash
           || canonicalJSON(revOwned.scope) !== scopeJson
           || canonicalJSON(revOwned.chain)
-            !== canonicalJSON(owned.chain.slice(0, k + 1))) {
+            !== canonicalJSON(owned.chain.slice(0, hop.index + 1))) {
         ownedMalformed(
           'approval ownership snapshot does not prove this revision');
       }
-      const appSnapshot = readJournalSnapshot(bound, operationId, app.eventId);
-      sourceHashes.push(app.sourceHash);
-      prevApproval = app;
-      prevSidecar = own;
-      tipApproval = app;
-      tipSnapshot = appSnapshot;
-      tipSidecarSnapshot = sidecarSnapshot;
+      sourceHashes.push(hop.source.sourceHash);
+      tipApproval = hop.source;
+      tipSnapshot = hop.sourceSnapshot;
+      tipSidecarSnapshot = hop.sidecarSnapshot;
     }
     if (!tipSidecarSnapshot.equals(sidecarBytes)) {
       ownedMalformed('current approval ownership differs from its snapshot');
@@ -874,8 +747,8 @@ export function createOwnedApprovalStore(ctx, options) {
     }
     let record;
     try {
-      record = JSON.parse(strictUtf8(Buffer.from(tipSnapshot),
-        'approval source'));
+      record = JSON.parse(decodeUtf8Strict(Buffer.from(tipSnapshot),
+        OWNED_CODES.malformed, 'stored approval source'));
       record = validateApprovalShape(record, `approval ${recordId}`);
     } catch (e) {
       if (e.code === OWNED_CODES.malformed) throw e;
@@ -887,8 +760,9 @@ export function createOwnedApprovalStore(ctx, options) {
     if (record.id !== recordId || record.revision !== owned.sourceRevision) {
       ownedMalformed('approval document does not match its proof');
     }
-    const current = readCurrent(sourceRel, OWNED_CODES.missing,
-      OWNED_CODES.sourceChanged, 'approval');
+    const current = readOwnedCurrent(bound, sourceRel, {
+      missingCode: OWNED_CODES.missing,
+      nonRegularCode: OWNED_CODES.sourceChanged, label: 'approval' });
     if (!current.equals(tipSnapshot)) {
       throw err(OWNED_CODES.sourceChanged,
         'current approval source differs from its snapshot');
@@ -900,11 +774,8 @@ export function createOwnedApprovalStore(ctx, options) {
   // Closed create DTO: record areas sorted unique; the target is cloned
   // to plain JSON before any IO so caller mutation cannot alter it.
   function normalizeCreate(input) {
-    assertRecordObject(input, OWNED_CREATE_KEYS, OWNED_CREATE_KEYS,
-      OWNED_INPUT, 'owned approval input');
-    const areaIds = recordAreaIds(input.areaIds, OWNED_INPUT,
-      'owned approval input').sort();
-    return { areaIds, target: cloneRecordJSON(input.target) };
+    return normalizeOwnedInput(input, 'target', OWNED_INPUT,
+      'owned approval input');
   }
 
   function prepare(input) {
@@ -920,9 +791,9 @@ export function createOwnedApprovalStore(ctx, options) {
     resolveInside(projectRoot, ownershipRel, 'approval ownership');
     const sourceBytes = Buffer.from(prepared.file.content, 'utf8');
     boundedBytes(sourceBytes, 'approval source');
-    documentBytes(ownership(record.id, sourceRel, hashBytes(sourceBytes),
-      0, ZERO_UUID, record.createdAt, normalized.areaIds, [ZERO_UUID]),
-      'approval ownership');
+    ownedDocumentBytes(ownership(record.id, sourceRel,
+      sha256Hex(sourceBytes), 0, ZERO_UUID, record.createdAt,
+      normalized.areaIds, [ZERO_UUID]), 'approval ownership');
     return { mode: 'dry-run', record, sourceRel, ownershipRel,
       reservesIds: false };
   }
@@ -943,11 +814,11 @@ export function createOwnedApprovalStore(ctx, options) {
       }, 'owned approval');
       const sourceRel = prepared.file.rel;
       const ownershipRel = ownershipRelFor(record.id);
-      const sourceBytes = documentBytes(record, 'approval source');
-      const owned = ownership(record.id, sourceRel, hashBytes(sourceBytes),
+      const sourceBytes = ownedDocumentBytes(record, 'approval source');
+      const owned = ownership(record.id, sourceRel, sha256Hex(sourceBytes),
         0, identity.operationId, identity.createdAt, normalized.areaIds,
         [identity.operationId]);
-      const sidecarBytes = documentBytes(owned, 'approval ownership');
+      const sidecarBytes = ownedDocumentBytes(owned, 'approval ownership');
       built = { record, sourceRel, ownershipRel };
       return [
         { sourceKind: 'approval', recordId: record.id, sourceRevision: 0,
@@ -1006,12 +877,12 @@ export function createOwnedApprovalStore(ctx, options) {
       const baseHash = proved.sourceHashes[input.expectedRevision];
       const next = buildAnsweredApproval(privateCtx, proved.record, input,
         identity.createdAt, { checkRevision: false });
-      const sourceBytes = documentBytes(next, 'approval source');
+      const sourceBytes = ownedDocumentBytes(next, 'approval source');
       const owned = ownership(input.id, proved.ownership.sourceRel,
-        hashBytes(sourceBytes), next.revision, identity.operationId,
+        sha256Hex(sourceBytes), next.revision, identity.operationId,
         identity.createdAt, proved.ownership.scope.areaIds,
         [...proved.ownership.chain, identity.operationId]);
-      const sidecarBytes = documentBytes(owned, 'approval ownership');
+      const sidecarBytes = ownedDocumentBytes(owned, 'approval ownership');
       built = { record: next, sourceRel: proved.ownership.sourceRel,
         ownershipRel: ownershipRelFor(input.id) };
       return [
@@ -1021,7 +892,7 @@ export function createOwnedApprovalStore(ctx, options) {
           file: { rel: proved.ownership.sourceRel, content: sourceBytes } },
         { sourceKind: 'record-ownership', recordId: input.id,
           sourceRevision: tipRevision,
-          previousHash: hashBytes(proved.sidecarBytes),
+          previousHash: sha256Hex(proved.sidecarBytes),
           areaIds: [...proved.ownership.scope.areaIds],
           file: { rel: ownershipRelFor(input.id), content: sidecarBytes } },
       ];

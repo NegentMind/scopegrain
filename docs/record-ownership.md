@@ -382,6 +382,15 @@ cambian.
   `OWNED_<X>_MALFORMED`, `OWNED_<X>_NOT_COMMITTED` y
   `OWNED_<X>_SOURCE_CHANGED`, con las excepciones especificas listadas
   en [Ownership mutable con historial journal](#ownership-mutable-con-historial-journal).
+- **Convencion unificada de revision obsoleta**: los cinco stores
+  mutables usan `REVISION_MISMATCH` cuando `expectedRevision` no iguala
+  la revision vigente probada. Es un **cambio publico de
+  comportamiento**: el store de planes emitia antes
+  `OWNED_PLAN_REVISION_CONFLICT` para este caso. La convencion no
+  cubre carreras de bytes (`JOURNAL_SOURCE_CONFLICT` del CAS del
+  kernel), invalidacion de binding (`WORKSPACE_STALE`), objetivos de
+  aprobacion obsoletos (`APPROVAL_STALE_TARGET`) ni conflictos de
+  dominio (`OWNED_PLAN_CONFLICT`), que conservan sus codigos.
 
 ## Ownership mutable con historial journal
 
@@ -429,6 +438,15 @@ eventos segun el store: dos create rev0 para el par fuente+sidecar; dos
 update cuando el sidecar es mutable. Solo el enrolamiento perezoso del
 workspace usa un create de un solo evento (el puntero). Todos conservan
 el recibo `journal` completo, incluido el incierto.
+
+La maquinaria mecanica de la prueba vive una sola vez en
+`src/core/owned-chain.mjs`: lectura acotada del archivo vigente bajo
+binding revalidado, serializacion/parseo estricto UTF-8, el check del
+par de dos eventos por operacion, la coherencia create/update encadenada
+por `validateRecordTransition`, el recorrido forward sobre el indice
+denso (`chain`/`operations`) y el recorrido backward sobre enlaces
+`previousOperationId`. Los validadores de dominio, las formas del
+sidecar y los gates de negocio siguen siendo locales a cada store.
 
 | Store | Factoria y API | Sidecar | Operaciones |
 | --- | --- | --- | --- |
@@ -547,7 +565,8 @@ y el ultimo es `operationId`.
   con `OWNED_PLAN_CONFLICT`.
 - **`update`** recibe `{ key, expectedRevision, plan }` — sin
   redeclarar areas: los eventos usan el scope probado del sidecar. La
-  revision debe igualar la punta probada (`OWNED_PLAN_REVISION_CONFLICT`)
+  revision debe igualar la punta probada (`REVISION_MISMATCH`, antes
+  `OWNED_PLAN_REVISION_CONFLICT`: cambio publico de comportamiento)
   y el documento completo se revalida: forma y DAG, campos de
   procedencia inmutables (`schemaVersion`, `authorContext`,
   `inputDigest`, `createdAt`, `specId`, `designId`), ids de miembros
@@ -562,16 +581,20 @@ y el ultimo es `operationId`.
   tareas vivas y no forma parte de la prueba.
 - Errores: `INVALID_OWNED_PLAN_INPUT`, `OWNED_PLAN_NOT_FOUND`,
   `OWNED_PLAN_MALFORMED`, `OWNED_PLAN_NOT_COMMITTED`,
-  `OWNED_PLAN_SOURCE_CHANGED`, `OWNED_PLAN_CONFLICT` y
-  `OWNED_PLAN_REVISION_CONFLICT`, mas los codigos de dominio legacy.
+  `OWNED_PLAN_SOURCE_CHANGED` y `OWNED_PLAN_CONFLICT`, mas los codigos
+  de dominio legacy. La revision esperada obsoleta usa el codigo
+  unificado `REVISION_MISMATCH`.
 
 ### Workspace owned
 
 Sin `create`: el descriptor `workspace.json` lo produce el enrolamiento
 explicito. La prueba se ancla en el puntero
-`<paths.state>/workspace-ownership.json`, de seis claves cerradas
-(`schemaVersion`, `workspaceId`, `revision`, `sourceHash`,
-`operationId`, `updatedAt`).
+`<paths.state>/workspace-ownership.json`, de ocho claves cerradas en su
+`schemaVersion: 2` (`schemaVersion`, `workspaceId`, `revision`,
+`sourceHash`, `operationId`, `previousOperationId`, `createOperationId`,
+`updatedAt`): cada update enlaza el puntero a la operacion previa, igual
+que la cabeza de cadena de sesiones, y genesis se auto-ancla con
+`previousOperationId: null` y `createOperationId === operationId`.
 
 - **Enrolamiento journal perezoso**, no migracion: el primer `update`
   sin puntero crea la operacion genesis — un unico evento create sobre
@@ -598,10 +621,20 @@ explicito. La prueba se ancla en el puntero
   invalida permanentemente todos los bindings vivos (`WORKSPACE_STALE`
   latched); el store se re-vincula por llamada para sobrevivir a sus
   propios updates.
-- **`get`** no enumera operaciones: el puntero nombra la ultima, la
-  forma es estricta (genesis = exactamente un evento create; update =
-  exactamente dos eventos update coherentes) y ambos snapshots deben
-  igualar los bytes presentes.
+- **`get`** no enumera operaciones: el puntero nombra la punta y el
+  recorrido **backward completo** por `previousOperationId` reprueba
+  CADA operacion committed hasta genesis: forma estricta (genesis =
+  exactamente un evento create; update = exactamente dos eventos
+  update coherentes), el snapshot del puntero de cada hop debe igualar
+  byte a byte el documento enlazado, ambos streams encadenan por
+  `validateRecordTransition` (el primer update declara como pre-imagen
+  la base anclada en genesis) y cada snapshot intermedio del descriptor
+  se revalida con los campos de identidad congelados. El snapshot del
+  descriptor de la punta debe igualar los bytes presentes. Al autorizar
+  los eventos de cada operacion, `get` exige que el binding cubra la
+  union de los scopes historicos: un grant parcial que no abarca alguna
+  operacion de la cadena falla `SCOPE_DENIED` (cambio publico respecto
+  a la prueba de solo punta).
 - Errores: `INVALID_OWNED_WORKSPACE_INPUT`, `OWNED_WORKSPACE_NOT_FOUND`,
   `OWNED_WORKSPACE_MALFORMED`, `OWNED_WORKSPACE_NOT_COMMITTED` y
   `OWNED_WORKSPACE_SOURCE_CHANGED`.

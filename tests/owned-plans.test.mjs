@@ -237,7 +237,7 @@ test('stale expectedRevision and byte drift both fail closed', () => {
       plan: { ...doc, title: 'Newer' } });
     assert.throws(() => f.store.update({ key: 'rel-1', expectedRevision: 0,
       plan: { ...doc, title: 'Stale write' } }),
-      (e) => e.code === 'OWNED_PLAN_REVISION_CONFLICT');
+      (e) => e.code === 'REVISION_MISMATCH');
     assert.throws(() => f.store.update({ key: 'rel-1',
       expectedRevision: '0', plan: doc }),
       (e) => e.code === 'INVALID_OWNED_PLAN_INPUT');

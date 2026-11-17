@@ -246,15 +246,21 @@ test('first update lazily enrolls the pointer and commits a two-event update op'
     const currentBytes = fs.readFileSync(f.sourceFile);
     assert.deepEqual(currentBytes, descriptorBytes(next));
     assert.deepEqual(readDescriptor(f), next);
-    // The pointer proves the update op, revision and post-image hash.
+    // The pointer proves the update op, revision and post-image hash and
+    // links back to the single-event genesis enrollment.
+    const bound = bindWorkspace(f.ctx, { areaIds: [f.a, f.b] });
     const pointer = readPointer(f);
-    assert.equal(pointer.schemaVersion, 1);
+    assert.equal(pointer.schemaVersion, 2);
     assert.equal(pointer.workspaceId, f.workspace.workspaceId);
     assert.equal(pointer.revision, 1);
     assert.equal(pointer.sourceHash, SHA(currentBytes));
     assert.equal(pointer.operationId, result.journal.operationId);
-    const op = getJournalOperation(
-      bindWorkspace(f.ctx, { areaIds: [f.a, f.b] }), pointer.operationId);
+    const genesisOp = fs.readdirSync(f.operationsDir)
+      .map((id) => getJournalOperation(bound, id))
+      .find((loaded) => loaded.intent.events.length === 1);
+    assert.equal(pointer.previousOperationId, genesisOp.intent.operationId);
+    assert.equal(pointer.createOperationId, genesisOp.intent.operationId);
+    const op = getJournalOperation(bound, pointer.operationId);
     assert.equal(op.state, 'committed');
     assert.equal(op.intent.createdAt, pointer.updatedAt);
     assert.equal(op.intent.events.length, 2);
@@ -328,10 +334,71 @@ test('a second update chains revisions and pre-image hashes', () => {
     const pointer = readPointer(f);
     assert.equal(pointer.revision, 2);
     assert.equal(pointer.operationId, second.journal.operationId);
+    // The tip links to the first update op, which links to genesis:
+    // previousOperationId forms the committed chain get() replays.
+    assert.equal(pointer.previousOperationId, first.journal.operationId);
+    assert.equal(pointer.createOperationId,
+      ops.find((loaded) => loaded.intent.events.length === 1)
+        .intent.operationId);
     const got = owned.get();
     assert.equal(got.journaled, true);
     assert.equal(got.locator.operationId, second.journal.operationId);
     assert.equal(getWorkspace(f.ctx).revision, 2);
+  } finally { cleanup(f.dir); }
+});
+
+test('get replays every committed op: a tampered intermediate fails closed', () => {
+  const f = fixture();
+  try {
+    const owned = store(f);
+    const first = owned.update(input(f, [
+      { key: 'alpha', name: 'A1' }, { key: 'beta', name: 'Beta' },
+    ]));
+    const second = owned.update(input(f, [
+      { key: 'alpha', name: 'A1' }, { key: 'beta', name: 'Beta' },
+      { key: 'delta', name: 'Delta' },
+    ]));
+    // Three committed ops: genesis enrollment + two two-event updates.
+    assert.equal(operationCount(f), 3);
+    const bound = bindWorkspace(f.ctx, { areaIds: [f.a, f.b] });
+    // The pointer links tip -> first update -> genesis; each link's doc
+    // is the snapshot its own op committed.
+    const pointer = readPointer(f);
+    assert.equal(pointer.previousOperationId, first.journal.operationId);
+    const middle = getJournalOperation(bound, pointer.previousOperationId);
+    const middlePointer = middle.intent.events
+      .find((e) => e.sourceKind === 'workspace-ownership');
+    const middleDoc = JSON.parse(readJournalSnapshot(bound,
+      middle.intent.operationId, middlePointer.eventId).toString('utf8'));
+    assert.equal(middleDoc.operationId, middle.intent.operationId);
+    assert.equal(middleDoc.previousOperationId, pointer.createOperationId);
+    const genesis = getJournalOperation(bound, middleDoc.previousOperationId);
+    assert.equal(genesis.intent.events.length, 1);
+    assert.equal(genesis.intent.events[0].operation, 'create');
+    assert.equal(owned.get().record.revision, 2);
+    assert.equal(owned.get().locator.operationId, second.journal.operationId);
+    // Corrupting the intermediate op's pointer snapshot is caught by the
+    // content-addressed read mid-chain, never skipped or adopted.
+    const blob = path.join(f.journalDir, 'snapshots',
+      `${middlePointer.sourceHash}.blob`);
+    const originalBlob = fs.readFileSync(blob);
+    fs.writeFileSync(blob, Buffer.from('tampered intermediate snapshot'));
+    assert.throws(() => owned.get(),
+      (e) => e.code === 'JOURNAL_SNAPSHOT_MISMATCH');
+    fs.writeFileSync(blob, originalBlob);
+    // A tampered intermediate intent breaks its commit digest.
+    const intentRel = path.join(f.operationsDir, first.journal.operationId,
+      'intent.json');
+    const originalIntent = fs.readFileSync(intentRel);
+    const forged = JSON.parse(originalIntent.toString('utf8'));
+    forged.createdAt = '2030-01-01T00:00:00.000Z';
+    fs.writeFileSync(intentRel, JSON.stringify(forged, null, 2) + '\n');
+    assert.throws(() => owned.get(), (e) => e.code === 'JOURNAL_MALFORMED');
+    fs.writeFileSync(intentRel, originalIntent);
+    // Deleting the intermediate op outright fails closed the same way.
+    fs.rmSync(path.join(f.operationsDir, first.journal.operationId),
+      { recursive: true, force: true });
+    assert.throws(() => owned.get(), (e) => e.code === 'JOURNAL_NOT_FOUND');
   } finally { cleanup(f.dir); }
 });
 
@@ -596,7 +663,15 @@ test('grants re-bind per call: added areas become grantable, removed grants deny
       { key: 'gamma', name: 'Gamma 2' },
     ], [gamma.id]));
     assert.equal(second.updateConfirmed, true);
-    assert.equal(ownedGamma.get().record.revision, 2);
+    // Writes only need the request scope, but get() now replays the FULL
+    // committed chain: every op is scope-reauthorized, so a grant that
+    // does not cover every historical event scope cannot prove history.
+    assert.throws(() => ownedGamma.get(), (e) => e.code === 'SCOPE_DENIED');
+    assert.throws(() => owned.get(), (e) => e.code === 'SCOPE_DENIED');
+    // A store holding the union of every area the chain was scoped to
+    // proves the whole history end to end.
+    const ownedAll = store(f, [f.a, f.b, gamma.id]);
+    assert.equal(ownedAll.get().record.revision, 2);
     // Scope still requires all-of inside the event: alpha+gamma mixed
     // under a gamma-only grant is denied.
     assert.throws(() => ownedGamma.update(input(f, [

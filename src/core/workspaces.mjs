@@ -12,9 +12,13 @@ import { canonicalDigest, canonicalJSON } from './digests.mjs';
 // exported function declarations are bound during instantiation.
 import {
   applyJournaledRecordCreation, applyJournaledRecordUpdate,
-  getJournalOperation, readJournalSnapshot,
+  readJournalSnapshot,
 } from './journal.mjs';
-import { resultingSourceRevision } from './record-history.mjs';
+import {
+  ownedDocumentBytes, ownedScope, parseOwnedJson, readOwnedCurrent,
+  resultingSourceRevision, sha256Hex, walkOwnedLinked,
+} from './owned-chain.mjs';
+import { validateRecordTransition } from './record-history.mjs';
 import { cloneRecordJSON, recordAreaIds } from './record-ownership-data.mjs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -314,11 +318,14 @@ export function resolveWorkspaceState(bound) {
 // applyJournaledRecordCreation (genesis records the current revision and
 // sha256 of the CAS-verified current bytes as the owned base), then runs
 // a homogeneous two-event update op that rewrites the descriptor and the
-// pointer in the same two-phase apply. A descriptor that was never
-// journaled is not adopted: get() fails closed with
-// OWNED_WORKSPACE_NOT_FOUND. Declared sourceRevisions and previousHashes
-// are derived from the bytes the store itself read and validated, never
-// caller-supplied.
+// pointer in the same two-phase apply. Each committed pointer doc links
+// back through previousOperationId so get() replays the FULL committed
+// chain - every op, event pair, descriptor snapshot and frozen identity
+// field - down to the single-event genesis, instead of proving only the
+// tip. A descriptor that was never journaled is not adopted: get() fails
+// closed with OWNED_WORKSPACE_NOT_FOUND. Declared sourceRevisions and
+// previousHashes are derived from the bytes the store itself read and
+// validated, never caller-supplied.
 
 const OWNED_INPUT = 'INVALID_OWNED_WORKSPACE_INPUT';
 const OWNED_MISSING = 'OWNED_WORKSPACE_NOT_FOUND';
@@ -331,20 +338,9 @@ const OWNED_OPTION_KEYS = ['areaIds'];
 const OWNED_UPDATE_KEYS = ['areaIds', 'workspace'];
 const OWNED_WORKSPACE_KEYS = ['areas'];
 const OWNERSHIP_DOC_KEYS = ['schemaVersion', 'workspaceId', 'revision',
-  'sourceHash', 'operationId', 'updatedAt'];
+  'sourceHash', 'operationId', 'previousOperationId', 'createOperationId',
+  'updatedAt'];
 const HASH_RE = /^[0-9a-f]{64}$/;
-
-function sha256(bytes) {
-  return crypto.createHash('sha256').update(bytes).digest('hex');
-}
-
-function ownedDocumentBytes(value, label) {
-  const bytes = Buffer.from(JSON.stringify(value, null, 2) + '\n', 'utf8');
-  if (bytes.length > loadLimits().maxDocumentBytes) {
-    throw err('DOCUMENT_TOO_LARGE', `${label} exceeds document limit`);
-  }
-  return bytes;
-}
 
 function ownershipFileRel(ctx) {
   const state = assertDestination(ctx.config.paths.state, 'paths.state');
@@ -352,16 +348,25 @@ function ownershipFileRel(ctx) {
     'workspace ownership file');
 }
 
-// Closed schemaVersion-1 pointer: workspaceId + revision + sourceHash of
-// the descriptor bytes it vouches for + the operation that produced it.
+// Closed schemaVersion-2 chain-head pointer: workspaceId + revision +
+// sourceHash of the descriptor bytes it vouches for + the operation that
+// produced it + the committed-chain links. Genesis is exactly one create
+// event, so its doc anchors itself: previousOperationId null requires
+// createOperationId === operationId.
 function validateOwnershipDoc(value) {
   const code = OWNED_MALFORMED;
   object(value, OWNERSHIP_DOC_KEYS, OWNERSHIP_DOC_KEYS, code,
     'workspace ownership');
-  if (value.schemaVersion !== 1 || !isUuid(value.workspaceId)
+  if (value.schemaVersion !== 2 || !isUuid(value.workspaceId)
       || !Number.isSafeInteger(value.revision) || value.revision < 0
       || typeof value.sourceHash !== 'string' || !HASH_RE.test(value.sourceHash)
-      || !isUuid(value.operationId) || !isCanonicalTime(value.updatedAt)) {
+      || !isUuid(value.operationId)
+      || (value.previousOperationId !== null
+        && !isUuid(value.previousOperationId))
+      || !isUuid(value.createOperationId)
+      || !isCanonicalTime(value.updatedAt)
+      || (value.previousOperationId === null
+        && value.createOperationId !== value.operationId)) {
     throw err(code, 'workspace ownership has invalid fields');
   }
   return value;
@@ -436,11 +441,6 @@ export function createOwnedWorkspaceStore(ctx, options) {
     return bindWorkspace(privateCtx, { areaIds: opts.areaIds });
   }
 
-  function scope(bound, areaIds) {
-    return { workspaceId: bound.workspaceId, projectId: bound.projectId,
-      repositoryId: bound.repositoryId, areaIds: [...areaIds] };
-  }
-
   function normalizeInput(input) {
     object(input, OWNED_UPDATE_KEYS, OWNED_UPDATE_KEYS, OWNED_INPUT,
       'owned workspace update');
@@ -462,25 +462,13 @@ export function createOwnedWorkspaceStore(ctx, options) {
   // null, malformed/non-regular/oversized fails closed with the family
   // code and is never repaired or overwritten silently.
   function readOwnership(bound) {
-    const { projectRoot } = resolveWorkspaceState(bound);
-    const abs = resolveInside(projectRoot, pointerRel,
-      'workspace ownership file');
-    const st = lstatOrNull(abs);
-    if (!st) return null;
-    if (!st.isFile()) {
-      throw err(OWNED_MALFORMED, 'workspace ownership is not a file');
-    }
-    const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
-    if (limited.exceeded) {
-      throw err('DOCUMENT_TOO_LARGE', 'workspace ownership exceeds limit');
-    }
-    let value;
-    try {
-      value = JSON.parse(limited.content.toString('utf8'));
-    } catch {
-      throw err(OWNED_MALFORMED, 'workspace ownership is not JSON');
-    }
-    return { doc: validateOwnershipDoc(value), bytes: limited.content };
+    const bytes = readOwnedCurrent(bound, pointerRel, {
+      missingCode: null, nonRegularCode: OWNED_MALFORMED,
+      label: 'workspace ownership' });
+    if (bytes === null) return null;
+    return { doc: validateOwnershipDoc(
+        parseOwnedJson(bytes, OWNED_MALFORMED, 'workspace ownership')),
+      bytes };
   }
 
   // The pointer vouches for exact descriptor bytes: the byte hash is
@@ -490,7 +478,7 @@ export function createOwnedWorkspaceStore(ctx, options) {
   // drifted from its last journaled state and is never re-baselined
   // silently.
   function requireConsistent(pointer, current, bytes) {
-    if (pointer.doc.sourceHash !== sha256(bytes)) {
+    if (pointer.doc.sourceHash !== sha256Hex(bytes)) {
       throw err(OWNED_CHANGED,
         'workspace descriptor differs from its proven state');
     }
@@ -502,15 +490,16 @@ export function createOwnedWorkspaceStore(ctx, options) {
   }
 
   function ownershipDoc(workspaceId, revision, sourceHash, operationId,
-      updatedAt) {
-    return validateOwnershipDoc({ schemaVersion: 1, workspaceId, revision,
-      sourceHash, operationId, updatedAt });
+      previousOperationId, createOperationId, updatedAt) {
+    return validateOwnershipDoc({ schemaVersion: 2, workspaceId, revision,
+      sourceHash, operationId, previousOperationId, createOperationId,
+      updatedAt });
   }
 
   function prepare(input) {
     const normalized = normalizeInput(input);
     const bound = bind();
-    authorizeScope(bound, scope(bound, normalized.areaIds));
+    authorizeScope(bound, ownedScope(bound, normalized.areaIds));
     const current = readDescriptor(bound);
     const pointer = readOwnership(bound);
     if (pointer) requireConsistent(pointer, current.workspace, current.content);
@@ -522,7 +511,8 @@ export function createOwnedWorkspaceStore(ctx, options) {
       new Date().toISOString());
     ownedDocumentBytes(next, 'workspace source');
     ownedDocumentBytes(ownershipDoc(next.workspaceId, next.revision,
-      'a'.repeat(64), '00000000-0000-0000-0000-000000000000',
+      'a'.repeat(64), '00000000-0000-0000-0000-000000000000', null,
+      '00000000-0000-0000-0000-000000000000',
       next.updatedAt), 'workspace ownership');
     return { mode: 'dry-run', record: next, sourceRel, pointerRel,
       enrolled: pointer !== null, changed, reservesIds: false };
@@ -531,7 +521,8 @@ export function createOwnedWorkspaceStore(ctx, options) {
   function update(input) {
     const normalized = normalizeInput(input);
     const bound = bind();
-    const authorized = authorizeScope(bound, scope(bound, normalized.areaIds));
+    const authorized = authorizeScope(bound,
+      ownedScope(bound, normalized.areaIds));
     const current = readDescriptor(bound);
     let pointer = readOwnership(bound);
     if (pointer) requireConsistent(pointer, current.workspace, current.content);
@@ -546,8 +537,9 @@ export function createOwnedWorkspaceStore(ctx, options) {
       // current bytes as the owned base inside the journal itself.
       const genesis = applyJournaledRecordCreation(bound, (identity) => {
         const doc = ownershipDoc(current.workspace.workspaceId,
-          current.workspace.revision, sha256(current.content),
-          identity.operationId, identity.createdAt);
+          current.workspace.revision, sha256Hex(current.content),
+          identity.operationId, null, identity.operationId,
+          identity.createdAt);
         return [{ sourceKind: OWNERSHIP_KIND,
           recordId: current.workspace.workspaceId,
           sourceRevision: current.workspace.revision,
@@ -565,9 +557,9 @@ export function createOwnedWorkspaceStore(ctx, options) {
       }
       pointer = readOwnership(bound);
     }
-    const base = { workspaceHash: sha256(current.content),
+    const base = { workspaceHash: sha256Hex(current.content),
       pointerRevision: pointer.doc.revision,
-      pointerHash: sha256(pointer.bytes) };
+      pointerHash: sha256Hex(pointer.bytes) };
     let built = null;
     const journal = applyJournaledRecordUpdate(bound, (identity) => {
       // Fresh UUIDs and the kernel timestamp are generated once, inside
@@ -577,7 +569,9 @@ export function createOwnedWorkspaceStore(ctx, options) {
         identity.createdAt);
       const nextBytes = ownedDocumentBytes(next, 'workspace source');
       const nextPointer = ownershipDoc(next.workspaceId, next.revision,
-        sha256(nextBytes), identity.operationId, identity.createdAt);
+        sha256Hex(nextBytes), identity.operationId,
+        pointer.doc.operationId, pointer.doc.createOperationId,
+        identity.createdAt);
       const nextPointerBytes = ownedDocumentBytes(nextPointer,
         'workspace ownership');
       built = { record: next };
@@ -601,13 +595,16 @@ export function createOwnedWorkspaceStore(ctx, options) {
       journal };
   }
 
-  // Provenance proof without operations enumeration: the pointer names
-  // the operation, both event snapshots must equal the present bytes,
-  // and the op shape is strict - genesis is exactly one create pointer
-  // event, an updated workspace is exactly the two update events.
+  // Full provenance proof without operations enumeration: the pointer
+  // names the tip operation and links every earlier update back to the
+  // single-event genesis enrollment. Each committed op is replayed - the
+  // pointer snapshot must byte-equal the linked document, both event
+  // streams chain by revision and pre-image hash, every intermediate
+  // descriptor snapshot is re-validated with frozen identity fields -
+  // and the tip descriptor snapshot must equal the current bytes.
   function get() {
     const bound = bind();
-    authorizeScope(bound, scope(bound, opts.areaIds));
+    authorizeScope(bound, ownedScope(bound, opts.areaIds));
     const current = readDescriptor(bound);
     const pointer = readOwnership(bound);
     if (!pointer) {
@@ -615,56 +612,98 @@ export function createOwnedWorkspaceStore(ctx, options) {
         'workspace has no journaled ownership proof');
     }
     requireConsistent(pointer, current.workspace, current.content);
-    const loaded = getJournalOperation(bound, pointer.doc.operationId);
-    if (loaded.state !== 'committed') {
-      throw err(OWNED_UNCOMMITTED,
-        'workspace owning operation is not committed');
-    }
-    const events = loaded.intent.events;
     const workspaceId = current.workspace.workspaceId;
-    const pointerEvent = events.find((event) =>
-      event.sourceKind === OWNERSHIP_KIND && event.recordId === workspaceId);
-    const sourceEvent = events.find((event) =>
-      event.sourceKind === OWNED_KIND && event.recordId === workspaceId);
-    if (!pointerEvent
-        || resultingSourceRevision(pointerEvent, OWNED_MALFORMED)
-          !== pointer.doc.revision
-        || pointerEvent.sourceRel !== pointerRel
-        || pointerEvent.createdAt !== pointer.doc.updatedAt
-        || loaded.intent.createdAt !== pointer.doc.updatedAt) {
-      throw err(OWNED_MALFORMED,
-        'ownership operation does not prove this workspace');
-    }
-    const genesis = sourceEvent === undefined;
-    if (genesis
-        ? events.length !== 1 || pointerEvent.operation !== 'create'
-        : events.length !== 2 || pointerEvent.operation !== 'update'
-          || sourceEvent.operation !== 'update'
-          || sourceEvent.sourceRel !== sourceRel
-          || sourceEvent.sourceHash !== pointer.doc.sourceHash
-          || resultingSourceRevision(sourceEvent, OWNED_MALFORMED)
-            !== current.workspace.revision) {
-      throw err(OWNED_MALFORMED,
-        'ownership operation does not prove this workspace');
-    }
-    const pointerSnapshot = readJournalSnapshot(bound,
-      pointer.doc.operationId, pointerEvent.eventId);
-    if (!pointerSnapshot.equals(pointer.bytes)) {
-      throw err(OWNED_CHANGED,
-        'workspace ownership differs from its snapshot');
-    }
-    if (!genesis) {
-      const sourceSnapshot = readJournalSnapshot(bound,
-        pointer.doc.operationId, sourceEvent.eventId);
-      if (!sourceSnapshot.equals(current.content)) {
+    let tipHop = null;
+    let firstUpdate = null;
+    let genesisDoc = null;
+    for (const hop of walkOwnedLinked(bound, pointer.doc, pointer.bytes, {
+      sourceKind: OWNED_KIND, sidecarKind: OWNERSHIP_KIND,
+      recordId: workspaceId, sourceRel, sidecarRel: pointerRel,
+      code: OWNED_MALFORMED, notCommittedCode: OWNED_UNCOMMITTED,
+      label: 'workspace', singleEventGenesis: true,
+      maxOps: loadLimits().maxSessionEvents + 1,
+      parseLink: (bytes) => validateOwnershipDoc(
+        parseOwnedJson(bytes, OWNED_MALFORMED, 'workspace ownership')),
+      previousIdOf: (doc) => doc.previousOperationId,
+      checkLink: (next, cursor) => {
+        if (next.workspaceId !== workspaceId
+            || next.createOperationId !== cursor.createOperationId) {
+          throw err(OWNED_MALFORMED,
+            'workspace ownership link does not match this record');
+        }
+      },
+    })) {
+      const { cursor, loaded, source, sidecar, isGenesis } = hop;
+      if (cursor.workspaceId !== workspaceId
+          || resultingSourceRevision(sidecar, OWNED_MALFORMED)
+            !== cursor.revision
+          || cursor.updatedAt !== loaded.intent.createdAt
+          || sidecar.createdAt !== loaded.intent.createdAt) {
+        throw err(OWNED_MALFORMED,
+          'workspace ownership does not match its operation');
+      }
+      if (hop.depth === 0) tipHop = hop;
+      if (isGenesis) {
+        genesisDoc = cursor;
+        continue;
+      }
+      // Non-genesis hops carry the two-event update pair; the source
+      // event must produce exactly the descriptor the pointer vouches.
+      if (resultingSourceRevision(source, OWNED_MALFORMED) !== cursor.revision
+          || source.sourceHash !== cursor.sourceHash) {
+        throw err(OWNED_MALFORMED,
+          'workspace source event does not match its pointer');
+      }
+      // Every intermediate descriptor snapshot is re-validated with the
+      // identity fields frozen, so a rewritten history that preserves
+      // hashes still fails closed on identity drift.
+      const snapshot = readJournalSnapshot(bound, cursor.operationId,
+        source.eventId);
+      let record;
+      try {
+        const text = snapshot.toString('utf8');
+        if (!Buffer.from(text, 'utf8').equals(snapshot)) {
+          throw err(OWNED_MALFORMED,
+            'workspace snapshot is not roundtrippable UTF-8');
+        }
+        record = validateWorkspace(JSON.parse(text));
+      } catch (e) {
+        if (e && e.code === OWNED_MALFORMED) throw e;
+        throw err(OWNED_MALFORMED,
+          `proven workspace snapshot failed validation: ${e.message}`);
+      }
+      if (record.workspaceId !== workspaceId
+          || record.projectId !== current.workspace.projectId
+          || record.repositoryId !== current.workspace.repositoryId
+          || record.createdAt !== current.workspace.createdAt
+          || record.revision !== cursor.revision
+          || record.updatedAt !== loaded.intent.createdAt) {
+        throw err(OWNED_MALFORMED,
+          'workspace snapshot identity does not match its chain');
+      }
+      if (hop.depth === 0 && !snapshot.equals(current.content)) {
         throw err(OWNED_CHANGED,
           'workspace descriptor differs from its snapshot');
       }
+      // Yields run tip -> genesis, so this ends as the update hop that
+      // directly follows the single-event genesis enrollment.
+      firstUpdate = hop;
+    }
+    if (firstUpdate) {
+      // The pointer stream chains genesis->first update inside the walk;
+      // the descriptor stream has no genesis event, so the first update
+      // must declare the genesis-anchored base as its exact pre-image.
+      validateRecordTransition({
+        operation: 'create', sourceKind: OWNED_KIND,
+        recordId: workspaceId, sourceRevision: genesisDoc.revision,
+        sourceHash: genesisDoc.sourceHash,
+      }, firstUpdate.source, OWNED_MALFORMED);
     }
     return { record: cloneRecordJSON(current.workspace),
-      locator: { operationId: pointer.doc.operationId,
-        eventId: (sourceEvent ?? pointerEvent).eventId },
-      journaled: !genesis, isCurrentSource: true, memoryConsulted: false };
+      locator: { operationId: tipHop.cursor.operationId,
+        eventId: (tipHop.source ?? tipHop.sidecar).eventId },
+      journaled: tipHop.source !== null, isCurrentSource: true,
+      memoryConsulted: false };
   }
 
   return Object.freeze({ prepare, update, get });

@@ -21,15 +21,15 @@ import {
   getJournalOperation, readJournalSnapshot,
 } from './journal.mjs';
 import {
-  resultingSourceRevision, validateRecordTransition,
-} from './record-history.mjs';
+  assertGenesisPair, authorizeScope, bindOwnedStore, boundedOwnedBytes,
+  normalizeOwnedInput, ownedDocumentBytes, ownedScope, parseOwnedJson,
+  readOwnedCurrent, resolveWorkspaceState, resultingSourceRevision,
+  sha256Hex, walkOwnedLinked,
+} from './owned-chain.mjs';
 import {
   assertRecordObject, cloneRecordJSON, isRecordTime, isRecordUUID,
-  recordAreaIds, validateRecordScope,
+  validateRecordScope,
 } from './record-ownership-data.mjs';
-import {
-  authorizeScope, bindWorkspace, resolveWorkspaceState,
-} from './workspaces.mjs';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -370,9 +370,6 @@ const OWNED_CODES = {
   notCommitted: 'OWNED_SESSION_NOT_COMMITTED',
   sourceChanged: 'OWNED_SESSION_SOURCE_CHANGED',
 };
-const OWNED_OPTION_KEYS = ['areaIds'];
-const OWNED_OPEN_KEYS = ['areaIds', 'session'];
-const OWNED_RECORD_KEYS = ['areaIds', 'record'];
 const OWNERSHIP_DOC_KEYS = [
   'schemaVersion', 'sourceKind', 'recordId', 'sourceRevision', 'sourceRel',
   'sourceHash', 'operationId', 'previousOperationId', 'createOperationId',
@@ -383,10 +380,6 @@ const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
 function ownedMalformed(message) {
   throw err(OWNED_CODES.malformed, message);
-}
-
-function sha256Hex(bytes) {
-  return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
 // Closed 12-key mutable chain-head sidecar. rev0 coherence is enforced at
@@ -431,61 +424,18 @@ function validateSessionOwnership(value,
   return cloneRecordJSON(value);
 }
 
-// Bounded read of a current owned file: binding revalidation, containment,
-// regular file and the shared document limit. Codes are caller-selected so
-// source and sidecar failures keep distinct domains.
-function readOwnedCurrent(bound, rel, missingCode, nonRegularCode, label) {
-  const { projectRoot } = resolveWorkspaceState(bound);
-  const abs = resolveInside(projectRoot, rel, `${label} file`);
-  const st = lstatOrNull(abs);
-  if (!st) throw err(missingCode, `${label} file not found: ${rel}`);
-  if (!st.isFile()) {
-    throw err(nonRegularCode, `${label} file is not regular: ${rel}`);
-  }
-  const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
-  if (limited.exceeded) {
-    throw err('DOCUMENT_TOO_LARGE', `${label} file exceeds limit: ${rel}`);
-  }
-  return limited.content;
-}
-
 function parseSidecar(bytes) {
-  const text = bytes.toString('utf8');
-  if (!Buffer.from(text, 'utf8').equals(bytes)) {
-    ownedMalformed('stored session ownership is not roundtrippable UTF-8');
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    ownedMalformed('session ownership is not JSON');
-  }
-  return validateSessionOwnership(parsed);
-}
-
-function eventScopeJson(event) {
-  return canonicalJSON({
-    workspaceId: event.workspaceId, projectId: event.projectId,
-    repositoryId: event.repositoryId, areaIds: event.areaIds,
-  });
+  return validateSessionOwnership(
+    parseOwnedJson(bytes, OWNED_CODES.malformed,
+      'stored session ownership'));
 }
 
 export function createOwnedSessionStore(ctx, options) {
-  if (ctx === null || typeof ctx !== 'object'
-      || typeof ctx.projectRoot !== 'string'
-      || ctx.config === null || typeof ctx.config !== 'object') {
-    throw err(OWNED_INPUT, 'owned session store requires a resolved context');
-  }
   // Options and config are validated/cloned once; the store never consults
   // mutable caller state again.
-  assertRecordObject(options, OWNED_OPTION_KEYS, OWNED_OPTION_KEYS,
-    OWNED_INPUT, 'owned session store options');
-  const opts = { areaIds: recordAreaIds(options.areaIds, OWNED_INPUT,
-    'owned session store options') };
-  const privateCtx = { projectRoot: ctx.projectRoot,
-    config: structuredClone(ctx.config) };
+  const { privateCtx, bound } = bindOwnedStore(ctx, options, OWNED_INPUT,
+    'owned session store');
   const resourceRoot = typeof ctx.configDir === 'string' ? ctx.configDir : null;
-  const bound = bindWorkspace(privateCtx, { areaIds: opts.areaIds });
   const stateRel = assertDestination(privateCtx.config.paths.state,
     'paths.state');
   const sourceRelFor = (recordId) => `${stateRel}/sessions/${recordId}.json`;
@@ -493,22 +443,7 @@ export function createOwnedSessionStore(ctx, options) {
     `${stateRel}/session-ownership/${recordId}.json`;
 
   function scopeOf(areaIds) {
-    return {
-      workspaceId: bound.workspaceId, projectId: bound.projectId,
-      repositoryId: bound.repositoryId, areaIds: [...areaIds],
-    };
-  }
-
-  function boundedBytes(bytes, label) {
-    if (bytes.length > loadLimits().maxDocumentBytes) {
-      throw err('DOCUMENT_TOO_LARGE', `${label} exceeds document limit`);
-    }
-    return bytes;
-  }
-
-  function documentBytes(value, label) {
-    return boundedBytes(
-      Buffer.from(JSON.stringify(value, null, 2) + '\n', 'utf8'), label);
+    return ownedScope(bound, areaIds);
   }
 
   function sidecarDocument(fields) {
@@ -532,29 +467,20 @@ export function createOwnedSessionStore(ctx, options) {
   }
 
   function normalizeOpen(input) {
-    assertRecordObject(input, OWNED_OPEN_KEYS, OWNED_OPEN_KEYS, OWNED_INPUT,
+    return normalizeOwnedInput(input, 'session', OWNED_INPUT,
       'owned session input');
-    return {
-      areaIds: recordAreaIds(input.areaIds, OWNED_INPUT,
-        'owned session input').sort(),
-      session: cloneRecordJSON(input.session),
-    };
   }
 
   function normalizeRecord(input) {
-    assertRecordObject(input, OWNED_RECORD_KEYS, OWNED_RECORD_KEYS,
-      OWNED_INPUT, 'owned session record input');
-    const record = cloneRecordJSON(input.record);
+    const normalized = normalizeOwnedInput(input, 'record', OWNED_INPUT,
+      'owned session record input');
+    const record = normalized.record;
     if (!isRecordUUID(record.id)) {
       throw err(OWNED_INPUT,
         'owned session record id must be a canonical UUID');
     }
     validateRecordInput(record); // legacy domain codes preserved
-    return {
-      areaIds: recordAreaIds(input.areaIds, OWNED_INPUT,
-        'owned session record input').sort(),
-      record,
-    };
+    return normalized;
   }
 
   // The recorded scope must equal the enrolled scope: chain scope is
@@ -575,8 +501,9 @@ export function createOwnedSessionStore(ctx, options) {
   function loadProvenTip(recordId) {
     const sourceRel = sourceRelFor(recordId);
     const ownershipRel = ownershipRelFor(recordId);
-    const sidecarBytes = readOwnedCurrent(bound, ownershipRel,
-      OWNED_CODES.missing, OWNED_CODES.malformed, 'session ownership');
+    const sidecarBytes = readOwnedCurrent(bound, ownershipRel, {
+      missingCode: OWNED_CODES.missing,
+      nonRegularCode: OWNED_CODES.malformed, label: 'session ownership' });
     const sidecar = parseSidecar(sidecarBytes);
     if (sidecar.recordId !== recordId || sidecar.sourceRel !== sourceRel) {
       ownedMalformed('session ownership does not name this record');
@@ -597,8 +524,9 @@ export function createOwnedSessionStore(ctx, options) {
     if (!tipSnapshot.equals(sidecarBytes)) {
       ownedMalformed('current session ownership differs from its snapshot');
     }
-    const sourceBytes = readOwnedCurrent(bound, sourceRel,
-      OWNED_CODES.missing, OWNED_CODES.sourceChanged, 'session source');
+    const sourceBytes = readOwnedCurrent(bound, sourceRel, {
+      missingCode: OWNED_CODES.missing,
+      nonRegularCode: OWNED_CODES.sourceChanged, label: 'session source' });
     if (sha256Hex(sourceBytes) !== sidecar.sourceHash) {
       throw err(OWNED_CODES.sourceChanged,
         'current session source differs from its proven tip');
@@ -649,7 +577,7 @@ export function createOwnedSessionStore(ctx, options) {
       scope: sidecar.scope,
       createdAt: sidecar.createdAt, updatedAt: identity.createdAt,
     });
-    const nextSidecarBytes = documentBytes(nextSidecar, 'session ownership');
+    const nextSidecarBytes = ownedDocumentBytes(nextSidecar, 'session ownership');
     const areas = [...sidecar.scope.areaIds];
     return {
       next, check, sourceRel, ownershipRel,
@@ -676,9 +604,9 @@ export function createOwnedSessionStore(ctx, options) {
     const { projectRoot } = resolveWorkspaceState(bound);
     resolveInside(projectRoot, sourceRel, 'session source');
     resolveInside(projectRoot, ownershipRel, 'session ownership');
-    const sourceBytes = boundedBytes(
+    const sourceBytes = boundedOwnedBytes(
       Buffer.from(prepared.file.content, 'utf8'), 'session source');
-    documentBytes(sidecarDocument({
+    ownedDocumentBytes(sidecarDocument({
       recordId: record.id, sourceRel,
       sourceHash: sha256Hex(sourceBytes), sourceRevision: 0,
       operationId: ZERO_UUID, previousOperationId: null,
@@ -704,7 +632,7 @@ export function createOwnedSessionStore(ctx, options) {
       const recordId = record.id;
       const sourceRel = `${stateRel}/sessions/${recordId}.json`;
       const ownershipRel = ownershipRelFor(recordId);
-      const sourceBytes = documentBytes(record, 'session source');
+      const sourceBytes = ownedDocumentBytes(record, 'session source');
       const owned = sidecarDocument({
         recordId, sourceRel, sourceHash: sha256Hex(sourceBytes),
         sourceRevision: 0, operationId: identity.operationId,
@@ -712,7 +640,7 @@ export function createOwnedSessionStore(ctx, options) {
         scope: scopeOf(normalized.areaIds),
         createdAt: identity.createdAt, updatedAt: identity.createdAt,
       });
-      const sidecarBytes = documentBytes(owned, 'session ownership');
+      const sidecarBytes = ownedDocumentBytes(owned, 'session ownership');
       built = { record, sourceRel, ownershipRel };
       return [
         { sourceKind: 'session', recordId, sourceRevision: 0,
@@ -773,104 +701,60 @@ export function createOwnedSessionStore(ctx, options) {
     requireId(recordId);
     const sourceRel = sourceRelFor(recordId);
     const ownershipRel = ownershipRelFor(recordId);
-    const tipBytes = readOwnedCurrent(bound, ownershipRel,
-      OWNED_CODES.missing, OWNED_CODES.malformed, 'session ownership');
+    const tipBytes = readOwnedCurrent(bound, ownershipRel, {
+      missingCode: OWNED_CODES.missing,
+      nonRegularCode: OWNED_CODES.malformed, label: 'session ownership' });
     const tip = parseSidecar(tipBytes);
     if (tip.recordId !== recordId || tip.sourceRel !== sourceRel) {
       ownedMalformed('session ownership does not name this record');
     }
     authorizeScope(bound, tip.scope);
     const scopeJson = canonicalJSON(tip.scope);
-    const maxOps = loadLimits().maxSessionEvents + 1;
-    const seen = new Set();
-    let cursor = tip;
-    let cursorBytes = tipBytes;
     let tipSourceEvent = null;
     let tipOperationId = null;
-    for (let depth = 0; ; depth += 1) {
-      if (depth >= maxOps) ownedMalformed('session chain exceeds bounds');
-      if (seen.has(cursor.operationId)) {
-        ownedMalformed('session chain contains a cycle');
-      }
-      seen.add(cursor.operationId);
-      const loaded = getJournalOperation(bound, cursor.operationId);
-      if (loaded.state !== 'committed') {
-        throw err(OWNED_CODES.notCommitted,
-          'session chain operation is not committed');
-      }
-      const events = loaded.intent.events;
-      if (events.length !== 2) {
-        ownedMalformed('session operation is not two events');
-      }
-      const source = events.find((e) => e.sourceKind === 'session');
-      const side = events.find((e) => e.sourceKind === 'session-ownership');
-      if (!source || !side
-          || source.recordId !== recordId || side.recordId !== recordId
-          || source.sourceRel !== sourceRel || side.sourceRel !== ownershipRel
-          || eventScopeJson(source) !== scopeJson
-          || eventScopeJson(side) !== scopeJson) {
-        ownedMalformed('session operation does not prove this record');
-      }
-      // The op's sidecar snapshot must reproduce the linked document.
-      const snapSide = readJournalSnapshot(bound, cursor.operationId,
-        side.eventId);
-      if (!snapSide.equals(cursorBytes)) {
-        ownedMalformed('session ownership snapshot differs from the chain');
-      }
+    for (const hop of walkOwnedLinked(bound, tip, tipBytes, {
+      sourceKind: 'session', sidecarKind: 'session-ownership',
+      recordId, sourceRel, sidecarRel: ownershipRel, scopeJson,
+      checkTimes: false,
+      code: OWNED_CODES.malformed,
+      notCommittedCode: OWNED_CODES.notCommitted,
+      label: 'session',
+      maxOps: loadLimits().maxSessionEvents + 1,
+      parseLink: parseSidecar,
+      previousIdOf: (doc) => doc.previousOperationId,
+      checkLink: (next, cursor) => {
+        if (next.recordId !== recordId || next.sourceRel !== sourceRel
+            || next.createOperationId !== tip.createOperationId
+            || next.createdAt !== tip.createdAt
+            || canonicalJSON(next.scope) !== scopeJson) {
+          ownedMalformed('session ownership link does not match this record');
+        }
+      },
+    })) {
+      const { cursor, loaded, source, sidecar, isGenesis } = hop;
       if (cursor.sourceHash !== source.sourceHash
           || cursor.sourceRevision
             !== resultingSourceRevision(source, OWNED_CODES.malformed)
           || cursor.sourceRevision
-            !== resultingSourceRevision(side, OWNED_CODES.malformed)
+            !== resultingSourceRevision(sidecar, OWNED_CODES.malformed)
           || cursor.updatedAt !== loaded.intent.createdAt) {
         ownedMalformed('session ownership does not match its operation');
       }
-      if (depth === 0) {
+      if (hop.depth === 0) {
         tipSourceEvent = source;
         tipOperationId = cursor.operationId;
       }
-      if (cursor.previousOperationId === null) {
+      if (isGenesis) {
         // Must be the rev0 create op: two create events, coherent anchors.
-        if (source.operation !== 'create' || side.operation !== 'create'
-            || source.sourceRevision !== 0 || side.sourceRevision !== 0
-            || source.previousHash !== null || side.previousHash !== null
-            || cursor.sourceRevision !== 0
+        assertGenesisPair(source, sidecar, OWNED_CODES.malformed,
+          'session');
+        if (cursor.sourceRevision !== 0
             || cursor.operationId !== cursor.createOperationId
             || tip.createOperationId !== cursor.createOperationId
             || cursor.createdAt !== loaded.intent.createdAt) {
           ownedMalformed('session chain does not end at its create op');
         }
-        break;
       }
-      const previous = getJournalOperation(bound, cursor.previousOperationId);
-      if (previous.state !== 'committed') {
-        throw err(OWNED_CODES.notCommitted,
-          'session chain operation is not committed');
-      }
-      if (previous.intent.events.length !== 2) {
-        ownedMalformed('session operation is not two events');
-      }
-      const prevSource = previous.intent.events.find(
-        (e) => e.sourceKind === 'session');
-      const prevSide = previous.intent.events.find(
-        (e) => e.sourceKind === 'session-ownership');
-      if (!prevSource || !prevSide) {
-        ownedMalformed('session operation does not prove this record');
-      }
-      validateRecordTransition(prevSource, source, OWNED_CODES.malformed);
-      validateRecordTransition(prevSide, side, OWNED_CODES.malformed);
-      const prevSideBytes = readJournalSnapshot(bound,
-        cursor.previousOperationId, prevSide.eventId);
-      const next = parseSidecar(prevSideBytes);
-      if (next.recordId !== recordId || next.sourceRel !== sourceRel
-          || next.operationId !== cursor.previousOperationId
-          || next.createOperationId !== tip.createOperationId
-          || next.createdAt !== tip.createdAt
-          || canonicalJSON(next.scope) !== scopeJson) {
-        ownedMalformed('session ownership link does not match this record');
-      }
-      cursor = next;
-      cursorBytes = prevSideBytes;
     }
     const sourceSnapshot = readJournalSnapshot(bound, tipOperationId,
       tipSourceEvent.eventId);

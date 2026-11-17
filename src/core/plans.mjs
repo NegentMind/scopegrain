@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { err } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, readFileLimited } from './fsx.mjs';
 import {
-  assertDestination, resolveInside, toCanonicalRelative,
+  assertDestination, resolveInside,
 } from './paths.mjs';
 import { loadPolicy, loadLimits } from './policy.mjs';
 import {
@@ -22,17 +22,14 @@ import {
   applyPlan as applyExclusiveFiles, preflightPlan,
 } from './bootstrap.mjs';
 import {
-  authorizeScope, bindWorkspace, resolveWorkspaceState,
-} from './workspaces.mjs';
-import {
   applyJournaledRecordCreation, applyJournaledRecordUpdate,
-  getJournalOperation, readJournalSnapshot,
 } from './journal.mjs';
-import { validateRecordTransition } from './record-history.mjs';
 import {
-  assertRecordObject, cloneRecordJSON, isRecordTime, isRecordUUID,
-  recordAreaIds, validateRecordScope,
-} from './record-ownership-data.mjs';
+  assertRecordObject, authorizeScope, bindOwnedStore, cloneRecordJSON,
+  normalizeOwnedInput, ownedDocumentBytes, ownedScope, parseOwnedJson,
+  readOwnedCurrent, resolveWorkspaceState, sha256Hex,
+  validateChainOwnership, walkOwnedIndex,
+} from './owned-chain.mjs';
 
 const KEY_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const PLAN_INPUT_KEYS = new Set(
@@ -424,94 +421,25 @@ export function nextPlanTasks(ctx, key) {
 // ---------------------------------------------------------------------------
 
 const OWNED_PLAN_INPUT = 'INVALID_OWNED_PLAN_INPUT';
-const OWNED_PLAN_OPTION_KEYS = ['areaIds'];
-const OWNED_PLAN_INPUT_KEYS = ['areaIds', 'plan'];
 const OWNED_PLAN_UPDATE_KEYS = ['key', 'expectedRevision', 'plan'];
 const OWNED_PLAN_KIND = 'plan-ownership';
-const OWNED_PLAN_OWNERSHIP_KEYS = [
-  'schemaVersion', 'sourceKind', 'recordId', 'sourceRevision', 'sourceRel',
-  'sourceHash', 'operationId', 'operations', 'scope', 'createdAt',
-  'updatedAt',
-];
-const SHA256_RE = /^[0-9a-f]{64}$/;
 
 function ownedPlanMalformed(message) {
   throw err('OWNED_PLAN_MALFORMED', message);
 }
 
-function ownedPlanUtf8(bytes, label) {
-  const text = bytes.toString('utf8');
-  if (!Buffer.from(text, 'utf8').equals(bytes)) {
-    ownedPlanMalformed(`stored ${label} is not roundtrippable UTF-8`);
-  }
-  return text;
-}
-
-function ownedPlanBytes(value, label) {
-  const bytes = Buffer.from(JSON.stringify(value, null, 2) + '\n', 'utf8');
-  if (bytes.length > loadLimits().maxDocumentBytes) {
-    throw err('DOCUMENT_TOO_LARGE', `${label} exceeds document limit`);
-  }
-  return bytes;
-}
-
-function ownedPlanSha(bytes) {
-  return crypto.createHash('sha256').update(bytes).digest('hex');
-}
-
-// Dense prototype-exact array, mirroring record-ownership-data's rule:
-// subclasses, holes, extra properties and accessors are rejected.
-function ownedPlanDense(value, code, label) {
-  if (!Array.isArray(value) || !value.length
-      || Object.getPrototypeOf(value) !== Array.prototype
-      || Object.getOwnPropertySymbols(value).length
-      || Object.getOwnPropertyNames(value).length !== value.length + 1) {
-    throw err(code, `${label} must be a non-empty dense array`);
-  }
-  for (let i = 0; i < value.length; i += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, String(i));
-    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
-      throw err(code, `${label} must contain only values`);
-    }
-  }
-}
+const ownedPlanBytes = ownedDocumentBytes;
+const ownedPlanSha = sha256Hex;
 
 // Closed 11-field mutable ownership sidecar. sourceRevision tracks the
 // plan document revision (0 at create, +1 per committed update op) and
 // operations lists every op that produced a revision, in order.
 function validatePlanOwnership(value, label = 'plan ownership') {
-  const code = 'OWNED_PLAN_MALFORMED';
-  assertRecordObject(value, OWNED_PLAN_OWNERSHIP_KEYS,
-    OWNED_PLAN_OWNERSHIP_KEYS, code, label);
-  if (value.schemaVersion !== 1 || value.sourceKind !== OWNED_PLAN_KIND
-      || typeof value.recordId !== 'string' || !KEY_RE.test(value.recordId)
-      || !Number.isSafeInteger(value.sourceRevision)
-      || value.sourceRevision < 0
-      || typeof value.sourceHash !== 'string' || !SHA256_RE.test(value.sourceHash)
-      || !isRecordUUID(value.operationId)
-      || !isRecordTime(value.createdAt) || !isRecordTime(value.updatedAt)) {
-    throw err(code, `${label} has invalid fields`);
-  }
-  ownedPlanDense(value.operations, code, `${label}.operations`);
-  if (value.operations.length !== value.sourceRevision + 1
-      || !value.operations.every(isRecordUUID)
-      || value.operations.at(-1) !== value.operationId) {
-    throw err(code, `${label}.operations does not match its revision`);
-  }
-  let rel;
-  try {
-    if (typeof value.sourceRel !== 'string' || value.sourceRel.includes('\\')) {
-      throw err(code, `${label} sourceRel must be canonical POSIX`);
-    }
-    rel = toCanonicalRelative(value.sourceRel, `${label} sourceRel`);
-  } catch {
-    throw err(code, `${label} sourceRel is not a canonical relative path`);
-  }
-  if (rel !== value.sourceRel) {
-    throw err(code, `${label} sourceRel is not canonical`);
-  }
-  validateRecordScope(value.scope, code, `${label} scope`);
-  return cloneRecordJSON(value);
+  return validateChainOwnership(value, {
+    sourceKind: OWNED_PLAN_KIND,
+    recordIdOk: (id) => typeof id === 'string' && KEY_RE.test(id),
+    indexKey: 'operations', updatedAt: true, indexUnique: false,
+    code: 'OWNED_PLAN_MALFORMED', label });
 }
 
 // Single serializer for the sidecar: fixed key order so the proof can
@@ -531,27 +459,9 @@ function buildPlanOwnership(fields) {
   };
 }
 
-function ownedPlanEventScope(event) {
-  return {
-    workspaceId: event.workspaceId, projectId: event.projectId,
-    repositoryId: event.repositoryId, areaIds: event.areaIds,
-  };
-}
-
 export function createOwnedPlanStore(ctx, options) {
-  if (ctx === null || typeof ctx !== 'object'
-      || typeof ctx.projectRoot !== 'string'
-      || ctx.config === null || typeof ctx.config !== 'object') {
-    throw err(OWNED_PLAN_INPUT,
-      'owned plan store requires a resolved context');
-  }
-  assertRecordObject(options, OWNED_PLAN_OPTION_KEYS,
-    OWNED_PLAN_OPTION_KEYS, OWNED_PLAN_INPUT, 'owned plan store options');
-  const opts = { areaIds: recordAreaIds(options.areaIds, OWNED_PLAN_INPUT,
-    'owned plan store options') };
-  const privateCtx = { projectRoot: ctx.projectRoot,
-    config: structuredClone(ctx.config) };
-  const bound = bindWorkspace(privateCtx, { areaIds: opts.areaIds });
+  const { privateCtx, bound } = bindOwnedStore(ctx, options,
+    OWNED_PLAN_INPUT, 'owned plan store');
   const plansRel = assertDestination(privateCtx.config.paths.plans,
     'paths.plans');
   const stateRel = assertDestination(privateCtx.config.paths.state,
@@ -561,8 +471,7 @@ export function createOwnedPlanStore(ctx, options) {
     `${stateRel}/plan-ownership/${key}.json`;
 
   function scope(areaIds) {
-    return { workspaceId: bound.workspaceId, projectId: bound.projectId,
-      repositoryId: bound.repositoryId, areaIds: [...areaIds] };
+    return ownedScope(bound, areaIds);
   }
 
   function requirePlanKey(value, label) {
@@ -573,31 +482,9 @@ export function createOwnedPlanStore(ctx, options) {
     return value;
   }
 
-  // Bounded read of a current store file with the binding revalidated;
-  // missing is always NOT_FOUND, non-regular splits sidecar/source codes.
-  function readOwnedCurrent(rel, nonRegularCode) {
-    const { projectRoot } = resolveWorkspaceState(bound);
-    const abs = resolveInside(projectRoot, rel, 'owned plan file');
-    const st = lstatOrNull(abs);
-    if (!st) throw err('OWNED_PLAN_NOT_FOUND', `owned plan file not found: ${rel}`);
-    if (!st.isFile()) {
-      throw err(nonRegularCode, `owned plan file is not regular: ${rel}`);
-    }
-    const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
-    if (limited.exceeded) {
-      throw err('DOCUMENT_TOO_LARGE', `owned plan file exceeds limit: ${rel}`);
-    }
-    return limited.content;
-  }
-
   function parseStoredPlan(bytes, key) {
-    let parsed;
-    try {
-      parsed = JSON.parse(ownedPlanUtf8(bytes, 'plan source'));
-    } catch (e) {
-      if (e.code === 'OWNED_PLAN_MALFORMED') throw e;
-      ownedPlanMalformed('plan snapshot is not JSON');
-    }
+    const parsed = parseOwnedJson(bytes, 'OWNED_PLAN_MALFORMED',
+      'plan source');
     let record;
     try {
       record = validatePlanShape(parsed, `owned plan ${key}`);
@@ -619,92 +506,52 @@ export function createOwnedPlanStore(ctx, options) {
   function proveOwnership(key) {
     const planRel = planRelFor(key);
     const ownershipRel = ownershipRelFor(key);
-    const sidecarBytes = readOwnedCurrent(ownershipRel,
-      'OWNED_PLAN_MALFORMED');
-    let parsed;
-    try {
-      parsed = JSON.parse(ownedPlanUtf8(sidecarBytes, 'plan ownership'));
-    } catch (e) {
-      if (e.code === 'OWNED_PLAN_MALFORMED') throw e;
-      ownedPlanMalformed('plan ownership is not JSON');
-    }
-    const owned = validatePlanOwnership(parsed);
+    const sidecarBytes = readOwnedCurrent(bound, ownershipRel, {
+      missingCode: 'OWNED_PLAN_NOT_FOUND',
+      nonRegularCode: 'OWNED_PLAN_MALFORMED', label: 'plan ownership' });
+    const owned = validatePlanOwnership(
+      parseOwnedJson(sidecarBytes, 'OWNED_PLAN_MALFORMED',
+        'plan ownership'));
     if (owned.recordId !== key || owned.sourceRel !== planRel) {
       ownedPlanMalformed('plan ownership does not name this record');
     }
     authorizeScope(bound, owned.scope);
     const scopeJson = canonicalJSON(owned.scope);
     let genesisAt = null;
-    let prevPlanEvent = null;
-    let prevSidecarEvent = null;
     let tipPlanEvent = null;
     let tipPlanSnapshot = null;
     let tipSidecarSnapshot = null;
-    for (const [i, operationId] of owned.operations.entries()) {
-      const loaded = getJournalOperation(bound, operationId);
-      if (loaded.state !== 'committed') {
-        throw err('OWNED_PLAN_NOT_COMMITTED',
-          'plan owning operation is not committed');
-      }
-      const events = loaded.intent.events;
-      if (events.length !== 2) {
-        ownedPlanMalformed('plan operation is not two events');
-      }
-      const planEvent = events.find((e) => e.sourceKind === 'plan');
-      const sidecarEvent = events.find(
-        (e) => e.sourceKind === OWNED_PLAN_KIND);
-      if (!planEvent || !sidecarEvent
-          || planEvent.recordId !== key || sidecarEvent.recordId !== key
-          || planEvent.sourceRel !== planRel
-          || sidecarEvent.sourceRel !== ownershipRel
-          || planEvent.createdAt !== loaded.intent.createdAt
-          || sidecarEvent.createdAt !== loaded.intent.createdAt
-          || canonicalJSON(ownedPlanEventScope(planEvent)) !== scopeJson
-          || canonicalJSON(ownedPlanEventScope(sidecarEvent)) !== scopeJson) {
-        ownedPlanMalformed('plan operation does not prove this record');
-      }
-      if (i === 0) {
-        if (planEvent.operation !== 'create'
-            || sidecarEvent.operation !== 'create'
-            || planEvent.sourceRevision !== 0
-            || sidecarEvent.sourceRevision !== 0) {
-          ownedPlanMalformed('plan genesis operation is not rev0 create');
-        }
-        genesisAt = loaded.intent.createdAt;
-      } else {
-        validateRecordTransition(prevPlanEvent, planEvent,
-          'OWNED_PLAN_MALFORMED');
-        validateRecordTransition(prevSidecarEvent, sidecarEvent,
-          'OWNED_PLAN_MALFORMED');
-      }
-      const sidecarSnapshot = readJournalSnapshot(bound, operationId,
-        sidecarEvent.eventId);
+    for (const hop of walkOwnedIndex(bound, owned.operations, {
+      sourceKind: 'plan', sidecarKind: OWNED_PLAN_KIND,
+      recordId: key, sourceRel: planRel, sidecarRel: ownershipRel,
+      scopeJson, code: 'OWNED_PLAN_MALFORMED',
+      notCommittedCode: 'OWNED_PLAN_NOT_COMMITTED',
+      label: 'plan' })) {
+      if (hop.index === 0) genesisAt = hop.loaded.intent.createdAt;
       const expected = ownedPlanBytes(validatePlanOwnership(
         buildPlanOwnership({
-          recordId: key, sourceRevision: i, sourceRel: planRel,
-          sourceHash: planEvent.sourceHash, operationId,
-          operations: owned.operations.slice(0, i + 1),
+          recordId: key, sourceRevision: hop.index, sourceRel: planRel,
+          sourceHash: hop.source.sourceHash,
+          operationId: hop.operationId,
+          operations: owned.operations.slice(0, hop.index + 1),
           scope: owned.scope, createdAt: genesisAt,
-          updatedAt: loaded.intent.createdAt }),
+          updatedAt: hop.loaded.intent.createdAt }),
         'plan ownership'), 'plan ownership');
-      if (!sidecarSnapshot.equals(expected)) {
+      if (!hop.sidecarSnapshot.equals(expected)) {
         ownedPlanMalformed(
           'plan ownership chain does not match its operations');
       }
-      const planSnapshot = readJournalSnapshot(bound, operationId,
-        planEvent.eventId);
-      prevPlanEvent = planEvent;
-      prevSidecarEvent = sidecarEvent;
-      tipPlanEvent = planEvent;
-      tipPlanSnapshot = planSnapshot;
-      tipSidecarSnapshot = sidecarSnapshot;
+      tipPlanEvent = hop.source;
+      tipPlanSnapshot = hop.sourceSnapshot;
+      tipSidecarSnapshot = hop.sidecarSnapshot;
     }
     if (!tipSidecarSnapshot.equals(sidecarBytes)) {
       throw err('OWNED_PLAN_SOURCE_CHANGED',
         'current plan ownership differs from its snapshot');
     }
-    const currentPlan = readOwnedCurrent(planRel,
-      'OWNED_PLAN_SOURCE_CHANGED');
+    const currentPlan = readOwnedCurrent(bound, planRel, {
+      missingCode: 'OWNED_PLAN_NOT_FOUND',
+      nonRegularCode: 'OWNED_PLAN_SOURCE_CHANGED', label: 'owned plan' });
     if (!currentPlan.equals(tipPlanSnapshot)) {
       throw err('OWNED_PLAN_SOURCE_CHANGED',
         'current plan source differs from its snapshot');
@@ -717,11 +564,8 @@ export function createOwnedPlanStore(ctx, options) {
   }
 
   function normalizeCreateInput(input) {
-    assertRecordObject(input, OWNED_PLAN_INPUT_KEYS,
-      OWNED_PLAN_INPUT_KEYS, OWNED_PLAN_INPUT, 'owned plan input');
-    const areaIds = recordAreaIds(input.areaIds, OWNED_PLAN_INPUT,
-      'owned plan input').sort();
-    return { areaIds, plan: cloneRecordJSON(input.plan) };
+    return normalizeOwnedInput(input, 'plan', OWNED_PLAN_INPUT,
+      'owned plan input');
   }
 
   // Update-time domain rules on the caller's next document: stored shape
@@ -897,8 +741,8 @@ export function createOwnedPlanStore(ctx, options) {
     // rejected before any new op, never adopted into the history.
     const proven = proveOwnership(key);
     if (input.expectedRevision !== proven.ownership.sourceRevision) {
-      throw err('OWNED_PLAN_REVISION_CONFLICT',
-        `expected revision ${input.expectedRevision} but tip is `
+      throw err('REVISION_MISMATCH',
+        `expected revision ${input.expectedRevision} but stored `
         + proven.ownership.sourceRevision);
     }
     const planRel = planRelFor(key);

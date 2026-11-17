@@ -390,6 +390,14 @@ with `MALFORMED_JSON`. Existing file-safety checks do not change.
   `OWNED_<X>_MALFORMED`, `OWNED_<X>_NOT_COMMITTED` and
   `OWNED_<X>_SOURCE_CHANGED`, with the specific exceptions listed in
   [Mutable ownership with journal history](#mutable-ownership-with-journal-history).
+- **Unified stale-revision convention**: all five mutable stores use
+  `REVISION_MISMATCH` when `expectedRevision` does not equal the proven
+  current revision. This is a **public behavior change**: the plan
+  store previously emitted `OWNED_PLAN_REVISION_CONFLICT` for this
+  case. The convention does not cover byte races (the kernel CAS
+  `JOURNAL_SOURCE_CONFLICT`), binding invalidation (`WORKSPACE_STALE`),
+  stale approval targets (`APPROVAL_STALE_TARGET`) or domain conflicts
+  (`OWNED_PLAN_CONFLICT`), which keep their codes.
 
 ## Mutable ownership with journal history
 
@@ -436,6 +444,15 @@ creates for the source+sidecar pair; two updates when the sidecar is
 mutable. Only lazy workspace enrollment uses a single-event create
 (the pointer). All keep the complete `journal` receipt, including the
 uncertain one.
+
+The proof's mechanical machinery lives exactly once in
+`src/core/owned-chain.mjs`: bounded current-file reads under a
+revalidated binding, strict UTF-8 serialization/parsing, the
+two-event-per-operation pair check, create/update chain coherence via
+`validateRecordTransition`, the forward walk over the dense index
+(`chain`/`operations`) and the backward walk over `previousOperationId`
+links. Domain validators, sidecar shapes and business gates stay local
+to each store.
 
 | Store | Factory and API | Sidecar | Operations |
 | --- | --- | --- | --- |
@@ -556,7 +573,8 @@ the append-only list of operationIds:
   `OWNED_PLAN_CONFLICT`.
 - **`update`** takes `{ key, expectedRevision, plan }` — without
   redeclaring areas: the events use the sidecar's proven scope. The
-  revision must equal the proven tip (`OWNED_PLAN_REVISION_CONFLICT`)
+  revision must equal the proven tip (`REVISION_MISMATCH`, formerly
+  `OWNED_PLAN_REVISION_CONFLICT`: public behavior change)
   and the whole document is revalidated: shape and DAG, immutable
   provenance fields (`schemaVersion`, `authorContext`, `inputDigest`,
   `createdAt`, `specId`, `designId`), member ids stable per key, new
@@ -571,16 +589,20 @@ the append-only list of operationIds:
   tasks and is not part of the proof.
 - Errors: `INVALID_OWNED_PLAN_INPUT`, `OWNED_PLAN_NOT_FOUND`,
   `OWNED_PLAN_MALFORMED`, `OWNED_PLAN_NOT_COMMITTED`,
-  `OWNED_PLAN_SOURCE_CHANGED`, `OWNED_PLAN_CONFLICT` and
-  `OWNED_PLAN_REVISION_CONFLICT`, plus the legacy domain codes.
+  `OWNED_PLAN_SOURCE_CHANGED` and `OWNED_PLAN_CONFLICT`, plus the
+  legacy domain codes. A stale expected revision uses the unified
+  `REVISION_MISMATCH` code.
 
 ### Owned workspace
 
 No `create`: explicit enrollment produces the `workspace.json`
 descriptor. The proof anchors on the
-`<paths.state>/workspace-ownership.json` pointer, with six closed keys
-(`schemaVersion`, `workspaceId`, `revision`, `sourceHash`,
-`operationId`, `updatedAt`).
+`<paths.state>/workspace-ownership.json` pointer, with eight closed keys
+in `schemaVersion: 2` (`schemaVersion`, `workspaceId`, `revision`,
+`sourceHash`, `operationId`, `previousOperationId`, `createOperationId`,
+`updatedAt`): each update links the pointer to the previous operation,
+like the session chain head, and genesis self-anchors with
+`previousOperationId: null` and `createOperationId === operationId`.
 
 - **Lazy journal enrollment**, not migration: the first `update`
   without a pointer creates the genesis operation — a single create
@@ -607,10 +629,19 @@ descriptor. The proof anchors on the
   permanently invalidates all live bindings (latched
   `WORKSPACE_STALE`); the store re-binds per call to survive its own
   updates.
-- **`get`** does not enumerate operations: the pointer names the last
-  one, the shape is strict (genesis = exactly one create event;
-  update = exactly two coherent update events) and both snapshots
-  must equal the present bytes.
+- **`get`** does not enumerate operations: the pointer names the tip
+  and the **full backward** `previousOperationId` walk re-proves EVERY
+  committed operation down to genesis: strict shape (genesis = exactly
+  one create event; update = exactly two coherent update events), each
+  hop's pointer snapshot must byte-equal the linked document, both
+  event streams chain via `validateRecordTransition` (the first update
+  declares the genesis-anchored base as its pre-image) and every
+  intermediate descriptor snapshot is revalidated with the identity
+  fields frozen. The tip descriptor snapshot must equal the present
+  bytes. Because every operation's events are scope-reauthorized, `get`
+  requires the binding to cover the union of historical scopes: a
+  partial grant that does not span some chain operation fails
+  `SCOPE_DENIED` (a public change from the tip-only proof).
 - Errors: `INVALID_OWNED_WORKSPACE_INPUT`,
   `OWNED_WORKSPACE_NOT_FOUND`, `OWNED_WORKSPACE_MALFORMED`,
   `OWNED_WORKSPACE_NOT_COMMITTED` and
