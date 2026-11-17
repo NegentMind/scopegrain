@@ -43,6 +43,9 @@ import { bindWorkspace, getWorkspace, prepareWorkspace } from './core/workspaces
 import { getJournalOperation, prepareJournalRecovery, recoverJournalOperation }
   from './core/journal.mjs';
 import { createCaptureStore } from './core/captures.mjs';
+import { openInitSession, answer as sessionAnswer, status as sessionStatus,
+  discard as discardInitSession }
+  from './core/init-session.mjs';
 import {
   applyBackup, applyRestore, applyUninstall, applyUpdate,
   prepareAdopt, prepareBackup, prepareRestore, prepareUninstall, prepareUpdate,
@@ -54,6 +57,11 @@ import { applyActivation, prepareActivation } from './hosts/activation.mjs';
 import {
   proposeFromInitAnswers, proposeFromJournal, reviewProposal,
 } from './core/capture-proposals.mjs';
+import {
+  applyAddCommand, applyApproveCommand, applyImportCommands,
+  listVerifyCommands, prepareAddCommand, prepareApproveCommand,
+  prepareImportCommands, runVerifyCommand,
+} from './core/verify-commands.mjs';
 import { createApiServer } from './api/server.mjs';
 
 const PATH_LABELS = {
@@ -72,6 +80,7 @@ const VALUE_FLAGS = new Set([
   '--input', '--task', '--mode', '--host', '--profile', '--limit',
   '--query', '--interaction', '--spec', '--design', '--plan', '--to',
   '--outcome-evidence', '--from', '--surface', '--since-sequence', '--port',
+  '--command', '--timeout',
 ]);
 const BOOL_FLAGS = new Set(['--apply', '--help', '--owned', '--save']);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
@@ -296,6 +305,26 @@ const COMMANDS = {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
     usage: 'capture review --project PATH --input FILE [--apply]',
   },
+  'verify list': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'verify list --project PATH [--config REL]',
+  },
+  'verify add': {
+    flags: ['--project', '--config', '--command', '--apply'], pos: 0,
+    usage: 'verify add --project PATH --command CMD [--apply]',
+  },
+  'verify approve': {
+    flags: ['--project', '--config', '--apply'], pos: 1,
+    usage: 'verify approve ID --project PATH [--apply]',
+  },
+  'verify discover': {
+    flags: ['--project', '--config', '--apply'], pos: 0,
+    usage: 'verify discover --project PATH [--apply]',
+  },
+  'verify run': {
+    flags: ['--project', '--config', '--timeout'], pos: 1,
+    usage: 'verify run ID --project PATH [--timeout MS]',
+  },
   view: {
     flags: ['--project', '--config', '--port', '--host'], pos: 0,
     usage: 'view --project PATH [--config REL] [--port N] [--host ADDR]',
@@ -328,6 +357,7 @@ function helpResult() {
       'investigate is read-only; --save writes one research record under paths.research when a config resolves',
       'host activate writes project-local destinations only; global host paths and shared merges are never written',
       'capture proposals lists review proposals; capture review --apply creates an owned capture only from an approved decision',
+      'verify add/approve/discover preview first; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
       'view serves a loopback read-only API and keeps running; press Ctrl+C to stop',
     ],
   };
@@ -409,51 +439,80 @@ function validateEvidenceArg(raw) {
 }
 
 // Interactive defaults prefer an existing valid config over generic
-// proposals, so re-init never conflicts with saved preferences.
-async function askInteractive(io, projectRoot, configFlag, existing) {
+// proposals, so re-init never conflicts with saved preferences. When a
+// resumable init session is supplied, already-answered questions are
+// replayed from the session and new answers are recorded as they come —
+// an interrupted run resumes at the first unanswered question.
+async function askInteractive(io, projectRoot, configFlag, existing,
+    session = null) {
+  const st = session === null ? null : sessionStatus(session);
+  const answered = new Set(st === null ? [] : st.answered);
+  const leaf = (id) => id.split('.').reduce((o, k) => o?.[k], st.answers);
+  // askOrReplay returns the stored value for answered questions and runs
+  // `ask` otherwise, recording the outcome in the session. With
+  // retryOnInvalid a rejected value re-prompts instead of aborting the
+  // wizard (session validation is eager for paths).
+  const askOrReplay = async (id, ask, retryOnInvalid = false) => {
+    if (session !== null && answered.has(id)) return leaf(id);
+    for (;;) {
+      const value = await ask();
+      if (session === null) return value;
+      try {
+        sessionAnswer(session, id, value);
+        return value;
+      } catch (e) {
+        if (!retryOnInvalid) throw e;
+        io.stderr(`Valor invalido: ${e.message}`);
+      }
+    }
+  };
   const answers = {};
-  answers.name = await io.ask('Nombre del proyecto',
-    existing ? existing.project.name : path.basename(projectRoot));
-  answers.locale = await io.ask('Idioma (es/en)',
-    existing ? existing.locale : 'es');
+  answers.name = await askOrReplay('name', () => io.ask('Nombre del proyecto',
+    existing ? existing.project.name : path.basename(projectRoot)));
+  answers.locale = await askOrReplay('locale', () => io.ask('Idioma (es/en)',
+    existing ? existing.locale : 'es'));
   const hostList = KNOWN_HOSTS.join(',');
-  const hostsRaw = await io.ask(`Anfitriones (${hostList})`,
-    existing ? existing.hosts.join(',') : hostList);
-  answers.hosts = hostsRaw.split(',').map((h) => h.trim()).filter(Boolean);
+  answers.hosts = await askOrReplay('hosts', async () => {
+    const hostsRaw = await io.ask(`Anfitriones (${hostList})`,
+      existing ? existing.hosts.join(',') : hostList);
+    return hostsRaw.split(',').map((h) => h.trim()).filter(Boolean);
+  });
   // Methodology question: existing normalized mode wins, otherwise the
   // authored interactive default (organic-sdd). Re-prompt on invalid.
   const existingMode = existing
     ? validateMethodologyMode(existing.methodology) : null;
   const modeDefault = existingMode
     ?? loadMethodologyPolicy().interactiveDefault;
-  for (;;) {
-    const reply = (await io.ask(
-      'Metodologia: manual (V1), organic-sdd (proporcional), sdd (formal)',
-      modeDefault)).trim();
-    if (loadMethodologyPolicy().modes.includes(reply)) {
-      answers.methodology = reply;
-      break;
+  answers.methodology = await askOrReplay('methodology', async () => {
+    for (;;) {
+      const reply = (await io.ask(
+        'Metodologia: manual (V1), organic-sdd (proporcional), sdd (formal)',
+        modeDefault)).trim();
+      if (loadMethodologyPolicy().modes.includes(reply)) return reply;
+      io.stderr('Metodo invalido: use manual, organic-sdd o sdd.');
     }
-    io.stderr('Metodo invalido: use manual, organic-sdd o sdd.');
-  }
+  });
   const configRel = await io.ask('Ruta de configuracion', configFlag);
   answers.paths = {};
   for (const key of PATH_KEYS) {
-    answers.paths[key] = await io.ask(PATH_LABELS[key],
-      existing ? existing.paths[key] : DEFAULT_PATH_PROPOSALS[key]);
+    answers.paths[key] = await askOrReplay(`paths.${key}`,
+      () => io.ask(PATH_LABELS[key],
+        existing ? existing.paths[key] : DEFAULT_PATH_PROPOSALS[key]),
+      true);
   }
   // Optional versioning: eight yes/no questions, never guessed defaults.
   answers.versioning = {};
   for (const key of VERSIONING_KEYS) {
     const def = existing ? (existing.versioning[key] ? 'yes' : 'no') : 'no';
-    let reply;
-    for (;;) {
-      reply = (await io.ask(`Versionar ${key}? (yes/no)`, def))
-        .trim().toLowerCase();
-      if (reply === 'yes' || reply === 'no') break;
-      io.stderr('responda yes o no');
-    }
-    answers.versioning[key] = reply === 'yes';
+    answers.versioning[key] = await askOrReplay(`versioning.${key}`,
+      async () => {
+        for (;;) {
+          const reply = (await io.ask(`Versionar ${key}? (yes/no)`, def))
+            .trim().toLowerCase();
+          if (reply === 'yes' || reply === 'no') return reply === 'yes';
+          io.stderr('responda yes o no');
+        }
+      });
   }
   return { answers, configRel };
 }
@@ -480,6 +539,7 @@ async function cmdInit(flags, io) {
   let configRel = resolveConfigPath(projectRoot, flags['--config']);
   const interactive = !flags['--answers'];
   let existing = null;
+  let session = null;
   if (interactive) {
     if (!io.isTTY) {
       throw err('INTERACTIVE_REQUIRED',
@@ -490,7 +550,25 @@ async function cmdInit(flags, io) {
     } catch (e) {
       if (e.code !== 'CONFIG_NOT_FOUND') throw e;
     }
-    const got = await askInteractive(io, projectRoot, configRel, existing);
+    // Resumable wizard: answers persist under <stateDir>/init-session.json
+    // so an interrupted init resumes at the first unanswered question. A
+    // session written against a different answers-schema fingerprint is
+    // stale; resuming it is explicit opt-in, never implicit adoption.
+    session = openInitSession({ projectRoot }).session;
+    if (sessionStatus(session).stale) {
+      const resume = await io.ask(
+        'Sesion previa de init incompatible con el esquema actual; reanudar respuestas compatibles? (yes/no)',
+        'no');
+      if (resume.trim().toLowerCase() === 'yes') {
+        session = openInitSession({ projectRoot },
+          { resumeStale: true }).session;
+      } else {
+        discardInitSession(session);
+        session = openInitSession({ projectRoot }).session;
+      }
+    }
+    const got = await askInteractive(io, projectRoot, configRel, existing,
+      session);
     answers = got.answers;
     configRel = got.configRel;
   } else {
@@ -504,6 +582,7 @@ async function cmdInit(flags, io) {
       return { mode: 'dry-run', applied: false };
     }
     const result = applyPlan(projectRoot, prepared.files);
+    if (session !== null) discardInitSession(session);
     return { mode: 'applied', applied: true, ...result };
   }
   if (flags['--apply']) {
@@ -1103,6 +1182,53 @@ function cmdHost(flags) {
     ? applyActivation(ctx, options) : prepareActivation(ctx, options);
 }
 
+// Supervised verification commands (debt B6). add/approve preview
+// first like the other mutating verbs; discover reads candidates from
+// the semantic layer and stores them inferred + unapproved; run is the
+// only executor and requires an explicitly approved record — the
+// harness still never executes project commands on its own initiative.
+async function cmdVerify(sub, positional, flags) {
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'), config: flags['--config'],
+  });
+  if (sub === 'list') return listVerifyCommands(ctx);
+  if (sub === 'add') {
+    const options = { command: requireFlag(flags, '--command') };
+    if (!flags['--apply']) {
+      return { mode: 'dry-run', applied: false,
+        ...prepareAddCommand(ctx, options) };
+    }
+    return { mode: 'applied', applied: true,
+      ...applyAddCommand(ctx, options) };
+  }
+  if (sub === 'approve') {
+    if (!flags['--apply']) {
+      return { mode: 'dry-run', applied: false,
+        ...prepareApproveCommand(ctx, positional[0]) };
+    }
+    return { mode: 'applied', applied: true,
+      ...applyApproveCommand(ctx, positional[0]) };
+  }
+  if (sub === 'discover') {
+    const inv = investigateProject(ctx.projectRoot, { config: ctx.config });
+    const options = { commands: inv.commands };
+    if (!flags['--apply']) {
+      return { mode: 'dry-run', applied: false,
+        ...prepareImportCommands(ctx, options) };
+    }
+    return { mode: 'applied', applied: true,
+      ...applyImportCommands(ctx, options) };
+  }
+  if (sub === 'run') {
+    const options = {};
+    if (Object.hasOwn(flags, '--timeout')) {
+      options.timeoutMs = decimalInt(flags['--timeout'], '--timeout');
+    }
+    return runVerifyCommand(ctx, positional[0], options);
+  }
+  throw err('INVALID_ARGS', `unknown verify subcommand '${sub}'`);
+}
+
 // Loopback read-only viewer API. The returned server handle keeps the
 // process alive; the operator stops it with Ctrl+C. The live handle is
 // exposed on io.viewServer so embedders/tests can close it explicitly.
@@ -1131,7 +1257,7 @@ export async function run(argv, io) {
       return 0;
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
-      'specification', 'design', 'outcome', 'approval', 'methodology', 'host']);
+      'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify']);
     let cmdKey;
     let spec;
     let aliasCommand = null;
@@ -1238,6 +1364,8 @@ export async function run(argv, io) {
       result = cmdInvestigate(flags);
     } else if (cmdKey === 'view') {
       result = await cmdView(flags, io);
+    } else if (cmdKey.startsWith('verify ')) {
+      result = await cmdVerify(cmdKey.slice(7), rest, flags);
     } else if (cmdKey.startsWith('host ')) {
       result = cmdHost(flags);
     } else {
