@@ -7,35 +7,23 @@ import crypto from 'node:crypto';
 import {
   applyBackup, applyRestore, prepareBackup, prepareRestore,
 } from '../src/core/lifecycle.mjs';
-import { applyPlan } from '../src/core/bootstrap.mjs';
-import { prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
-  bootstrappedCtx, cleanup, exists, makeTempDir, readJson,
+  cleanup, exists, makeTempDir, readJson,
   trySymlink, writeFile, writeJson,
 } from './helpers.mjs';
+import {
+  configuredCtx, enroll, snapshot,
+} from './helpers/lifecycle-fixture.mjs';
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 
-function snapshot(dir) {
-  const result = {};
-  function walk(abs, rel = '') {
-    for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
-      const name = rel ? `${rel}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        result[name] = 'directory';
-        walk(path.join(abs, entry.name), name);
-      } else {
-        result[name] = fs.readFileSync(path.join(abs, entry.name));
-      }
-    }
-  }
-  walk(dir);
-  return result;
-}
-
+// Backup walks only the config file plus the seven declared artifact
+// paths -- the generated catalog/resources live outside them even in a
+// full init, so a config-only fixture exports the identical entry set
+// (config.json, state/workspace.json, plans/p1.json).
 function seeded() {
-  const { dir, ctx } = bootstrappedCtx();
-  applyPlan(ctx.projectRoot, [prepareWorkspace(ctx).file]);
+  const { dir, ctx } = configuredCtx();
+  enroll(ctx);
   writeFile(dir, '.tasksystem/plans/p1.json', '{}');
   writeFile(dir, 'notes.txt', 'not backed up');
   return { dir, ctx };

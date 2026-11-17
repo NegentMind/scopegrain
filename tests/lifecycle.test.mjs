@@ -1,5 +1,5 @@
 // Lifecycle: adopt preview, update preview/apply, doctor lifecycle checks.
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,44 +7,24 @@ import {
   applyUpdate, prepareAdopt, prepareUpdate,
 } from '../src/core/lifecycle.mjs';
 import { runDoctor } from '../src/core/doctor.mjs';
-import { applyPlan, prepareInit } from '../src/core/bootstrap.mjs';
 import { createConfig } from '../src/core/config.mjs';
-import { prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
-  bootstrappedCtx, cleanup, exists, makeTempDir, VALID_ANSWERS,
-  writeFile, writeJson,
+  cleanup, makeTempDir, VALID_ANSWERS, writeFile, writeJson,
 } from './helpers.mjs';
+import {
+  bootstrappedMiniCtx, configuredCtx, destroyLifecycleInstall, enroll,
+  snapshot,
+} from './helpers/lifecycle-fixture.mjs';
+
+after(() => destroyLifecycleInstall());
 
 const OP_ID = '11111111-2222-3333-4444-555555555555';
 const DIGEST = 'a'.repeat(64);
 
-function snapshot(dir) {
-  const result = {};
-  function walk(abs, rel = '') {
-    for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
-      const name = rel ? `${rel}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        result[name] = 'directory';
-        walk(path.join(abs, entry.name), name);
-      } else {
-        result[name] = fs.readFileSync(path.join(abs, entry.name));
-      }
-    }
-  }
-  walk(dir);
-  return result;
-}
-
-function enroll(ctx) {
-  const prepared = prepareWorkspace(ctx);
-  applyPlan(ctx.projectRoot, [prepared.file]);
-  return prepared.workspace;
-}
-
 // ---------- adopt ----------
 
 test('adopt on initialized project reports bindings, writes nothing', () => {
-  const { dir } = bootstrappedCtx();
+  const { dir } = configuredCtx();
   try {
     const before = snapshot(dir);
     const report = prepareAdopt(dir);
@@ -61,7 +41,7 @@ test('adopt on initialized project reports bindings, writes nothing', () => {
 });
 
 test('adopt reports enrolled workspace and journal activity', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = configuredCtx();
   try {
     const workspace = enroll(ctx);
     writeJson(dir, '.tasksystem/state/journal/head.json', {
@@ -123,7 +103,7 @@ test('adopt honors explicit config and rejects unknown options', () => {
 });
 
 test('adopt journal states: malformed head and orphan history are attention', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = configuredCtx();
   try {
     enroll(ctx);
     writeFile(dir, '.tasksystem/state/journal/head.json', '{corrupt');
@@ -137,10 +117,10 @@ test('adopt journal states: malformed head and orphan history are attention', ()
 // ---------- update ----------
 
 test('update preview classifies create/noop/conflict, writes nothing', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx, installRoot } = bootstrappedMiniCtx();
   try {
     const before = snapshot(dir);
-    const preview = prepareUpdate(ctx);
+    const preview = prepareUpdate(ctx, { installRoot });
     assert.deepEqual(snapshot(dir), before); // read-only preview
     assert.equal(preview.mode, 'dry-run');
     assert.ok(preview.counts.noop > 0);
@@ -148,13 +128,13 @@ test('update preview classifies create/noop/conflict, writes nothing', () => {
     assert.equal(preview.counts.conflict, 0);
 
     fs.rmSync(path.join(dir, '.tasksystem/task-contract.md'));
-    let p = prepareUpdate(ctx);
+    let p = prepareUpdate(ctx, { installRoot });
     assert.equal(p.files.find((f) => f.rel === '.tasksystem/task-contract.md')
       .action, 'create');
     assert.equal(p.counts.create, 1);
 
     writeFile(dir, '.tasksystem/task-contract.md', 'user edited');
-    p = prepareUpdate(ctx);
+    p = prepareUpdate(ctx, { installRoot });
     assert.equal(p.files.find((f) => f.rel === '.tasksystem/task-contract.md')
       .action, 'conflict');
     assert.ok(p.conflicts.some((c) => c.path === '.tasksystem/task-contract.md'));
@@ -162,13 +142,13 @@ test('update preview classifies create/noop/conflict, writes nothing', () => {
 });
 
 test('applyUpdate creates missing only, never overwrites foreign bytes', () => {
-  const a = bootstrappedCtx();
-  const b = bootstrappedCtx();
+  const a = bootstrappedMiniCtx();
+  const b = bootstrappedMiniCtx();
   try {
     fs.rmSync(path.join(a.dir, '.tasksystem/task-contract.md'));
     writeFile(a.dir, '.tasksystem/instructions.md', 'user edited');
     writeFile(a.dir, '.tasksystem/config.json', '{"tampered":true}');
-    const res = applyUpdate(a.ctx);
+    const res = applyUpdate(a.ctx, { installRoot: a.installRoot });
     assert.equal(res.mode, 'applied');
     assert.ok(res.files.includes('.tasksystem/task-contract.md'));
     // recreated bytes are exactly what a fresh init produced
@@ -183,13 +163,13 @@ test('applyUpdate creates missing only, never overwrites foreign bytes', () => {
     assert.equal(fs.readFileSync(
       path.join(a.dir, '.tasksystem/config.json'), 'utf8'), '{"tampered":true}');
     // second apply is a clean noop (nothing left to create)
-    const res2 = applyUpdate(a.ctx);
+    const res2 = applyUpdate(a.ctx, { installRoot: a.installRoot });
     assert.equal(res2.created, 0);
   } finally { cleanup(a.dir); cleanup(b.dir); }
 });
 
 test('update rejects unknown options', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = configuredCtx();
   try {
     assert.throws(() => prepareUpdate(ctx, { wat: 1 }),
       (e) => e.code === 'LIFECYCLE_INVALID_INPUT');
@@ -199,20 +179,20 @@ test('update rejects unknown options', () => {
 // ---------- doctor lifecycle diagnostics ----------
 
 test('doctor reports workspace enrollment and journal state read-only', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx, installRoot } = bootstrappedMiniCtx();
   try {
-    let report = runDoctor(ctx);
+    let report = runDoctor(ctx, { installRoot });
     let wsChecks = report.checks.filter((c) => c.name === 'workspace-enrollment');
     assert.ok(wsChecks.length > 0 && wsChecks.every((c) => c.ok));
     assert.ok(report.checks.some((c) => c.name === 'journal' && c.ok));
 
     enroll(ctx);
-    report = runDoctor(ctx);
+    report = runDoctor(ctx, { installRoot });
     assert.ok(report.checks.some((c) => c.name === 'workspace-enrollment'
       && c.ok && c.detail.includes('enrolled')));
 
     writeFile(dir, '.tasksystem/state/workspace.json', '{corrupt');
-    report = runDoctor(ctx);
+    report = runDoctor(ctx, { installRoot });
     assert.equal(report.status, 'needs-attention');
     assert.ok(report.warnings.some((w) => w.startsWith('workspace-enrollment')));
 
@@ -220,7 +200,7 @@ test('doctor reports workspace enrollment and journal state read-only', () => {
       schemaVersion: 1, lastSequence: 2,
       activeOperation: { operationId: OP_ID, intentDigest: DIGEST },
     });
-    report = runDoctor(ctx);
+    report = runDoctor(ctx, { installRoot });
     assert.equal(report.status, 'needs-attention');
     assert.ok(report.warnings.some((w) => w.startsWith('journal')));
   } finally { cleanup(dir); }
