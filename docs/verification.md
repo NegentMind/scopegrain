@@ -603,3 +603,32 @@ El log de arranque va a stderr.
 - Salida completa de `npm test` (o de cada archivo acotado).
 - Cualquier `FAIL`, `ERR` o skip inesperado.
 - Para el humo: el JSON emitido por stdout y cualquier error en stderr.
+
+## Comandos de verificacion supervisados (deuda B6)
+
+Superficie `verify` con registros cerrados persistidos en
+`<paths.state>/verify-commands.json`:
+
+- `verify list` — lectura; un almacen ausente equivale a lista vacia.
+- `verify add --command CMD [--apply]` — declara un comando; vista previa
+  por defecto, `--apply` persiste con `approved:false`.
+- `verify discover [--apply]` — convierte los candidatos de la capa de
+  descubrimiento semantico en registros `source:'inferred'`, nunca
+  aprobados automaticamente. Los comandos no resueltos se reportan como
+  `skipped`.
+- `verify approve ID [--apply]` — aprobacion explicita por registro;
+  es la unica via para que un comando (declarado o inferido) pase a
+  `approved:true`.
+- `verify run ID [--timeout MS]` — ejecuta un unico registro aprobado.
+
+Modelo de seguridad: nada se auto-aprueba ni se auto-ejecuta;
+`verify run` rechaza registros no aprobados con
+`VERIFY_COMMAND_NOT_APPROVED`. El comando se almacena como argv literal
+(sin comillas, sin metacaracteres de shell, sin rutas absolutas ni
+segmentos `..`); la ejecucion usa `spawn` con array de argumentos —
+nunca una cadena de shell ni `shell:true` — con timeout (120 s por
+defecto, tope 600 s), salida acotada y `cwd` contenido en el proyecto.
+La capacidad declarada `executesProjectCommands:false` se mantiene: el
+arnes no ejecuta comandos por iniciativa propia; `verify run` es una
+orden explicita del operador. Verificado con
+`node --test tests/verify-commands.test.mjs` (16 pass, 0 fail).

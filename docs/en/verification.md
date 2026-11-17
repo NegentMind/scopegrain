@@ -597,3 +597,30 @@ The startup log goes to stderr.
 - Complete `npm test` output (or each scoped file's output).
 - Any `FAIL`, `ERR` or unexpected skip.
 - For the smoke: the JSON emitted on stdout and any error on stderr.
+
+## Supervised verification commands (debt B6)
+
+The `verify` surface persists closed records under
+`<paths.state>/verify-commands.json`:
+
+- `verify list` — read-only; an absent store is an empty list.
+- `verify add --command CMD [--apply]` — declares a command; previews
+  by default, `--apply` persists it with `approved:false`.
+- `verify discover [--apply]` — turns semantic-discovery candidates
+  into `source:'inferred'` records, never auto-approved. Unresolvable
+  candidates are reported as `skipped`.
+- `verify approve ID [--apply]` — explicit per-record approval; the
+  only path that turns a command (declared or inferred) into
+  `approved:true`.
+- `verify run ID [--timeout MS]` — executes a single approved record.
+
+Safety model: nothing is auto-approved or auto-executed; `verify run`
+refuses unapproved records with `VERIFY_COMMAND_NOT_APPROVED`. Commands
+are stored as literal argv (no quoting, no shell metacharacters, no
+absolute paths or `..` segments); execution uses `spawn` with an args
+array — never a shell string nor `shell:true` — with a timeout (120 s
+default, 600 s cap), bounded captured output and a `cwd` contained in
+the project. The declared `executesProjectCommands:false` capability
+still holds: the harness never runs commands on its own initiative;
+`verify run` is an explicit operator order. Verified with
+`node --test tests/verify-commands.test.mjs` (16 pass, 0 fail).
