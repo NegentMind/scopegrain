@@ -154,6 +154,18 @@ explicit budget; resuming them recovers context, it does not repeat
 actions. JSON creations use preview by default and require `--apply`;
 historic task operations keep their previous behavior.
 
+The full CLI surface at a glance — every verb previews by default and
+writes only with `--apply` (detail: [CLI reference](docs/en/cli-reference.md)):
+
+| Area | Verbs |
+|---|---|
+| Discovery and lifecycle | `inspect`, `investigate`, `init`, `adopt`, `update`, `backup`, `restore`, `uninstall`, `doctor` |
+| Owned records | `task *`, `plan *`, `session *`, `approval *`, `capture *`, `specification *`, `design *`, `outcome *`, `artifact *`, `workspace *`, `journal *` |
+| Verification | `verify list`, `add`, `approve`, `approve-discovered`, `discover` (`--approve`), `run` (`--fail-on-error`) |
+| Catalog and resources | `catalog list|show|check|legacy`, `resource search|diagnose|restore-plan|restore`, `methodology check`, `workflow` |
+| Hosts and surface | `host activate`, `view`, `mcp` |
+| Catalog aliases | `pipeline`, `spec`, `audit`, `research`, `status`, `backlog`, `ship`, `rollback`, `harness`, `webperf`, `cleanCA`, `codeGraph`, `code-simplify` |
+
 Old task and plan examples without formal references correspond to
 `manual`; the included answers example selects `organic-sdd`. See
 [workflows and continuity](docs/en/workflows.md) and
@@ -224,10 +236,11 @@ subject to provenance and rights review.
 - [Verification and reproduction](docs/en/verification.md)
 - [Typed selective captures](docs/en/captures.md)
 - [Creation with proven ownership](docs/en/record-ownership.md)
-- [Complete system report](docs/system-report.md)
+- [Complete system report](docs/en/system-report.md)
 - [Product contract](docs/en/product-contract.md)
-- [Implementation contract](docs/implementation.md)
+- [Implementation contract](docs/en/implementation.md)
 - [Lifecycle: adopt, update, backup, restore, uninstall](docs/en/lifecycle.md)
+- [CLI surface reference](docs/en/cli-reference.md)
 - [Bounded semantic investigation](docs/en/semantic-discovery.md)
 - [Read-only viewer and API](docs/en/viewer.md)
 - [Catalog provenance and attestation](docs/en/provenance.md)

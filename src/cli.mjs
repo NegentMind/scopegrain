@@ -85,7 +85,7 @@ const VALUE_FLAGS = new Set([
   '--command', '--timeout',
 ]);
 const BOOL_FLAGS = new Set([
-  '--apply', '--help', '--owned', '--save', '--fail-on-error',
+  '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
   '--reconcile', '--defaults',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);

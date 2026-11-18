@@ -1,6 +1,7 @@
 # Product lifecycle
 
-> English version of the canonical document (`../lifecycle.md`).
+> English translation of the canonical Spanish document
+> (`../lifecycle.md`). The Spanish version prevails.
 
 The lifecycle block (`src/core/lifecycle.mjs`) completes the harness's
 operational surface: `init` creates, `doctor` diagnoses, and this

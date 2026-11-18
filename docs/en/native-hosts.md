@@ -4,10 +4,6 @@ kind: guide
 ---
 # Native Host Projections
 
-> English version of the canonical document (`../native-hosts.md`),
-> which is already authored in English. Content is identical except for
-> adjusted relative links.
-
 Scopegrain shares canonical procedures and project snapshots across five
 documented hosts, plus one admitted provisional host (Hermes). Native
 files are thin bridges, not independently maintained implementations.

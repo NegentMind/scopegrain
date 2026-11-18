@@ -2,7 +2,7 @@
 
 Registro de atestacion por ID para el catalogo canonico
 (`resources/manifest.json`). Complementa y detalla la auditoria de
-procedencia de 2026-11-17 (`.tasksystem/research/2026-11-17-provenance-audit.md`)
+procedencia de 2026-11-17 (`../provenance/evidence/2026-11-17-provenance-audit.md`)
 con una inspeccion cuerpo a cuerpo de los 65 recursos que reutilizan un
 identificador del archivo heredado.
 

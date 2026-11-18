@@ -1,218 +1,248 @@
 ---
-title: Native host projections and limits
+title: Proyecciones de hosts nativos y limites
 kind: guide
 ---
-# Native Host Projections
+# Proyecciones de hosts nativos
 
-Scopegrain shares canonical procedures and project snapshots across five
-documented hosts, plus one admitted provisional host (Hermes). Native
-files are thin bridges, not independently maintained implementations.
-The `scopegrain-` namespace avoids replacing built-ins.
+> Traduccion al espanol del documento canonico en ingles
+> (`en/native-hosts.md`). La version en ingles prevalece.
 
-## Status
+Scopegrain comparte procedimientos canonicos y snapshots de proyecto entre
+cinco hosts documentados, mas un host provisional admitido (Hermes). Los
+archivos nativos son puentes delgados, no implementaciones mantenidas de
+forma independiente. El namespace `scopegrain-` evita reemplazar built-ins.
 
-Documented formats and local fixture tests are not native certification.
-Structural parse checks on applied fixtures verify only that generated
-files are syntactically well-formed, never that a real host binary accepts,
-discovers or enforces them. One native pilot is certified: a fresh real
-Devin Local session on 2026-11-17 auto-loaded the 42 `scopegrain-*` skills
-and 15 subagents, activated the `scopegrain` MCP from
-`.devin/mcp_config.json` and invoked `scopegrain_status` (read-only, 16
-doctor checks, 130-entry catalog hash-verified). The other hosts — Claude,
-Codex, OpenCode, Antigravity and the provisional Hermes — still lack a
-native pilot. The foundation suite completed locally with one test file at
-a time; see
-[verification](verification.md) for its scope and separate earlier runs.
-No host was activated by these changes. Initialization creates proposals
-under the selected configuration directory, normally
-`.scopegrain/integrations/`; intended active paths below are NOT written
-automatically.
+## Estado
 
-| Host | Invocation proposal | Intended skill path | Intended role path |
+Los formatos documentados y las pruebas locales con fixtures no son
+certificacion nativa. Las comprobaciones estructurales de parseo sobre
+fixtures aplicados verifican solo que los archivos generados son
+sintacticamente bien formados, nunca que un binario de host real los
+acepta, descubre o hace cumplir. Un piloto nativo esta certificado: una
+sesion fresca real de Devin Local el 2026-11-17 auto-cargo las 42 skills
+`scopegrain-*` y 15 subagentes, activo el MCP `scopegrain` desde
+`.devin/mcp_config.json` e invoco `scopegrain_status` (solo lectura, 16
+checks de doctor, catalogo de 130 entradas verificado por hash). Los
+demas hosts — Claude, Codex, OpenCode, Antigravity y el provisional
+Hermes — aun carecen de piloto nativo. La suite de fundacion completo
+localmente con un archivo de test a la vez; ver
+[verificacion](verification.md) para su alcance y ejecuciones anteriores
+separadas.
+Ningun host fue activado por estos cambios. La inicializacion crea
+propuestas bajo el directorio de configuracion seleccionado, normalmente
+`.scopegrain/integrations/`; las rutas activas previstas abajo NO se
+escriben automaticamente.
+
+| Host | Propuesta de invocacion | Ruta de skill prevista | Ruta de rol prevista |
 | --- | --- | --- | --- |
 | Claude Code | `/scopegrain-NAME` | `.claude/skills/<name>/SKILL.md` | `.claude/agents/<name>.md` |
-| Codex | `$scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | `.codex/agents/*.toml` plus declarations |
+| Codex | `$scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | `.codex/agents/*.toml` mas declaraciones |
 | OpenCode V2 | `/scopegrain-NAME` | `.opencode/skills/<name>/SKILL.md` | `.opencode/agents/<name>.md` |
 | Devin CLI/Local | `/scopegrain-NAME` | `.devin/skills/<name>/SKILL.md` | `.devin/agents/<name>.md` |
 | Antigravity App/CLI | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | `.agents/agents/<name>.md` |
-| Antigravity IDE | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | None assumed; skills-only proposal |
-| Hermes Agent (provisional) | None verified | `~/.hermes/skills/` (global; never written) | None assumed |
+| Antigravity IDE | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | Ninguna asumida; propuesta solo de skills |
+| Hermes Agent (provisional) | Ninguna verificada | `~/.hermes/skills/` (global; nunca escrita) | Ninguna asumida |
 
-OpenCode native command bridges additionally target `.opencode/commands/`.
-Commands, skills and roles still refer to the same configured canonical
-resources and runtime. Copying a bridge without its project configuration
-and snapshot is insufficient.
+Los puentes de comandos nativos de OpenCode apuntan adicionalmente a
+`.opencode/commands/`. Comandos, skills y roles siguen refiriendose a los
+mismos recursos canonicos configurados y al mismo runtime. Copiar un
+puente sin su configuracion de proyecto y snapshot es insuficiente.
 
-## Explicit Variants
+## Variantes explicitas
 
-Only OpenCode V2 proposals are generated, using `permissions`,
-`mcp.servers` and `disabled`. Existing V1 files are not deleted. Inspect the
-activation plan and do not assume a V2 proposal works on V1.
+Solo se generan propuestas OpenCode V2, usando `permissions`,
+`mcp.servers` y `disabled`. Los archivos V1 existentes no se eliminan.
+Inspeccionar el plan de activacion y no asumir que una propuesta V2
+funciona en V1.
 
-Antigravity App/CLI and IDE are separate surfaces. The App/CLI proposal
-includes documented custom agents; the IDE proposal does not infer that
-capability. MCP remains disabled in the generated `mcp_config.json`
-proposal, with actual selected installation/project values, pending manual
-review. No automatic agent, workflow or MCP installation occurs.
+Antigravity App/CLI e IDE son superficies separadas. La propuesta de
+App/CLI incluye agentes personalizados documentados; la propuesta de IDE
+no infiere esa capacidad. MCP permanece deshabilitado en la propuesta
+`mcp_config.json` generada, con los valores reales seleccionados de
+instalacion/proyecto, pendiente de revision manual. No ocurre ninguna
+instalacion automatica de agentes, workflows o MCP.
 
-Codex role declarations are collected outside discoverable role files in
-`agents-fragment.toml`; the proposed `.codex/config.toml` destination needs
-a manual merge. Role loading and discovery depend on the installed version.
+Las declaraciones de roles de Codex se recopilan fuera de los archivos
+de rol descubribles en `agents-fragment.toml`; el destino propuesto
+`.codex/config.toml` necesita una fusion manual. La carga y el
+descubrimiento de roles dependen de la version instalada.
 
-The `.agents/` convention is shared by products. A namespaced file there
-can still be discovered by more than one host; it is not product isolation.
+La convencion `.agents/` es compartida por productos. Un archivo con
+namespace alli aun puede ser descubierto por mas de un host; no es
+aislamiento de producto.
 
-## Provisional Hosts
+## Hosts provisionales
 
-Hermes Agent is an admitted host whose native format has NOT been verified
-against an in-repo specification; it has no `policy/native-adapters.json`
-block by design. Instead of fabricated per-resource bridges, selecting
-`hermes` emits exactly two review artifacts under
-`<configDir>/integrations/native/hermes/`:
+Hermes Agent es un host admitido cuyo formato nativo NO ha sido
+verificado contra una especificacion en el repo; no tiene bloque en
+`policy/native-adapters.json` por diseno. En lugar de puentes fabricados
+por recurso, seleccionar `hermes` emite exactamente dos artefactos de
+revision bajo `<configDir>/integrations/native/hermes/`:
 
-- `hermes-proposal.json` — a descriptor marked `format: "provisional"`,
-  `verified: false`, pointing at the machine-local MCP fragment and
-  naming its documented manual-merge target
-  (`~/.hermes/config.yaml`, key `mcp_servers.scopegrain`).
-- `instructions.md` — manual activation steps and the sources consulted.
+- `hermes-proposal.json` — un descriptor marcado `format: "provisional"`,
+  `verified: false`, que apunta al fragmento MCP machine-local y nombra
+  su destino documentado de fusion manual
+  (`~/.hermes/config.yaml`, clave `mcp_servers.scopegrain`).
+- `instructions.md` — pasos de activacion manual y las fuentes
+  consultadas.
 
-The companion fragment `integrations/hermes-mcp.json` wraps a
-`fragment.mcp_servers` subtree in strict JSON (a valid YAML 1.2 subset,
-so it can be reviewed against the documented YAML shape) with
-`enabled: false`. All Hermes roots are global paths under `~/.hermes/`;
-the harness never writes them — see the activation contract below.
+El fragmento companero `integrations/hermes-mcp.json` envuelve un
+subarbol `fragment.mcp_servers` en JSON estricto (un subconjunto valido
+de YAML 1.2, de modo que puede revisarse contra la forma YAML
+documentada) con `enabled: false`. Todas las raices de Hermes son rutas
+globales bajo `~/.hermes/`; el harness nunca las escribe — ver el
+contrato de activacion abajo.
 
-## Permissions And Models
+## Permisos y modelos
 
-Selected read-only roles receive host-specific restrictions:
+Los roles de solo lectura seleccionados reciben restricciones
+especificas del host:
 
-- Claude: requested read-tool list.
-- Codex: requested read-only filesystem sandbox.
-- OpenCode V2: requested edit/shell/subagent denial.
-- Devin: custom subagent tool allowlist.
-- Antigravity App/CLI: requested documented read-tool list; IDE has no
-  custom-agent restriction proposal because agents are not assumed there.
+- Claude: lista de herramientas de lectura solicitada.
+- Codex: sandbox de filesystem de solo lectura solicitado.
+- OpenCode V2: denegacion solicitada de edit/shell/subagent.
+- Devin: allowlist de herramientas de subagentes personalizados.
+- Antigravity App/CLI: lista documentada de herramientas de lectura
+  solicitada; IDE no tiene propuesta de restriccion de agentes
+  personalizados porque no se asumen agentes alli.
 
-These scopes are not equivalent guarantees. Validate actual tool names,
-effective denial, MCP side effects and organization policy inside the host.
-Other roles inherit the owner's native policy; model prompts are not a
-sandbox or a substitute for native permission enforcement.
+Estos alcances no son garantias equivalentes. Validar los nombres reales
+de herramientas, la denegacion efectiva, los efectos secundarios de MCP
+y la politica de la organizacion dentro del host. Otros roles heredan la
+politica nativa del propietario; los prompts de modelo no son un sandbox
+ni un sustituto de la aplicacion nativa de permisos.
 
-Devin inline skill `allowed-tools` grants auto-approval rather than
-restricting availability. Generated inline skills deliberately omit it.
-Only the documented custom subagent field is treated as an availability
-allowlist, and that custom-agent interface is experimental. A child that
-cannot ask the user must return a blocker to the lead, not fabricate consent.
-Devin Cloud behavior is not certified by the CLI/Local pilot or fixtures.
+El `allowed-tools` inline de skills de Devin otorga autoaprobacion en
+lugar de restringir disponibilidad. Las skills inline generadas lo omiten
+deliberadamente. Solo el campo documentado de subagente personalizado se
+trata como allowlist de disponibilidad, y esa interfaz de agente
+personalizado es experimental. Un hijo que no puede preguntar al usuario
+debe devolver un bloqueo al lead, no fabricar consentimiento.
+El comportamiento de Devin Cloud no esta certificado por el piloto de
+CLI/Local ni por los fixtures.
 
-Models remain under host policy or an explicit owner choice. No universal
-provider, model identifier, cost estimate or paid call is selected by
-Scopegrain. Availability, router behavior and billing are host-dependent.
+Los modelos permanecen bajo la politica del host o una eleccion
+explicita del propietario. Scopegrain no selecciona ningun proveedor,
+identificador de modelo, estimacion de costo ni llamada de pago
+universal. La disponibilidad, el comportamiento del router y la
+facturacion dependen del host.
 
-## Activation Contract
+## Contrato de activacion
 
-`src/hosts/activation.mjs` provides the opt-in machinery that materializes
-generated native proposals into project-local host destinations:
+`src/hosts/activation.mjs` proporciona la maquinaria opt-in que
+materializa las propuestas nativas generadas en destinos de host locales
+del proyecto:
 
-- `prepareActivation(ctx, {host, surface?})` returns
+- `prepareActivation(ctx, {host, surface?})` devuelve
   `{mode: 'dry-run', files: [{rel, action}], skipped, warnings, format}`
-  where `action` is `create`, `conflict` or `noop` under the same checks
-  as `preflightPlan` (planned collisions, containment, links/non-files,
-  bounded identical-bytes comparison). It writes nothing.
-- `applyActivation(ctx, {host, surface?})` re-runs the throwing preflight
-  immediately before writing (`PLAN_CONFLICT` aborts everything), then
-  creates files with exclusive `wx` descriptors and rolls back only the
-  files it created. Existing identical files are `noop`; divergent or
-  linked destinations are conflicts — never overwrites.
-- Only whole new project-local files are applyable. Entries that merge
-  into shared host configuration (`agent-declaration` fragments,
-  `mcp` descriptors) and any destination that is not a canonical
-  project-relative path — including every global `~` path — are reported
-  in `skipped` with warnings and never written. Machine-local MCP
-  fragments under `integrations/<host>-mcp.*` stay manual-merge proposals.
-- Devin is the exception to the merge-only MCP rule: since Devin v3000.3
-  the project MCP servers live in the dedicated whole file
-  `.devin/mcp_config.json`, so activation applies it like any other
-  projected file (create-only; a divergent existing file is a conflict,
-  never an overwrite). The legacy shared `.devin/config.json` destination
-  stays a skipped `mcp` merge entry for pre-v3000.3 hosts. The generated
-  file embeds absolute machine-local paths — regenerate per machine with
-  `host activate --host devin --apply` after relocating the project or
-  the installation (Devin does not expand env vars, so no templating is
-  possible). The same machine-local caveat applies to every host's MCP
-  fragment: `.mcp.json` (Claude), `.codex/config.toml` (Codex) and the
-  OpenCode V2 proposal all embed absolute `serverPath`/`--project`
-  values and must be re-merged or regenerated after a move.
-- `surface` selects a variant id (e.g. `app-cli`, `ide`) or one of its
-  declared surfaces. Because Antigravity variants emit the same
-  destinations with different permissions, omitting a surface there makes
-  duplicated destinations collide into `conflict` — selection is required
-  in practice. For the provisional host, `format` is `'provisional'` and
-  nothing is auto-applied.
-- Proposal bytes are re-derived from catalog and policy at call time; a
-  hand-edited proposal file never propagates into a destination.
+  donde `action` es `create`, `conflict` o `noop` bajo las mismas
+  comprobaciones que `preflightPlan` (colisiones planeadas, contencion,
+  links/no-archivos, comparacion acotada de bytes identicos). No escribe
+  nada.
+- `applyActivation(ctx, {host, surface?})` reejecuta el preflight que
+  lanza errores inmediatamente antes de escribir (`PLAN_CONFLICT` aborta
+  todo), luego crea archivos con descriptores exclusivos `wx` y hace
+  rollback solo de los archivos que creo. Los archivos existentes
+  identicos son `noop`; los destinos divergentes o enlazados son
+  conflictos — nunca sobrescrituras.
+- Solo son aplicables archivos completos nuevos locales del proyecto.
+  Las entradas que se fusionan en configuracion compartida del host
+  (fragmentos `agent-declaration`, descriptores `mcp`) y cualquier
+  destino que no sea una ruta canonica relativa al proyecto — incluidas
+  todas las rutas globales `~` — se reportan en `skipped` con warnings y
+  nunca se escriben. Los fragmentos MCP machine-local bajo
+  `integrations/<host>-mcp.*` siguen siendo propuestas de fusion manual.
+- Devin es la excepcion a la regla de MCP solo-fusion: desde Devin
+  v3000.3 los servidores MCP del proyecto viven en el archivo dedicado
+  completo `.devin/mcp_config.json`, de modo que la activacion lo aplica
+  como cualquier otro archivo proyectado (create-only; un archivo
+  existente divergente es un conflicto, nunca una sobrescritura). El
+  destino compartido legacy `.devin/config.json` sigue siendo una
+  entrada `mcp` de fusion omitida para hosts anteriores a v3000.3. El
+  archivo generado embebe rutas absolutas machine-local — regenerar por
+  maquina con `host activate --host devin --apply` tras reubicar el
+  proyecto o la instalacion (Devin no expande variables de entorno, de
+  modo que no es posible usar templates). La misma advertencia
+  machine-local aplica al fragmento MCP de cada host: `.mcp.json`
+  (Claude), `.codex/config.toml` (Codex) y la propuesta de OpenCode V2
+  embeben valores absolutos de `serverPath`/`--project` y deben
+  re-fusionarse o regenerarse tras un traslado.
+- `surface` selecciona un id de variante (p. ej. `app-cli`, `ide`) o una
+  de sus superficies declaradas. Como las variantes de Antigravity emiten
+  los mismos destinos con permisos distintos, omitir una superficie alli
+  hace que los destinos duplicados colisionen en `conflict` — la
+  seleccion es obligatoria en la practica. Para el host provisional,
+  `format` es `'provisional'` y nada se auto-aplica.
+- Los bytes de la propuesta se re-derivan del catalogo y la politica en
+  el momento de la llamada; un archivo de propuesta editado a mano nunca
+  se propaga a un destino.
 
-Applying activation creates host roots inside the project only
-(`.claude/`, `.codex/`, `.opencode/`, `.devin/`, `.agents/`). It never
-writes global host configuration, never installs hooks or plugins, and
-grants no auto-approval.
+Aplicar la activacion crea raices de host dentro del proyecto solamente
+(`.claude/`, `.codex/`, `.opencode/`, `.devin/`, `.agents/`). Nunca
+escribe configuracion global de host, nunca instala hooks o plugins, y
+no otorga autoaprobacion.
 
-## Activation And Recovery
+## Activacion y recuperacion
 
-Inspect the complete generated activation plan, source, destination,
-version/surface and existing settings. Activation requires specific approval
-for that fixture/project and any associated tools, models, network or cost.
-Initialization does not install hooks/plugins, alter active host roots,
-grant auto-approval, register external servers or start MCP.
+Inspeccionar el plan de activacion generado completo, fuente, destino,
+version/superficie y ajustes existentes. La activacion requiere
+aprobacion especifica para ese fixture/proyecto y cualquier herramienta,
+modelo, red o costo asociado. La inicializacion no instala
+hooks/plugins, no altera raices de host activas, no otorga
+autoaprobacion, no registra servidores externos ni inicia MCP.
 
-MCP configuration is machine-local. Relocation can leave absolute paths
-pointing to the old project or installation; `doctor` reports that condition.
-Rebinding requires review of the new destination, not silent replacement.
-Resource restoration only recovers compatible missing canonical bytes; it
-does not overwrite divergent files or reconnect a remote MCP service.
+La configuracion MCP es machine-local. Una reubicacion puede dejar rutas
+absolutas apuntando al proyecto o instalacion anterior; `doctor` reporta
+esa condicion. El rebinding requiere revision del nuevo destino, no un
+reemplazo silencioso. La restauracion de recursos solo recupera bytes
+canonicos ausentes compatibles; no sobrescribe archivos divergentes ni
+reconecta un servicio MCP remoto.
 
-The portable CLI works without native registration. Its project-bound MCP
-server is an optional stdio query surface, not a mutating remote executor.
-See [onboarding](onboarding.md), [security](security.md) and
-[verification](verification.md).
+El CLI portable funciona sin registro nativo. Su servidor MCP vinculado
+al proyecto es una superficie de consulta stdio opcional, no un ejecutor
+remoto mutante.
+Ver [onboarding](onboarding.md), [seguridad](security.md) y
+[verificacion](verification.md).
 
-## Native Pilots
+## Pilotos nativos
 
-Devin Local completed its pilot in a fresh real session on 2026-11-17 (see
-Status above); Devin Cloud remains outside its scope. For every other
-selected version/surface — Claude, Codex, OpenCode, Antigravity and the
-provisional Hermes — separately approve an isolated pilot:
-verify discovery and invocation, actual role tools and write denials,
-unapproved MCP/network effects, delegation, interruption/resumption,
-recovery without repeating effects and cleanup of only approved owned
-configuration. Keep transcripts, actual versions, logs and full diffs.
-Success on one host or surface does not certify another.
+Devin Local completo su piloto en una sesion fresca real el 2026-11-17
+(ver Estado arriba); Devin Cloud permanece fuera de su alcance. Para
+cada otra version/superficie seleccionada — Claude, Codex, OpenCode,
+Antigravity y el provisional Hermes — aprobar separadamente un piloto
+aislado:
+verificar descubrimiento e invocacion, herramientas reales de roles y
+denegaciones de escritura, efectos MCP/red no aprobados, delegacion,
+interrupcion/reanudacion, recuperacion sin repetir efectos y limpieza
+solo de la configuracion propia aprobada. Conservar transcripts,
+versiones reales, logs y diffs completos. El exito en un host o
+superficie no certifica a otro.
 
-## Sources
+## Fuentes
 
-The implementation contracts are
-[native adapters](../policy/native-adapters.json) and
+Los contratos de implementacion son
+[native adapters](../policy/native-adapters.json) y
 [native variants](../policy/native-variants.json).
-Official sources consulted during the migration:
+Fuentes oficiales consultadas durante la migracion:
 
-- Claude [skills](https://code.claude.com/docs/en/skills) and
+- Claude [skills](https://code.claude.com/docs/en/skills) y
   [subagents](https://code.claude.com/docs/en/sub-agents).
-- Codex official [skill discovery](https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/host_roots.rs)
-  and [role loader](https://github.com/openai/codex/blob/main/codex-rs/agent-roles/src/loader.rs).
+- Codex [descubrimiento de skills](https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/host_roots.rs)
+  oficial y [cargador de roles](https://github.com/openai/codex/blob/main/codex-rs/agent-roles/src/loader.rs).
 - OpenCode [commands](https://opencode.ai/docs/commands/),
   [agents](https://opencode.ai/docs/agents/),
-  [MCP](https://opencode.ai/docs/mcp-servers/) and
-  [versioned migration source](https://github.com/anomalyco/opencode/blob/v2.1.2/services/www/src/docs/content/migrate-v1.mdx).
+  [MCP](https://opencode.ai/docs/mcp-servers/) y
+  [fuente de migracion versionada](https://github.com/anomalyco/opencode/blob/v2.1.2/services/www/src/docs/content/migrate-v1.mdx).
 - Devin [skills](https://docs.devin.ai/cli/extensibility/skills/creating-skills.md),
-  [subagents](https://docs.devin.ai/cli/subagents.md) and
+  [subagents](https://docs.devin.ai/cli/subagents.md) y
   [MCP](https://docs.devin.ai/cli/extensibility/mcp/configuration.md).
 - Antigravity [skills](https://antigravity.google/docs/skills),
   [subagents](https://antigravity.google/docs/subagents),
-  [MCP](https://antigravity.google/docs/mcp) and
-  [IDE workflows](https://antigravity.google/docs/ide/workflows).
-- Hermes Agent [configuration](https://hermes-agent.nousresearch.com/docs/user-guide/configuration),
+  [MCP](https://antigravity.google/docs/mcp) y
+  [workflows de IDE](https://antigravity.google/docs/ide/workflows).
+- Hermes Agent [configuracion](https://hermes-agent.nousresearch.com/docs/user-guide/configuration),
   [MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp),
   [skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)
-  and [MCP config reference](https://hermes-agent.nousresearch.com/docs/reference/mcp-config-reference)
-  — consulted for the provisional proposal; not verified against a live
-  install.
+  y [referencia de config MCP](https://hermes-agent.nousresearch.com/docs/reference/mcp-config-reference)
+  — consultadas para la propuesta provisional; no verificadas contra una
+  instalacion real.

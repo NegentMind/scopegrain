@@ -1,0 +1,358 @@
+# Scopegrain system report
+
+> English translation of the canonical Spanish document
+> (`../system-report.md`). The Spanish version prevails.
+
+## 1. Identity and purpose
+
+Scopegrain is a portable proportional-engineering harness for working
+with AI agents. It binds context, request, declared authorization,
+tasks, evidence and continuity in a project. It does not invent Organic
+or SDD: it applies these methodologies as procedures and controls over
+recorded work. It is not an autonomous agent or model executor.
+
+The product ships the `scopegrain` entry point (CLI and MCP server,
+`scopegrain_*` tools) and keeps `tasksystem` (binary alias) and
+`.tasksystem` (legacy paths) as technical compatibility identifiers. The
+product name does not imply automatic migration of commands or records.
+The [README](../../README.md) contains the quick start.
+
+## 2. Audience and problems
+
+It is aimed at teams, owners and operators working with coding agents
+who need continuity across projects, sessions and hosts. It seeks to
+reduce context drift, avoid uniform bureaucracy for every change and
+make scope, approval and evidence explicit.
+
+The harness does not demonstrate code comprehension nor eliminate
+hallucinations. Its controls do not replace investigation, human
+judgment or real environment permissions. A result allowed by
+methodology does not by itself grant authorization to operate tools.
+
+## 3. Operational flow
+
+1. `inspect` examines manifests in a bounded, read-only way; it presents
+   detected commands as proposals, without executing them.
+2. `init` asks for identity, language, hosts, methodology, config path,
+   seven destinations and eight Git versioning preferences.
+3. The operator reviews the file plan and confirms its creation. New
+   instructions at the root are created without overwriting existing
+   ones.
+4. The project receives configuration, catalog and a resource snapshot;
+   integration proposals are kept for manual review.
+5. A workflow packet gathers procedure, context and, where applicable,
+   state and effective actions of a task, without executing an agent.
+6. Tasks and DAG plans record scope, dependencies, gates, verification,
+   review and acceptance per the applicable workflow and methodology.
+7. Sessions, recovery and `doctor` allow querying continuity,
+   diagnosing resources and detecting problems without repeating
+   effects.
+
+The alternative configuration is selected via `--config`. Configuration
+or path changes require resolving the context again; there is no watcher
+that silently updates already-bound processes.
+See [onboarding](onboarding.md) and [workflows](workflows.md).
+
+## 4. Architecture
+
+- `bin/` and `src/cli.mjs`: entry point, parser, interactive and JSON
+  interface.
+- `src/discovery/`: bounded local inspection of manifests.
+- `paths`, `config`, `context`, `fsx` and `bootstrap`: path boundaries,
+  configuration, bound context, files and onboarding plans.
+- `catalog`, `workflows` and `resource-recovery`: catalog, snapshots,
+  procedure packets, diagnosis and controlled restoration.
+- `tasks`, `plans` and `transition`: tasks, DAG, state and transitions.
+- `artifacts`, `specifications`, `formal-bindings`, `digests`, `outcomes`,
+  `approvals` and `methodology`: typed records, relationships, digests,
+  consent and reports bound to methodological gates.
+- `evidence`, `sessions`, `versioning` and `doctor`: declared evidence,
+  continuity, versioning preferences and diagnosis.
+- `hosts` and `adapters`: projections for review and compatible facades.
+- `mcp`: optional query server, bound to a project.
+
+The complete map of modules and responsibilities is in
+[architecture](architecture.md). `policy/workflow.json` holds the
+canonical contract of states and actions; methodology adds gates, not
+another state machine.
+
+## 5. Catalog inventory
+
+The frozen inventory of the active manifest as of 2026-11-08 contains
+**130 entries**:
+
+| Type | Count |
+| --- | ---: |
+| `agent` | 15 |
+| `command` | 17 |
+| `mcp` | 1 |
+| `profile` | 5 |
+| `prompt` | 4 |
+| `reference` | 24 |
+| `rule` | 22 |
+| `skill` | 42 |
+
+There are 24 distinct alias identifiers and 32 alias correspondences,
+including their mode variants. These counts are not equivalent.
+The 42 active skills do not certify the skills of the original archive.
+The catalog source is `resources/manifest.json`; proposals and
+snapshots do not constitute authorization to activate tools.
+
+### Procedures
+
+The 17 catalog commands are grouped by responsibility:
+
+- Planning and execution: `plan-work`, `implement-task`,
+  `coordinate-plan`, `specify-change`, `triage-work`.
+- Status and quality: `report-status`, `verify-work`, `review-change`,
+  `audit-project`, `audit-harness`.
+- Investigation and decisions: `investigate`, `compare-options`,
+  `assess-release`, `plan-recovery`.
+- Technical improvement: `simplify-code`, `analyze-structure`,
+  `audit-web-performance`.
+
+Each procedure contributes instructions and context; it does not create
+a process, execute a model or delegate by itself.
+
+### Roles and profiles
+
+The 15 roles are `requirements-analyst`, `verification-engineer`,
+`integration-engineer`, `release-engineer`, `lead`, `architect`,
+`implementer`, `algorithm-specialist`, `security-auditor`,
+`resilience-tester`, `performance-engineer`, `documentation`, `researcher`,
+`reviewer` and `harness-maintainer`. They are responsibilities, not
+authenticated identities or model choices.
+
+The five profiles are `core`, `web`, `rust`, `python` and `database`.
+Opt-in profiles do not install stacks or authorize tools.
+
+## 6. Data and locations
+
+By default, the project places under `.scopegrain/`:
+
+| Data | Usual location |
+| --- | --- |
+| Configuration, discovery, catalog and resources | `config.json`, `discovery.json`, `catalog.json` and resource folders |
+| Host proposals | `integrations/` |
+| Plans, specifications and designs | `plans/`, `plans/specs/`, `plans/designs/` |
+| Tasks | `tasks/` |
+| Reports and reviews | `reports/`, `reports/reviews/` |
+| Research | `research/` |
+| Decisions and approvals | `decisions/`, `decisions/approvals/` |
+| Lessons and handoffs | `memory/lessons/`, `memory/handoffs/` |
+| State and sessions | `state/`, `state/sessions/` |
+
+Locations depend on the configured paths; they are not fixed universal
+destinations. Operational documents do not replace or merge by default
+with the managed product's documentation. See
+[workflows](workflows.md) and [versioning in onboarding](onboarding.md).
+
+## 7. Proportional methodology
+
+`manual` preserves V1 compatibility; `organic-sdd` chooses a light or
+formal route based on declared facts; `sdd` requires formal references
+for changes. An old configuration without the field is interpreted as
+`manual` in memory without rewriting the file. A V2 task keeps its
+controls even if the later configuration is `manual`.
+
+ODD means Organic Driven Development. Intent, authorization,
+comprehension, uncertainty, risk and continuity are declarations: the
+size of the change does not demonstrate safety. Unknown risk, unresolved
+uncertainty, insufficient comprehension or lack of authorization block
+the change. The light route keeps a task without inventing the chain of
+formal artifacts; it still requires declared authorization.
+
+The formal route requires a bound structured specification and design,
+approvals, contained scope and assigned scenarios. Every SDD task,
+including preparatory ones, has at least one scenario; the plan must
+cover the complete union of the specification. See
+[methodology](methodology.md).
+
+## 8. Lifecycle and consistency
+
+The usual progression is:
+
+```text
+PLAN -> ACT -> VERIFY -> [COLLATERAL] -> EVALUATE -> REVIEW -> ACCEPT -> CLOSE
+```
+
+`RESEARCH` and `STALL` are foreseen detours, not arbitrary shortcuts.
+The exact edges and allowed returns are in
+[task workflow](task-workflow.md) and `policy/workflow.json`. For formal
+advancement, transitive dependencies must be in `CLOSE`.
+
+Returning to `ACT` invalidates previous verification and review. A new
+verification also invalidates the previous review unless another one is
+supplied in the same operation. Transitions use expected revision, own
+lock and exclusive temporary file with rename; this is not a global
+transaction across all records nor a continuous lock of external tools.
+
+## 9. Approvals and evidence
+
+`approval target/create/show/answer` separates content description,
+request, query and response. Responses include custom options,
+rejection and revocation per the contract; changing the bound content or
+revoking an approval can block the next gate. The response uses expected
+revision and digest, revalidated under lock.
+
+Checks, review and supplied identities are attestations:
+recorded declarations, not authenticated identity nor observation of a
+real execution. Hashes bind records and declared payloads; they do not
+prove the complete worktree nor the changing bytes of a cited log.
+The formal report binds the review and the current digests, without
+turning the operator-supplied body into proof of truth.
+
+## 10. CLI
+
+Syntax examples from the repository root:
+
+```powershell
+node ./bin/tasksystem.mjs inspect --project "C:\ruta\proyecto"
+node ./bin/tasksystem.mjs init --project "C:\ruta\proyecto"
+node ./bin/tasksystem.mjs doctor --project "C:\ruta\proyecto"
+node ./bin/tasksystem.mjs catalog list command
+node ./bin/tasksystem.mjs pipeline --project "C:\ruta\proyecto" --mode plan
+node ./bin/tasksystem.mjs specification create --project "C:\ruta\proyecto" --input spec.json
+node ./bin/tasksystem.mjs design create --project "C:\ruta\proyecto" --input design.json
+node ./bin/tasksystem.mjs approval target --project "C:\ruta\proyecto" --input target.json
+node ./bin/tasksystem.mjs approval create --project "C:\ruta\proyecto" --input approval.json
+node ./bin/tasksystem.mjs outcome create --project "C:\ruta\proyecto" --input outcome.json
+node ./bin/tasksystem.mjs methodology check --project "C:\ruta\proyecto" UUID --to ACT
+```
+
+These are examples, not execution evidence. JSON creations preview by
+default and use explicit `--apply` to write; previewed IDs are not
+reserved. Legacy task-creation options keep their direct write.
+Discovery never executes the commands it finds.
+See [onboarding](onboarding.md) and [workflows](workflows.md).
+
+## 11. Optional MCP
+
+The MCP server offers 18 read-only tools, strictly bound to the project
+and configuration selected at startup. Among them are
+`scopegrain_specification_get`, `scopegrain_approval_get` and
+`scopegrain_methodology_check`. The latter queries gates over existing
+records; it does not record or reclassify facts nor authorize tools.
+
+The optional transport is stdio. SDK loading is lazy; the declared
+dependencies are `@modelcontextprotocol/sdk` 1.27.1 and `zod`
+4.5.4. The tools do not mutate tasks or execute shell; the harness does
+not start an autonomous network. The existence of the interface does not
+imply starting a server or certifying a native integration.
+
+## 12. Host proposals
+
+The following paths are proposed destinations, not files activated by
+`init`. Formats and permissions must be reviewed for the installed
+version.
+
+| Surface | Proposal and limit |
+| --- | --- |
+| Claude Code | Skills and agents under `.claude/`; requested read list for restricted roles. |
+| Codex | Skills under `.agents/skills/`; `.codex/agents/` roles and TOML declaration for manual merge. |
+| OpenCode V2 | Bridges under `.opencode/`; V2 uses `permissions` and `mcp.servers`. Earlier V1 files are kept. |
+| Devin Local/CLI | Skills and agents under `.devin/`; proposed allowlist for custom subagents. Cloud is not a certified equivalent. |
+| Antigravity App/CLI | Proposed skills and agents under `.agents/`; proposed MCP disabled pending review. |
+| Antigravity IDE | Skills proposal; custom-agent support is not assumed. |
+
+In Devin, inline `allowed-tools` means auto-approval, not an
+availability allowlist; generated inline skills omit it. `.agents/` is a
+shared convention and does not isolate products. No proposal certifies
+permissions, discovery or real behavior in a host. See
+[native formats](native-hosts.md).
+
+## 13. Recovery and continuity
+
+Resource search and diagnosis compare the snapshot and its sources.
+Restoration only recovers absent files with compatible bytes and
+matching hash; it does not overwrite divergent files. `session resume`
+queries state, events and recorded budget; it does not repeat effects.
+
+MCP fragments contain machine-local paths: a relocation requires review
+and manual rebinding. An existing foreign or possibly stale lock is not
+broken automatically. Recovery authorization is not inferred from the
+mere presence of a proposal.
+
+## 14. Temporaries and rollback
+
+Relevant writes use exclusive `wx` open; only locks and temporaries
+whose ownership the operation acquired are cleaned up. Rollback of
+create-only files removes files created by that operation; it does not
+delete directories or preexisting content. Existing records and evidence
+are not deleted as a general recovery mechanism.
+
+No general collector, TTL, automatic lock recovery or universal
+durability against hardware failure or power loss is promised.
+
+## 15. Permissions, security and FMEA
+
+| Risk | Control and residual limit |
+| --- | --- |
+| Local path substitution | Containment and link rejection at validation points; a TOCTOU window persists. |
+| Drift between files | Digests, CAS and local locks; there is no serializable multi-file transaction. |
+| Confusing instructions with permissions | Gates and proposals are harness controls; Markdown is not a sandbox nor does it intercept every tool. |
+| False evidence or identity | Checks, actors, review and risk are declarations; they are not authenticated nor is the whole execution observed. |
+| Sensitive data | Free bodies require review and redaction; there is no universal secret detector. |
+| Host paths or versions | MCP uses local absolute paths and host-dependent formats; review and rebind manually. |
+| Transitive dependencies | Without a lockfile, identical transitive resolution is not guaranteed on every install. |
+
+Inspection, rules and evidence do not grant permissions for network,
+installations, publication, out-of-scope writes or other effects.
+See [security](security.md) and [compatibility](compatibility.md).
+
+## 16. Verification status
+
+The latest full local run (`npm test` serial, 2026-11-17) finished
+with **1065 pass, 0 fail, 0 skipped and 0 cancelled**, exit 0, on
+Windows with Node.js v26.8.1 and npm 11.6.0. The intermediate full runs
+(673, 699, 770 and 813) and the earlier batches of each block are
+separate runs, not summable figures; their scope and historical results
+are in [verification](verification.md). Historical batches must not be
+summed as if they were a single suite of the current state.
+
+The Devin Local native pilot was certified in a fresh real session on
+2026-11-17: 42 `scopegrain-*` skills and 15 subagents auto-loaded, the
+`scopegrain` MCP active from `.devin/mcp_config.json` and
+`scopegrain_status` invoked (doctor with 16 checks and a 130-entry
+catalog hash-verified). The other hosts (Claude, Codex, OpenCode,
+Antigravity and Hermes) have no native pilot and CI has not been
+dispatched. These tests do not certify untested hosts, versions or
+operating systems.
+
+## 17. Continuous integration
+
+The [verification workflow](../../.github/workflows/verify.yml) is
+defined for manual `workflow_dispatch` triggering; it has not run. Its
+matrix declares Node 22 and 24 on `ubuntu-latest` and `windows-latest`,
+with `contents: read`, official actions pinned by SHA, checkout without
+persistent credentials and a 45-minute limit per job.
+
+Only on runners does it install dependencies with `--ignore-scripts`,
+`--no-package-lock`, `--no-audit` and `--no-fund`, and run `npm test`.
+There is no automatic trigger on push or PR, nor deployment or release
+in that workflow. There is no lockfile guaranteeing exact
+reproducibility of transitive dependencies.
+
+## 18. Limitations and priorities
+
+1. Run isolated, authorized pilots per native version and surface;
+   fixtures do not replace real permission and recovery testing.
+   Devin Local already has its certified pilot (real session,
+   2026-11-17); Claude, Codex, OpenCode, Antigravity and Hermes remain
+   pending.
+2. Resolve licensing and provenance before granting redistribution. The
+   availability of the source code does not grant an open-source
+   license; `private: true` and `UNLICENSED` remain in the package.
+3. Decide a lockfile strategy to improve reproducibility without
+   confusing pinned direct versions with pinned transitive ones.
+4. Evaluate any technical rename as an independent compatibility
+   change; the existing identifiers remain in force.
+5. Keep the limits explicit: there is no global executor, host sandbox
+   or universal guarantee over permissions, execution or results.
+
+Code repository: [ness-e/scopegrain](https://github.com/ness-e/scopegrain).
+The first-publication strategy uses the same initial commit on `main`
+and `develop`: `main` as public entry and default branch, `develop`
+to continue work. The result of each push is checked
+separately on the remote references; it is not inferred from the content
+of this document.

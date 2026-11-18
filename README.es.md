@@ -153,6 +153,18 @@ presupuesto explicito; reanudarlas recupera contexto, no repite acciones.
 Las creaciones JSON usan vista previa por defecto y requieren `--apply`;
 las operaciones historicas de tarea mantienen su comportamiento previo.
 
+La superficie CLI completa de un vistazo — cada verbo usa vista previa
+por defecto y solo escribe con `--apply` (detalle: [referencia CLI](docs/cli-reference.md)):
+
+| Area | Verbos |
+|---|---|
+| Descubrimiento y ciclo de vida | `inspect`, `investigate`, `init`, `adopt`, `update`, `backup`, `restore`, `uninstall`, `doctor` |
+| Registros owned | `task *`, `plan *`, `session *`, `approval *`, `capture *`, `specification *`, `design *`, `outcome *`, `artifact *`, `workspace *`, `journal *` |
+| Verificacion | `verify list`, `add`, `approve`, `approve-discovered`, `discover` (`--approve`), `run` (`--fail-on-error`) |
+| Catalogo y recursos | `catalog list|show|check|legacy`, `resource search|diagnose|restore-plan|restore`, `methodology check`, `workflow` |
+| Anfitriones y superficie | `host activate`, `view`, `mcp` |
+| Aliases de catalogo | `pipeline`, `spec`, `audit`, `research`, `status`, `backlog`, `ship`, `rollback`, `harness`, `webperf`, `cleanCA`, `codeGraph`, `code-simplify` |
+
 Los ejemplos antiguos de tareas y planes sin referencias formales
 corresponden a `manual`; el ejemplo de respuestas incluido selecciona
 `organic-sdd`. Consultar [workflows y continuidad](docs/workflows.md) y
@@ -228,6 +240,7 @@ circuito activo y sujeto a revision de procedencia y derechos.
 - [Contrato del producto](docs/product-contract.md)
 - [Contrato de implementacion](docs/implementation.md)
 - [Ciclo de vida: adopt, update, backup, restore, uninstall](docs/lifecycle.md)
+- [Referencia de la superficie CLI](docs/cli-reference.md)
 - [Investigacion semantica acotada](docs/semantic-discovery.md)
 - [Visor y API de solo lectura](docs/en/viewer.md)
 - [Procedencia y atestacion del catalogo](docs/provenance.md)

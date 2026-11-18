@@ -2,7 +2,7 @@
 
 Per-ID attestation record for the canonical catalog
 (`resources/manifest.json`). Complements and details the 2026-11-17
-provenance audit (`.tasksystem/research/2026-11-17-provenance-audit.md`)
+provenance audit (`../../provenance/evidence/2026-11-17-provenance-audit.md`)
 with a body-by-body inspection of the 65 resources that reuse a legacy
 identifier.
 
