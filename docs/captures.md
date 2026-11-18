@@ -215,7 +215,11 @@ const reviewed = reviewProposal(proposals[0], { action: 'approve' });
 - `answers` se valida con `validateAnswers` (sus codigos de dominio se
   propagan). Opciones cerradas `{areaIds, subjectId}`, ambas opcionales;
   `suggestedAreaIds` puede quedar `[]` porque las respuestas pueden ser
-  anteriores al enrolamiento.
+  anteriores al enrolamiento. Sin `subjectId` explicito,
+  `suggestedSubjectId` es la clave del ajuste respondido (`locale`,
+  `hosts`, `methodology`, `versioning.<key>`) — una etiqueta de sujeto
+  estable: la propuesta generada se aprueba tal cual y una preferencia
+  posterior sobre el mismo ajuste puede reemplazarla.
 - Emite propuestas `preference` en orden fijo: locale, hosts, methodology
   y una por clave de versionado — todas `declared` por ser respuestas
   explicitas. Si `methodology` o `versioning` no estaban en las respuestas

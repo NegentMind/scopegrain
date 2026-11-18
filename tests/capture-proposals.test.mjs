@@ -258,11 +258,12 @@ test('proposeFromInitAnswers: explicit answers are declared preferences '
     { areaIds: [a], subjectId: 'owner' });
   assert.deepEqual(again.map((p) => p.proposalId),
     proposals.map((p) => p.proposalId));
-  // Options are optional; without them areaIds/subjectId stay empty.
+  // Options are optional; without them areaIds stay empty and each
+  // subject defaults to the answered setting's key.
   const bare = proposeFromInitAnswers(answersAll);
   assert.equal(bare.length, 11);
   assert.deepEqual(bare[0].suggestedAreaIds, []);
-  assert.equal(bare[0].suggestedSubjectId, null);
+  assert.equal(bare[0].suggestedSubjectId, 'locale');
   for (const bad of [{ areaIds: 'x' }, { areaIds: ['x'] }, { bogus: 1 }]) {
     assert.throws(() => proposeFromInitAnswers(answersAll, bad),
       (e) => e.code === 'INVALID_PROPOSAL');
@@ -356,7 +357,8 @@ test('edit applies operator changes and re-marks basis declared', () => {
 
 test('approve fails closed on proposals that cannot form a valid '
     + 'capture input', () => {
-  // Preference without subjectId and without areas cannot be approved.
+  const a = '11111111-1111-4111-8111-111111111111';
+  // Without areas a proposal cannot be approved, whatever its subject.
   const bare = proposeFromInitAnswers(VALID_ANSWERS)[0];
   assert.throws(() => reviewProposal(bare, { action: 'approve' }),
     (e) => e.code === 'INVALID_CAPTURE_INPUT');
@@ -364,10 +366,54 @@ test('approve fails closed on proposals that cannot form a valid '
     { subjectId: 'owner' })[0];
   assert.throws(() => reviewProposal(withSubject, { action: 'approve' }),
     (e) => e.code === 'INVALID_CAPTURE_INPUT'); // still no areas
+  // The producer default never weakens the capture contract: a proposal
+  // carrying a null suggestedSubjectId still fails closed on approve.
+  const noSubject = proposeFromInitAnswers(VALID_ANSWERS, { areaIds: [a] })[0];
+  noSubject.suggestedSubjectId = null;
+  assert.throws(() => reviewProposal(noSubject, { action: 'approve' }),
+    (e) => e.code === 'INVALID_CAPTURE_INPUT');
   const ready = proposeFromInitAnswers(VALID_ANSWERS,
-    { areaIds: ['11111111-1111-4111-8111-111111111111'], subjectId: 'o' })[0];
+    { areaIds: [a], subjectId: 'o' })[0];
   assert.equal(reviewProposal(ready, { action: 'approve' }).status,
     'approved');
+});
+
+test('system-generated preference proposals approve verbatim: subject '
+    + 'defaults to the answered setting (regression)', () => {
+  const f = fixture();
+  try {
+    // Exactly what `capture proposals` emits: enrolled areaIds, no
+    // subjectId option. Approving verbatim used to throw
+    // INVALID_CAPTURE_INPUT (preference requires a nonblank subjectId).
+    const proposals = proposeFromInitAnswers(answersAll, { areaIds: [f.a] });
+    assert.equal(proposals.length, 11);
+    const subjects = proposals.map((p) => p.suggestedSubjectId);
+    for (const p of proposals) {
+      assert.equal(typeof p.suggestedSubjectId, 'string');
+      assert.ok(p.suggestedSubjectId.trim() !== '');
+      const review = reviewProposal(p, { action: 'approve' });
+      assert.equal(review.status, 'approved');
+      assert.equal(review.input.capture.subjectId, p.suggestedSubjectId);
+    }
+    // One stable subject per answered setting: the answer key itself.
+    assert.deepEqual(subjects, ['locale', 'hosts', 'methodology',
+      'versioning.plans', 'versioning.tasks', 'versioning.reports',
+      'versioning.reviews', 'versioning.research', 'versioning.decisions',
+      'versioning.memory', 'versioning.state']);
+    // Deterministic: same answers, same subjects and proposal ids.
+    assert.deepEqual(proposeFromInitAnswers(answersAll, { areaIds: [f.a] })
+      .map((p) => [p.proposalId, p.suggestedSubjectId]),
+      proposals.map((p) => [p.proposalId, p.suggestedSubjectId]));
+    // The reviewed DTO is consumable by the real store: the
+    // `capture review --apply` path works without an edit decision.
+    const review = reviewProposal(proposals[0], { action: 'approve' });
+    const applied = f.store.create(
+      { ...review.input.capture, areaIds: review.input.areaIds });
+    assert.equal(applied.mode, 'applied');
+    assert.equal(applied.record.category, 'preference');
+    assert.equal(applied.record.subjectId, 'locale');
+    assert.equal(applied.record.provenance.basis, 'declared');
+  } finally { cleanup(f.dir); }
 });
 
 test('malformed proposals, decisions and hostile objects are rejected', () => {

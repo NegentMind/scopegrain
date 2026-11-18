@@ -235,6 +235,36 @@ test('show fails closed on drift or missing files without returning history', as
   } finally { cleanup(f.dir); }
 });
 
+test('capture review --apply approves a generated preference proposal '
+    + 'verbatim (regression)', async () => {
+  const f = fixture();
+  try {
+    const listed = await call(['capture', 'proposals', '--project', f.dir,
+      '--config', f.configRel]);
+    assert.equal(listed.code, 0);
+    const prefs = listed.output.proposals.filter(
+      (p) => p.provenance.producer === 'init-answers');
+    assert.ok(prefs.length >= 4);
+    for (const p of prefs) assert.notEqual(p.suggestedSubjectId, null);
+    // Verbatim approve: no edit, no changes. Previously this failed with
+    // INVALID_CAPTURE_INPUT because suggestedSubjectId was null.
+    const reviewFile = path.join(f.dir, 'review.json');
+    fs.writeFileSync(reviewFile,
+      JSON.stringify({ proposal: prefs[0], action: 'approve' }));
+    const applied = await call(['capture', 'review', '--project', f.dir,
+      '--config', f.configRel, '--input', reviewFile, '--apply']);
+    assert.equal(applied.code, 0);
+    assert.equal(applied.output.mode, 'applied');
+    assert.equal(applied.output.review.status, 'approved');
+    assert.equal(applied.output.record.category, 'preference');
+    assert.equal(applied.output.record.subjectId, 'locale');
+    const shown = await call(['capture', 'show', applied.output.record.id,
+      '--project', f.dir, '--config', f.configRel]);
+    assert.equal(shown.code, 0);
+    assert.equal(shown.output.isCurrentSource, true);
+  } finally { cleanup(f.dir); }
+});
+
 test('a commit-marker failure preserves the full uncertain receipt at exit 0', async () => {
   const f = fixture();
   try {

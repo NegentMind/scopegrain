@@ -219,7 +219,11 @@ const reviewed = reviewProposal(proposals[0], { action: 'approve' });
 - `answers` is validated with `validateAnswers` (its domain codes
   propagate). Closed options `{areaIds, subjectId}`, both optional;
   `suggestedAreaIds` may end up `[]` because answers can predate
-  enrollment.
+  enrollment. Without an explicit `subjectId`, `suggestedSubjectId`
+  defaults to the answered setting's key (`locale`, `hosts`,
+  `methodology`, `versioning.<key>`) — a stable subject label, so a
+  generated preference approves verbatim and a later preference on the
+  same setting can supersede it.
 - Emits `preference` proposals in fixed order: locale, hosts,
   methodology and one per versioning key — all `declared` as explicit
   answers. If `methodology` or `versioning` were absent from the raw

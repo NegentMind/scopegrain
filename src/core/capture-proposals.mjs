@@ -300,6 +300,10 @@ export function proposeFromJournal(target, options = {}) {
 // methodology/versioning fields emit 'inferred' proposals naming the
 // harness-default derivation - validator defaults are never re-labeled as
 // answers. Pure: no config file is read here; the caller supplies the data.
+// The subject of each preference is the answered setting itself: an
+// explicit options.subjectId wins, otherwise the answer key is the stable
+// subject label so a system-generated proposal approves verbatim and a
+// later preference on the same setting can supersede it.
 export function proposeFromInitAnswers(answers, options = {}) {
   assertRecordObject(options, ANSWER_OPTION_KEYS, [], CODE,
     'init-answers proposal options');
@@ -323,7 +327,7 @@ export function proposeFromInitAnswers(answers, options = {}) {
       { kind, title, text, inference },
       { producer: 'init-answers', operationId: null, eventId: null,
         sourceKind: null, recordId: null },
-      areas, subjectId, [`answers:${field}`]));
+      areas, subjectId ?? field, [`answers:${field}`]));
   };
   add('locale', 'declared', 'preferred locale',
     `The project locale was answered as '${validated.locale}'.`, null);
