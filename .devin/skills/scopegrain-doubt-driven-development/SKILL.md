@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-doubt-driven-development"
-description: "Resolve consequential uncertainty without inventing certainty."
+description: "Use when a consequential technical claim remains uncertain or contradictory"
 ---
 
 # Scopegrain Resource Bridge

@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-constraint-driven-development"
-description: "Map approved constraints to implementation and evidence."
+description: "Use when a change must preserve explicit product, security, compatibility or operational invariants"
 ---
 
 # Scopegrain Resource Bridge

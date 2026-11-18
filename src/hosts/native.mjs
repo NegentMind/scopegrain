@@ -8,7 +8,7 @@ import { err } from '../core/errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, readFileLimited }
   from '../core/fsx.mjs';
 import {
-  catalogDestRel, INSTALL_ROOT, loadCatalog,
+  catalogDestRel, getResource, INSTALL_ROOT, loadCatalog,
 } from '../core/catalog.mjs';
 import { resolveInside, toCanonicalRelative } from '../core/paths.mjs';
 import { KNOWN_HOSTS } from '../core/config.mjs';
@@ -238,6 +238,56 @@ function readTemplate(installRoot, rel) {
 const frontmatter = (pairs, extras = '') =>
   `---\n${pairs.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n')}\n${extras}---\n\n`;
 
+// Canonical skill/command resources carry their own flat 'description'
+// scalar (the richer 'Use when...' text), which the manifest duplicates —
+// the two have already drifted once. Bridge frontmatter prefers the file's
+// own text so they cannot diverge again; the manifest stays the source for
+// every other kind and metadata field.
+const FENCE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
+const DESC_LINE = /^description:[ \t]*(\S.*)?$/;
+const BLOCK_SCALAR = /^[>|][+-]?$/;
+
+// Flat top-level 'description' scalar from a leading --- fence, or
+// undefined when the document does not carry one (no fence, nested or
+// block-scalar value, unparseable quote). Quoted scalars are unquoted;
+// anything else is taken verbatim.
+function frontmatterDescription(text) {
+  const m = FENCE.exec(text);
+  if (!m) return undefined;
+  for (const line of m[1].split(/\r?\n/)) {
+    const kv = DESC_LINE.exec(line);
+    if (!kv) continue;
+    const raw = (kv[1] ?? '').trim();
+    if (raw === '' || BLOCK_SCALAR.test(raw)) return undefined;
+    const q = raw[0];
+    if (raw.length >= 2 && (q === '"' || q === "'") && raw.endsWith(q)) {
+      if (q === "'") return raw.slice(1, -1).replace(/''/g, "'");
+      try {
+        const v = JSON.parse(raw);
+        return typeof v === 'string' && v !== '' ? v : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return raw;
+  }
+  return undefined;
+}
+
+// The resource file's own frontmatter description, or the manifest text
+// when the file does not carry one (or cannot be read through the
+// catalog's own containment/integrity checks).
+function canonicalDescription(catalog, e) {
+  try {
+    const { content } = getResource(e.kind, e.id, { catalog });
+    const text = decodeUtf8Strict(content, 'CATALOG_MALFORMED',
+      `catalog resource ${e.kind}/${e.id}`);
+    return frontmatterDescription(text) ?? e.description;
+  } catch {
+    return e.description;
+  }
+}
+
 function nativeName(policy, id) {
   const name = `${policy.namespace}${id.toLowerCase()}`;
   if (name.length > 64 || !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(name)) {
@@ -449,6 +499,20 @@ export function renderNativeAdapters(config, {
   const readOnly = new Set(policy.readOnlyAgentIds);
   const variants = loadNativeVariants({ installRoot });
 
+  // Canonical file descriptions are resolved once per entry and reused
+  // across hosts and variants; only kinds that carry frontmatter
+  // (skills, commands) read the resource file — everything else keeps
+  // the manifest text.
+  const descCache = new Map();
+  const descFor = (e) => {
+    if (e.kind !== 'skill' && e.kind !== 'command') return e.description;
+    const key = `${e.kind}/${e.id}`.toLowerCase();
+    if (!descCache.has(key)) {
+      descCache.set(key, canonicalDescription(catalog, e));
+    }
+    return descCache.get(key);
+  };
+
   for (const host of config.hosts) {
     // Provisional hosts: minimal marked proposal only. Skipping the
     // per-resource bridge machinery avoids fabricating an unverified
@@ -544,19 +608,19 @@ export function renderNativeAdapters(config, {
         const body = renderTemplate(tplText(tplResource), v);
         emitV('skill', e.id,
           `${hp.skillRoot}/${name}/SKILL.md`,
-          frontmatter([['name', name], ['description', e.description]]) + body);
+          frontmatter([['name', name], ['description', descFor(e)]]) + body);
       } else if (e.kind === 'command') {
         const body = renderTemplate(tplText(tplResource), v);
         if (hp.commandFormat === 'skill') {
           // Host command frontmatter is INSIDE the YAML fence.
           emitV('command', e.id,
             `${hp.skillRoot}/${name}/SKILL.md`,
-            frontmatter([['name', name], ['description', e.description]],
+            frontmatter([['name', name], ['description', descFor(e)]],
               hp.commandFrontmatter || '') + body);
         } else {
           emitV('command', e.id,
             `${hp.commandRoot}/${name}.md`,
-            frontmatter([['description', e.description]],
+            frontmatter([['description', descFor(e)]],
               hp.commandFrontmatter || '') + body);
         }
       } else if (e.kind === 'agent' && va.emitAgents !== false) {

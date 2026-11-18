@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-plan-work"
-description: "Prepare a dependency graph for approved work without executing it."
+description: "Prepare a dependency graph for settled formal work without executing it."
 triggers:
   - user
 ---

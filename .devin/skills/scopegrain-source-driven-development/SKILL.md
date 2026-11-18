@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-source-driven-development"
-description: "Ground decisions in code and applicable authoritative documentation."
+description: "Use when a design or implementation decision depends on repository facts or external interfaces"
 ---
 
 # Scopegrain Resource Bridge

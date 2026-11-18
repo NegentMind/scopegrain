@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-ci-cd-and-automation"
-description: "Inspect verification and delivery automation boundaries."
+description: "Use when a change affects an existing verification or delivery pipeline"
 ---
 
 # Scopegrain Resource Bridge

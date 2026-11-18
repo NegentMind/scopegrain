@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-planning-and-task-breakdown"
-description: "Decompose a verified gap into dependent, accepted tasks."
+description: "Use when substantial settled work needs dependency-aware tasks and explicit scenario ownership."
 ---
 
 # Scopegrain Resource Bridge

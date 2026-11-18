@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-debugging-and-error-recovery"
-description: "Resume, retry, change strategy or escalate using preserved evidence."
+description: "Use after interruption, partial work or an unexpected failure to choose safe continuation"
 ---
 
 # Scopegrain Resource Bridge

@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-select-capabilities"
-description: "Select relevant capabilities without importing an entire catalog."
+description: "Use when choosing capabilities for a task or inspecting catalog and dependency availability"
 ---
 
 # Scopegrain Resource Bridge

@@ -1,16 +1,22 @@
 // Native adapter proposals: projection shape, no host writes, policy-exact
 // frontmatter, codex TOML, V2 opencode fragment, activation plan.
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { renderNativeAdapters, loadNativePolicy } from '../src/adapters/native.mjs';
 import { createConfig } from '../src/core/config.mjs';
+import { loadCatalog } from '../src/core/catalog.mjs';
 import { applyPlan, prepareInit } from '../src/core/bootstrap.mjs';
 import {
   DEFAULT_ANSWERS, VALID_ANSWERS, cleanup, exists, makeTempDir, writeJson,
 } from './helpers.mjs';
+import {
+  destroyLifecycleInstall, lifecycleInstallRoot,
+} from './helpers/lifecycle-fixture.mjs';
 
 const CFG_REL = '.tasksystem/config.json';
+
+after(() => destroyLifecycleInstall());
 
 function cfg(hosts = ['claude', 'codex', 'opencode', 'devin']) {
   return createConfig(makeTempDir('x'), { ...DEFAULT_ANSWERS, hosts }, {});
@@ -75,6 +81,52 @@ test('frontmatter: permission lines land INSIDE the YAML fence', () => {
   assert.ok(!files.some((f) => f.rel.includes('/opencode/v1/')));
   assert.ok(ocAgentV2.content.toString('utf8')
     .split(/^---$/m)[1].includes('effect: deny'));
+});
+
+test('skill/command bridges prefer the canonical file description', () => {
+  const { files } = renderNativeAdapters(
+    cfg(['devin']), { configRel: CFG_REL });
+  const catalog = loadCatalog();
+  const canonicalOf = (rel) => fs.readFileSync(rel, 'utf8')
+    .match(/^description:[ \t]*(.+)$/m)[1].trim();
+  // Precondition: the manifest text and the canonical file text actually
+  // differ for these entries, otherwise the assertions prove nothing.
+  const skillDesc = canonicalOf(
+    'resources/skills/test-driven-development/SKILL.md');
+  assert.notEqual(skillDesc, catalog.entries.find(
+    (e) => e.kind === 'skill' && e.id === 'test-driven-development')
+    .description);
+  const skill = files.find((f) => f.rel.endsWith(
+    '/devin/.devin/skills/scopegrain-test-driven-development/SKILL.md'));
+  assert.ok(skill.content.toString('utf8')
+    .includes(`description: ${JSON.stringify(skillDesc)}`));
+  const cmdDesc = canonicalOf('resources/commands/plan-work.md');
+  assert.notEqual(cmdDesc, catalog.entries.find(
+    (e) => e.kind === 'command' && e.id === 'plan-work').description);
+  const cmd = files.find((f) => f.rel.endsWith(
+    '/devin/.devin/skills/scopegrain-plan-work/SKILL.md'));
+  assert.ok(cmd.content.toString('utf8')
+    .includes(`description: ${JSON.stringify(cmdDesc)}`));
+  // Kinds without a frontmatter contract keep the manifest text.
+  const agentEntry = catalog.entries.find(
+    (e) => e.kind === 'agent' && e.id === 'reviewer');
+  const agent = files.find((f) => f.rel.endsWith(
+    '/devin/.devin/agents/scopegrain-reviewer.md'));
+  assert.ok(agent.content.toString('utf8')
+    .includes(`description: ${JSON.stringify(agentEntry.description)}`));
+});
+
+test('a resource without frontmatter falls back to the manifest text', () => {
+  const installRoot = lifecycleInstallRoot(); // fixture files carry none
+  const { files } = renderNativeAdapters(
+    cfg(['claude']), { configRel: CFG_REL, installRoot });
+  const skill = files.find((f) => f.rel.includes('scopegrain-mini-skill'));
+  assert.ok(skill.content.toString('utf8')
+    .includes('description: "Mini skill (lifecycle fixture)"'));
+  const cmd = files.find((f) =>
+    f.rel.includes('/skills/scopegrain-plan-work/'));
+  assert.ok(cmd.content.toString('utf8')
+    .includes('description: "Plan work (lifecycle fixture)"'));
 });
 
 test('codex TOML roles use JSON-quoted strings + declaration fragments', () => {

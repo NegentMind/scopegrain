@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-context-engineering"
-description: "Build a minimal task context and recover after interruptions."
+description: "Use to assemble task-relevant context or recover work after a context interruption"
 ---
 
 # Scopegrain Resource Bridge

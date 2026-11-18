@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-plan-design-review"
-description: "Review a proposed design or task plan for acceptance and execution gaps before implementation."
+description: "Use to assess a proposed design or task plan before committing implementation work"
 ---
 
 # Scopegrain Resource Bridge

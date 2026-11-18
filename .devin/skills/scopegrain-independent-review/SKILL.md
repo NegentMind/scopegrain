@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-independent-review"
-description: "Review another context's changes or record an explicit owner waiver."
+description: "Review a task artifact against its contract from a separate context without implementing fixes."
 ---
 
 # Scopegrain Resource Bridge

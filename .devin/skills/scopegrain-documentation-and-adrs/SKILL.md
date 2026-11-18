@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-documentation-and-adrs"
-description: "Document real interfaces and explicit architecture tradeoffs."
+description: "Use when documenting actual APIs, changing architecture records or explaining a consequential design choice"
 ---
 
 # Scopegrain Resource Bridge

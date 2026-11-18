@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-code-review-and-quality"
-description: "Review changes for regressions, boundary failures and missing tests."
+description: "Use when inspecting a change for behavioral defects, regressions, boundary risks and missing tests"
 ---
 
 # Scopegrain Resource Bridge

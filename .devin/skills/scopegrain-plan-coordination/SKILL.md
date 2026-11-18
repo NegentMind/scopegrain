@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-plan-coordination"
-description: "Select dependency-ready work and preserve progress without blind retries."
+description: "Use when executing one or more dependent tasks and preserving continuation across interruptions"
 ---
 
 # Scopegrain Resource Bridge

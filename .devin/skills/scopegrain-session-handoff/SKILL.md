@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-session-handoff"
-description: "Report completed, active, blocked and next work from actual state."
+description: "Use at session boundaries and task completion to report evidence-backed progress and next work"
 ---
 
 # Scopegrain Resource Bridge

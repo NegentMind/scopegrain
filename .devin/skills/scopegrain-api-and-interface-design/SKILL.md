@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-api-and-interface-design"
-description: "Design explicit public interfaces before implementation."
+description: "Use when establishing a public interface or module boundary before implementation"
 ---
 
 # Scopegrain Resource Bridge

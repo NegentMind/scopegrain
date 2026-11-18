@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-shipping-and-launch"
-description: "Assess delivery and recovery without implicit remote side effects."
+description: "Use to assess delivery readiness or plan recovery from a failed release"
 ---
 
 # Scopegrain Resource Bridge

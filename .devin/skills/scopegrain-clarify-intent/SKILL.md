@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-clarify-intent"
-description: "Turn initial product intent into a bounded request."
+description: "Use to turn an initial product idea into a bounded, testable engineering request"
 ---
 
 # Scopegrain Resource Bridge

@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-organic-driven-development"
-description: "Select proportionate authorized engineering work with Organic and SDD."
+description: "Use for engineering requests to establish authority, inspect existing behavior, resolve uncertainty and select proportionate light or SDD work."
 ---
 
 # Scopegrain Resource Bridge

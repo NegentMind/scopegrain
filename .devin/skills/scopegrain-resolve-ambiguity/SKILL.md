@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-resolve-ambiguity"
-description: "Resolve consequential unknowns after inspecting existing evidence."
+description: "Use when a consequential ambiguity remains after inspecting the project and available decisions"
 ---
 
 # Scopegrain Resource Bridge

@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-contract-execution"
-description: "Use when executing a scoped engineering task through the recorded lifecycle."
+description: "Use when executing a scoped engineering task through the recorded lifecycle, with acceptance criteria, verification evidence, review and a resumable handoff."
 ---
 
 # Scopegrain Resource Bridge

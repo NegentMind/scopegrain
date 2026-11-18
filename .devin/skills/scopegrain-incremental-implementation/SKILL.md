@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-incremental-implementation"
-description: "Deliver narrow vertical slices with scoped verification."
+description: "Use for changes that can be delivered as small vertical slices without broad unrelated churn"
 ---
 
 # Scopegrain Resource Bridge

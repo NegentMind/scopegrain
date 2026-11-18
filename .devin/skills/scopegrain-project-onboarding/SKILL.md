@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-project-onboarding"
-description: "Read-only onboarding and consent-based configuration."
+description: "Investigate an unfamiliar repository and configure Scopegrain with explicit owner consent before generating artifacts."
 ---
 
 # Scopegrain Resource Bridge

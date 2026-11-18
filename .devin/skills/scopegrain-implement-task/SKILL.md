@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-implement-task"
-description: "Implement one approved dependency-ready task and verify its scope."
+description: "Implement one authorized dependency-ready task using its selected light or SDD route."
 triggers:
   - user
 ---

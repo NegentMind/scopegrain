@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-brainstorming"
-description: "Explore requirements and settle a bounded design."
+description: "Use before choosing a feature design when requirements or tradeoffs remain unsettled"
 ---
 
 # Scopegrain Resource Bridge

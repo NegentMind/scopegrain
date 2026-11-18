@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-code-simplification"
-description: "Remove demonstrated complexity while preserving observable behavior."
+description: "Use to remove demonstrated duplication or complexity from an approved change scope"
 ---
 
 # Scopegrain Resource Bridge

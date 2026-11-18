@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-review-deep"
-description: "Inspect high-risk changes causally across their boundaries."
+description: "Use when a high-risk change needs deeper causal and boundary review than a quick check"
 ---
 
 # Scopegrain Resource Bridge

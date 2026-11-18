@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-web-research"
-description: "Research an explicit question with permission and verified citations."
+description: "Use for an explicit external research question after network access has been authorized"
 ---
 
 # Scopegrain Resource Bridge

@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-observability-and-instrumentation"
-description: "Verify real telemetry collection before exposing metrics."
+description: "Use when operational claims require real logs, metrics or traces rather than static placeholders"
 ---
 
 # Scopegrain Resource Bridge

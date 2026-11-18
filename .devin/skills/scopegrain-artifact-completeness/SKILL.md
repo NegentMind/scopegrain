@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-artifact-completeness"
-description: "Preserve complete deliverables and inspect truncated evidence."
+description: "Use when completeness matters and large tool output or generated files risk silent truncation"
 ---
 
 # Scopegrain Resource Bridge

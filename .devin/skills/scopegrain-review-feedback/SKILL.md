@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-review-feedback"
-description: "Evaluate review feedback and batch verified corrections."
+description: "Use when evaluating review feedback and preparing a coherent response and correction batch"
 ---
 
 # Scopegrain Resource Bridge

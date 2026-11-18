@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-outcome-driven-development"
-description: "Use when defining or accepting a change to agree observable outcomes and evidence."
+description: "Use when agreeing observable acceptance criteria and result evidence, independently of the selected engineering methodology."
 ---
 
 # Scopegrain Resource Bridge

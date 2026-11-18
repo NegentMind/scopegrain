@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-performance-optimization"
-description: "Measure comparable workloads before selecting an optimization."
+description: "Use when a performance claim or optimization needs workload-specific measured evidence"
 ---
 
 # Scopegrain Resource Bridge

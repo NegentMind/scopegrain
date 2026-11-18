@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-writing-plans"
-description: "Write settled tasks with exact contracts and verification cases."
+description: "Use after settling substantial requirements and design to write a scoped executable plan."
 ---
 
 # Scopegrain Resource Bridge

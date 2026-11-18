@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-git-workflow-and-versioning"
-description: "Use when preparing a local commit, applying versioning or ignore policy, or deciding what generated artifacts may be shared."
+description: "Use when preparing a local commit, applying versioning or ignore policy, or deciding what generated artifacts may be shared"
 ---
 
 # Scopegrain Resource Bridge

@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-test-driven-development"
-description: "Prove a behavior gap with a failing test and the smallest fix."
+description: "Use to prove an intended behavior gap with a regression test before changing implementation"
 ---
 
 # Scopegrain Resource Bridge

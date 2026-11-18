@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-systematic-debugging"
-description: "Trace a reproducible failure to its causal boundary before changing code."
+description: "Use when a test, command or observed behavior fails before proposing a code fix"
 ---
 
 # Scopegrain Resource Bridge

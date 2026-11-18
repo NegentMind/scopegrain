@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-discernment-nudge"
-description: "Challenge weak premises with concrete evidence and consequences."
+description: "Use when a plausible request or proposed solution risks being accepted without checking its premise"
 ---
 
 # Scopegrain Resource Bridge

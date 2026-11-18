@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-deprecation-and-migration"
-description: "Plan reversible compatibility and stored-data migrations."
+description: "Use when replacing behavior, configuration or stored data while preserving a recoverable upgrade path"
 ---
 
 # Scopegrain Resource Bridge

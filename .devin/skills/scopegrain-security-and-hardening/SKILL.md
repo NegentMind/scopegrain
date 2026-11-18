@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-security-and-hardening"
-description: "Inspect inputs, authority, dependencies and secret exposure."
+description: "Use when a change touches untrusted inputs, permissions, sensitive data or dependency trust"
 ---
 
 # Scopegrain Resource Bridge
