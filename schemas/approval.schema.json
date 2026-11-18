@@ -23,18 +23,30 @@
     },
     "options":{
       "type":"array","minItems":2,"maxItems":2,
-      "items":{
-        "type":"object","additionalProperties":false,
-        "required":["id","label","description"],
-        "properties":{"id":{"enum":["approve","reject"]},"label":{"$ref":"#/$defs/text"},"description":{"$ref":"#/$defs/text"}}
-      }
+      "prefixItems":[
+        {
+          "type":"object","additionalProperties":false,
+          "required":["id","label","description"],
+          "properties":{"id":{"const":"approve"},"label":{"$ref":"#/$defs/text"},"description":{"$ref":"#/$defs/text"}}
+        },
+        {
+          "type":"object","additionalProperties":false,
+          "required":["id","label","description"],
+          "properties":{"id":{"const":"reject"},"label":{"$ref":"#/$defs/text"},"description":{"$ref":"#/$defs/text"}}
+        }
+      ],
+      "items":false
     },
     "createdAt":{"$ref":"#/$defs/time"},
     "updatedAt":{"$ref":"#/$defs/time"},
-    "history":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/event"}}
+    "history":{
+      "type":"array","minItems":1,
+      "prefixItems":[{"$ref":"#/$defs/createdEvent"}],
+      "items":{"$ref":"#/$defs/answeredEvent"}
+    }
   },
   "$defs":{
-    "text":{"type":"string","minLength":1},
+    "text":{"type":"string","pattern":"\\S","description":"Non-empty after trimming; runtime rejects whitespace-only strings."},
     "digest":{"type":"string","pattern":"^[0-9a-f]{64}$"},
     "uuid":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"},
     "revision":{"type":"integer","minimum":0,"maximum":9007199254740991},
@@ -55,19 +67,39 @@
         }
       ]
     },
-    "event":{
+    "createdEvent":{
       "type":"object","additionalProperties":false,
       "required":["at","event","revision","status","actor","answer","comment"],
       "properties":{
         "at":{"$ref":"#/$defs/time"},
-        "event":{"enum":["created","answered"]},
-        "revision":{"$ref":"#/$defs/revision"},
-        "status":{"enum":["pending","approved","rejected","declined","needs-clarification","revoked"]},
-        "actor":{"oneOf":[{"type":"null"},{"$ref":"#/$defs/text"}]},
-        "answer":{"enum":[null,"approve","reject","decline","custom","revoke"]},
-        "comment":{"oneOf":[{"type":"null"},{"type":"string"}]}
+        "event":{"const":"created"},
+        "revision":{"const":0},
+        "status":{"const":"pending"},
+        "actor":{"type":"null"},
+        "answer":{"type":"null"},
+        "comment":{"type":"null"}
       }
+    },
+    "answeredEvent":{
+      "type":"object","additionalProperties":false,
+      "required":["at","event","revision","status","actor","answer","comment"],
+      "properties":{
+        "at":{"$ref":"#/$defs/time"},
+        "event":{"const":"answered"},
+        "revision":{"$ref":"#/$defs/revision"},
+        "status":{"enum":["approved","rejected","declined","needs-clarification","revoked"]},
+        "actor":{"$ref":"#/$defs/text"},
+        "answer":{"enum":["approve","reject","decline","custom","revoke"]},
+        "comment":{"oneOf":[{"type":"null"},{"type":"string"}]}
+      },
+      "allOf":[
+        {"if":{"properties":{"answer":{"const":"approve"}},"required":["answer"]},"then":{"properties":{"status":{"const":"approved"}}}},
+        {"if":{"properties":{"answer":{"const":"reject"}},"required":["answer"]},"then":{"properties":{"status":{"const":"rejected"}}}},
+        {"if":{"properties":{"answer":{"const":"decline"}},"required":["answer"]},"then":{"properties":{"status":{"const":"declined"}}}},
+        {"if":{"properties":{"answer":{"const":"custom"}},"required":["answer"]},"then":{"properties":{"status":{"const":"needs-clarification"},"comment":{"type":"string","pattern":"\\S"}}}},
+        {"if":{"properties":{"answer":{"const":"revoke"}},"required":["answer"]},"then":{"properties":{"status":{"const":"revoked"}}}}
+      ]
     }
   },
-  "description":"Runtime additionally checks ID/filename/target digest agreement, chronological/history invariants, option uniqueness, paths, current target and byte/event limits. Actor identity and evidence are not authenticated."
+  "description":"Runtime additionally checks ID/filename/target digest agreement, chronological/history invariants (history length equals revision+1, per-index revisions, nondecreasing times, createdAt/updatedAt/status mirroring the first/last event), revoke only out of approved, non-empty comment on custom answers and on every re-answer after pending, option uniqueness, canonical scope paths, current target and byte/event limits. Actor identity and evidence are not authenticated."
 }

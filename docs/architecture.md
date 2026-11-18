@@ -278,6 +278,40 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   contenido pero conservan ruta y tamano. Anadir o quitar un lockfile
   cambia el fingerprint, porque cambia las propuestas de comandos.
 
+## Esquemas publicados
+
+`schemas/` es la superficie de contratos legible por maquina: cada JSON
+Schema (draft 2020-12) describe una forma cerrada que el runtime produce,
+persiste o acepta. Son contratos descriptivos, no validadores: la
+validacion efectiva ocurre siempre en los validadores del runtime, el
+codigo es la autoridad y un esquema que diverge se corrige para describir
+la realidad, nunca al reves. Los limites que JSON Schema no puede expresar
+(cronologia, coherencia entre campos, CAS) quedan anotados en el
+`description` de cada esquema.
+
+| Esquema | Contrato |
+|---|---|
+| `answers.schema.json` | Respuestas del init interactivo; fingerprint por bytes en sesiones de init |
+| `capture.schema.json` | Nota de captura selectiva |
+| `record-ownership.schema.json` | Sidecar de ownership (exclusivo de capture) |
+| `specification-data.schema.json` | Datos `data` de spec V2 estructurada |
+| `design-data.schema.json` | Datos `data` de design V2 vinculado a spec |
+| `outcome-data.schema.json` | Datos `data` de report V2 (outcome) |
+| `workspace.schema.json` | Descriptor de identidad de workspace (`paths.state/workspace.json`) |
+| `journal-intent.schema.json` | Intent de journal (eventos create/update homogeneos) |
+| `journal-commit.schema.json` | Marcador de commit de operacion |
+| `journal-recovery.schema.json` | Recibo de recuperacion (`finalize-committed`/`abandon-prepared`) |
+| `approval.schema.json` | Registro de aprobacion por contenido con historial |
+| `organic-assessment.schema.json` | Assessment metodologico persistido en tareas V2 |
+
+La conformidad es un gate real: `tests/schemas.test.mjs` persiste o deriva
+registros con las APIs reales (workspace, intents create/update, commit,
+ambos recibos de recovery, aprobaciones pending/answered/revoked y
+assessments normalizados) y exige que satisfagan cada esquema con un
+comprobador acotado del subconjunto draft-2020-12 usado — sin dependencia
+de ajv. Un cambio de forma que rompa el contrato hace fallar el test;
+un esquema editado con keywords fuera del subconjunto falla en voz alta.
+
 ## Limites estructurales
 
 - La deteccion de stack se basa en manifiestos, no en `src/`; un stack sin

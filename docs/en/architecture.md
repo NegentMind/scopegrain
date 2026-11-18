@@ -295,6 +295,39 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operations
   content but keep path and size. Adding or removing a lockfile changes
   the fingerprint, because it changes the command proposals.
 
+## Published schemas
+
+`schemas/` is the machine-readable contract surface: each JSON Schema
+(draft 2020-12) describes one closed shape the runtime produces, persists
+or accepts. They are descriptive contracts, not validators: effective
+validation always happens in the runtime validators, the code is
+authoritative, and a schema that drifts is fixed to describe reality —
+never the reverse. Limits JSON Schema cannot express (chronology,
+cross-field coherence, CAS) are noted in each schema's `description`.
+
+| Schema | Contract |
+|---|---|
+| `answers.schema.json` | Interactive init answers; byte-fingerprinted by init sessions |
+| `capture.schema.json` | Selective capture note |
+| `record-ownership.schema.json` | Ownership sidecar (capture only) |
+| `specification-data.schema.json` | `data` of a structured V2 spec |
+| `design-data.schema.json` | `data` of a V2 design bound to a spec |
+| `outcome-data.schema.json` | `data` of a V2 report (outcome) |
+| `workspace.schema.json` | Workspace identity descriptor (`paths.state/workspace.json`) |
+| `journal-intent.schema.json` | Journal intent (homogeneous create/update events) |
+| `journal-commit.schema.json` | Operation commit marker |
+| `journal-recovery.schema.json` | Recovery receipt (`finalize-committed`/`abandon-prepared`) |
+| `approval.schema.json` | Content-bound approval record with history |
+| `organic-assessment.schema.json` | Methodology assessment persisted in V2 tasks |
+
+Conformance is a real gate: `tests/schemas.test.mjs` persists or derives
+records through the real APIs (workspace, create/update intents, commit,
+both recovery receipts, pending/answered/revoked approvals and normalized
+assessments) and requires each one to satisfy its schema with a bounded
+draft-2020-12 subset checker — no ajv dependency. A shape change that
+breaks the contract fails the test; a schema edited with keywords outside
+the subset fails loudly.
+
 ## Structural limits
 
 - Stack detection is based on manifests, not on `src/`; a stack without

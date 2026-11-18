@@ -40,12 +40,34 @@
               {"type": "integer", "minimum": 0, "maximum": 9007199254740991}]
           },
           "sourceRel": {"type": "string", "minLength": 1},
-          "previousHash": {"type": "null"},
+          "previousHash": {
+            "anyOf": [{"type": "null"}, {"$ref": "#/$defs/hash"}]
+          },
           "sourceHash": {"$ref": "#/$defs/hash"},
-          "snapshotRef": {"type": "string", "minLength": 1},
-          "operation": {"const": "create"},
+          "snapshotRef": {
+            "type": "string",
+            "pattern": "journal/snapshots/[0-9a-f]{64}\\.blob$"
+          },
+          "operation": {"enum": ["create", "update"]},
           "createdAt": {"$ref": "#/$defs/timestamp"}
-        }
+        },
+        "allOf": [{
+          "if": {
+            "properties": {"operation": {"const": "create"}},
+            "required": ["operation"]
+          },
+          "then": {
+            "properties": {"previousHash": {"type": "null"}}
+          },
+          "else": {
+            "properties": {
+              "previousHash": {"$ref": "#/$defs/hash"},
+              "sourceRevision": {
+                "type": "integer", "minimum": 0, "maximum": 9007199254740991
+              }
+            }
+          }
+        }]
       }
     }
   },
@@ -60,5 +82,5 @@
       "description": "Canonical Date.toISOString value, validated at runtime."
     }
   },
-  "description": "Runtime validates policy limits, identity relationships, sequences, paths, hashes and scope."
+  "description": "Runtime validates policy limits, identity relationships, contiguous sequences, canonical paths, hashes, scope, snapshotRef naming the sourceHash blob, event.createdAt equal to the intent createdAt, and create/update event coherence. Producers emit homogeneous operations: create ops never mix update events and vice versa."
 }
