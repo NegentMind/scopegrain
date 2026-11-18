@@ -82,7 +82,9 @@ const VALUE_FLAGS = new Set([
   '--outcome-evidence', '--from', '--surface', '--since-sequence', '--port',
   '--command', '--timeout',
 ]);
-const BOOL_FLAGS = new Set(['--apply', '--help', '--owned', '--save']);
+const BOOL_FLAGS = new Set([
+  '--apply', '--help', '--owned', '--save', '--fail-on-error',
+]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
 // Per-command flag whitelist and exact positional count (after 'task <sub>').
@@ -131,7 +133,7 @@ const COMMANDS = {
     flags: ['--project', '--config', '--title', '--contract', '--author', '--scope',
       '--spec', '--design', '--plan', '--input', '--apply'],
     pos: 0,
-    usage: 'task create --project PATH (--input FILE [--apply] | --title T --contract C --author A [--scope a,b] [--spec UUID --design UUID] [--plan KEY])',
+    usage: 'task create --project PATH --input FILE [--apply]',
   },
   'task list': {
     flags: ['--project', '--config'], pos: 0,
@@ -322,8 +324,8 @@ const COMMANDS = {
     usage: 'verify discover --project PATH [--apply]',
   },
   'verify run': {
-    flags: ['--project', '--config', '--timeout'], pos: 1,
-    usage: 'verify run ID --project PATH [--timeout MS]',
+    flags: ['--project', '--config', '--timeout', '--fail-on-error'], pos: 1,
+    usage: 'verify run ID --project PATH [--timeout MS] [--fail-on-error]',
   },
   view: {
     flags: ['--project', '--config', '--port', '--host'], pos: 0,
@@ -350,6 +352,7 @@ function helpResult() {
       '--yes and --force are not supported; confirmation is always explicit',
       'results are JSON on stdout; errors are JSON on stderr with exit code 1',
       'JSON creation previews do not reserve IDs; use IDs returned by --apply',
+      'task create --input is the supported creation path; the --title/--contract/--author flag form only applies to projects in manual methodology mode',
       'Methodology checks and stored approvals are not native tool permissions',
       '--owned opts specification create/show into journal ownership; legacy behavior stays unchanged without it',
       '--owned opts design/outcome create/show into journal ownership; new show commands require it',
@@ -358,6 +361,7 @@ function helpResult() {
       'host activate writes project-local destinations only; global host paths and shared merges are never written',
       'capture proposals lists review proposals; capture review --apply creates an owned capture only from an approved decision',
       'verify add/approve/discover preview first; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
+      'verify run prints the result JSON and exits 0 by default; --fail-on-error propagates the command exit code (or 1 on timeout/signal)',
       'view serves a loopback read-only API and keeps running; press Ctrl+C to stop',
     ],
   };
@@ -612,6 +616,22 @@ async function cmdTask(sub, positional, flags, io) {
     if (flags['--apply']) {
       throw err('INVALID_ARGS',
         '--apply requires --input for task create; legacy flags create directly');
+    }
+    // Methodology-gated modes cannot be satisfied by the flag form: flags
+    // cannot express an assessment, and --input is the only way to supply
+    // one. Fail before flag-level validation so the error names the
+    // supported path instead of bubbling an unexplained gate failure.
+    // The formal --spec/--design pair still flows through the same
+    // normalization as --input, so it stays legal under every mode.
+    const mode = validateMethodologyMode(
+      ctx.config.methodology, 'config.methodology');
+    if (mode !== 'manual'
+        && !Object.hasOwn(flags, '--spec') && !Object.hasOwn(flags, '--design')) {
+      throw err('METHODOLOGY_REQUIRED',
+        `task create under methodology '${mode}' requires --input FILE ` +
+        'carrying a methodology assessment or the specId+designId pair; ' +
+        'the flag form cannot express an assessment — see ' +
+        'docs/methodology.md and schemas/organic-assessment.schema.json');
     }
     const scope = flags['--scope']
       ? flags['--scope'].split(',').map((s) => s.trim()).filter(Boolean)
@@ -1187,7 +1207,7 @@ function cmdHost(flags) {
 // the semantic layer and stores them inferred + unapproved; run is the
 // only executor and requires an explicitly approved record — the
 // harness still never executes project commands on its own initiative.
-async function cmdVerify(sub, positional, flags) {
+async function cmdVerify(sub, positional, flags, io) {
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1224,7 +1244,19 @@ async function cmdVerify(sub, positional, flags) {
     if (Object.hasOwn(flags, '--timeout')) {
       options.timeoutMs = decimalInt(flags['--timeout'], '--timeout');
     }
-    return runVerifyCommand(ctx, positional[0], options);
+    const result = await runVerifyCommand(ctx, positional[0], options);
+    // Opt-in CI mode: the result JSON is still printed on stdout, but a
+    // run that is not a clean exit-0 (non-zero code, timeout or signal)
+    // propagates as a non-zero process exit. The child code is preserved
+    // when it exists; timeout/signal terminations have no code and map
+    // to 1. run() reads io.exitCode like cmdView's io.viewServer handle.
+    if (flags['--fail-on-error']
+        && !(result.status === 'exit' && result.code === 0)) {
+      io.exitCode = result.status === 'exit'
+          && Number.isInteger(result.code) && result.code > 0
+        ? result.code : 1;
+    }
+    return result;
   }
   throw err('INVALID_ARGS', `unknown verify subcommand '${sub}'`);
 }
@@ -1365,14 +1397,16 @@ export async function run(argv, io) {
     } else if (cmdKey === 'view') {
       result = await cmdView(flags, io);
     } else if (cmdKey.startsWith('verify ')) {
-      result = await cmdVerify(cmdKey.slice(7), rest, flags);
+      result = await cmdVerify(cmdKey.slice(7), rest, flags, io);
     } else if (cmdKey.startsWith('host ')) {
       result = cmdHost(flags);
     } else {
       result = cmdSession(cmdKey.slice(8), rest, flags);
     }
     io.stdout(JSON.stringify(result, null, 2));
-    return 0;
+    // Commands may request a specific success-path exit code through
+    // io.exitCode (verify run --fail-on-error); absent means 0.
+    return Number.isInteger(io.exitCode) ? io.exitCode : 0;
   } catch (e) {
 
     const payload = toErrorPayload(e);

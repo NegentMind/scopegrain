@@ -52,9 +52,20 @@ EVALUATE; `review` en REVIEW.
 ## Comandos CLI
 
 ```powershell
-# Crear (estado PLAN, revision 0, UUID propio)
-node .\bin\tasksystem.mjs task create --project P --title "T" --contract "C" --author "ctx-a" [--scope "a,b"]
+# Crear (estado PLAN, revision 0, UUID propio): via --input JSON con
+# vista previa por defecto; --apply persiste
+node .\bin\tasksystem.mjs task create --project P --input task.json [--apply]
+```
 
+`task.json` lleva `{title, contract, authorContext, scope}` mas los
+metadatos del modo: una evaluacion `methodology` en `organic-sdd`
+(`schemas/organic-assessment.schema.json`) o el par `specId`+`designId`.
+La forma de flags `--title/--contract/--author [--scope] [--spec --design
+--plan]` solo sigue disponible en proyectos con `methodology: "manual"`,
+donde crea la tarea V1 directamente; bajo `organic-sdd` o `sdd` sin el
+par formal falla con `METHODOLOGY_REQUIRED` apuntando a `--input`.
+
+```powershell
 # Listar / mostrar
 node .\bin\tasksystem.mjs task list --project P
 node .\bin\tasksystem.mjs task show --project P <UUID>

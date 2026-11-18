@@ -332,6 +332,57 @@ test('approved commands with missing cwd are refused', async () => {
   } finally { cleanup(dir); }
 });
 
+test('verify run --fail-on-error propagates non-clean exits; default stays 0', async () => {
+  const { dir, ctx } = bootstrappedCtx();
+  try {
+    writeFile(dir, 'scripts/ok.mjs', "console.log('vc-ok');\n");
+    writeFile(dir, 'scripts/fail.mjs', "process.exitCode = 7;\n");
+    writeFile(dir, 'scripts/slow.mjs', 'setTimeout(() => {}, 30000);\n');
+    const ids = {};
+    for (const [key, command] of Object.entries({
+      ok: 'node scripts/ok.mjs',
+      fail: 'node scripts/fail.mjs',
+      slow: 'node scripts/slow.mjs',
+    })) {
+      const { record } = applyAddCommand(ctx, { command });
+      applyApproveCommand(ctx, record.id);
+      ids[key] = record.id;
+    }
+
+    // Default contract unchanged: failing run prints JSON, exits 0.
+    const ioDef = fakeIO();
+    assert.equal(await run(
+      ['verify', 'run', '--project', dir, ids.fail], ioDef), 0);
+    assert.equal(lastJson(ioDef).code, 7);
+
+    // Clean exit-0 stays 0 even with the flag.
+    const ioOk = fakeIO();
+    assert.equal(await run(['verify', 'run', '--project', dir, ids.ok,
+      '--fail-on-error'], ioOk), 0);
+    assert.equal(lastJson(ioOk).status, 'exit');
+
+    // Non-zero child code propagates verbatim; result JSON still on stdout.
+    const ioFail = fakeIO();
+    assert.equal(await run(['verify', 'run', '--project', dir, ids.fail,
+      '--fail-on-error'], ioFail), 7);
+    const failJson = lastJson(ioFail);
+    assert.equal(failJson.status, 'exit');
+    assert.equal(failJson.code, 7);
+
+    // Timeout has no reliable child code: maps to 1, status stays 'timeout'.
+    const ioSlow = fakeIO();
+    assert.equal(await run(['verify', 'run', '--project', dir, ids.slow,
+      '--timeout', '300', '--fail-on-error'], ioSlow), 1);
+    assert.equal(lastJson(ioSlow).status, 'timeout');
+
+    // The flag belongs to verify run only.
+    const ioBad = fakeIO();
+    assert.equal(await run(['verify', 'list', '--project', dir,
+      '--fail-on-error'], ioBad), 1);
+    assert.equal(lastErr(ioBad).code, 'INVALID_ARGS');
+  } finally { cleanup(dir); }
+});
+
 // --- CLI plumbing ----------------------------------------------------------
 
 test('unknown verify subcommands, bad arity and stray flags fail', async () => {

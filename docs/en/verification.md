@@ -615,7 +615,10 @@ The `verify` surface persists closed records under
 - `verify approve ID [--apply]` — explicit per-record approval; the
   only path that turns a command (declared or inferred) into
   `approved:true`.
-- `verify run ID [--timeout MS]` — executes a single approved record.
+- `verify run ID [--timeout MS] [--fail-on-error]` — executes a single
+  approved record. By default it prints the result JSON and exits 0;
+  `--fail-on-error` propagates the command's exit code when it is not 0
+  (or 1 on timeout/signal) for CI use.
 
 Safety model: nothing is auto-approved or auto-executed; `verify run`
 refuses unapproved records with `VERIFY_COMMAND_NOT_APPROVED`. Commands
@@ -626,4 +629,4 @@ default, 600 s cap), bounded captured output and a `cwd` contained in
 the project. The declared `executesProjectCommands:false` capability
 still holds: the harness never runs commands on its own initiative;
 `verify run` is an explicit operator order. Verified with
-`node --test tests/verify-commands.test.mjs` (16 pass, 0 fail).
+`node --test tests/verify-commands.test.mjs` (17 pass, 0 fail).

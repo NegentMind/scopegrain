@@ -224,7 +224,9 @@ alega sandbox. No introducir presupuestos que no se midan.
 listTasks/getTask de solo lectura; task malformed no se descarta en silencio.
 El id interno debe coincidir con el nombre de archivo; timestamps, historial
 y scope tienen tipos y rutas validos. Un archivo .json sin UUID es malformed.
-CLI task create --title TEXT --contract TEXT --author CONTEXT; task list;
+CLI task create --input FILE [--apply] (la forma de flags
+--title/--contract/--author solo aplica a proyectos en modo manual);
+task list;
 task show ID; task transition ID STATE --revision N [--evidence JSONFILE].
 Evidence solo admite verification y review. CLI no ejecuta verificaciones.
 

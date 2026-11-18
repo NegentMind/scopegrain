@@ -622,7 +622,10 @@ Superficie `verify` con registros cerrados persistidos en
 - `verify approve ID [--apply]` — aprobacion explicita por registro;
   es la unica via para que un comando (declarado o inferido) pase a
   `approved:true`.
-- `verify run ID [--timeout MS]` — ejecuta un unico registro aprobado.
+- `verify run ID [--timeout MS] [--fail-on-error]` — ejecuta un unico
+  registro aprobado. Por defecto imprime el JSON del resultado y sale
+  con codigo 0; `--fail-on-error` propaga el codigo de salida del
+  comando cuando no es 0 (o 1 en timeout/senal) para uso en CI.
 
 Modelo de seguridad: nada se auto-aprueba ni se auto-ejecuta;
 `verify run` rechaza registros no aprobados con
@@ -634,4 +637,4 @@ defecto, tope 600 s), salida acotada y `cwd` contenido en el proyecto.
 La capacidad declarada `executesProjectCommands:false` se mantiene: el
 arnes no ejecuta comandos por iniciativa propia; `verify run` es una
 orden explicita del operador. Verificado con
-`node --test tests/verify-commands.test.mjs` (16 pass, 0 fail).
+`node --test tests/verify-commands.test.mjs` (17 pass, 0 fail).

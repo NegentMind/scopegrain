@@ -32,7 +32,7 @@ const USAGES = [
   'approval answer --project PATH --input FILE [--apply]',
   'methodology check --project PATH UUID [--to ACT|ACCEPT] [--outcome-evidence UUID]',
 ];
-const TASK_USAGE = 'task create --project PATH (--input FILE [--apply] | --title T --contract C --author A [--scope a,b] [--spec UUID --design UUID] [--plan KEY])';
+const TASK_USAGE = 'task create --project PATH --input FILE [--apply]';
 const baseTask = () => ({
   title: 'Declared change', contract: 'Observable contract',
   authorContext: 'fixture-author', scope: ['src/a'],
@@ -133,7 +133,7 @@ async function advance(f, task, to, evidence) {
   return invoke(f, args);
 }
 
-test('C2-E help exposes exact eleven usages, JSON/legacy task usage and notes', async () => {
+test('C2-E help exposes exact eleven usages, JSON task usage and notes', async () => {
   const io = fakeIO();
   assert.equal(await run(['--help'], io), 0);
   const help = JSON.parse(io.out.stdout[0]);
@@ -253,6 +253,38 @@ test('legacy task flags still write directly, preserve V1 shape and pass formal 
       assert.equal((await readonly(f, [...flags, ...extra], 1)).code, code);
     }
   } finally { cleanup(f.dir); }
+});
+
+test('legacy task flags fail early under methodology-gated modes and point at --input', async () => {
+  for (const mode of ['organic-sdd', 'sdd']) {
+    const f = fixture(mode);
+    try {
+      const e = await readonly(f, ['task', 'create', '--title', 'T',
+        '--contract', 'C', '--author', 'fixture-author', '--scope', 'src/a'], 1);
+      assert.equal(e.code, 'METHODOLOGY_REQUIRED');
+      assert.match(e.message, /--input FILE/);
+      assert.match(e.message, /schemas\/organic-assessment\.schema\.json/);
+      const bare = await readonly(f, ['task', 'create'], 1);
+      assert.equal(bare.code, 'METHODOLOGY_REQUIRED');
+      assert.match(bare.message, /--input FILE/);
+    } finally { cleanup(f.dir); }
+  }
+});
+
+test('formal --spec/--design pair via flags still works under gated modes', async () => {
+  for (const mode of ['organic-sdd', 'sdd']) {
+    const f = fixture(mode);
+    try {
+      const { spec, design } = await structuredPair(f);
+      const task = await invoke(f, ['task', 'create', '--title', 'T',
+        '--contract', 'C', '--author', 'fixture-author', '--scope', 'src/a',
+        '--spec', spec.id, '--design', design.id]);
+      assert.equal(task.schemaVersion, 2);
+      assert.equal(task.specId, spec.id);
+      assert.equal(task.designId, design.id);
+      assert.deepEqual(getTask(f.ctx, task.id), task);
+    } finally { cleanup(f.dir); }
+  }
 });
 
 test('custom --config controls typed records, tasks, approval and methodology bindings', async () => {
