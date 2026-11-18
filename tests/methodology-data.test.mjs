@@ -115,6 +115,29 @@ test('request preserved verbatim incl whitespace', () => {
   assert.equal(request, raw);
 });
 
+test('enum violations enumerate the accepted values', () => {
+  assert.throws(() => validateMethodologyData(over({ intent: 'bogus' })),
+    (e) => e.code === 'INVALID_METHODOLOGY'
+      && e.message.includes('change') && e.message.includes('read-only'));
+  assert.throws(() => validateMethodologyData(
+    over({ authorization: { status: 'bogus', actor: null, reference: null } })),
+    (e) => e.message.includes('authorized')
+      && e.message.includes('missing') && e.message.includes('declined'));
+  assert.throws(() => validateMethodologyData(over({ risk: 'bogus' })),
+    (e) => e.message.includes('contained')
+      && e.message.includes('named') && e.message.includes('unknown'));
+  assert.throws(() => validateMethodologyData(
+    over({ risk: 'named', riskCategories: ['not-a-cat'] })),
+    (e) => e.message.includes('security')
+      && e.message.includes('verification-gap'));
+  assert.throws(() => validateMethodologyData(over({ continuity: 'bogus' })),
+    (e) => e.message.includes('diff-sufficient')
+      && e.message.includes('record-required'));
+  assert.throws(() => validateMethodologyData(
+    over({ preferredRoute: 'bogus' })),
+    (e) => e.message.includes('auto') && e.message.includes('sdd'));
+});
+
 for (const [label, input, frag] of [
   ['unknown top key', over({ extra: 1 }), 'extra'],
   ['unknown nested key', over({ authorization: { status: 'authorized', actor: 'a', reference: 'r', extra: 1 } }), 'extra'],

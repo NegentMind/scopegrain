@@ -6,9 +6,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { run } from '../src/cli.mjs';
 import {
-  applyAddCommand, applyApproveCommand, parseCommandArgv,
-  runVerifyCommand, verifyStoreRel,
+  applyAddCommand, applyApproveCommand, applyApproveDiscoveredCommands,
+  applyImportCommands, parseCommandArgv,
+  prepareApproveDiscoveredCommands, runVerifyCommand, verifyStoreRel,
 } from '../src/core/verify-commands.mjs';
+import { investigateProject } from '../src/discovery/semantic.mjs';
 import {
   bootstrappedCtx, cleanup, exists, fakeIO, readJson, writeFile,
   writeJson,
@@ -274,6 +276,128 @@ test('ambiguous package managers produce skipped candidates, not commands', asyn
     assert.equal(out.added.length, 0);
     assert.equal(out.skipped.length, 1);
     assert.equal(out.skipped[0].reason, 'unresolved-command');
+    assert.equal(out.skipped[0].unresolved, 'PACKAGE_MANAGER_UNCONFIRMED');
+    assert.match(out.skipped[0].hint, /verify add --command/);
+    assert.match(out.skipped[0].hint, /packageManager field/);
+  } finally { cleanup(dir); }
+});
+
+test('unresolved hints name the concrete fix per pm-signal failure', async () => {
+  const { dir, ctx } = bootstrappedCtx();
+  const rel = verifyStoreRel(ctx);
+  try {
+    const runDiscover = (commands) => {
+      const res = applyImportCommands(ctx, { commands });
+      return res.skipped;
+    };
+    // No declared manager and no lockfile.
+    let skipped = runDiscover([{
+      command: null, script: 'test', cwd: '.', source: 'package.json',
+      unresolved: 'PACKAGE_MANAGER_UNCONFIRMED',
+    }]);
+    assert.equal(skipped[0].unresolved, 'PACKAGE_MANAGER_UNCONFIRMED');
+    assert.match(skipped[0].hint, /commit a lockfile/);
+
+    // Conflicting lockfiles without a declared manager.
+    skipped = runDiscover([{
+      command: null, script: 'test', cwd: '.', source: 'package.json',
+      unresolved: 'CONTRADICTORY_PM',
+    }]);
+    assert.equal(skipped[0].unresolved, 'CONTRADICTORY_PM');
+    assert.match(skipped[0].hint, /multiple lockfiles|single lockfile/);
+
+    // Declared manager outside the known set.
+    skipped = runDiscover([{
+      command: null, script: 'test', cwd: '.', source: 'package.json',
+      unresolved: 'UNKNOWN_PACKAGE_MANAGER',
+    }]);
+    assert.equal(skipped[0].unresolved, 'UNKNOWN_PACKAGE_MANAGER');
+    assert.match(skipped[0].hint, /npm, pnpm, yarn or bun/);
+
+    // Candidates without a cause code still carry a generic hint.
+    skipped = runDiscover([{ command: null, script: 'test' }]);
+    assert.equal(skipped[0].unresolved, null);
+    assert.match(skipped[0].hint, /verify add --command/);
+    assert.ok(!exists(dir, rel), 'skipped candidates never write the store');
+  } finally { cleanup(dir); }
+});
+
+test('approveDiscoveredCommands imports literal commands approved in one write', async () => {
+  const { dir, ctx } = bootstrappedCtx();
+  const rel = verifyStoreRel(ctx);
+  try {
+    writeJson(dir, 'package.json', {
+      name: 'fixture', packageManager: 'npm@10.0.0',
+      scripts: { test: 'echo t', lint: 'echo l' },
+    });
+    const inv = investigateProject(dir, { config: ctx.config });
+
+    const preview = prepareApproveDiscoveredCommands(
+      ctx, { commands: inv.commands });
+    assert.equal(preview.approved.length, 2);
+    assert.equal(preview.added.length, 2);
+    assert.equal(preview.file.action, 'create');
+    assert.ok(!exists(dir, rel), 'dry-run must not write the store');
+
+    const res = applyApproveDiscoveredCommands(
+      ctx, { commands: inv.commands });
+    assert.equal(res.added.length, 2);
+    assert.equal(res.approved.length, 2);
+    assert.equal(res.existing.length, 0);
+    const stored = readJson(dir, rel);
+    for (const rec of stored.commands) {
+      assert.equal(rec.source, 'inferred');
+      assert.equal(rec.approved, true);
+      assert.equal(typeof rec.approvedAt, 'string');
+    }
+
+    // A second run over the same discovery is a no-op, not a rewrite.
+    const res2 = applyApproveDiscoveredCommands(
+      ctx, { commands: inv.commands });
+    assert.equal(res2.added.length, 0);
+    assert.equal(res2.existing.length, 2);
+    assert.equal(res2.approved.length, 0);
+    assert.equal(res2.alreadyApproved.length, 2);
+  } finally { cleanup(dir); }
+});
+
+test('approveDiscoveredCommands without candidates approves stored inferred only', async () => {
+  const { dir, ctx } = bootstrappedCtx();
+  const rel = verifyStoreRel(ctx);
+  try {
+    applyAddCommand(ctx, { command: 'node scripts/check.mjs' }); // declared
+    applyImportCommands(ctx, { commands: [
+      { command: 'npm test', script: 'test', cwd: '.', source: 'package.json' },
+      { command: 'npm run lint', script: 'lint', cwd: '.', source: 'package.json' },
+    ] });
+    const res = applyApproveDiscoveredCommands(ctx);
+    assert.equal(res.approved.length, 2);
+    assert.ok(res.approved.every((r) => r.source === 'inferred'));
+    const stored = readJson(dir, rel);
+    assert.equal(stored.commands.find((c) => c.source === 'declared')
+      .approved, false, 'declared records stay out of the discovered scope');
+    assert.ok(stored.commands.filter((c) => c.source === 'inferred')
+      .every((c) => c.approved));
+  } finally { cleanup(dir); }
+});
+
+test('approveDiscoveredCommands skips unresolved candidates, never stores them', async () => {
+  const { dir, ctx } = bootstrappedCtx();
+  const rel = verifyStoreRel(ctx);
+  try {
+    const res = applyApproveDiscoveredCommands(ctx, { commands: [
+      { command: null, script: 'test', cwd: '.', source: 'package.json',
+        unresolved: 'PACKAGE_MANAGER_UNCONFIRMED' },
+      { command: 'npm run build', script: 'build', cwd: '.',
+        source: 'package.json' },
+    ] });
+    assert.equal(res.skipped.length, 1);
+    assert.equal(res.skipped[0].reason, 'unresolved-command');
+    assert.match(res.skipped[0].hint, /verify add --command/);
+    assert.equal(res.added.length, 1);
+    const stored = readJson(dir, rel);
+    assert.equal(stored.commands.length, 1);
+    assert.equal(stored.commands[0].approved, true);
   } finally { cleanup(dir); }
 });
 

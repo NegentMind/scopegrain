@@ -611,10 +611,19 @@ The `verify` surface persists closed records under
   by default, `--apply` persists it with `approved:false`.
 - `verify discover [--apply]` — turns semantic-discovery candidates
   into `source:'inferred'` records, never auto-approved. Unresolvable
-  candidates are reported as `skipped`.
+  candidates are reported as `skipped` with
+  `reason:'unresolved-command'`, the cause code (`unresolved`:
+  `PACKAGE_MANAGER_UNCONFIRMED`, `CONTRADICTORY_PM` or
+  `UNKNOWN_PACKAGE_MANAGER`) and a `hint` with the exact remediation:
+  declare `packageManager` in that cwd's package.json, commit a single
+  lockfile or declare the command literally with `verify add`.
 - `verify approve ID [--apply]` — explicit per-record approval; the
-  only path that turns a command (declared or inferred) into
-  `approved:true`.
+  only CLI path that turns a command (declared or inferred) into
+  `approved:true`. The core also exposes the bulk path
+  `prepareApproveDiscoveredCommands`/`applyApproveDiscoveredCommands`:
+  imports literal candidates and approves them in one locked write
+  (unresolved ones stay `skipped`, never stored); without `commands`
+  it approves the stored `inferred` records. No CLI verb yet.
 - `verify run ID [--timeout MS] [--fail-on-error]` — executes a single
   approved record. By default it prints the result JSON and exits 0;
   `--fail-on-error` propagates the command's exit code when it is not 0
@@ -629,4 +638,4 @@ default, 600 s cap), bounded captured output and a `cwd` contained in
 the project. The declared `executesProjectCommands:false` capability
 still holds: the harness never runs commands on its own initiative;
 `verify run` is an explicit operator order. Verified with
-`node --test tests/verify-commands.test.mjs` (17 pass, 0 fail).
+`node --test tests/verify-commands.test.mjs` (21 pass, 0 fail).

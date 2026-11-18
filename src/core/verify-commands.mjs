@@ -1,10 +1,13 @@
 // Supervised verification commands (debt B6): literal-argv command
 // records stored per project under <paths.state>/verify-commands.json.
 // Every record — declared or inferred — is born UNAPPROVED; nothing
-// auto-approves and nothing auto-executes. `runVerifyCommand` is the
-// sole executor: it requires an explicitly approved record, spawns the
-// stored argv verbatim (spawn with an args array, never a shell string,
-// never shell:true), and bounds both runtime and captured output.
+// auto-approves and nothing auto-executes. Approval is always an
+// explicit operator action: `applyApproveCommand` flips one record,
+// `applyApproveDiscoveredCommands` is the bulk convenience for the
+// discover -> approved flow. `runVerifyCommand` is the sole executor:
+// it requires an explicitly approved record, spawns the stored argv
+// verbatim (spawn with an args array, never a shell string, never
+// shell:true), and bounds both runtime and captured output.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -128,7 +131,8 @@ function buildRecord({ command, cwd, source, evidence, at }) {
   const argv = parseCommandArgv(trimmed);
   const cwdC = normalizeCwd(cwd);
   if (!SOURCES.has(source)) {
-    throw invalidCommand(`unknown command source '${source}'`);
+    throw invalidCommand(
+      `unknown command source '${source}'; valid: ${[...SOURCES].join(', ')}`);
   }
   if (evidence !== null && (typeof evidence !== 'string'
       || evidence.length === 0 || evidence.length > MAX_EVIDENCE_CHARS)) {
@@ -432,11 +436,38 @@ export function applyApproveCommand(ctx, id) {
 // --- discover (inferred) ---------------------------------------------------
 
 // candidates come from the semantic discovery layer as
-// {command, script?, cwd?, source?} — command may be null when the
-// detector could not resolve a concrete command (ambiguous package
-// manager). Nulls are reported as skipped, never stored.
+// {command, script?, cwd?, source?, unresolved?} — command may be null
+// when the detector could not resolve a concrete command (ambiguous
+// package manager). Nulls are reported as skipped, never stored; each
+// skipped entry carries the discovery-layer cause code (`unresolved`)
+// and a `hint` telling the operator exactly how to fix the signals or
+// how to declare the command manually.
 const CANDIDATE_KEYS = new Set(
-  ['command', 'script', 'cwd', 'source', 'approved']);
+  ['command', 'script', 'cwd', 'source', 'approved', 'unresolved']);
+
+// Remediation text per discovery-layer cause code (emitted by
+// resolvePackageManager in discovery/inspect.mjs). Every hint names the
+// manual escape hatch verbatim: `verify add --command CMD`.
+const UNRESOLVED_HINTS = {
+  UNKNOWN_PACKAGE_MANAGER:
+    'the declared packageManager is not one of npm, pnpm, yarn or bun; '
+    + 'fix the packageManager field in the package.json at this cwd, '
+    + 'or declare the command literally via verify add --command CMD',
+  CONTRADICTORY_PM:
+    'multiple lockfiles conflict and no packageManager field is set; '
+    + 'declare packageManager in the package.json at this cwd or keep a '
+    + 'single lockfile, or declare the command literally via verify add '
+    + '--command CMD',
+  PACKAGE_MANAGER_UNCONFIRMED:
+    'no packageManager field and no lockfile at this cwd; add a '
+    + 'packageManager field to its package.json or commit a lockfile '
+    + '(npm, pnpm, yarn or bun), or declare the command literally via '
+    + 'verify add --command CMD',
+};
+const UNRESOLVED_HINT_GENERIC =
+  'the package manager could not be resolved; declare the command '
+  + 'literally via verify add --command CMD, or fix the packageManager/'
+  + 'lockfile signals and re-run verify discover';
 
 function mapCandidates(rawCommands) {
   if (!Array.isArray(rawCommands)) {
@@ -452,9 +483,15 @@ function mapCandidates(rawCommands) {
       continue;
     }
     if (raw.command === null) {
+      const cause = typeof raw.unresolved === 'string'
+          && raw.unresolved in UNRESOLVED_HINTS
+        ? raw.unresolved : null;
       skipped.push({
         script: raw.script ?? null, cwd: raw.cwd ?? '.',
         source: raw.source ?? null, reason: 'unresolved-command',
+        unresolved: cause,
+        hint: cause !== null
+          ? UNRESOLVED_HINTS[cause] : UNRESOLVED_HINT_GENERIC,
       });
       continue;
     }
@@ -529,6 +566,83 @@ export function applyImportCommands(ctx, options) {
       result: { added: fresh, existing, skipped },
     };
   });
+}
+
+// --- approve discovered (bulk) ----------------------------------------------
+
+// ONE explicit operator action covering the discover -> approved flow.
+// With options.commands (the same candidate shape `verify discover`
+// consumes) the literal candidates are imported first — null/unresolved
+// ones stay skipped, never stored — and every record they map to is
+// approved in the same locked write. Without `commands` it approves
+// every stored unapproved record with source 'inferred'; declared
+// records are out of scope and still need `verify approve ID`.
+function approveDiscoveredOptions(options) {
+  const opts = closedOptions(
+    options ?? {}, ['commands'], 'approve-discovered options');
+  return { commands: opts.commands ?? null };
+}
+
+// Shared planner for prepare/apply: returns {doc|null, result}. The
+// result mirrors the import shape — {added, existing, skipped} — plus
+// `approved` (records flipped by this call, `added` included) and
+// `alreadyApproved` (in-scope ids that needed no change).
+function planApproveDiscovered(current, commands, at) {
+  const skipped = [];
+  const existing = [];
+  const fresh = [];
+  let touched = null; // null means "every stored inferred record"
+  if (commands !== null) {
+    const mapped = mapCandidates(commands);
+    skipped.push(...mapped.skipped);
+    touched = new Set(mapped.candidates.map((c) => c.id));
+    for (const c of mapped.candidates) {
+      if (current.commands.some((r) => r.id === c.id)) existing.push(c.id);
+      else fresh.push(c);
+    }
+    if (current.commands.length + fresh.length > MAX_COMMANDS) {
+      throw err('VERIFY_COMMAND_LIMIT',
+        `verify store holds ${MAX_COMMANDS} commands`);
+    }
+  }
+  const freshIds = new Set(fresh.map((c) => c.id));
+  const added = [];
+  const approved = [];
+  const alreadyApproved = [];
+  const doc = {
+    schemaVersion: 1,
+    commands: [...current.commands, ...fresh].map((rec) => {
+      const inScope = touched !== null
+        ? touched.has(rec.id) : rec.source === 'inferred';
+      if (!inScope) return rec;
+      if (rec.approved) {
+        alreadyApproved.push(rec.id);
+        return rec;
+      }
+      const next = { ...rec, approved: true, approvedAt: at };
+      approved.push(next);
+      if (freshIds.has(rec.id)) added.push(next);
+      return next;
+    }),
+  };
+  return {
+    doc: approved.length > 0 ? doc : null,
+    result: { added, existing, skipped, approved, alreadyApproved },
+  };
+}
+
+export function prepareApproveDiscoveredCommands(ctx, options) {
+  const { commands } = approveDiscoveredOptions(options);
+  const current = readStoreDoc(verifyStoreAbs(ctx));
+  const { doc, result } = planApproveDiscovered(
+    current, commands, new Date().toISOString());
+  return { ...result, file: filePreview(ctx, current, doc !== null) };
+}
+
+export function applyApproveDiscoveredCommands(ctx, options) {
+  const { commands } = approveDiscoveredOptions(options);
+  return withStoreLock(ctx, (current) =>
+    planApproveDiscovered(current, commands, new Date().toISOString()));
 }
 
 // --- bounded executor ------------------------------------------------------

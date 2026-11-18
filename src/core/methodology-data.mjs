@@ -29,6 +29,10 @@ function bad(label, m) {
   throw err('INVALID_METHODOLOGY', `${label}: ${m}`);
 }
 
+// Enum errors enumerate the exact values the validator accepts; the
+// sets above are the canonical source, never a hardcoded copy.
+const enumOf = (set) => [...set].join(', ');
+
 function text(v, label) {
   if (typeof v !== 'string' || v.trim() === '') {
     bad(label, 'must be a non-empty string');
@@ -56,11 +60,16 @@ export function validateMethodologyData(data,
       if (data[k] === undefined) bad(label, `.${k} is required in stored data`);
     }
   }
-  if (!INTENTS.has(data.intent)) bad(label, `.intent invalid`);
+  if (!INTENTS.has(data.intent)) {
+    bad(label, `.intent must be one of: ${enumOf(INTENTS)}`);
+  }
   // authorization.closed + conditional required actor/reference.
   closed(data.authorization, AUTH_KEYS, `${label}.authorization`);
   const auth = data.authorization;
-  if (!AUTH_STATUS.has(auth.status)) bad(label, '.authorization.status invalid');
+  if (!AUTH_STATUS.has(auth.status)) {
+    bad(label,
+      `.authorization.status must be one of: ${enumOf(AUTH_STATUS)}`);
+  }
   if (auth.status === 'missing') {
     if (auth.actor !== null || auth.reference !== null) {
       bad(label, '.authorization actor/reference must be null when missing');
@@ -70,19 +79,22 @@ export function validateMethodologyData(data,
     text(auth.reference, `${label}.authorization.reference`);
   }
   if (!UNDERSTANDING.has(data.understanding)) {
-    bad(label, '.understanding invalid');
+    bad(label, `.understanding must be one of: ${enumOf(UNDERSTANDING)}`);
   }
   if (!UNCERTAINTY.has(data.uncertainty)) {
-    bad(label, '.uncertainty invalid');
+    bad(label, `.uncertainty must be one of: ${enumOf(UNCERTAINTY)}`);
   }
-  if (!RISK.has(data.risk)) bad(label, '.risk invalid');
+  if (!RISK.has(data.risk)) {
+    bad(label, `.risk must be one of: ${enumOf(RISK)}`);
+  }
   if (!Array.isArray(data.riskCategories)) {
     bad(label, '.riskCategories must be an array');
   }
   const cats = new Set();
   for (const c of data.riskCategories) {
     if (!RISK_CATEGORIES.has(c)) {
-      bad(label, `.riskCategories unknown category '${c}'`);
+      bad(label, `.riskCategories unknown category '${c}'; `
+        + `valid: ${enumOf(RISK_CATEGORIES)}`);
     }
     if (cats.has(c.toLowerCase())) {
       bad(label, `.riskCategories duplicate '${c}'`);
@@ -95,7 +107,9 @@ export function validateMethodologyData(data,
   if (data.risk === 'named' && data.riskCategories.length === 0) {
     bad(label, '.riskCategories must be non-empty when risk is named');
   }
-  if (!CONTINUITY.has(data.continuity)) bad(label, '.continuity invalid');
+  if (!CONTINUITY.has(data.continuity)) {
+    bad(label, `.continuity must be one of: ${enumOf(CONTINUITY)}`);
+  }
   if (!Array.isArray(data.evidence) || data.evidence.length === 0) {
     bad(label, '.evidence must be a non-empty array');
   }
@@ -106,7 +120,7 @@ export function validateMethodologyData(data,
   const preferredRoute = data.preferredRoute === undefined
     ? 'auto' : data.preferredRoute;
   if (!ROUTES.has(preferredRoute)) {
-    bad(label, '.preferredRoute invalid');
+    bad(label, `.preferredRoute must be one of: ${enumOf(ROUTES)}`);
   }
   return {
     schemaVersion: 1,

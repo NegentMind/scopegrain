@@ -63,6 +63,8 @@ function presentLockfiles(dirAbs) {
 // - otherwise exactly one recognized lockfile manager wins.
 // - unknown declared manager, none or ambiguous signals: no manager is
 //   chosen (command:null) plus an explicit warning. Never silently npm.
+// `unresolved` carries the warning code that explains a null command so
+// downstream consumers can give a precise remediation hint.
 function resolvePackageManager(dirAbs, pkg, warnings, relDir) {
   const at = relDir || '.';
   const declared = typeof pkg.packageManager === 'string'
@@ -74,7 +76,7 @@ function resolvePackageManager(dirAbs, pkg, warnings, relDir) {
       message: `unrecognized packageManager '${declared}' at ${at}`,
       path: at,
     });
-    return { pm: null, ambiguous: true };
+    return { pm: null, ambiguous: true, unresolved: 'UNKNOWN_PACKAGE_MANAGER' };
   }
   const lockPms = presentLockfiles(dirAbs);
   if (declared) {
@@ -86,23 +88,25 @@ function resolvePackageManager(dirAbs, pkg, warnings, relDir) {
         path: at,
       });
     }
-    return { pm: declared, ambiguous: false };
+    return { pm: declared, ambiguous: false, unresolved: null };
   }
-  if (lockPms.size === 1) return { pm: [...lockPms][0], ambiguous: false };
+  if (lockPms.size === 1) {
+    return { pm: [...lockPms][0], ambiguous: false, unresolved: null };
+  }
   if (lockPms.size > 1) {
     warnings.push({
       code: 'CONTRADICTORY_PM',
       message: `multiple lockfiles and no packageManager field at ${at}`,
       path: at,
     });
-    return { pm: null, ambiguous: true };
+    return { pm: null, ambiguous: true, unresolved: 'CONTRADICTORY_PM' };
   }
   warnings.push({
     code: 'PACKAGE_MANAGER_UNCONFIRMED',
     message: `no packageManager field or lockfile at ${at}; manager unknown`,
     path: at,
   });
-  return { pm: null, ambiguous: true };
+  return { pm: null, ambiguous: true, unresolved: 'PACKAGE_MANAGER_UNCONFIRMED' };
 }
 
 function inspectPackageJson(dirAbs, relDir, content, out) {
@@ -131,7 +135,8 @@ function inspectPackageJson(dirAbs, relDir, content, out) {
   const wanted = PROPOSED_SCRIPTS.filter((name) =>
     typeof scripts[name] === 'string' && scripts[name].trim() !== '');
   if (wanted.length === 0) return;
-  const { pm, ambiguous } = resolvePackageManager(dirAbs, pkg, out.warnings, relDir);
+  const { pm, ambiguous, unresolved } = resolvePackageManager(
+    dirAbs, pkg, out.warnings, relDir);
   const cwd = relDir || '.';
   for (const name of wanted) {
     out.commands.push({
@@ -140,6 +145,7 @@ function inspectPackageJson(dirAbs, relDir, content, out) {
       cwd,
       source,
       approved: false,
+      ...(ambiguous ? { unresolved } : {}),
     });
   }
 }

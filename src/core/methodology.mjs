@@ -11,7 +11,7 @@ import { getArtifact } from './artifacts.mjs';
 import { getTask } from './tasks.mjs';
 import { validateReview, validateVerification } from './evidence.mjs';
 import { resolveInside } from './paths.mjs';
-import { actionsFor } from './policy.mjs';
+import { actionsFor, loadMethodologyPolicy } from './policy.mjs';
 
 const INPUT_KEYS = new Set(['taskId', 'to', 'outcomeEvidenceId']);
 const UUID_RE =
@@ -227,8 +227,10 @@ export function checkMethodology(ctx, input) {
     }
   }
   const to = input.to === undefined ? 'ACT' : input.to;
-  if (to !== 'ACT' && to !== 'ACCEPT') {
-    throw err('INVALID_STATE', 'methodology target must be ACT or ACCEPT');
+  const gated = loadMethodologyPolicy().gatedTaskStates;
+  if (!gated.includes(to)) {
+    throw err('INVALID_STATE',
+      `methodology target must be one of ${gated.join(', ')}`);
   }
   if (input.outcomeEvidenceId !== undefined
       && (to !== 'ACCEPT' || typeof input.outcomeEvidenceId !== 'string'
