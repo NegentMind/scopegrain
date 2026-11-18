@@ -66,14 +66,35 @@ fragmentos de anfitriones) conservando los bytes en disco de
 | `noop` | bytes identicos a los generados |
 | `conflict` | destino distinto, enlace, directorio o colision interna |
 
-`applyUpdate(ctx, {installRoot?}?)` crea solo los `create`; los `conflict`
-se reportan y nunca se sobrescriben. `config.json` se reporta pero queda
-fuera del conjunto de escritura: la configuracion es del proyecto, no un
-recurso refrescable. Un destino que aparece entre la vista previa y el
-apply aborta todo con `PLAN_CONFLICT`. A diferencia de
+`applyUpdate(ctx, {installRoot?, reconcile?}?)` crea solo los `create`;
+los `conflict` se reportan y nunca se sobrescriben. `config.json` se
+reporta pero queda fuera del conjunto de escritura: la configuracion es
+del proyecto, no un recurso refrescable. Un destino que aparece entre la
+vista previa y el apply aborta todo con `PLAN_CONFLICT`. A diferencia de
 `applyActivation` en [hosts](native-hosts.md), que es todo-o-nada,
 `update` aplica parcialmente: los `create` viables se escriben aunque
 coexistan `conflict` reportados.
+
+Con `reconcile:true` (`update --reconcile`), el preview marca cada
+`conflict` con `reconcile:true|false` y el apply reescribe SOLO los
+archivos divergentes bajo una raiz generada por el harness. Las raices
+no son una lista copiada a mano: se derivan del propio plan, como los
+directorios de primer nivel de todo archivo generado anidado (el
+directorio de la config —`.scopegrain/` o el configurado— y cualquier
+subdirectorio proyectado que el generador emita). La reescritura replica
+el flujo manual: unlink del archivo divergente y recreacion con `wx`
+exclusivo via `applyPlan`, con su preflight completo y rollback de solo
+lo creado.
+
+Reconcile nunca toca: `config.json` (aunque viva bajo la raiz generada),
+archivos de nivel raiz (`AGENTS.md`, `CLAUDE.md` y cualquier destino sin
+directorio padre), destinos que son enlaces o directorios, colisiones
+internas del plan y cualquier cosa no producida por el generador. Cuando
+la config vive en la raiz del proyecto, los archivos generados de nivel
+raiz (`instructions.md`, `discovery.json`, `task-contract.md`) tampoco
+son reconciliables: en la raiz no hay forma de distinguir lo generado de
+lo ajeno. El resultado del apply reporta `reconciled` (con el motivo
+original del conflicto) junto a los `conflict` restantes.
 
 ## backup
 
@@ -160,6 +181,19 @@ raiz del proyecto nunca se elimina y no se escribe nada mas.
   idle`, o falla ante head malformado/no regular o una
   `activeOperation` pendiente (la recuperacion explicita sigue siendo del
   journal; ver [recuperacion del journal](journal-recovery.md)).
+- `docs-cli-drift` (nivel aviso, nunca cuenta como fallo): compara los
+  verbos que la documentacion del proyecto presenta como comandos
+  ejecutables (`README*.md`, `docs/*.md`, `docs/en/*.md`) con la
+  superficie real del CLI (tabla `COMMANDS` mas ids y alias `command`
+  del catalogo). Lista los verbos documentados inexistentes (`stale`) y
+  los reales nunca referenciados (`undocumented`); sin documentacion el
+  chequeo se omite.
+
+El informe ademas incluye `summary` con el recuento `{ok, warnings,
+failures}`: separa las advertencias puras de los chequeos fallidos, de
+modo que un consumidor distingue "todo paso con avisos" de "algo fallo"
+sin interpretar `status` (`needs-attention` sigue aplicandose siempre que
+existan warnings).
 
 ## Limites
 

@@ -143,11 +143,14 @@ prohibido. La contencion real sigue usando rutas reales, no solo esta clave.
 ## Inicializacion y plan de archivos
 
 CLI inspect --project PATH: solo stdout JSON.
-CLI init --project PATH [--config REL] [--answers FILE] [--apply].
+CLI init --project PATH [--config REL] [--answers FILE | --defaults] [--apply].
 Interactivo: preguntar nombre, idioma, hosts, config, siete rutas y ocho
 preferencias de versionado; mostrar
 discovery y todos los destinos, luego confirmar. No preguntar por secretos.
 Con --answers: default dry-run; --apply autoriza crear, no reemplazar.
+Con --defaults: respuestas no interactivas desde la config existente
+(re-init no-op) o desde suggestAnswers de la investigacion mas los
+defaults del asistente; mutuamente excluyente con --answers.
 No --yes, --force ni escritura implicita en sesiones sin TTY.
 Generar junto a config: instructions.md, discovery.json, task-contract.md,
 integrations/{host}-mcp.json o .toml. Todos los placeholders de templates

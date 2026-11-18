@@ -52,7 +52,11 @@ node ./bin/scopegrain.mjs init --project "C:\ruta\mi-proyecto"
 node ./bin/scopegrain.mjs doctor --project "C:\ruta\mi-proyecto"
 ```
 
-`inspect` no escribe ni ejecuta los comandos que descubre. `init` interactivo
+`inspect` no escribe ni ejecuta los comandos que descubre: es la
+instantanea acotada de manifiestos que `init` guarda como
+`discovery.json`. `investigate` es el analisis semantico profundo
+(topologia, plataformas, pruebas, senales de anfitrion) que ademas
+propone respuestas de init. `init` interactivo
 pregunta por la configuracion, muestra los archivos propuestos y solicita
 confirmacion explicita; la respuesta por defecto es no. `doctor` revisa el
 estado de la configuracion y los archivos generados.

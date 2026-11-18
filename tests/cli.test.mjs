@@ -3,10 +3,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import { run } from '../src/cli.mjs';
 import { createConfig } from '../src/core/config.mjs';
 import {
-  VALID_ANSWERS, cleanup, exists, fakeIO, makeTempDir, writeJson,
+  VALID_ANSWERS, cleanup, exists, fakeIO, makeTempDir, readJson, writeJson,
 } from './helpers.mjs';
 
 function lastJson(io) {
@@ -84,13 +85,85 @@ test('init --answers --apply creates the plan once', async () => {
     const io = fakeIO();
     assert.equal(await run(
       ['init', '--project', dir, '--answers', answersFile, '--apply'], io), 0);
-    assert.equal(lastJson(io).mode, 'applied');
+    const first = lastJson(io);
+    assert.equal(first.mode, 'applied');
+    assert.equal(first.applied, true);
     assert.ok(exists(dir, '.scopegrain/config.json'));
     assert.ok(exists(dir, 'CLAUDE.md'));
+    // A truthful re-init: applied reflects that nothing was written,
+    // files lists only writes and counts mirror the update shape.
     const io2 = fakeIO();
     assert.equal(await run(
       ['init', '--project', dir, '--answers', answersFile, '--apply'], io2), 0);
-    assert.equal(lastJson(io2).created, 0);
+    const second = lastJson(io2);
+    assert.equal(second.mode, 'applied');
+    assert.equal(second.applied, false);
+    assert.equal(second.created, 0);
+    assert.deepEqual(second.files, []);
+    assert.equal(second.counts.create, 0);
+    assert.ok(second.counts.noop > 0);
+    assert.equal(second.counts.conflict, 0);
+  } finally { cleanup(dir); cleanup(answersFile); }
+});
+
+test('init --defaults applies investigation suggestions non-interactively', async () => {
+  const dir = makeTempDir('cli-init-defaults');
+  try {
+    writeJson(dir, 'package.json', { name: 'defaults-probe' });
+    fs.mkdirSync(path.join(dir, '.claude'));
+    const io = fakeIO(); // no TTY: --defaults short-circuits the prompt loop
+    assert.equal(await run(
+      ['init', '--project', dir, '--defaults'], io), 0);
+    const dry = lastJson(io);
+    assert.equal(dry.mode, 'dry-run');
+    assert.equal(dry.answers.name, 'defaults-probe');
+    assert.deepEqual(dry.answers.hosts, ['claude']); // detected signal
+    assert.equal(dry.answers.methodology, 'organic-sdd');
+    assert.equal(dry.answers.paths.state, '.scopegrain/state');
+    assert.equal(dry.answers.versioning.plans, false);
+    assert.ok(!exists(dir, '.scopegrain/config.json')); // preview writes nothing
+
+    const io2 = fakeIO();
+    assert.equal(await run(
+      ['init', '--project', dir, '--defaults', '--apply'], io2), 0);
+    const applied = lastJson(io2);
+    assert.equal(applied.mode, 'applied');
+    assert.equal(applied.applied, true);
+    assert.ok(applied.created > 0);
+    const config = readJson(dir, '.scopegrain/config.json');
+    assert.equal(config.project.name, 'defaults-probe');
+    assert.deepEqual(config.hosts, ['claude']);
+    assert.ok(exists(dir, 'CLAUDE.md'));
+
+    // Re-init on the configured project is the normal noop: the existing
+    // config is replayed, never clashing with fresh suggestions.
+    const io3 = fakeIO();
+    assert.equal(await run(
+      ['init', '--project', dir, '--defaults', '--apply'], io3), 0);
+    const again = lastJson(io3);
+    assert.equal(again.applied, false);
+    assert.equal(again.created, 0);
+    assert.equal(again.answers.name, 'defaults-probe');
+  } finally { cleanup(dir); }
+});
+
+test('init --defaults with no signals uses wizard defaults; --answers conflicts', async () => {
+  const dir = makeTempDir('cli-init-defaults-empty');
+  const answersFile = writeAnswers(dir);
+  try {
+    const io = fakeIO();
+    assert.equal(await run(['init', '--project', dir, '--defaults'], io), 0);
+    const dry = lastJson(io);
+    // No host signals -> the full interactive default list.
+    assert.equal(dry.answers.hosts.length, 6);
+    assert.ok(dry.files.some((f) => f.path === 'AGENTS.md'));
+    assert.ok(dry.files.some((f) => f.path === 'CLAUDE.md'));
+
+    const both = fakeIO();
+    assert.equal(await run(['init', '--project', dir, '--defaults',
+      '--answers', answersFile], both), 1);
+    assert.equal(JSON.parse(both.out.stderr[0]).error.code, 'INVALID_ARGS');
+    assert.ok(!exists(dir, '.scopegrain/config.json'));
   } finally { cleanup(dir); cleanup(answersFile); }
 });
 

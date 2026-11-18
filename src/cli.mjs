@@ -58,9 +58,11 @@ import {
   proposeFromInitAnswers, proposeFromJournal, reviewProposal,
 } from './core/capture-proposals.mjs';
 import {
-  applyAddCommand, applyApproveCommand, applyImportCommands,
+  applyAddCommand, applyApproveCommand,
+  applyApproveDiscoveredCommands, applyImportCommands,
   listVerifyCommands, prepareAddCommand, prepareApproveCommand,
-  prepareImportCommands, runVerifyCommand,
+  prepareApproveDiscoveredCommands, prepareImportCommands,
+  runVerifyCommand,
 } from './core/verify-commands.mjs';
 import { createApiServer } from './api/server.mjs';
 
@@ -84,6 +86,7 @@ const VALUE_FLAGS = new Set([
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--help', '--owned', '--save', '--fail-on-error',
+  '--reconcile', '--defaults',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -91,9 +94,9 @@ const REJECTED_FLAGS = new Set(['--yes', '--force']);
 const COMMANDS = {
   inspect: { flags: ['--project'], pos: 0, usage: 'inspect --project PATH' },
   init: {
-    flags: ['--project', '--config', '--answers', '--apply'],
+    flags: ['--project', '--config', '--answers', '--defaults', '--apply'],
     pos: 0,
-    usage: 'init --project PATH [--config REL] [--answers FILE] [--apply]',
+    usage: 'init --project PATH [--config REL] [--answers FILE | --defaults] [--apply]',
   },
   doctor: {
     flags: ['--project', '--config'],
@@ -276,8 +279,8 @@ const COMMANDS = {
     usage: 'adopt --project PATH [--config REL] [--apply]',
   },
   update: {
-    flags: ['--project', '--config', '--apply'], pos: 0,
-    usage: 'update --project PATH [--config REL] [--apply]',
+    flags: ['--project', '--config', '--reconcile', '--apply'], pos: 0,
+    usage: 'update --project PATH [--config REL] [--reconcile] [--apply]',
   },
   backup: {
     flags: ['--project', '--config', '--to', '--apply'], pos: 0,
@@ -320,8 +323,12 @@ const COMMANDS = {
     usage: 'verify approve ID --project PATH [--apply]',
   },
   'verify discover': {
+    flags: ['--project', '--config', '--apply', '--approve'], pos: 0,
+    usage: 'verify discover --project PATH [--apply] [--approve]',
+  },
+  'verify approve-discovered': {
     flags: ['--project', '--config', '--apply'], pos: 0,
-    usage: 'verify discover --project PATH [--apply]',
+    usage: 'verify approve-discovered --project PATH [--apply]',
   },
   'verify run': {
     flags: ['--project', '--config', '--timeout', '--fail-on-error'], pos: 1,
@@ -357,10 +364,13 @@ function helpResult() {
       '--owned opts specification create/show into journal ownership; legacy behavior stays unchanged without it',
       '--owned opts design/outcome create/show into journal ownership; new show commands require it',
       'adopt/update/backup/restore/uninstall preview first; --apply is create-only and never overwrites, merges or reinitializes',
+      'update --reconcile rewrites ONLY diverged generated files under harness-owned roots (the config dir and generated subdirs); root-level files (AGENTS.md, CLAUDE.md) and the config always stay conflict',
+      'init --defaults skips the prompt loop: answers come from the existing config (noop re-init) or from the investigation suggestions plus the wizard defaults; --apply still gates writes; mutually exclusive with --answers',
+      'inspect is the bounded manifest-scan snapshot init stores as discovery.json; investigate is the deeper semantic analysis that adds init-answer suggestions',
       'investigate is read-only; --save writes one research record under paths.research when a config resolves',
       'host activate writes project-local destinations only; global host paths and shared merges are never written',
       'capture proposals lists review proposals; capture review --apply creates an owned capture only from an approved decision',
-      'verify add/approve/discover preview first; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
+      'verify add/approve/discover preview first; discover --approve or approve-discovered bulk-approves literal candidates; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
       'verify run prints the result JSON and exits 0 by default; --fail-on-error propagates the command exit code (or 1 on timeout/signal)',
       'view serves a loopback read-only API and keeps running; press Ctrl+C to stop',
     ],
@@ -537,13 +547,74 @@ function planJson(prepared) {
   };
 }
 
+// Truthful apply reporting: `applied` reflects whether bytes were
+// actually written, `files` lists only written destinations and `counts`
+// mirrors the update verb's {create,noop,conflict} shape — a re-init that
+// created nothing reports applied:false instead of listing the plan.
+function appliedInitResult(result, extra = {}) {
+  return {
+    mode: 'applied',
+    applied: result.created > 0,
+    ...extra,
+    ...result,
+    counts: {
+      create: result.created,
+      noop: result.noop.length,
+      conflict: 0,
+    },
+  };
+}
+
+// --defaults: non-interactive answers at the same trust level as
+// accepting every interactive proposal. A valid existing config is the
+// preferred source — its values are replayed so a re-init stays a noop;
+// otherwise the semantic investigation suggests values and the wizard's
+// own defaults fill what detection left unanswered (empty host signals
+// fall back to the full host list, exactly like the interactive default).
+function defaultAnswers(projectRoot, configRel) {
+  let existing = null;
+  try {
+    existing = loadConfig(projectRoot, configRel).config;
+  } catch (e) {
+    if (e.code !== 'CONFIG_NOT_FOUND') throw e;
+  }
+  if (existing !== null) {
+    return {
+      name: existing.project.name,
+      locale: existing.locale,
+      hosts: [...existing.hosts],
+      paths: structuredClone(existing.paths),
+      versioning: structuredClone(existing.versioning),
+      methodology: existing.methodology,
+    };
+  }
+  const suggestions = suggestAnswers(investigateProject(projectRoot, {}));
+  return {
+    name: suggestions.name.value,
+    locale: 'es',
+    hosts: suggestions.hosts.value.length > 0
+      ? [...suggestions.hosts.value] : [...KNOWN_HOSTS],
+    paths: Object.fromEntries(
+      PATH_KEYS.map((key) => [key, suggestions.paths[key].value])),
+    versioning: { ...suggestions.versioning.value },
+    methodology: loadMethodologyPolicy().interactiveDefault,
+  };
+}
+
 async function cmdInit(flags, io) {
   const projectRoot = resolveProjectRoot(requireFlag(flags, '--project'));
+  if (flags['--answers'] && flags['--defaults']) {
+    throw err('INVALID_ARGS',
+      '--answers and --defaults are mutually exclusive');
+  }
   let answers;
   let configRel = resolveConfigPath(projectRoot, flags['--config']);
-  const interactive = !flags['--answers'];
+  const interactive = !flags['--answers'] && !flags['--defaults'];
   let existing = null;
   let session = null;
+  // Whether this run created the session file (vs resuming a prior one):
+  // a declined plan owes the tree a discard only for its own writes.
+  let sessionCreated = false;
   if (interactive) {
     if (!io.isTTY) {
       throw err('INTERACTIVE_REQUIRED',
@@ -558,23 +629,34 @@ async function cmdInit(flags, io) {
     // so an interrupted init resumes at the first unanswered question. A
     // session written against a different answers-schema fingerprint is
     // stale; resuming it is explicit opt-in, never implicit adoption.
-    session = openInitSession({ projectRoot }).session;
+    let opened = openInitSession({ projectRoot });
+    session = opened.session;
+    // The session file is created eagerly so mid-wizard interruption can
+    // resume; a run that creates it owes the tree a discard if the plan is
+    // declined ('cancel leaves no writes'), while a pre-existing session
+    // belongs to an earlier run and is kept either way.
+    sessionCreated = opened.created;
     if (sessionStatus(session).stale) {
       const resume = await io.ask(
         'Sesion previa de init incompatible con el esquema actual; reanudar respuestas compatibles? (yes/no)',
         'no');
       if (resume.trim().toLowerCase() === 'yes') {
-        session = openInitSession({ projectRoot },
-          { resumeStale: true }).session;
+        opened = openInitSession({ projectRoot }, { resumeStale: true });
+        session = opened.session;
+        sessionCreated = opened.created;
       } else {
         discardInitSession(session);
-        session = openInitSession({ projectRoot }).session;
+        opened = openInitSession({ projectRoot });
+        session = opened.session;
+        sessionCreated = opened.created;
       }
     }
     const got = await askInteractive(io, projectRoot, configRel, existing,
       session);
     answers = got.answers;
     configRel = got.configRel;
+  } else if (flags['--defaults']) {
+    answers = defaultAnswers(projectRoot, configRel);
   } else {
     answers = readInputFile(flags['--answers'], 'answers file');
   }
@@ -583,17 +665,23 @@ async function cmdInit(flags, io) {
     io.stdout(JSON.stringify({ mode: 'plan', ...planJson(prepared) }, null, 2));
     const confirm = await io.ask('Crear estos archivos? (yes/no)', 'no');
     if (confirm.trim().toLowerCase() !== 'yes') {
+      // Declining the plan is an abort: drop the session this run created
+      // (plus its now-empty stateDir dirs) so cancel leaves no writes.
+      if (sessionCreated) discardInitSession(session);
       return { mode: 'dry-run', applied: false };
     }
     const result = applyPlan(projectRoot, prepared.files);
     if (session !== null) discardInitSession(session);
-    return { mode: 'applied', applied: true, ...result };
+    return appliedInitResult(result);
   }
+  // --defaults echoes the machine-chosen answers so the operator can audit
+  // exactly what consent produced; --answers stays quiet (user-supplied).
+  const extra = flags['--defaults'] ? { answers } : {};
   if (flags['--apply']) {
     const result = applyPlan(projectRoot, prepared.files);
-    return { mode: 'applied', applied: true, ...result };
+    return appliedInitResult(result, extra);
   }
-  return { mode: 'dry-run', applied: false, ...planJson(prepared) };
+  return { mode: 'dry-run', applied: false, ...extra, ...planJson(prepared) };
 }
 
 async function cmdTask(sub, positional, flags, io) {
@@ -1136,7 +1224,10 @@ function lifecycleCtx(flags) {
 
 function cmdUpdate(flags) {
   const ctx = lifecycleCtx(flags);
-  return flags['--apply'] ? applyUpdate(ctx) : prepareUpdate(ctx);
+  const options = {};
+  if (flags['--reconcile']) options.reconcile = true;
+  return flags['--apply']
+    ? applyUpdate(ctx, options) : prepareUpdate(ctx, options);
 }
 
 function cmdBackup(flags) {
@@ -1232,12 +1323,22 @@ async function cmdVerify(sub, positional, flags, io) {
   if (sub === 'discover') {
     const inv = investigateProject(ctx.projectRoot, { config: ctx.config });
     const options = { commands: inv.commands };
+    const prepare = flags['--approve']
+      ? prepareApproveDiscoveredCommands : prepareImportCommands;
+    const apply = flags['--approve']
+      ? applyApproveDiscoveredCommands : applyImportCommands;
+    if (!flags['--apply']) {
+      return { mode: 'dry-run', applied: false, ...prepare(ctx, options) };
+    }
+    return { mode: 'applied', applied: true, ...apply(ctx, options) };
+  }
+  if (sub === 'approve-discovered') {
     if (!flags['--apply']) {
       return { mode: 'dry-run', applied: false,
-        ...prepareImportCommands(ctx, options) };
+        ...prepareApproveDiscoveredCommands(ctx, {}) };
     }
     return { mode: 'applied', applied: true,
-      ...applyImportCommands(ctx, options) };
+      ...applyApproveDiscoveredCommands(ctx, {}) };
   }
   if (sub === 'run') {
     const options = {};

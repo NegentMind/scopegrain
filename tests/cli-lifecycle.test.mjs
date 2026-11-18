@@ -72,7 +72,7 @@ test('help lists the new wave-2 commands with exact usages', async () => {
   const usages = result.output.commands.map((command) => command.command);
   for (const usage of [
     'adopt --project PATH [--config REL] [--apply]',
-    'update --project PATH [--config REL] [--apply]',
+    'update --project PATH [--config REL] [--reconcile] [--apply]',
     'backup --project PATH --to REL [--config REL] [--apply]',
     'restore --project PATH --from REL [--apply]',
     'uninstall --project PATH [--config REL] [--apply]',
@@ -228,6 +228,37 @@ test('update previews then creates harness files only, never config', async () =
     const after = await call(['update', '--project', f.dir]);
     assert.equal(after.output.counts.create, 0);
     assert.equal(after.output.counts.conflict, 0);
+  } finally { cleanup(f.dir); }
+});
+
+test('update --reconcile rewrites a diverged generated file via CLI', async () => {
+  const f = configFixture({ hosts: ['claude'] });
+  try {
+    await call(['update', '--project', f.dir, '--apply']);
+    const before = fs.readFileSync(
+      path.join(f.dir, '.tasksystem/instructions.md'), 'utf8');
+    fs.writeFileSync(path.join(f.dir, '.tasksystem/instructions.md'),
+      'user edited');
+    fs.writeFileSync(path.join(f.dir, 'CLAUDE.md'), 'foreign edit');
+
+    const dry = await call(
+      ['update', '--project', f.dir, '--reconcile']);
+    assert.equal(dry.code, 0);
+    const marks = Object.fromEntries(
+      dry.output.conflicts.map((c) => [c.path, c.reconcile]));
+    assert.equal(marks['.tasksystem/instructions.md'], true);
+    assert.equal(marks['CLAUDE.md'], false);
+
+    const applied = await call(
+      ['update', '--project', f.dir, '--reconcile', '--apply']);
+    assert.equal(applied.code, 0);
+    assert.ok(applied.output.reconciled.some(
+      (r) => r.path === '.tasksystem/instructions.md'));
+    assert.ok(applied.output.conflicts.some((c) => c.path === 'CLAUDE.md'));
+    assert.equal(fs.readFileSync(
+      path.join(f.dir, '.tasksystem/instructions.md'), 'utf8'), before);
+    assert.equal(fs.readFileSync(path.join(f.dir, 'CLAUDE.md'), 'utf8'),
+      'foreign edit');
   } finally { cleanup(f.dir); }
 });
 

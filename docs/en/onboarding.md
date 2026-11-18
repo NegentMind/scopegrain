@@ -36,8 +36,18 @@ CLI; the MCP server does require the dependencies declared in
      path, the seven artifact paths and eight versioning decisions
      (including the reviews subcategory); shows the complete file plan
      and asks `Crear estos archivos? (yes/no)` (default: `no`).
+     Answering `no` aborts with no writes: the wizard session the run
+     created (for resuming interruptions) is discarded along with its
+     now-empty directories; a pre-existing session is kept.
    - With `--answers`: without `--apply` it is a preview only (dry-run);
      `--apply` authorizes exclusively the creation of new files.
+   - With `--defaults`: non-interactive init — the answers are the
+     `investigate` suggestions plus the wizard's own defaults, end to
+     end (the flag IS the consent). On an already-initialized project
+     it replays the existing config and produces the usual no-op
+     re-init. `--apply` remains the write gate; `--defaults` is
+     mutually exclusive with `--answers` and neither creates nor
+     resumes wizard sessions.
    - There is no `--yes` or `--force`; they are explicitly rejected.
    - Answers example: `examples/answers.json`; structure:
      `schemas/answers.schema.json`. The schema only documents shape;
@@ -145,12 +155,19 @@ connect VantaDB, journal, synchronization or MCP authorization.
 ## Re-init and manifest changes
 
 - Re-running `init` with the same config and answers is a no-op if all
-  generated contents match.
+  generated contents match. The result is honest: `applied:false` when
+  nothing was written, `files` lists only written destinations and
+  `counts` reports `{create,noop,conflict}` in the same shape as
+  `update`.
 - That property assumes the same canonical harness sources. When
   updating Scopegrain, generated-content conflicts may appear; there is
   no `--force` to overwrite them nor automatic migration. An earlier
   OpenCode V1/V2 snapshot can be blocked with `PLAN_CONFLICT`; all its
   bytes and V1 files are preserved.
+  For diverged generated files under the config directory,
+  `update --reconcile` rewrites only that set — never the config,
+  root-level files or foreign content (see
+  [lifecycle](lifecycle.md)).
 - If the manifests changed (different fingerprint), `init` stops with a
   conflict on `config.json`/`discovery.json`; `doctor` additionally
   reports `changedDiscovery:true` to warn earlier.

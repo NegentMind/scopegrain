@@ -20,6 +20,14 @@ buildResearchRecord(investigation, {timestamp?})
 validateResearchRecord(record)               -> record or RESEARCH_INVALID_RECORD
 ```
 
+Command distinction: `inspect` is the bounded manifest snapshot that
+`init` persists as `discovery.json` (stacks, proposed commands,
+fingerprint, warnings — nothing else). `investigate` runs this full
+semantic layer — topology, platforms, tests, hosts, i18n — and also
+prints the `suggestAnswers` proposals; `--save` persists the research
+record. `init --defaults` consumes `suggestAnswers` as its
+non-interactive answer source.
+
 ### investigateProject
 
 Composes `inspectProject` (it does not reimplement it) and adds

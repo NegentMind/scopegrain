@@ -647,8 +647,21 @@ export function finalize(session) {
 
 // Removes the session file and invalidates the handle. Best-effort on the
 // file (already gone is fine); the handle is dead afterwards either way.
+// openInitSession mkdirp's the stateDir chain solely to hold this file, so
+// discard prunes empty ancestors back to the project root — rmdir fails
+// closed on non-empty directories, leaving real content untouched.
 export function discard(session) {
-  const { file } = internal(session);
+  const { file, projectRoot } = internal(session);
   removeIfExists(file);
+  const root = path.resolve(projectRoot);
+  let dir = path.dirname(file);
+  while (dir.startsWith(root + path.sep)) {
+    try {
+      fs.rmdirSync(dir);
+    } catch {
+      break;
+    }
+    dir = path.dirname(dir);
+  }
   INTERNALS.delete(session);
 }

@@ -10,7 +10,8 @@ import crypto from 'node:crypto';
 import { err } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited } from './fsx.mjs';
 import {
-  assertDestination, isSameOrAncestor, resolveInside, resolveProjectRoot,
+  assertDestination, isSameOrAncestor, portableKey, resolveInside,
+  resolveProjectRoot,
 } from './paths.mjs';
 import {
   configDirOf, loadConfig, PATH_KEYS, resolveConfigPath,
@@ -28,6 +29,11 @@ const MANIFEST_KEYS = ['schemaVersion', 'kind', 'createdAt', 'source', 'entries'
 const MANIFEST_ENTRY_KEYS = ['rel', 'sha256', 'bytes'];
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+
+// classifyPlan's reason for a real diverged file: the only conflict kind
+// --reconcile may rewrite. Links, directories, plan collisions, unsafe or
+// unreadable destinations always stay conflict.
+const DIVERGED_REASON = 'destination exists with different content';
 
 function closed(value, keys, label) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -141,7 +147,7 @@ function classifyPlan(projectRoot, files) {
     }
     if (limited.exceeded || !limited.content.equals(incoming)) {
       return { rel: f.rel, action: 'conflict',
-        reason: 'destination exists with different content' };
+        reason: DIVERGED_REASON };
     }
     return { rel: f.rel, action: 'noop' };
   });
@@ -333,27 +339,71 @@ export function prepareAdopt(projectRoot, options = {}) {
 
 // --- update ----------------------------------------------------------------
 
-// Proposes a refresh of harness-owned generated resources: every managed
-// file classified create|noop|conflict. Create-only semantics; the config
-// file is reported but never part of the write set.
-export function prepareUpdate(ctx, options = {}) {
-  requireCtx(ctx);
-  closed(options, ['installRoot'], 'update options');
+// Top-level directories the plan generator owns, derived from the plan
+// itself rather than a copied list: every nested planned path marks its
+// first segment as a generated root (.scopegrain/, a custom config dir,
+// or any projected host dir the generator may emit). Root-level entries
+// (AGENTS.md, CLAUDE.md, a root config) are never roots.
+function generatedRoots(planFiles) {
+  const roots = new Set();
+  for (const f of planFiles) {
+    const i = f.rel.indexOf('/');
+    if (i > 0) roots.add(portableKey(f.rel.slice(0, i)));
+  }
+  return roots;
+}
+
+// --reconcile eligibility: ONLY a diverged regular file (exactly the
+// manual delete-then-update case) under a generated root. The config is
+// project-owned and stays out even though it usually sits under a root;
+// links, directories, collisions, unreadable or unsafe destinations and
+// root-level files are never rewritten.
+function reconcilable(f, roots, configPath) {
+  return f.action === 'conflict'
+    && f.reason === DIVERGED_REASON
+    && f.rel !== configPath
+    && f.rel.includes('/')
+    && roots.has(portableKey(f.rel.slice(0, f.rel.indexOf('/'))));
+}
+
+function assertUpdateOptions(options) {
+  closed(options, ['installRoot', 'reconcile'], 'update options');
   if (options.installRoot !== undefined
       && typeof options.installRoot !== 'string') {
     throw err('LIFECYCLE_INVALID_INPUT', 'options.installRoot must be a string');
   }
+  if (options.reconcile !== undefined
+      && typeof options.reconcile !== 'boolean') {
+    throw err('LIFECYCLE_INVALID_INPUT', 'options.reconcile must be boolean');
+  }
+}
+
+// Proposes a refresh of harness-owned generated resources: every managed
+// file classified create|noop|conflict. Create-only semantics; the config
+// file is reported but never part of the write set. With
+// {reconcile:true} each conflict additionally reports whether an apply
+// would rewrite it.
+export function prepareUpdate(ctx, options = {}) {
+  requireCtx(ctx);
+  assertUpdateOptions(options);
   const plan = generatedPlan(ctx, options);
   const classified = classifyPlan(ctx.projectRoot, plan.files);
-  const files = classified.map((f) => (f.reason
-    ? { rel: f.rel, action: f.action, reason: f.reason }
-    : { rel: f.rel, action: f.action }));
+  const roots = options.reconcile === true
+    ? generatedRoots(plan.files) : null;
+  const files = classified.map((f) => ({
+    ...(f.reason
+      ? { rel: f.rel, action: f.action, reason: f.reason }
+      : { rel: f.rel, action: f.action }),
+    ...(roots !== null && f.action === 'conflict'
+      ? { reconcile: reconcilable(f, roots, ctx.configPath) } : {}),
+  }));
   const counts = { create: 0, noop: 0, conflict: 0 };
   const conflicts = [];
   for (const f of files) {
     counts[f.action] += 1;
     if (f.action === 'conflict') {
-      conflicts.push({ path: f.rel, reason: f.reason });
+      conflicts.push({ path: f.rel, reason: f.reason,
+        ...(roots !== null ? { reconcile: f.reconcile } : {}) });
     }
   }
   return Object.freeze({
@@ -363,18 +413,37 @@ export function prepareUpdate(ctx, options = {}) {
 
 export function applyUpdate(ctx, options = {}) {
   requireCtx(ctx);
-  closed(options, ['installRoot'], 'update options');
-  if (options.installRoot !== undefined
-      && typeof options.installRoot !== 'string') {
-    throw err('LIFECYCLE_INVALID_INPUT', 'options.installRoot must be a string');
-  }
+  assertUpdateOptions(options);
   const plan = generatedPlan(ctx, options);
   const classified = classifyPlan(ctx.projectRoot, plan.files);
+  const roots = options.reconcile === true
+    ? generatedRoots(plan.files) : null;
   const creates = [];
+  const reconciled = [];
   const conflicts = [];
   classified.forEach((f, i) => {
     if (f.action === 'conflict') {
+      if (roots !== null && reconcilable(f, roots, ctx.configPath)) {
+        const abs = resolveInside(
+          ctx.projectRoot, f.rel, `reconcile target ${f.rel}`);
+        const st = lstatOrNull(abs);
+        if (st && st.isFile() && !st.isSymbolicLink()) {
+          // Same automation as the documented manual flow: unlink the
+          // diverged file, then recreate through applyPlan's exclusive
+          // wx write (full preflight + rollback of only what it created).
+          fs.unlinkSync(abs);
+          creates.push(plan.files[i]);
+          reconciled.push({ path: f.rel, reason: f.reason });
+        } else if (!st) {
+          creates.push(plan.files[i]); // vanished since classification
+        } else {
+          conflicts.push({ path: f.rel,
+            reason: 'destination became a link or non-file during apply' });
+        }
+        return;
+      }
       conflicts.push({ path: f.rel, reason: f.reason });
+      return;
     }
     // The config is project-owned: never refreshed, never written.
     if (f.action === 'create' && f.rel !== ctx.configPath) {
@@ -386,7 +455,7 @@ export function applyUpdate(ctx, options = {}) {
     : { created: 0, files: [] };
   return Object.freeze({
     mode: 'applied', created: applied.created, files: applied.files,
-    conflicts, warnings: [...plan.warnings],
+    reconciled, conflicts, warnings: [...plan.warnings],
   });
 }
 

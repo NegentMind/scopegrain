@@ -33,9 +33,18 @@ CLI; el servidor MCP si requiere las dependencias declaradas en
      configuracion, las siete rutas de artefactos y ocho decisiones de
      versionado (incluida la subcategoria reviews); muestra el plan de
      archivos completo y pide `Crear estos archivos? (yes/no)` (defecto:
-     `no`).
+     `no`). Responder `no` aborta sin escrituras: la sesion del asistente
+     que el run creo (para reanudar interrupciones) se descarta junto a
+     sus directorios vacios; una sesion preexistente se conserva.
    - Con `--answers`: sin `--apply` es solo vista previa (dry-run);
      `--apply` autoriza exclusivamente la creacion de archivos nuevos.
+   - Con `--defaults`: init no interactivo — las respuestas son las
+     sugerencias de `investigate` mas los valores por defecto del
+     asistente, de punta a punta (el flag ES el consentimiento). En un
+     proyecto ya inicializado se replica la config existente y resulta
+     el re-init no-op habitual. `--apply` sigue siendo el gate de
+     escritura; `--defaults` es mutuamente excluyente con `--answers`
+     y no crea ni reanuda sesiones del asistente.
    - No existen `--yes` ni `--force`; se rechazan explicitamente.
    - Ejemplo de respuestas: `examples/answers.json`; estructura:
      `schemas/answers.schema.json`. El esquema solo documenta forma; la
@@ -136,12 +145,19 @@ Este bloque no conecta VantaDB, journal, sincronizacion o autorizacion MCP.
 ## Re-init y cambios de manifiestos
 
 - Reejecutar `init` con la misma config y respuestas es no-op si todos los
-  contenidos generados coinciden.
+  contenidos generados coinciden. El resultado es honesto: `applied:false`
+  cuando nada se escribio, `files` lista solo los destinos escritos y
+  `counts` reporta `{create,noop,conflict}` con la misma forma que
+  `update`.
 - Esa propiedad supone las mismas fuentes canonicas del harness.
   Al actualizar Scopegrain pueden aparecer conflictos de contenido
   generado; no existe `--force` para sobrescribirlos ni migracion automatica.
   Un snapshot OpenCode V1/V2 anterior puede bloquearse con `PLAN_CONFLICT`;
   se conservan todos sus bytes y archivos V1.
+  Para archivos generados divergentes bajo el directorio de la config,
+  `update --reconcile` reescribe solo ese conjunto — nunca la config, los
+  archivos de raiz ni contenido ajeno (ver
+  [ciclo de vida](lifecycle.md)).
 - Si los manifiestos cambiaron (fingerprint distinto), `init` se detiene con
   conflicto sobre `config.json`/`discovery.json`; `doctor` ademas reporta
   `changedDiscovery:true` para avisar antes.

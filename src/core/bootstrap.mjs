@@ -294,7 +294,14 @@ export function applyPlan(projectRoot, files) {
     for (const p of created) removeIfExists(p);
     throw e;
   }
-  return { created: created.length, files: planned.map((f) => f.rel) };
+  // `files` lists only destinations this call actually wrote; `noop`
+  // lists the ones already holding identical bytes. Reporting the full
+  // planned set as written made pure-noop applies look like writes.
+  return {
+    created: created.length,
+    files: planned.filter((f) => f.action === 'create').map((f) => f.rel),
+    noop: planned.filter((f) => f.action === 'noop').map((f) => f.rel),
+  };
 }
 
 export function prepareInit({ projectRoot, configRel, answers }) {

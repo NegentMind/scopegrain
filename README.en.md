@@ -56,7 +56,10 @@ node ./bin/scopegrain.mjs init --project "C:\path\my-project"
 node ./bin/scopegrain.mjs doctor --project "C:\path\my-project"
 ```
 
-`inspect` neither writes nor executes the commands it discovers.
+`inspect` neither writes nor executes the commands it discovers: it is
+the bounded manifest snapshot `init` stores as `discovery.json`.
+`investigate` is the deeper semantic analysis (topology, platforms,
+tests, host signals) that additionally proposes init answers.
 Interactive `init` asks for the configuration, shows the proposed files
 and requests explicit confirmation; the default answer is no. `doctor`
 checks the state of the configuration and the generated files.

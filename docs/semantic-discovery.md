@@ -17,6 +17,15 @@ buildResearchRecord(investigation, {timestamp?})
 validateResearchRecord(record)               -> record o RESEARCH_INVALID_RECORD
 ```
 
+Distincion de comandos: `inspect` es la instantanea acotada de
+manifiestos que `init` persiste como `discovery.json` (stacks, comandos
+propuestos, fingerprint, warnings — nada mas). `investigate` ejecuta
+esta capa semantica completa — topologia, plataformas, pruebas,
+anfitriones, i18n — y ademas imprime las propuestas de
+`suggestAnswers`; con `--save` persiste el registro de investigacion.
+`init --defaults` consume `suggestAnswers` como fuente de respuestas no
+interactivas.
+
 ### investigateProject
 
 Compone `inspectProject` (no lo reimplementa) y agrega senales:
