@@ -415,10 +415,12 @@ function hashEntry(root, rel, issues) {
   return { rel, sha256: sha256(limited.content), bytes: limited.content.length };
 }
 
-// Manifest of everything to export: config file plus every regular file
-// under the seven declared paths (state covers journal/workspace/sidecars).
-// Destination must be inside the project and must not overlap any source,
-// so a bundle can never include itself.
+// Manifest of everything to export: the config file, the discovery file
+// that sits next to it (fingerprint-verified state a restore must not
+// lose) and every regular file under the seven declared paths (state
+// covers journal/workspace/sidecars). Destination must be inside the
+// project and must not overlap any source, so a bundle can never
+// include itself.
 export function prepareBackup(ctx, options = {}) {
   requireCtx(ctx);
   closed(options, ['destination'], 'backup options');
@@ -428,7 +430,10 @@ export function prepareBackup(ctx, options = {}) {
   }
   const destRel = assertDestination(options.destination, 'destination');
   const root = ctx.projectRoot;
-  const sources = [ctx.configPath,
+  const cfgDir = configDirOf(ctx.configPath);
+  const discoveryRel = cfgDir === '.'
+    ? 'discovery.json' : `${cfgDir}/discovery.json`;
+  const sources = [ctx.configPath, discoveryRel,
     ...PATH_KEYS.map((key) => ctx.config.paths[key])];
   for (const src of sources) {
     if (isSameOrAncestor(destRel, src) || isSameOrAncestor(src, destRel)) {
@@ -443,15 +448,25 @@ export function prepareBackup(ctx, options = {}) {
 
   const issues = [];
   const entries = [];
-  const config = hashEntry(root, ctx.configPath, issues);
-  if (config) entries.push(config);
+  // A declared path may legitimately contain the config/discovery file
+  // (e.g. state rooted at the config dir): dedupe so the manifest never
+  // carries a duplicate entry the restore validator would reject.
+  const seen = new Set();
+  const addEntry = (rel) => {
+    const key = rel.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    const entry = hashEntry(root, rel, issues);
+    if (entry) entries.push(entry);
+  };
+  addEntry(ctx.configPath);
+  addEntry(discoveryRel);
   const counter = { count: 0 };
   for (const key of PATH_KEYS) {
     const files = [];
     walkTree(root, ctx.config.paths[key], counter, files, issues);
     for (const rel of files) {
-      const entry = hashEntry(root, rel, issues);
-      if (entry) entries.push(entry);
+      addEntry(rel);
     }
   }
   const totalBytes = entries.reduce((sum, e) => sum + e.bytes, 0);

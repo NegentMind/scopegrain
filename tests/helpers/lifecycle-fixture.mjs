@@ -150,8 +150,9 @@ export function enroll(ctx) {
 }
 
 // Tier A: valid config.json only. prepareAdopt, prepareBackup and
-// prepareRestore read only the config plus the declared artifact paths,
-// so this is state-equivalent for those tests.
+// prepareRestore read only the config, its discovery.json sibling and
+// the declared artifact paths, so this is state-equivalent for those
+// tests (an absent discovery.json previews as a skipped-source issue).
 export function configuredCtx(answers = MINI_ANSWERS) {
   const dir = makeTempDir('cfg');
   writeJson(dir, '.tasksystem/config.json', createConfig(dir, answers, {}));

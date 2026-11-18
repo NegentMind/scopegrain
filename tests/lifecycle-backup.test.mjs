@@ -17,13 +17,16 @@ import {
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 
-// Backup walks only the config file plus the seven declared artifact
-// paths -- the generated catalog/resources live outside them even in a
-// full init, so a config-only fixture exports the identical entry set
-// (config.json, state/workspace.json, plans/p1.json).
-function seeded() {
+// Backup walks only the config file, its discovery.json sibling and the
+// seven declared artifact paths -- the generated catalog/resources live
+// outside them even in a full init, so a config-only fixture exports the
+// identical entry set (config.json, discovery.json, state/workspace.json,
+// plans/p1.json).
+const DISCOVERY = { schemaVersion: 1, stacks: [], evidence: [] };
+function seeded({ discovery = true } = {}) {
   const { dir, ctx } = configuredCtx();
   enroll(ctx);
+  if (discovery) writeJson(dir, '.tasksystem/discovery.json', DISCOVERY);
   writeFile(dir, '.tasksystem/plans/p1.json', '{}');
   writeFile(dir, 'notes.txt', 'not backed up');
   return { dir, ctx };
@@ -41,6 +44,7 @@ test('backup preview hashes every exported entry, writes nothing', () => {
     assert.equal(preview.destination, 'backups/b1');
     const rels = preview.entries.map((e) => e.rel);
     assert.ok(rels.includes('.tasksystem/config.json'));
+    assert.ok(rels.includes('.tasksystem/discovery.json')); // config sibling
     assert.ok(rels.includes('.tasksystem/state/workspace.json'));
     assert.ok(rels.includes('.tasksystem/plans/p1.json'));
     assert.ok(!rels.includes('notes.txt')); // outside declared paths
@@ -96,12 +100,15 @@ test('backup apply writes a self-describing bundle, create-only', () => {
     assert.equal(res.mode, 'applied');
     assert.ok(exists(dir, 'backups/b1/manifest.json'));
     assert.ok(exists(dir, 'backups/b1/files/.tasksystem/config.json'));
+    assert.ok(exists(dir, 'backups/b1/files/.tasksystem/discovery.json'));
     assert.ok(exists(dir, 'backups/b1/files/.tasksystem/state/workspace.json'));
     assert.ok(exists(dir, 'backups/b1/files/.tasksystem/plans/p1.json'));
     const manifest = readJson(dir, 'backups/b1/manifest.json');
     assert.equal(manifest.schemaVersion, 1);
     assert.equal(manifest.kind, 'scopegrain-backup');
     assert.equal(manifest.source.configRel, '.tasksystem/config.json');
+    assert.ok(manifest.entries.some(
+      (e) => e.rel === '.tasksystem/discovery.json'));
     // payload bytes identical to sources
     assert.ok(fs.readFileSync(
       path.join(dir, 'backups/b1/files/.tasksystem/config.json'))
@@ -122,6 +129,22 @@ test('backup apply writes a self-describing bundle, create-only', () => {
       (e) => e.code === 'PLAN_CONFLICT');
     assert.equal(fs.readFileSync(
       path.join(dir, 'backups/b2/manifest.json'), 'utf8'), 'occupied');
+  } finally { cleanup(dir); }
+});
+
+test('an absent discovery.json is a skipped source, never a bundle gap', () => {
+  const { dir, ctx } = seeded({ discovery: false });
+  try {
+    const preview = prepareBackup(ctx, { destination: 'backups/b1' });
+    assert.ok(!preview.entries.some(
+      (e) => e.rel === '.tasksystem/discovery.json'));
+    assert.ok(preview.issues.some((i) =>
+      i.code === 'BACKUP_SOURCE_SKIPPED'
+      && i.rel === '.tasksystem/discovery.json'));
+    // Bundle still exports and restores the rest.
+    const res = applyBackup(ctx, { destination: 'backups/b1' });
+    assert.equal(res.mode, 'applied');
+    assert.ok(exists(dir, 'backups/b1/files/.tasksystem/config.json'));
   } finally { cleanup(dir); }
 });
 
@@ -154,22 +177,28 @@ test('restore preview classifies create/skip/conflict, apply restores only creat
       && e.reason === 'identical'));
 
     fs.rmSync(path.join(dir, '.tasksystem/plans/p1.json'));
+    fs.rmSync(path.join(dir, '.tasksystem/discovery.json'));
     writeFile(dir, '.tasksystem/config.json', '{"tampered":true}');
     const p2 = prepareRestore(dir, 'backups/b1');
     assert.equal(p2.entries.find((e) => e.rel === '.tasksystem/plans/p1.json')
       .action, 'create');
+    assert.equal(p2.entries.find(
+      (e) => e.rel === '.tasksystem/discovery.json').action, 'create');
     assert.equal(p2.entries.find((e) => e.rel === '.tasksystem/config.json')
       .action, 'conflict');
 
     const res = applyRestore(dir, 'backups/b1');
     assert.equal(res.mode, 'applied');
     assert.ok(res.restored.includes('.tasksystem/plans/p1.json'));
+    assert.ok(res.restored.includes('.tasksystem/discovery.json'));
     assert.ok(res.conflicts.some((c) => c.rel === '.tasksystem/config.json'));
     // conflict never merged/overwritten
     assert.equal(fs.readFileSync(
       path.join(dir, '.tasksystem/config.json'), 'utf8'), '{"tampered":true}');
     assert.equal(fs.readFileSync(
       path.join(dir, '.tasksystem/plans/p1.json'), 'utf8'), '{}');
+    assert.deepEqual(
+      readJson(dir, '.tasksystem/discovery.json'), DISCOVERY);
   } finally { cleanup(dir); }
 });
 
