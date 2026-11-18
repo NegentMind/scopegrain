@@ -162,7 +162,8 @@ Old task and plan examples without formal references correspond to
 Proposals are generated for Claude Code, Codex, OpenCode V2, Devin
 Local/CLI, Google Antigravity and Hermes Agent (provisional, unverified
 format). Native bridges and MCP fragments are
-proposals for review and manual activation, not certified integrations
+proposals for review and manual activation, not certified integrations —
+except the certified Devin Local real-session pilot (2026-11-17) —
 or a guarantee of permission or behavior equivalence. Devin Cloud is not
 considered equivalent to Local/CLI. See
 [native formats](docs/en/native-hosts.md).
@@ -186,12 +187,16 @@ considered equivalent to Local/CLI. See
 
 ## Verification
 
-The local full suite of the foundation block finished with 536 passing
-tests, none failed and none skipped on Windows, Node.js v26.8.1 and npm
-11.6.0; it used single-test-file concurrency. An earlier manual focused
-run recorded 163 passing. These are separate runs; scope and historic
-results are in [verification](docs/en/verification.md). The tests do not
-certify the five hosts or a real execution of the declared work.
+The most recent local full run (`npm test`, per-file serial, 2026-11-17)
+finished with 1065 passing tests, none failed and none skipped on Windows,
+Node.js v26.8.1 and npm 11.6.0. Intermediate full runs and earlier batches
+are separate executions; their scope and historic results are in
+[verification](docs/en/verification.md). The Devin Local native pilot was
+certified in a fresh real session on 2026-11-17 (42 `scopegrain-*` skills
+and 15 subagents auto-loaded, `scopegrain` MCP active from
+`.devin/mcp_config.json`); the other five documented hosts still lack a
+native pilot. The tests do not certify the six hosts or a real execution
+of the declared work.
 The [GitHub Actions workflow](.github/workflows/verify.yml) is triggered
 manually only and has not run yet.
 
@@ -220,3 +225,7 @@ subject to provenance and rights review.
 - [Complete system report](docs/system-report.md)
 - [Product contract](docs/en/product-contract.md)
 - [Implementation contract](docs/implementation.md)
+- [Lifecycle: adopt, update, backup, restore, uninstall](docs/en/lifecycle.md)
+- [Bounded semantic investigation](docs/en/semantic-discovery.md)
+- [Read-only viewer and API](docs/viewer.md)
+- [Catalog provenance and attestation](docs/en/provenance.md)

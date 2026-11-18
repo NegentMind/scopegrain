@@ -294,21 +294,21 @@ Ver [seguridad](security.md) y [compatibilidad](compatibility.md).
 
 ## 16. Estado de verificacion
 
-La tanda focalizada de CLI/MCP ejecutada con autorizacion termino con
-**31 pass, 0 fail, 0 skipped y 0 cancelled**, exit 0. Su alcance y los
-resultados historicos estan en [verificacion](verification.md). No se deben
-sumar tandas historicas como si fueran una sola suite del estado actual.
+La ultima ejecucion integral local (`npm test` serial, 2026-11-17) termino
+con **1065 pass, 0 fail, 0 skipped y 0 cancelled**, exit 0, en Windows con
+Node.js v26.8.1 y npm 11.6.0. Las integrales intermedias (673, 699, 770 y
+813) y las tandas anteriores de cada bloque son ejecuciones separadas, no
+cifras sumables; su alcance y resultados historicos estan en
+[verificacion](verification.md). No se deben sumar tandas historicas como
+si fueran una sola suite del estado actual.
 
-La suite integral local del bloque anterior termino con **522 pass**, exit 0.
-En foundation, la tanda manual focalizada registro **163 pass**, la integral
-inicial **501 pass y 4 fail** sobre 505 tests reportados, y la reproduccion
-diagnostica de cuatro archivos **126 pass**, exit 0. La integral posterior,
-con un archivo de test a la vez, termino con **536 pass, 0 fail, 0 skipped y
-0 cancelled**, exit 0, en Windows con Node.js v26.8.1 y npm 11.6.0. Son
-ejecuciones separadas, no cifras sumables. El intento fallido coincidio con
-un evento de memoria virtual baja; esto no demuestra la causa de cada error.
-Los pilotos nativos no se han ejecutado y CI no se ha despachado. Estas
-pruebas no certifican anfitriones, versiones o sistemas operativos no probados.
+El piloto nativo de Devin Local quedo certificado en una sesion fresca real
+el 2026-11-17: 42 skills `scopegrain-*` y 15 subagentes auto-cargados, MCP
+`scopegrain` activo desde `.devin/mcp_config.json` y `scopegrain_status`
+invocado (doctor con 16 checks y catalogo de 130 entradas integro por
+hash). Los demas anfitriones (Claude, Codex, OpenCode, Antigravity y
+Hermes) no tienen piloto nativo y CI no se ha despachado. Estas pruebas no
+certifican anfitriones, versiones o sistemas operativos no probados.
 
 ## 17. Integracion continua
 
@@ -328,6 +328,8 @@ dependencias transitivas.
 
 1. Realizar pilotos aislados y autorizados por version y superficie nativa;
    los fixtures no sustituyen pruebas reales de permisos y recuperacion.
+   Devin Local ya tiene su piloto certificado (sesion real, 2026-11-17);
+   quedan pendientes Claude, Codex, OpenCode, Antigravity y Hermes.
 2. Resolver licencia y procedencia antes de conceder redistribucion. La
    disponibilidad del codigo fuente no concede licencia open-source;
    `private: true` y `UNLICENSED` permanecen en el paquete.

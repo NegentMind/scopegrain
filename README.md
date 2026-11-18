@@ -157,7 +157,8 @@ Se generan propuestas para Claude Code, Codex, OpenCode V2, Devin Local/CLI,
 Google Antigravity y Hermes Agent (provisional, formato sin verificar). Los
 puentes nativos
 y fragmentos MCP son propuestas para revision y activacion manual, no
-integraciones certificadas ni una garantia de equivalencia de permisos o
+integraciones certificadas — salvo el piloto real de Devin Local
+(2026-11-17) — ni una garantia de equivalencia de permisos o
 comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver
 [formatos nativos](docs/native-hosts.md).
 
@@ -180,13 +181,17 @@ comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver
 
 ## Verificacion
 
-La suite integral local del bloque foundation termino con 536 pruebas
-aprobadas, ninguna fallida y ninguna omitida en Windows, Node.js v26.8.1 y
-npm 11.6.0; uso concurrencia de un archivo de test. Una tanda focalizada
-manual previa registro 163 aprobadas. Son ejecuciones separadas; el alcance
-y los resultados historicos estan en [verificacion](docs/verification.md).
-Las pruebas no certifican los cinco anfitriones ni una ejecucion real del
-trabajo declarado.
+La ultima ejecucion integral local (`npm test`, serial por archivo,
+2026-11-17) termino con 1065 pruebas aprobadas, ninguna fallida y ninguna
+omitida en Windows, Node.js v26.8.1 y npm 11.6.0. Las integrales
+intermedias y las tandas anteriores son ejecuciones separadas; su alcance
+y resultados historicos estan en [verificacion](docs/verification.md).
+El piloto nativo de Devin Local quedo certificado en una sesion fresca
+real el 2026-11-17 (42 skills `scopegrain-*` y 15 subagentes auto-cargados,
+MCP `scopegrain` activo desde `.devin/mcp_config.json`); los otros cinco
+anfitriones documentados siguen sin piloto nativo. Las pruebas no
+certifican los seis anfitriones ni una ejecucion real del trabajo
+declarado.
 El [workflow de GitHub Actions](.github/workflows/verify.yml) se activa solo
 manualmente y aun no se ha ejecutado.
 
@@ -215,3 +220,7 @@ circuito activo y sujeto a revision de procedencia y derechos.
 - [Informe completo del sistema](docs/system-report.md)
 - [Contrato del producto](docs/product-contract.md)
 - [Contrato de implementacion](docs/implementation.md)
+- [Ciclo de vida: adopt, update, backup, restore, uninstall](docs/lifecycle.md)
+- [Investigacion semantica acotada](docs/semantic-discovery.md)
+- [Visor y API de solo lectura](docs/viewer.md)
+- [Procedencia y atestacion del catalogo](docs/provenance.md)

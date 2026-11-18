@@ -1,7 +1,8 @@
 # Compatibilidad y fuentes oficiales
 
 Alcance: puntos de entrada, catalogo portable, CLI/MCP de consulta y
-propuestas de puentes nativos para cinco anfitriones. La compatibilidad documental no
+propuestas de puentes nativos para cinco anfitriones documentados mas uno
+provisional (Hermes). La compatibilidad documental no
 certifica comportamiento equivalente entre productos.
 
 ## Matriz por anfitrion
@@ -11,7 +12,7 @@ certifica comportamiento equivalente entre productos.
 | Claude Code | `CLAUDE.md` (raiz) | `integrations/claude-mcp.json` con `mcpServers.scopegrain` (`type: stdio`) | Documental; requiere aprobacion del usuario en el anfitrion |
 | Codex | `AGENTS.md` (raiz) | `integrations/codex-mcp.toml` (`[mcp_servers.scopegrain]`) | Documental; el proyecto requiere trust en Codex |
 | OpenCode V2 | `AGENTS.md` (raiz) | `integrations/opencode-mcp.json` (`mcp.servers.scopegrain`, `disabled:true`) | Documental; sin certificacion nativa |
-| Devin Local/CLI | `AGENTS.md` (raiz) | `integrations/devin-mcp.json` (`mcpServers.scopegrain` sin `type`) | Documental para Local/CLI; Devin Cloud no se considera equivalente |
+| Devin Local/CLI | `AGENTS.md` (raiz) | `integrations/devin-mcp.json` (`mcpServers.scopegrain` sin `type`) | Piloto certificado en sesion real de Local (2026-11-17); Devin Cloud no se considera equivalente |
 | Google Antigravity | Propuestas App/CLI e IDE diferenciadas | `integrations/antigravity-mcp.json` y propuesta nativa revisable | Generacion local; sin piloto nativo ni agentes asumidos en IDE |
 
 ## Notas por fuente

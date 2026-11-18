@@ -102,8 +102,9 @@ tipo de carpeta ni una certificacion de los archivos citados.
 
 ## Aprobaciones y acciones
 
-La suite integral local de foundation se completo con un archivo de test a
-la vez. Los pilotos nativos siguen pendientes; ver los resultados y limites
+La ultima integral local (`npm test` serial, 2026-11-17) termino con 1065
+pruebas aprobadas. El piloto de Devin Local quedo certificado en una sesion
+real; los demas anfitriones siguen pendientes. Ver los resultados y limites
 en [verificacion](verification.md).
 
 Las operaciones `approval target/create/show/answer` separan identificacion

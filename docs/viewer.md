@@ -32,7 +32,7 @@ import { createApiServer } from './src/api/server.mjs';
 
 const api = createApiServer({
   project: 'C:/path/to/project',   // explicit project root (required)
-  config: '.tasksystem/config.json', // optional project-relative override
+  config: '.scopegrain/config.json', // optional project-relative override
   host: '127.0.0.1',               // default; loopback only
   port: 7731,                      // default; 0 = ephemeral
 });

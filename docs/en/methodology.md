@@ -18,8 +18,10 @@ Classification, V2 tasks/plans, configuration, approvals, evidence and
 ACT/ACCEPT gates are implemented. The evidence and gate blocks have
 scoped tests recorded in [verification](verification.md).
 The local full foundation suite completed one test file at a time;
-scope and separate runs are in [verification](verification.md). Native
-pilots remain pending; this guide does not certify behavior inside a
+scope and separate runs are in [verification](verification.md). The
+Devin Local native pilot was certified in a real session on 2026-11-17;
+Claude, Codex, OpenCode, Antigravity and Hermes still lack a native
+pilot. This guide does not certify behavior inside an uncertified
 host.
 
 ## Modes

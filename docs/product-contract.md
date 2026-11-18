@@ -78,8 +78,10 @@ sesiones actuales se describen en [workflows](workflows.md) y
 [mapa de migracion](component-migration.md). Son extensiones de la primera
 base, no importaciones implicitas del archivo original.
 
-La ampliacion incluye Google Antigravity y variantes de propuestas nativas,
-sin certificacion dentro de ninguno de los cinco anfitriones. Organic/SDD
+La ampliacion incluye Google Antigravity y variantes de propuestas nativas
+para seis anfitriones en total; el piloto nativo de Devin Local quedo
+certificado en una sesion real el 2026-11-17 y los demas siguen pendientes.
+Organic/SDD
 agrega clasificacion proporcional, referencias y aprobaciones por contenido,
 cobertura asignada e informes vinculados; no un ejecutor de agentes ni una
 garantia de que las declaraciones del operador sean verdaderas.

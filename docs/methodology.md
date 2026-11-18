@@ -15,8 +15,10 @@ gates ACT/ACCEPT estan implementados. Los bloques de evidencia y gates tienen
 pruebas acotadas registradas en [verificacion](verification.md).
 La suite integral local de foundation se completo con un archivo de test a
 la vez; el alcance y las ejecuciones separadas figuran en
-[verificacion](verification.md). Los pilotos nativos siguen pendientes;
-esta guia no acredita comportamiento dentro de un anfitrion.
+[verificacion](verification.md). El piloto nativo de Devin Local quedo
+certificado en una sesion real el 2026-11-17; Claude, Codex, OpenCode,
+Antigravity y Hermes siguen sin piloto nativo. Esta guia no acredita
+comportamiento dentro de un anfitrion no certificado.
 
 ## Modos
 

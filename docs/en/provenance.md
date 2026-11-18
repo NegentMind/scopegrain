@@ -46,9 +46,10 @@ Signals applied, in order of strength:
    procedure does not.
 3. **Legacy domain terms:** search for `vanta`, `opencode`, `metasearch`,
    `argus`, `ponytail`, `ness-e`, personal paths and host names in the
-   new bodies. Result: 0 matches across the 65 files (only `tasksystem`
-   appears, as a legitimate product self-reference, in `backlog-format`
-   and `task-system`).
+   new bodies. Result: 0 matches across the 65 files (at that inspection
+   only `tasksystem` appeared, as a legitimate product self-reference, in
+   `backlog-format` and `task-system`; those terms were renamed to
+   `scopegrain` with the product rename).
 4. **New-architecture vocabulary:** the bodies describe concepts that
    postdate the legacy harness (Organic/SDD classification,
    `scenarioRefs`, expected revisions, configured harness paths,
@@ -205,7 +206,7 @@ known provenance link:
 - **Prompts (4):** `task-brief`, `decision-request`, `review-request`,
   `recovery-brief`.
 - **Profiles (4):** `web`, `rust`, `python`, `database`.
-- **MCP (1):** `tasksystem`.
+- **MCP (1):** `scopegrain`.
 
 Classification: **(c) rewritten/fresh** for all 65, with a residual
 equivalent to §3 — the same paraphrase limitation applies even without a

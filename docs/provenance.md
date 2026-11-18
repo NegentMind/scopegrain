@@ -47,8 +47,10 @@ Senales aplicadas, en orden de fuerza:
 3. **Terminos de dominio heredado:** busqueda de `vanta`, `opencode`,
    `metasearch`, `argus`, `ponytail`, `ness-e`, rutas personales y
    nombres de host en los cuerpos nuevos. Resultado: 0 coincidencias en
-   los 65 archivos (solo `tasksystem` aparece, como autorreferencia
-   legitima del producto, en `backlog-format` y `task-system`).
+   los 65 archivos (en esa inspeccion solo aparecia `tasksystem`, como
+   autorreferencia legitima del producto, en `backlog-format` y
+   `task-system`; esos terminos se renombraron a `scopegrain` con el
+   cambio de nombre del producto).
 4. **Vocabulario de la arquitectura nueva:** los cuerpos describen
    conceptos posteriores al harness heredado (clasificacion Organic/SDD,
    `scenarioRefs`, revisiones esperadas, rutas del harness configuradas,
@@ -206,7 +208,7 @@ heredado. Cuerpos nuevos sin vinculo de procedencia conocido:
 - **Prompts (4):** `task-brief`, `decision-request`, `review-request`,
   `recovery-brief`.
 - **Perfiles (4):** `web`, `rust`, `python`, `database`.
-- **MCP (1):** `tasksystem`.
+- **MCP (1):** `scopegrain`.
 
 Clasificacion: **(c) reescrito/nuevo** para los 65, con residuo
 equivalente al del §3 — la misma limitacion de parafasis aplica aunque no

@@ -198,7 +198,8 @@ El nucleo permite el flujo vertical especificar -> planificar -> implementar
 con el anfitrion -> verificar -> revisar -> cerrar -> recuperar contexto.
 La evidencia ejecutada y sus huecos estan en [verificacion](verification.md).
 No se declara equivalencia integral con plugins, sandbox o especialidades
-que siguen archivados, ni certificacion real en los cinco productos.
+que siguen archivados, ni certificacion real en los seis anfitriones: solo
+Devin Local tiene un piloto nativo certificado (sesion real, 2026-11-17).
 
 Una pieza solo cambia de pendiente a activa cuando sus referencias y
 permisos son coherentes, no impone un dominio, conserva su procedencia y

@@ -91,7 +91,9 @@ available through the journal's known APIs, without scanning.
 
 ## CLI
 
-The CLI exposes exactly two grouped commands over the store; the
+The CLI exposes four grouped commands: `capture create` and
+`capture show` over the store, plus `capture proposals` and
+`capture review` over the proposal producers. The
 project must already be enrolled: config created and
 `node ./bin/scopegrain.mjs workspace init --project "C:\path\my-project" --apply`
 (without `--apply` enrollment is preview only). Area grants are derived
@@ -101,6 +103,9 @@ from the registered workspace; `workspace show` returns its area IDs:
 node ./bin/scopegrain.mjs capture create --project "C:\path\my-project" --input capture.json
 node ./bin/scopegrain.mjs capture create --project "C:\path\my-project" --input capture.json --apply
 node ./bin/scopegrain.mjs capture show "66666666-6666-6666-6666-666666666666" --project "C:\path\my-project"
+node ./bin/scopegrain.mjs capture proposals --project "C:\path\my-project" --since-sequence 12
+node ./bin/scopegrain.mjs capture review --project "C:\path\my-project" --input review.json
+node ./bin/scopegrain.mjs capture review --project "C:\path\my-project" --input review.json --apply
 ```
 
 Placeholders (`<workspace-area-id>`, the example UUID) must be replaced
@@ -117,6 +122,14 @@ receipts and preserved uncertainty. `create` has no `--force`, `--yes`
 or command-line selection of destination, namespace, hash or own ID;
 `show` accepts the record UUID and `supersedes` references a previous
 note.
+
+`capture proposals` is read-only: it lists review proposals derived from
+the journal's committed operations (optional `--since-sequence N` cursor)
+and from the persisted init answers. `capture review --input review.json`
+evaluates a closed decision `{proposal, action, reason?, changes?}` with
+`reviewProposal`; without `--apply` it returns the review as a dry run and
+with `--apply` it creates an owned capture only if the decision ended
+`approved`. A rejected decision or an incomplete proposal never writes.
 
 Minimal input (`capture.json`):
 

@@ -15,12 +15,17 @@ The `scopegrain-` namespace avoids replacing built-ins.
 
 ## Status
 
-Documented formats and local fixture tests are not native certification —
-for any host, including the provisional one. Structural parse checks on
-applied fixtures verify only that generated files are syntactically
-well-formed, never that a real host binary accepts, discovers or enforces
-them. The foundation suite completed locally with one test file at a
-time; see
+Documented formats and local fixture tests are not native certification.
+Structural parse checks on applied fixtures verify only that generated
+files are syntactically well-formed, never that a real host binary accepts,
+discovers or enforces them. One native pilot is certified: a fresh real
+Devin Local session on 2026-11-17 auto-loaded the 42 `scopegrain-*` skills
+and 15 subagents, activated the `scopegrain` MCP from
+`.devin/mcp_config.json` and invoked `scopegrain_status` (read-only, 16
+doctor checks, 130-entry catalog hash-verified). The other hosts — Claude,
+Codex, OpenCode, Antigravity and the provisional Hermes — still lack a
+native pilot. The foundation suite completed locally with one test file at
+a time; see
 [verification](verification.md) for its scope and separate earlier runs.
 No host was activated by these changes. Initialization creates proposals
 under the selected configuration directory, normally
@@ -102,7 +107,7 @@ restricting availability. Generated inline skills deliberately omit it.
 Only the documented custom subagent field is treated as an availability
 allowlist, and that custom-agent interface is experimental. A child that
 cannot ask the user must return a blocker to the lead, not fabricate consent.
-Devin Cloud behavior is not certified by CLI/Local fixtures.
+Devin Cloud behavior is not certified by the CLI/Local pilot or fixtures.
 
 Models remain under host policy or an explicit owner choice. No universal
 provider, model identifier, cost estimate or paid call is selected by
@@ -162,9 +167,12 @@ server is an optional stdio query surface, not a mutating remote executor.
 See [onboarding](onboarding.md), [security](security.md) and
 [verification](verification.md).
 
-## Native Pilot Still Required
+## Native Pilots
 
-For each selected version/surface, separately approve an isolated pilot:
+Devin Local completed its pilot in a fresh real session on 2026-11-17 (see
+Status above); Devin Cloud remains outside its scope. For every other
+selected version/surface — Claude, Codex, OpenCode, Antigravity and the
+provisional Hermes — separately approve an isolated pilot:
 verify discovery and invocation, actual role tools and write denials,
 unapproved MCP/network effects, delegation, interruption/resumption,
 recovery without repeating effects and cleanup of only approved owned

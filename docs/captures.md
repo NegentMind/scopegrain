@@ -85,7 +85,9 @@ por las APIs conocidas del journal, sin escaneo.
 
 ## CLI
 
-El CLI expone exactamente dos comandos agrupados sobre el store; el
+El CLI expone cuatro comandos agrupados: `capture create` y `capture show`
+sobre el store, mas `capture proposals` y `capture review` sobre los
+productores de propuestas. El
 proyecto ya debe estar enrolado: config creada y
 `node ./bin/scopegrain.mjs workspace init --project "C:\ruta\mi-proyecto" --apply`
 (sin `--apply` el enrolamiento es solo vista previa). Los grants de area
@@ -96,6 +98,9 @@ sus areas:
 node ./bin/scopegrain.mjs capture create --project "C:\ruta\mi-proyecto" --input capture.json
 node ./bin/scopegrain.mjs capture create --project "C:\ruta\mi-proyecto" --input capture.json --apply
 node ./bin/scopegrain.mjs capture show "66666666-6666-6666-6666-666666666666" --project "C:\ruta\mi-proyecto"
+node ./bin/scopegrain.mjs capture proposals --project "C:\ruta\mi-proyecto" --since-sequence 12
+node ./bin/scopegrain.mjs capture review --project "C:\ruta\mi-proyecto" --input review.json
+node ./bin/scopegrain.mjs capture review --project "C:\ruta\mi-proyecto" --input review.json --apply
 ```
 
 Los placeholders (`<area-id-del-workspace>`, el UUID del ejemplo) deben
@@ -112,6 +117,15 @@ journal con sus recibos e incertidumbre preservados. En `create` no hay
 `--force`, `--yes` ni seleccion de destino, namespace, hash o ID propio
 por linea de comandos; `show` acepta el UUID del registro y `supersedes`
 referencia una nota previa.
+
+`capture proposals` es solo lectura: lista propuestas de revision derivadas
+de las operaciones committed del journal (cursor opcional
+`--since-sequence N`) y de las respuestas de init persistidas. `capture
+review --input review.json` evalua una decision cerrada `{proposal, action,
+reason?, changes?}` con `reviewProposal`; sin `--apply` devuelve la
+revision en modo dry-run y con `--apply` crea una captura con ownership
+solo si la decision quedo `approved`. Una decision rechazada o una
+propuesta incompleta nunca escribe.
 
 Entrada minima (`capture.json`):
 

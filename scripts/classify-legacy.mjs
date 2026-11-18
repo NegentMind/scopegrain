@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-const inventoryURL = new URL('../catalog/legacy-inventory.json', import.meta.url);
-const outputURL = new URL('../catalog/legacy-classification.json', import.meta.url);
+const inventoryURL = new URL('../provenance/legacy-inventory.json', import.meta.url);
+const outputURL = new URL('../provenance/legacy-classification.json', import.meta.url);
 const bytes = fs.readFileSync(inventoryURL);
 const capture = JSON.parse(bytes);
 const project = new Set([

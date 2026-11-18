@@ -106,8 +106,9 @@ new folder type or a certification of the cited files.
 
 ## Approvals and actions
 
-The local full foundation suite completed one test file at a time.
-Native pilots remain pending; see results and limits in
+The latest local full suite (serial `npm test`, 2026-11-17) finished with
+1065 passing tests. The Devin Local pilot was certified in a real session;
+the remaining hosts are still pending. See results and limits in
 [verification](verification.md).
 
 The `approval target/create/show/answer` operations separate content
