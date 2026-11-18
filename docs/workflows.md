@@ -102,9 +102,10 @@ tipo de carpeta ni una certificacion de los archivos citados.
 
 ## Aprobaciones y acciones
 
-La ultima integral local (`npm test` serial, 2026-11-17) termino con 1065
+La ultima integral local (`npm test` serial, 2026-11-18) termino con 1140
 pruebas aprobadas. El piloto de Devin Local quedo certificado en una sesion
-real; los demas anfitriones siguen pendientes. Ver los resultados y limites
+real; Antigravity se piloto el 2026-11-18; Claude, Codex, OpenCode y Hermes
+siguen pendientes. Ver los resultados y limites
 en [verificacion](verification.md).
 
 Las operaciones `approval target/create/show/answer` separan identificacion

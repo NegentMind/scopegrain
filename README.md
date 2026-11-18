@@ -201,18 +201,19 @@ considered equivalent to Local/CLI. See
 
 ## Verification
 
-The most recent local full run (`npm test`, per-file serial, 2026-11-17)
-finished with 1065 passing tests, none failed and none skipped on Windows,
+The most recent local full run (`npm test`, per-file serial, 2026-11-18)
+finished with 1140 passing tests, none failed and none skipped on Windows,
 Node.js v26.8.1 and npm 11.6.0. Intermediate full runs and earlier batches
 are separate executions; their scope and historic results are in
 [verification](docs/en/verification.md). The Devin Local native pilot was
 certified in a fresh real session on 2026-11-17 (42 `scopegrain-*` skills
 and 15 subagents auto-loaded, `scopegrain` MCP active from
-`.devin/mcp_config.json`); the other five documented hosts still lack a
-native pilot. The tests do not certify the six hosts or a real execution
-of the declared work.
+`.devin/mcp_config.json`); Antigravity was piloted on 2026-11-18 (`.agents/` activation applied and
+its agent session consumed the projections); the other four documented
+hosts still lack a native pilot. The tests do not certify the six hosts
+or a real execution of the declared work.
 The [GitHub Actions workflow](.github/workflows/verify.yml) is triggered
-manually only and has not run yet.
+manually only; its first remote run completed successfully on 2026-11-18.
 
 ## Code and license
 

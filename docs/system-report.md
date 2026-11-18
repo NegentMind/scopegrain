@@ -294,8 +294,8 @@ Ver [seguridad](security.md) y [compatibilidad](compatibility.md).
 
 ## 16. Estado de verificacion
 
-La ultima ejecucion integral local (`npm test` serial, 2026-11-17) termino
-con **1065 pass, 0 fail, 0 skipped y 0 cancelled**, exit 0, en Windows con
+La ultima ejecucion integral local (`npm test` serial, 2026-11-18) termino
+con **1140 pass, 0 fail, 0 skipped y 0 cancelled**, exit 0, en Windows con
 Node.js v26.8.1 y npm 11.6.0. Las integrales intermedias (673, 699, 770 y
 813) y las tandas anteriores de cada bloque son ejecuciones separadas, no
 cifras sumables; su alcance y resultados historicos estan en
@@ -306,8 +306,10 @@ El piloto nativo de Devin Local quedo certificado en una sesion fresca real
 el 2026-11-17: 42 skills `scopegrain-*` y 15 subagentes auto-cargados, MCP
 `scopegrain` activo desde `.devin/mcp_config.json` y `scopegrain_status`
 invocado (doctor con 16 checks y catalogo de 130 entradas integro por
-hash). Los demas anfitriones (Claude, Codex, OpenCode, Antigravity y
-Hermes) no tienen piloto nativo y CI no se ha despachado. Estas pruebas no
+hash). Los demas anfitriones (Claude, Codex, OpenCode y
+Hermes) no tienen piloto nativo; Antigravity se piloto el 2026-11-18 con
+su activacion `.agents/` aplicada y consumida por su sesion de agente.
+CI ya se despacho con exito (2026-11-18). Estas pruebas no
 certifican anfitriones, versiones o sistemas operativos no probados.
 
 ## 17. Integracion continua

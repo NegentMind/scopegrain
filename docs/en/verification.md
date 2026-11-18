@@ -5,7 +5,7 @@
 
 ## Current Status
 
-The latest full run (`npm test`, serial per file) finished with 1065
+The latest full run (`npm test`, serial per file) finished with 1140
 passing tests, 0 failed, 0 skipped and 0 cancelled on Windows, Node.js
 v26.8.1 and npm 11.6.0. The earlier full runs of design/outcome ownership
 (813), CLI spec/UTF8 (770), ownership spec (699), CLI captures (673) and
@@ -42,9 +42,9 @@ historic results.
 | Design/outcome ownership, initial gate | 10 files, 2026-11-17 | Exit 1: 195 tests, 191 pass, 4 fail, 0 skipped, 0 cancelled |
 | Design/outcome ownership, fixed fixtures | 2 new files, 2026-11-17 | Exit 0: 43 pass, 0 fail, 0 skipped, 0 cancelled |
 | Design/outcome ownership, snapshots after rollback | 1 file, after review | Exit 0: 20 pass, 0 fail, 0 skipped, 0 cancelled |
-| Design/outcome ownership full run | `npm test` serial, 2026-11-17 | Exit 0: 813 pass, 0 fail, 0 skipped, 0 cancelled |
+| Design/outcome ownership full run | `npm test` serial, 2026-11-18 | Exit 0: 813 pass, 0 fail, 0 skipped, 0 cancelled |
 | Scopegrain expansion wave | Per-block focused gates, 2026-11-17 | Lifecycle 22; semantic 24; hosts 28+42; journal-update 131; producers 15; hardening 229+4todo (wave-3: 501); viewer API 9; owned plans/workspaces/tasks/sessions/approvals 19/53/60/19/32+135; CLI wave-2 152; minors-a 22; journal-wedge 178; utf8-wave3 501 |
-| Current full run | `npm test` serial, 2026-11-17 | Exit 0: 1065 pass, 0 fail, 0 skipped, 0 cancelled |
+| Current full run | `npm test` serial, 2026-11-18 | Exit 0: 1140 pass, 0 fail, 0 skipped, 0 cancelled |
 | Isolated native MCP pilot | Windows, advertised server 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; embeddings and hosts not certified |
 | Native embedding control | Existing local model/runtime, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; positive phase passed, negative controls failed |
 | Devin Local pilot (this repo) | Fresh Devin session, 2026-11-17 | 42 `scopegrain-*` skills + 15 subagents auto-loaded; `scopegrain` MCP active from `.devin/mcp_config.json`; `scopegrain_status` invoked: doctor with 16 checks and a 130-entry catalog verified by hash |
@@ -372,10 +372,9 @@ that filter is not a complete suite. The current script is
 `node --test --test-concurrency=1 tests/*.test.mjs`.
 
 The serial full foundation run took approximately 19 minutes and 13
-seconds. The manual workflow reserves 45 minutes per job to leave
-margin for preparation and runner differences; it has not run in CI and
-that budget does not prove its duration on Linux, Windows or other Node
-versions.
+seconds. The manual workflow reserves 180 minutes per job after observing ~112
+minutes for the serial local suite; its first remote run (2026-11-18)
+completed successfully in ~3.6 minutes per job.
 
 The previous block's initial full run failed because an obsolete test
 expected `INVALID_ARGS` for `catalog list --project`, an option now

@@ -3,7 +3,7 @@
 ## Estado Actual
 
 La ultima ejecucion integral (`npm test`, serial por archivo) termino con
-1065 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
+1140 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
 Node.js v26.8.1 y npm 11.6.0. Las integrales anteriores de design/outcome
 (813), CLI spec/UTF8 (770), ownership spec (699), capturas CLI (673) y
 foundation (536) se conservan como referencias pasadas.
@@ -39,9 +39,9 @@ No sumar tandas acotadas ni resultados historicos.
 | Ownership design/outcome, gate inicial | 10 archivos, 2026-11-17 | Exit 1: 195 tests, 191 pass, 4 fail, 0 skipped, 0 cancelled |
 | Ownership design/outcome, fixtures corregidos | 2 archivos nuevos, 2026-11-17 | Exit 0: 43 pass, 0 fail, 0 skipped, 0 cancelled |
 | Ownership design/outcome, snapshots tras rollback | 1 archivo, tras revision | Exit 0: 20 pass, 0 fail, 0 skipped, 0 cancelled |
-| Integral ownership design/outcome | `npm test` serial, 2026-11-17 | Exit 0: 813 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral ownership design/outcome | `npm test` serial, 2026-11-18 | Exit 0: 813 pass, 0 fail, 0 skipped, 0 cancelled |
 | Ola de ampliacion Scopegrain | Gates focalizados por bloque, 2026-11-17 | Lifecycle 22; semantic 24; hosts 28+42; journal-update 131; productores 15; hardening 229 pass + 4 todo (luego wave-3: 501 pass); viewer API 9; owned plans 19; owned workspaces 53; owned tasks 60; owned sessions 19; owned approvals 32+135; CLI wave-2 152; minors-a 22; journal-wedge 178; utf8-wave3 501 |
-| Integral actual | `npm test` serial, 2026-11-17 | Exit 0: 1065 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral actual | `npm test` serial, 2026-11-18 | Exit 0: 1140 pass, 0 fail, 0 skipped, 0 cancelled |
 | Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |
 | Control nativo de embeddings | Modelo/runtime locales existentes, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; fase positiva aprobada, controles negativos fallidos |
 | Piloto Devin Local (este repo) | Sesion fresca Devin, 2026-11-17 | 42 skills `scopegrain-*` + 15 subagentes auto-cargados; MCP `scopegrain` activo desde `.devin/mcp_config.json`; `scopegrain_status` invocado: doctor con 16 checks y catalogo de 130 entradas integro por hash |
@@ -326,14 +326,14 @@ tolera el intent ausente verificando el digest del head). Doce hallazgos
 menores se corrigieron o documentaron como limites aceptados.
 
 Con el arbol combinado congelado se ejecuto una unica integral `npm test`
-serial, Node.js v26.8.1 y npm 11.6.0: 1065 pass, 0 fail, 0 skipped,
+serial, Node.js v26.8.1 y npm 11.6.0: 1140 pass, 0 fail, 0 skipped,
 0 cancelled, salida 0 y 6700935.6741 ms:
 `.tasksystem/verification/2026-11-17-integral-npmtest-1794931090.log`.
 Los gates focalizados por bloque no se suman al total. Hermes queda
 provisional sin formato verificado; ningun piloto real de anfitrion se
 ejecuto; VantaDB nativo sigue bloqueado por el control negativo de
 embeddings. La evidencia no certifica Node.js 22 ni otros sistemas
-operativos; el workflow manual sigue sin ejecucion remota registrada.
+operativos; el workflow manual ya completo su primera ejecucion remota con exito (2026-11-18, ~3.6 minutos por job).
 
 Antes de este bloque de ownership se ejecuto una vez la receta privada de
 piloto MCP nativo, con una
@@ -382,10 +382,9 @@ ese filtro no es una suite completa. El script actual es
 
 La ejecucion integral serial de foundation duro aproximadamente 19 minutos
 y 13 segundos.
-El workflow manual reserva 45 minutos por job para dejar margen a la
-preparacion y a diferencias entre runners; no se ha ejecutado en CI y ese
-presupuesto no demuestra su duracion en Linux, Windows ni otras versiones
-de Node.
+El workflow manual reserva 180 minutos por job tras observarse ~112 minutos
+en la integral serial local; su primera ejecucion remota (2026-11-18)
+completo con exito en ~3.6 minutos por job.
 
 La integral inicial del bloque anterior fallo porque una prueba obsoleta
 esperaba `INVALID_ARGS` para `catalog list --project`, opcion ya admitida;

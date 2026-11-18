@@ -201,18 +201,21 @@ comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver
 ## Verificacion
 
 La ultima ejecucion integral local (`npm test`, serial por archivo,
-2026-11-17) termino con 1065 pruebas aprobadas, ninguna fallida y ninguna
+2026-11-18) termino con 1140 pruebas aprobadas, ninguna fallida y ninguna
 omitida en Windows, Node.js v26.8.1 y npm 11.6.0. Las integrales
 intermedias y las tandas anteriores son ejecuciones separadas; su alcance
 y resultados historicos estan en [verificacion](docs/verification.md).
 El piloto nativo de Devin Local quedo certificado en una sesion fresca
 real el 2026-11-17 (42 skills `scopegrain-*` y 15 subagentes auto-cargados,
-MCP `scopegrain` activo desde `.devin/mcp_config.json`); los otros cinco
-anfitriones documentados siguen sin piloto nativo. Las pruebas no
+MCP `scopegrain` activo desde `.devin/mcp_config.json`); Antigravity se piloto el
+2026-11-18 (activacion `.agents/` aplicada y consumida por su sesion de
+agente); los otros cuatro anfitriones documentados siguen sin piloto
+nativo. Las pruebas no
 certifican los seis anfitriones ni una ejecucion real del trabajo
 declarado.
-El [workflow de GitHub Actions](.github/workflows/verify.yml) se activa solo
-manualmente y aun no se ha ejecutado.
+El [workflow de GitHub Actions](.github/workflows/verify.yml) se activa
+solo
+manualmente; su primera ejecucion remota completo con exito el 2026-11-18.
 
 ## Codigo y licencia
 

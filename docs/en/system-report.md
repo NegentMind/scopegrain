@@ -303,7 +303,7 @@ See [security](security.md) and [compatibility](compatibility.md).
 ## 16. Verification status
 
 The latest full local run (`npm test` serial, 2026-11-17) finished
-with **1065 pass, 0 fail, 0 skipped and 0 cancelled**, exit 0, on
+with **1140 pass, 0 fail, 0 skipped and 0 cancelled**, exit 0, on
 Windows with Node.js v26.8.1 and npm 11.6.0. The intermediate full runs
 (673, 699, 770 and 813) and the earlier batches of each block are
 separate runs, not summable figures; their scope and historical results
@@ -315,8 +315,10 @@ The Devin Local native pilot was certified in a fresh real session on
 `scopegrain` MCP active from `.devin/mcp_config.json` and
 `scopegrain_status` invoked (doctor with 16 checks and a 130-entry
 catalog hash-verified). The other hosts (Claude, Codex, OpenCode,
-Antigravity and Hermes) have no native pilot and CI has not been
-dispatched. These tests do not certify untested hosts, versions or
+Antigravity and Hermes) had no native pilot.
+Antigravity was piloted on 2026-11-18 (`.agents/` activation applied and
+consumed by its agent session); Claude, Codex, OpenCode and Hermes still
+lack one. CI was dispatched successfully on 2026-11-18. These tests do not certify untested hosts, versions or
 operating systems.
 
 ## 17. Continuous integration
