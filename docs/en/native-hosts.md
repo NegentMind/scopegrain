@@ -134,6 +134,19 @@ generated native proposals into project-local host destinations:
   project-relative path — including every global `~` path — are reported
   in `skipped` with warnings and never written. Machine-local MCP
   fragments under `integrations/<host>-mcp.*` stay manual-merge proposals.
+- Devin is the exception to the merge-only MCP rule: since Devin v3000.3
+  the project MCP servers live in the dedicated whole file
+  `.devin/mcp_config.json`, so activation applies it like any other
+  projected file (create-only; a divergent existing file is a conflict,
+  never an overwrite). The legacy shared `.devin/config.json` destination
+  stays a skipped `mcp` merge entry for pre-v3000.3 hosts. The generated
+  file embeds absolute machine-local paths — regenerate per machine with
+  `host activate --host devin --apply` after relocating the project or
+  the installation (Devin does not expand env vars, so no templating is
+  possible). The same machine-local caveat applies to every host's MCP
+  fragment: `.mcp.json` (Claude), `.codex/config.toml` (Codex) and the
+  OpenCode V2 proposal all embed absolute `serverPath`/`--project`
+  values and must be re-merged or regenerated after a move.
 - `surface` selects a variant id (e.g. `app-cli`, `ide`) or one of its
   declared surfaces. Because Antigravity variants emit the same
   destinations with different permissions, omitting a surface there makes

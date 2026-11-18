@@ -238,6 +238,39 @@ test('merge-required entries are skipped, never applied', () => {
   } finally { cleanup(dir); }
 });
 
+test('devin applies the dedicated mcp_config file and skips the legacy merge', () => {
+  const { dir, ctx } = fixture(['devin']);
+  try {
+    const preview = prepareActivation(ctx, { host: 'devin' });
+    assert.equal(preview.mode, 'dry-run');
+    assert.ok(preview.files.some((f) => f.rel === '.devin/mcp_config.json'
+      && f.action === 'create' && f.kind === 'mcp-config'));
+    // The legacy shared config never auto-applies: manual merge only.
+    assert.ok(preview.skipped.some((s) =>
+      s.destination === '.devin/config.json'));
+    const res = applyActivation(ctx, { host: 'devin' });
+    assert.ok(exists(dir, '.devin/mcp_config.json'));
+    assert.ok(!exists(dir, '.devin/config.json'));
+    const applied = readJson(dir, '.devin/mcp_config.json');
+    const srv = applied.mcpServers.scopegrain;
+    assert.equal(srv.command, 'node');
+    assert.deepEqual(srv.args.slice(1),
+      ['--project', dir, '--config', CFG]);
+    // Re-apply is noop; a divergent file conflicts and never rewrites.
+    const second = applyActivation(ctx, { host: 'devin' });
+    assert.equal(second.applied, 0);
+    writeFile(dir, '.devin/mcp_config.json', '{"other":true}\n');
+    assert.equal(prepareActivation(ctx, { host: 'devin' })
+      .files.find((f) => f.rel === '.devin/mcp_config.json').action,
+      'conflict');
+    assert.throws(() => applyActivation(ctx, { host: 'devin' }),
+      (e) => e.code === 'PLAN_CONFLICT');
+    assert.equal(fs.readFileSync(
+      path.join(dir, '.devin', 'mcp_config.json'), 'utf8'),
+      '{"other":true}\n');
+  } finally { cleanup(dir); }
+});
+
 test('hermes proposal is provisional and never auto-applies global paths', () => {
   const { dir, ctx } = fixture(['hermes']);
   try {

@@ -445,16 +445,19 @@ export function renderNativeAdapters(config, {
 } = {}) {
   const policy = loadNativePolicy({ installRoot });
   const catalog = givenCatalog ?? loadCatalog({ installRoot });
-  // Antigravity's MCP descriptor needs real paths — never placeholders.
-  if (config.hosts.includes('antigravity')) {
+  // Devin and Antigravity MCP descriptors embed real paths — never
+  // placeholders.
+  const pathHost = config.hosts.find(
+    (h) => h === 'devin' || h === 'antigravity');
+  if (pathHost !== undefined) {
     if (typeof projectRoot !== 'string' || !path.isAbsolute(projectRoot)) {
       throw err('INVALID_ADAPTER_INPUT',
-        'antigravity requires an absolute projectRoot');
+        `${pathHost} requires an absolute projectRoot`);
     }
     if (serverPath !== undefined
         && (typeof serverPath !== 'string' || !path.isAbsolute(serverPath))) {
       throw err('INVALID_ADAPTER_INPUT',
-        'antigravity requires an absolute serverPath when provided');
+        `${pathHost} requires an absolute serverPath when provided`);
     }
   }
   // Policy-declared read-only agents must actually exist in the catalog.
@@ -714,6 +717,55 @@ export function renderNativeAdapters(config, {
       permissionScope: policy.hosts.antigravity.permissionScope,
       source: rel, destination: '.agents/mcp_config.json',
       manualMerge: true,
+    });
+  }
+
+  // Devin project-scope MCP. Devin v3000.3+ reads the dedicated
+  // `.devin/mcp_config.json`; older versions read `mcpServers` inside the
+  // shared `.devin/config.json` and migrate it automatically on startup.
+  // The dedicated file is a WHOLE new file — create-only applyable with
+  // the same conflict semantics as every projected file — while the
+  // legacy destination stays a manual-merge proposal (kind 'mcp'). Both
+  // embed absolute machine-local paths: regenerate per machine with
+  // `host activate --host devin --apply` after relocating the project or
+  // the installation. Devin does not expand env vars in this file, so no
+  // templating is possible.
+  if (config.hosts.includes('devin')) {
+    const mcpContent = JSON.stringify({
+      mcpServers: {
+        scopegrain: {
+          command: 'node',
+          args: [serverPath
+              ?? path.resolve(installRoot, 'src/mcp/server.mjs'),
+            '--project', projectRoot,
+            '--config', configRel],
+        },
+      },
+    }, null, 2) + '\n';
+    const meta = {
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.devin.permissionScope,
+    };
+    const mcpRel =
+      `${cfgPrefix}integrations/native/devin/.devin/mcp_config.json`;
+    files.push({ rel: mcpRel, content: mcpContent });
+    entries.push({
+      host: 'devin', kind: 'mcp-config', id: 'scopegrain', ...meta,
+      source: mcpRel, destination: '.devin/mcp_config.json',
+      manualMerge: true, machineLocal: true,
+      note: 'machine-local absolute paths; regenerate per machine with '
+        + 'host activate --host devin --apply after relocating the '
+        + 'project or installation',
+    });
+    const legacyRel =
+      `${cfgPrefix}integrations/native/devin/.devin/config.json`;
+    files.push({ rel: legacyRel, content: mcpContent });
+    entries.push({
+      host: 'devin', kind: 'mcp', id: 'scopegrain', ...meta,
+      source: legacyRel, destination: '.devin/config.json',
+      manualMerge: true, machineLocal: true,
+      note: 'legacy pre-v3000.3 path: manually merge the mcpServers '
+        + 'subtree into the shared Devin config file',
     });
   }
 

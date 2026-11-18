@@ -54,6 +54,31 @@ test('antigravity: app-cli emits agents, ide skills-only, mcp proposal', () => {
     (e) => e.destination === '.agents/mcp_config.json' && e.manualMerge));
 });
 
+test('devin emits dedicated mcp_config file plus legacy merge fragment', () => {
+  const dir = makeTempDir('h');
+  try {
+    const { files, activationPlan } = renderNativeAdapters(
+      cfg(['devin']), { configRel: CFG, projectRoot: dir });
+    const mcp = files.find((f) =>
+      f.rel.endsWith('/devin/.devin/mcp_config.json'));
+    assert.ok(mcp);
+    const srv = JSON.parse(mcp.content.toString('utf8'))
+      .mcpServers.scopegrain;
+    assert.equal(srv.command, 'node');
+    assert.ok(!('disabled' in srv),
+      'the dedicated file is the active config, not a disabled proposal');
+    const dests = new Map(activationPlan.entries
+      .filter((e) => e.host === 'devin'
+        && String(e.destination).startsWith('.devin/'))
+      .map((e) => [e.destination, e.kind]));
+    assert.equal(dests.get('.devin/mcp_config.json'), 'mcp-config');
+    assert.equal(dests.get('.devin/config.json'), 'mcp');
+    assert.ok(files.some((f) =>
+      f.rel.endsWith('/devin/.devin/config.json')),
+      'legacy merge fragment file must exist');
+  } finally { cleanup(dir); }
+});
+
 test('codex TOML includes name; alias bridges exist per alias id', () => {
   const { files } = renderNativeAdapters(cfg(['codex', 'claude']),
     { configRel: CFG });

@@ -12,7 +12,7 @@ certifica comportamiento equivalente entre productos.
 | Claude Code | `CLAUDE.md` (raiz) | `integrations/claude-mcp.json` con `mcpServers.scopegrain` (`type: stdio`) | Documental; requiere aprobacion del usuario en el anfitrion |
 | Codex | `AGENTS.md` (raiz) | `integrations/codex-mcp.toml` (`[mcp_servers.scopegrain]`) | Documental; el proyecto requiere trust en Codex |
 | OpenCode V2 | `AGENTS.md` (raiz) | `integrations/opencode-mcp.json` (`mcp.servers.scopegrain`, `disabled:true`) | Documental; sin certificacion nativa |
-| Devin Local/CLI | `AGENTS.md` (raiz) | `integrations/devin-mcp.json` (`mcpServers.scopegrain` sin `type`) | Piloto certificado en sesion real de Local (2026-11-17); Devin Cloud no se considera equivalente |
+| Devin Local/CLI | `AGENTS.md` (raiz) | `integrations/devin-mcp.json` (`mcpServers.scopegrain` sin `type`) y `.devin/mcp_config.json` generado por `host activate` (v3000.3+) | Piloto certificado en sesion real de Local (2026-11-17); Devin Cloud no se considera equivalente |
 | Google Antigravity | Propuestas App/CLI e IDE diferenciadas | `integrations/antigravity-mcp.json` y propuesta nativa revisable | Generacion local; sin piloto nativo ni agentes asumidos en IDE |
 
 ## Notas por fuente
@@ -33,14 +33,25 @@ certifica comportamiento equivalente entre productos.
   archivos V1 existentes no se eliminan. Su antigua ruta se conserva
   reservada para evitar colisiones.
 - **Devin Local/CLI:** `AGENTS.md` en la raiz es la recomendacion oficial;
-  Local comparte las customizaciones del CLI. El fragmento sigue la forma
-  `mcpServers` con `command`/`args` y su destino de merge documentado es
-  `.devin/mcp_config.json` (scope de proyecto, compartido via VCS) desde
-  Devin v3000.3; en versiones anteriores el equivalente era la clave
-  `mcpServers` dentro de `.devin/config.json` (las entradas antiguas se
-  migran automaticamente al archivo dedicado). El scope de usuario es
+  Local comparte las customizaciones del CLI. Desde Devin v3000.3 el MCP
+  de proyecto vive en el archivo dedicado `.devin/mcp_config.json` (scope
+  de proyecto, compartido via VCS); `host activate --host devin` lo
+  genera como archivo completo create-only (conflicto si existe uno
+  divergente; nunca se sobrescribe). En versiones anteriores el
+  equivalente era la clave `mcpServers` dentro de `.devin/config.json`
+  (las entradas antiguas se migran automaticamente al archivo dedicado):
+  la propuesta nativa `.devin/config.json` y el fragmento
+  `integrations/devin-mcp.json` siguen generandose para ese merge manual
+  y para el scope de usuario. El scope de usuario es
   `~/.config/devin/mcp_config.json` (`%APPDATA%\devin\mcp_config.json` en
   Windows) y el override local gitignored `.devin/mcp_config.local.json`.
+  `.devin/mcp_config.json` contiene rutas absolutas de la maquina y no es
+  portable entre equipos: regenerarlo por maquina con
+  `host activate --host devin --apply` tras mover el proyecto o la
+  instalacion (la regeneracion es create-only; si el archivo existente
+  difiere, el plan informa conflicto y el owner reconcilia — tipicamente
+  borrando el archivo obsoleto y re-aplicando). Devin no expande
+  variables de entorno en este archivo, asi que no existe templating.
   No se afirma paridad con Devin Cloud.
 - **Antigravity:** App/CLI e IDE no se equiparan. La propuesta App/CLI
   incluye roles; la de IDE solo skills. La convencion `.agents/` compartida
@@ -58,10 +69,18 @@ certifica comportamiento equivalente entre productos.
   cada propuesta manualmente.
 - `serverPath` y la ruta del proyecto (`--project`) son absolutas y
   machine-local; `--config` va como token relativo POSIX contenido en el
-  proyecto (es lo que `loadConfig` acepta):
-  revisar y reconciliar las propuestas tras mover la instalacion o el
-  proyecto. `doctor` informa las referencias obsoletas; no las corrige
-  silenciosamente ni activa el destino nuevo.
+  proyecto (es lo que `loadConfig` acepta). Esto aplica a TODOS los
+  artefactos MCP generados: los fragmentos `integrations/<host>-mcp.*`
+  (Claude `.mcp.json`, Codex `[mcp_servers]` TOML, OpenCode V2, Devin,
+  Antigravity, Hermes) y tambien el archivo de anfitrion
+  `.devin/mcp_config.json` que la activacion de Devin escribe en raiz —
+  ninguno es portable entre maquinas. Revisar y reconciliar las
+  propuestas tras mover la instalacion o el proyecto; en el caso de
+  `.devin/mcp_config.json` la regeneracion por maquina es
+  `host activate --host devin --apply` (create-only: un destino
+  divergente es conflicto, nunca sobrescritura). `doctor` informa las
+  referencias obsoletas; no las corrige silenciosamente ni activa el
+  destino nuevo.
 
 ## Fuentes oficiales consultadas
 

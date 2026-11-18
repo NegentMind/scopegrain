@@ -23,7 +23,8 @@ function cfg(hosts = ['claude', 'codex', 'opencode', 'devin']) {
 }
 
 test('selected hosts project native files; absent hosts generate none', () => {
-  const all = renderNativeAdapters(cfg(), { configRel: CFG_REL });
+  const all = renderNativeAdapters(cfg(),
+    { configRel: CFG_REL, projectRoot: makeTempDir('x') });
   const claudeOnly = renderNativeAdapters(
     cfg(['claude']), { configRel: CFG_REL });
   assert.ok(claudeOnly.files.every((f) =>
@@ -41,7 +42,8 @@ test('selected hosts project native files; absent hosts generate none', () => {
 });
 
 test('frontmatter: permission lines land INSIDE the YAML fence', () => {
-  const { files } = renderNativeAdapters(cfg(), { configRel: CFG_REL });
+  const { files } = renderNativeAdapters(cfg(),
+    { configRel: CFG_REL, projectRoot: makeTempDir('x') });
   const pipeline = files.find((f) =>
     f.rel.endsWith('/claude/.claude/skills/scopegrain-pipeline/SKILL.md'));
   const text = pipeline.content.toString('utf8');
@@ -85,7 +87,7 @@ test('frontmatter: permission lines land INSIDE the YAML fence', () => {
 
 test('skill/command bridges prefer the canonical file description', () => {
   const { files } = renderNativeAdapters(
-    cfg(['devin']), { configRel: CFG_REL });
+    cfg(['devin']), { configRel: CFG_REL, projectRoot: makeTempDir('x') });
   const catalog = loadCatalog();
   const canonicalOf = (rel) => fs.readFileSync(rel, 'utf8')
     .match(/^description:[ \t]*(.+)$/m)[1].trim();
@@ -130,7 +132,8 @@ test('a resource without frontmatter falls back to the manifest text', () => {
 });
 
 test('codex TOML roles use JSON-quoted strings + declaration fragments', () => {
-  const { files } = renderNativeAdapters(cfg(), { configRel: CFG_REL });
+  const { files } = renderNativeAdapters(cfg(),
+    { configRel: CFG_REL, projectRoot: makeTempDir('x') });
   const role = files.find((f) =>
     f.rel.endsWith('/codex/.codex/agents/scopegrain-reviewer.toml'));
   assert.ok(role);
@@ -156,7 +159,8 @@ test('codex TOML roles use JSON-quoted strings + declaration fragments', () => {
 });
 
 test('activation metadata: codex fragment targets .codex/config.toml', () => {
-  const { activationPlan } = renderNativeAdapters(cfg(), { configRel: CFG_REL });
+  const { activationPlan } = renderNativeAdapters(cfg(),
+    { configRel: CFG_REL, projectRoot: makeTempDir('x') });
   const decl = activationPlan.entries.find(
     (e) => e.kind === 'agent-declaration');
   assert.equal(decl.destination, '.codex/config.toml');
@@ -164,9 +168,49 @@ test('activation metadata: codex fragment targets .codex/config.toml', () => {
   assert.ok(decl.source.endsWith('agents-fragment.toml'));
 });
 
+test('devin emits the v3000.3 mcp_config file plus the legacy merge fragment', () => {
+  const projectRoot = makeTempDir('x');
+  const { files, activationPlan } = renderNativeAdapters(
+    cfg(['devin']), { configRel: CFG_REL, projectRoot });
+  // Dedicated whole file: create-only applyable, real absolute paths.
+  const mcp = files.find((f) =>
+    f.rel.endsWith('/devin/.devin/mcp_config.json'));
+  assert.ok(mcp, 'dedicated .devin/mcp_config.json proposal must exist');
+  const mcpJson = JSON.parse(mcp.content.toString('utf8'));
+  const srv = mcpJson.mcpServers.scopegrain;
+  assert.equal(srv.command, 'node');
+  assert.ok(srv.args[0].endsWith('server.mjs'));
+  assert.ok(!('disabled' in srv), 'certified file carries no disabled flag');
+  assert.deepEqual(srv.args.slice(1),
+    ['--project', projectRoot, '--config', CFG_REL]);
+  // Legacy fragment: same mcpServers block, manual merge only.
+  const legacy = files.find((f) =>
+    f.rel.endsWith('/devin/.devin/config.json'));
+  assert.ok(legacy, 'legacy .devin/config.json fragment must exist');
+  assert.deepEqual(JSON.parse(legacy.content.toString('utf8')), mcpJson);
+  const applyable = activationPlan.entries.find(
+    (e) => e.destination === '.devin/mcp_config.json');
+  assert.equal(applyable.kind, 'mcp-config');
+  assert.equal(applyable.machineLocal, true);
+  assert.match(applyable.note, /regenerate per machine/);
+  const merge = activationPlan.entries.find(
+    (e) => e.destination === '.devin/config.json');
+  assert.equal(merge.kind, 'mcp');
+  assert.equal(merge.manualMerge, true);
+  // Real paths are mandatory for devin — never placeholders.
+  assert.throws(() => renderNativeAdapters(
+    cfg(['devin']), { configRel: CFG_REL }),
+    (e) => e.code === 'INVALID_ADAPTER_INPUT');
+  assert.throws(() => renderNativeAdapters(
+    cfg(['devin']), { configRel: CFG_REL, projectRoot,
+      serverPath: 'rel/server.mjs' }),
+    (e) => e.code === 'INVALID_ADAPTER_INPUT');
+  cleanup(projectRoot);
+});
+
 test('activation plan is metadata only: manual merge, no hooks/apply', () => {
   const { files, activationPlan } = renderNativeAdapters(
-    cfg(), { configRel: CFG_REL });
+    cfg(), { configRel: CFG_REL, projectRoot: makeTempDir('x') });
   assert.equal(activationPlan.activation, 'manual-review-only');
   assert.equal(activationPlan.hooksInstalled, false);
   assert.equal(activationPlan.nativeHostTested, false);
