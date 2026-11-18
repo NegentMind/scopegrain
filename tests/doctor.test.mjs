@@ -24,6 +24,10 @@ test('freshly initialized project reports ready', () => {
     const report = runDoctor(ctx);
     assert.equal(report.status, 'ready');
     assert.equal(report.changedDiscovery, false);
+    assert.deepEqual(report.summary, {
+      ok: report.checks.filter((c) => c.ok).length,
+      warnings: 0, failures: 0,
+    });
   } finally { cleanup(dir); }
 });
 
@@ -34,6 +38,9 @@ test('corrupt or divergent integration fragment is needs-attention', () => {
     const report = runDoctor(ctx);
     assert.equal(report.status, 'needs-attention');
     assert.ok(report.warnings.some((w) => w.includes('claude-mcp.json')));
+    assert.ok(report.summary.failures >= 1);
+    assert.equal(report.summary.warnings,
+      report.warnings.length - report.summary.failures);
   } finally { cleanup(dir); }
 });
 
@@ -44,6 +51,9 @@ test('changed manifest fingerprint is reported', () => {
     const report = runDoctor(ctx);
     assert.equal(report.changedDiscovery, true);
     assert.ok(report.warnings.some((w) => w.includes('fingerprint')));
+    // Advisory-only warnings: status demands attention with zero failures.
+    assert.equal(report.summary.failures, 0);
+    assert.ok(report.summary.warnings >= 1);
   } finally { cleanup(dir); }
 });
 

@@ -57,6 +57,7 @@ src/core/evidence.mjs     Verification/review validation (attestations)
 src/core/transition.mjs   CAS transitions with per-task lock, checkAction and mutable owned store
 src/core/bootstrap.mjs    Init plan, preflight, apply with rollback
 src/core/doctor.mjs       Read-only health check
+src/core/docs-cli-drift.mjs docs<->CLI drift: documented verbs vs the real surface
 src/core/lifecycle.mjs    adopt/update/backup/restore/uninstall: create-only previews and applies
 src/discovery/inspect.mjs Bounded manifest scan
 src/discovery/semantic.mjs Bounded read-only semantic investigation

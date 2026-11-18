@@ -9,10 +9,11 @@ import { PATH_KEYS, configDirOf } from './config.mjs';
 import { inspectProject } from '../discovery/inspect.mjs';
 import { buildInitPlan, INSTALL_ROOT } from './bootstrap.mjs';
 import {
-  catalogFiles, checkCatalog, loadWorkspaceCatalog,
+  catalogFiles, checkCatalog, loadCatalog, loadWorkspaceCatalog,
 } from './catalog.mjs';
 import { loadLimits } from './policy.mjs';
 import { validateWorkspace, workspaceFileRel } from './workspaces.mjs';
+import { checkDocsCliDrift } from './docs-cli-drift.mjs';
 
 const REQUIRED_TEMPLATES = [
   'hosts/native-resource.md',
@@ -59,10 +60,17 @@ export function runDoctor(ctx, opts = {}) {
   const installRoot = opts.installRoot || INSTALL_ROOT;
   const warnings = [];
   const checks = [];
-
-  const push = (name, ok, detail) => {
-    checks.push({ name, ok, detail });
-    if (!ok) warnings.push(`${name}: ${detail}`);
+  // Failed checks push a warning entry; severity:'warning' marks
+  // non-blocking findings that count under summary.warnings, never
+  // summary.failures. `extra` merges structured fields into the check.
+  let failureCount = 0;
+  const push = (name, ok, detail, extra = null) => {
+    const check = { name, ok, detail, ...extra };
+    checks.push(check);
+    if (!ok) {
+      warnings.push(`${name}: ${detail}`);
+      if (check.severity !== 'warning') failureCount += 1;
+    }
   };
 
   push('config', true, `valid configuration at ${configPath}`);
@@ -304,6 +312,37 @@ export function runDoctor(ctx, opts = {}) {
     }
   }
 
+  // Docs <-> CLI surface drift is a warning-level check: stale or
+  // undocumented verbs never count as failures. Catalog command ids and
+  // aliases are dispatchable verbs, so the install catalog (workspace
+  // snapshot as fallback) extends the comparison set.
+  {
+    let driftCatalog = null;
+    try {
+      driftCatalog = loadCatalog({ installRoot });
+    } catch {
+      driftCatalog = workspace;
+    }
+    try {
+      const drift = checkDocsCliDrift({
+        projectRoot, installRoot, catalog: driftCatalog,
+      });
+      if (drift.ok) {
+        push('docs-cli-drift', true, drift.detail);
+      } else {
+        push('docs-cli-drift', false, drift.detail, {
+          severity: 'warning',
+          stale: drift.stale,
+          undocumented: drift.undocumented,
+          scannedDocs: drift.scannedDocs,
+        });
+      }
+    } catch (e) {
+      push('docs-cli-drift', false, `cannot evaluate: ${e.message}`,
+        { severity: 'warning' });
+    }
+  }
+
   let current = null;
   try {
     current = inspectProject(projectRoot);
@@ -321,10 +360,20 @@ export function runDoctor(ctx, opts = {}) {
     warnings.push('manifest fingerprint changed since init; consider re-discovery');
   }
 
+  // summary partitions the outcome so consumers can distinguish "checks
+  // failed" from "checks passed but warnings exist" without parsing the
+  // status string: every failed check produces exactly one warnings[]
+  // entry, so warnings.length - failureCount is the pure warning count.
+  // status is unchanged: 'needs-attention' whenever warnings exist.
   const ok = warnings.length === 0;
   return {
     schemaVersion: 1,
     status: ok ? 'ready' : 'needs-attention',
+    summary: {
+      ok: checks.filter((c) => c.ok).length,
+      warnings: warnings.length - failureCount,
+      failures: failureCount,
+    },
     changedDiscovery,
     upgradeAvailable,
     checks,

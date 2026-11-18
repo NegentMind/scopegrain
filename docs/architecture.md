@@ -53,6 +53,7 @@ src/core/evidence.mjs     Validacion de verification/review (attestations)
 src/core/transition.mjs   Transiciones CAS con lock por tarea, checkAction y store owned mutable
 src/core/bootstrap.mjs    Plan de init, preflight, apply con rollback
 src/core/doctor.mjs       Chequeo de salud de solo lectura
+src/core/docs-cli-drift.mjs Deriva docs<->CLI: verbos documentados vs superficie real
 src/core/lifecycle.mjs    adopt/update/backup/restore/uninstall: previews y applies create-only
 src/discovery/inspect.mjs Escaneo acotado de manifiestos
 src/discovery/semantic.mjs Investigacion semantica acotada de solo lectura
