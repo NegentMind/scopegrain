@@ -44,7 +44,8 @@ No sumar tandas acotadas ni resultados historicos.
 | Integral actual | `npm test` serial, 2026-11-17 | Exit 0: 1065 pass, 0 fail, 0 skipped, 0 cancelled |
 | Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |
 | Control nativo de embeddings | Modelo/runtime locales existentes, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; fase positiva aprobada, controles negativos fallidos |
-| Pilotos en anfitriones | Pendientes | No certificados |
+| Piloto Devin Local (este repo) | Sesion fresca Devin, 2026-11-17 | 42 skills `scopegrain-*` + 15 subagentes auto-cargados; MCP `scopegrain` activo desde `.devin/mcp_config.json`; `scopegrain_status` invocado: doctor con 16 checks y catalogo de 130 entradas integro por hash |
+| Pilotos en anfitriones restantes | Pendientes | Claude, Codex, OpenCode, Antigravity y Hermes no certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
 `c2d1-green-final.log`, `c2d2-green-final.log`, sus RED causales y diffs
@@ -448,7 +449,9 @@ El gate de whitespace detecto terminadores/espacios finales en archivos
 editados. Se normalizaron sin cambios de comportamiento y se comprueba
 por separado; ese ajuste no se presenta como otra ejecucion de la suite.
 
-No se ejecutaron sesiones reales de Claude Code, Codex, OpenCode o Devin.
+El piloto Devin Local quedo certificado en sesion real (skills + MCP +
+invocacion read-only); no se ejecutaron sesiones reales de Claude Code,
+Codex, OpenCode, Antigravity u Hermes.
 No se certifican las 197 skills originales archivadas, plugins externos,
 aislamiento nativo, Node.js 22 ni otros sistemas operativos.
 Los logs, fixtures y reviews operativos permanecen privados e ignorados;

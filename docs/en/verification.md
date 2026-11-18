@@ -47,7 +47,8 @@ historic results.
 | Current full run | `npm test` serial, 2026-11-17 | Exit 0: 1065 pass, 0 fail, 0 skipped, 0 cancelled |
 | Isolated native MCP pilot | Windows, advertised server 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; embeddings and hosts not certified |
 | Native embedding control | Existing local model/runtime, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; positive phase passed, negative controls failed |
-| Host pilots | Pending | Not certified |
+| Devin Local pilot (this repo) | Fresh Devin session, 2026-11-17 | 42 `scopegrain-*` skills + 15 subagents auto-loaded; `scopegrain` MCP active from `.devin/mcp_config.json`; `scopegrain_status` invoked: doctor with 16 checks and a 130-entry catalog verified by hash |
+| Remaining host pilots | Pending | Claude, Codex, OpenCode, Antigravity and Hermes not certified |
 
 Local logs preserved under `.tasksystem/verification/organic-sdd/`:
 `c2d1-green-final.log`, `c2d2-green-final.log`, their causal REDs and
@@ -440,7 +441,9 @@ edited files. They were normalized with no behavior changes and are
 checked separately; that adjustment is not presented as another suite
 run.
 
-No real Claude Code, Codex, OpenCode or Devin sessions were run. The
+The Devin Local pilot was certified in a real session (skills + MCP +
+read-only invocation); no real Claude Code, Codex, OpenCode, Antigravity
+or Hermes sessions were run. The
 197 archived original skills, external plugins, native isolation,
 Node.js 22 and other operating systems are not certified. Logs,
 fixtures and operational reviews remain private and ignored; they do
