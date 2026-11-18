@@ -143,11 +143,19 @@ test('surface filters variant entries; bogus surface is an error', () => {
     const app = prepareActivation(ctx, { host: 'antigravity', surface: 'app-cli' });
     const appPaths = app.files.map((f) => f.rel);
     assert.ok(appPaths.some((r) => r.includes('/agents/scopegrain-')));
+    assert.ok(app.files.some((f) =>
+      f.rel === '.agents/mcp_config.json'
+      && f.kind === 'mcp-config'
+      && f.action === 'create'));
     const ide = prepareActivation(ctx, { host: 'antigravity', surface: 'ide' });
     const idePaths = ide.files.map((f) => f.rel);
     assert.ok(!idePaths.some((r) => r.includes('/agents/scopegrain-')),
       'ide surface must not emit custom agents');
     assert.ok(idePaths.some((r) => r.startsWith('.agents/skills/')));
+    assert.ok(ide.files.some((f) =>
+      f.rel === '.agents/mcp_config.json'
+      && f.kind === 'mcp-config'
+      && f.action === 'create'));
     assert.ok(ide.warnings.some((w) => w.includes('.agents')),
       'shared .agents convention must be warned about');
     assert.throws(() => prepareActivation(ctx,

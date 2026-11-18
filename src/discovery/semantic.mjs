@@ -64,6 +64,8 @@ const DIR_PROBES = [
   { rel: '.opencode', kind: 'host', host: 'opencode' },
   { rel: '.devin', kind: 'host', host: 'devin' },
   { rel: '.antigravity', kind: 'host', host: 'antigravity' },
+  { rel: '.agents', kind: 'host', host: 'antigravity' },
+  { rel: '.agent', kind: 'host', host: 'antigravity' },
 ];
 
 // File probes: lstat only unless `read` names an allowlisted parser.
@@ -150,6 +152,7 @@ const FILE_PROBES = [
   { rel: 'opencode.json', host: 'opencode' },
   { rel: 'opencode.jsonc', host: 'opencode' },
   { rel: '.codex/config.toml', host: 'codex' },
+  { rel: 'GEMINI.md', host: 'antigravity' },
   { rel: 'src/main.rs', cliHint: 'rust' },
 ];
 

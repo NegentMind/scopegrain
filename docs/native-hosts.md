@@ -57,10 +57,11 @@ funciona en V1.
 
 Antigravity App/CLI e IDE son superficies separadas. La propuesta de
 App/CLI incluye agentes personalizados documentados; la propuesta de IDE
-no infiere esa capacidad. MCP permanece deshabilitado en la propuesta
-`mcp_config.json` generada, con los valores reales seleccionados de
-instalacion/proyecto, pendiente de revision manual. No ocurre ninguna
-instalacion automatica de agentes, workflows o MCP.
+no infiere esa capacidad. El fragmento `integrations/antigravity-mcp.json`
+permanece deshabilitado (`disabled: true`), mientras que el archivo
+dedicado `.agents/mcp_config.json` queda listo para activarse con
+`host activate --host antigravity --surface <app-cli|ide> --apply`. No
+ocurre ninguna instalacion automatica de agentes, workflows o MCP.
 
 Las declaraciones de roles de Codex se recopilan fuera de los archivos
 de rol descubribles en `agents-fragment.toml`; el destino propuesto
@@ -152,21 +153,24 @@ del proyecto:
   todas las rutas globales `~` — se reportan en `skipped` con warnings y
   nunca se escriben. Los fragmentos MCP machine-local bajo
   `integrations/<host>-mcp.*` siguen siendo propuestas de fusion manual.
-- Devin es la excepcion a la regla de MCP solo-fusion: desde Devin
-  v3000.3 los servidores MCP del proyecto viven en el archivo dedicado
-  completo `.devin/mcp_config.json`, de modo que la activacion lo aplica
-  como cualquier otro archivo proyectado (create-only; un archivo
-  existente divergente es un conflicto, nunca una sobrescritura). El
-  destino compartido legacy `.devin/config.json` sigue siendo una
-  entrada `mcp` de fusion omitida para hosts anteriores a v3000.3. El
-  archivo generado embebe rutas absolutas machine-local — regenerar por
-  maquina con `host activate --host devin --apply` tras reubicar el
-  proyecto o la instalacion (Devin no expande variables de entorno, de
-  modo que no es posible usar templates). La misma advertencia
-  machine-local aplica al fragmento MCP de cada host: `.mcp.json`
-  (Claude), `.codex/config.toml` (Codex) y la propuesta de OpenCode V2
-  embeben valores absolutos de `serverPath`/`--project` y deben
-  re-fusionarse o regenerarse tras un traslado.
+- Devin y Antigravity son excepciones a la regla de MCP solo-fusion:
+  desde Devin v3000.3 los servidores MCP del proyecto viven en el archivo
+  dedicado completo `.devin/mcp_config.json`, y en Antigravity viven en
+  `.agents/mcp_config.json`, de modo que la activacion los aplica como
+  cualquier otro archivo proyectado (create-only; un archivo existente
+  divergente es un conflicto, nunca una sobrescritura). El destino
+  compartido legacy `.devin/config.json` sigue siendo una entrada `mcp`
+  de fusion omitida para hosts anteriores a v3000.3, y el fragmento
+  `integrations/antigravity-mcp.json` se mantiene con `disabled: true`.
+  Los archivos generados embeben rutas absolutas machine-local — regenerar
+  por maquina con `host activate --host devin --apply` o
+  `host activate --host antigravity --surface <app-cli|ide> --apply`
+  tras reubicar el proyecto o la instalacion (Devin no expande variables
+  de entorno, de modo que no es posible usar templates). La misma
+  advertencia machine-local aplica al fragmento MCP de cada host:
+  `.mcp.json` (Claude), `.codex/config.toml` (Codex) y la propuesta de
+  OpenCode V2 embeben valores absolutos de `serverPath`/`--project` y
+  deben re-fusionarse o regenerarse tras un traslado.
 - `surface` selecciona un id de variante (p. ej. `app-cli`, `ide`) o una
   de sus superficies declaradas. Como las variantes de Antigravity emiten
   los mismos destinos con permisos distintos, omitir una superficie alli

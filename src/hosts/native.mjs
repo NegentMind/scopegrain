@@ -693,7 +693,13 @@ export function renderNativeAdapters(config, {
     }
   }
 
-  // Antigravity MCP proposal: metadata only, disabled:true, manual merge.
+  // Antigravity project-scope MCP (.agents/mcp_config.json): dedicated whole
+  // file under the .agents harness root — create-only applyable with the same
+  // conflict semantics as every projected file. Embeds absolute machine-local
+  // paths: regenerate per machine with
+  // `host activate --host antigravity --surface <app-cli|ide> --apply` after
+  // relocating the project or installation. The fragment in
+  // `integrations/antigravity-mcp.json` stays a disabled manual-merge proposal.
   if (config.hosts.includes('antigravity')) {
     const rel = `${cfgPrefix}integrations/native/antigravity/.agents/mcp_config.json`;
     files.push({
@@ -706,17 +712,19 @@ export function renderNativeAdapters(config, {
                 ?? path.resolve(installRoot, 'src/mcp/server.mjs'),
               '--project', projectRoot,
               '--config', configRel],
-            disabled: true,
           },
         },
       }, null, 2) + '\n',
     });
     entries.push({
-      host: 'antigravity', kind: 'mcp', id: 'scopegrain',
+      host: 'antigravity', kind: 'mcp-config', id: 'scopegrain',
       compatibility: 'documented-only', modelSelection: 'host-policy',
       permissionScope: policy.hosts.antigravity.permissionScope,
       source: rel, destination: '.agents/mcp_config.json',
-      manualMerge: true,
+      manualMerge: true, machineLocal: true,
+      note: 'machine-local absolute paths; regenerate per machine with '
+        + 'host activate --host antigravity --surface <app-cli|ide> --apply '
+        + 'after relocating the project or installation',
     });
   }
 

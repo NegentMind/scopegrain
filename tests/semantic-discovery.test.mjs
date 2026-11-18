@@ -258,6 +258,30 @@ test('host signals propose hosts from existence only', () => {
   } finally { cleanup(dir); }
 });
 
+test('antigravity host signals detect .agents, .agent and GEMINI.md', () => {
+  const dir = makeTempDir('host-agy');
+  try {
+    writeJson(dir, 'package.json', { name: 'x' });
+    writeFile(dir, '.agents/mcp_config.json', '{}\n');
+    writeFile(dir, '.agent/rules/r.md', '# rule\n');
+    writeFile(dir, 'GEMINI.md', '# rules\n');
+    const inv = investigateProject(dir);
+    const hosts = inv.hosts.signals.map((s) => s.host);
+    assert.ok(hosts.includes('antigravity'));
+    assert.ok(inv.hosts.signals.some(
+      (s) => s.host === 'antigravity' && s.path === '.agents'));
+    assert.ok(inv.hosts.signals.some(
+      (s) => s.host === 'antigravity' && s.path === '.agent'));
+    assert.ok(inv.hosts.signals.some(
+      (s) => s.host === 'antigravity' && s.path === 'GEMINI.md'));
+    const s = suggestAnswers(inv);
+    assert.ok(s.hosts.value.includes('antigravity'));
+    // Contents of .agents/ and .agent/ are never listed or read.
+    assert.ok(!inv.evidence.some((e) => e.path.includes('mcp_config.json')));
+    assert.ok(!inv.evidence.some((e) => e.path.includes('rules/r.md')));
+  } finally { cleanup(dir); }
+});
+
 test('secrets-adjacent material is never read or listed', () => {
   const dir = makeTempDir('secrets');
   try {

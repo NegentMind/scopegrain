@@ -49,9 +49,15 @@ test('antigravity: app-cli emits agents, ide skills-only, mcp proposal', () => {
     f.rel.endsWith('/antigravity/.agents/mcp_config.json'));
   assert.ok(mcp);
   const mcpJson = JSON.parse(mcp.content.toString('utf8'));
-  assert.equal(mcpJson.mcpServers.scopegrain.disabled, true);
-  assert.ok(activationPlan.entries.some(
-    (e) => e.destination === '.agents/mcp_config.json' && e.manualMerge));
+  const srv = mcpJson.mcpServers.scopegrain;
+  assert.equal(srv.command, 'node');
+  assert.ok(!('disabled' in srv),
+    'the dedicated file is the active config, not a disabled proposal');
+  const entry = activationPlan.entries.find(
+    (e) => e.destination === '.agents/mcp_config.json');
+  assert.equal(entry.kind, 'mcp-config');
+  assert.equal(entry.manualMerge, true);
+  assert.equal(entry.machineLocal, true);
 });
 
 test('devin emits dedicated mcp_config file plus legacy merge fragment', () => {
