@@ -618,12 +618,12 @@ The `verify` surface persists closed records under
   declare `packageManager` in that cwd's package.json, commit a single
   lockfile or declare the command literally with `verify add`.
 - `verify approve ID [--apply]` — explicit per-record approval; the
-  only CLI path that turns a command (declared or inferred) into
-  `approved:true`. The core also exposes the bulk path
-  `prepareApproveDiscoveredCommands`/`applyApproveDiscoveredCommands`:
-  imports literal candidates and approves them in one locked write
-  (unresolved ones stay `skipped`, never stored); without `commands`
-  it approves the stored `inferred` records. No CLI verb yet.
+  CLI path that turns a command (declared or inferred) into
+  `approved:true`. Bulk paths: `verify discover --approve` imports
+  literal candidates and approves them in one locked write
+  (unresolved ones stay `skipped`, never stored);
+  `verify approve-discovered [--apply]` approves the stored
+  `inferred` records. Both preview by default.
 - `verify run ID [--timeout MS] [--fail-on-error]` — executes a single
   approved record. By default it prints the result JSON and exits 0;
   `--fail-on-error` propagates the command's exit code when it is not 0

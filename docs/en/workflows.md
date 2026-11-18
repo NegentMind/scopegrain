@@ -65,7 +65,7 @@ does not bypass the DAG, identity, timestamp or size checks.
 records. A dependency releases its successor when it reaches CLOSE, not
 when it is declared finished in a conversation. The ready, active,
 blocked and closed states do not replace each task's state machine.
-Execution uses [transitions and evidence](../task-workflow.md).
+Execution uses [transitions and evidence](task-workflow.md).
 
 ## Immutable artifacts
 

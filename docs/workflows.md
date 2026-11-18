@@ -1,5 +1,5 @@
 ---
-title: Workflows, plans and operational continuity
+title: Workflows, planes y continuidad operativa
 kind: guide
 ---
 # Workflows y continuidad

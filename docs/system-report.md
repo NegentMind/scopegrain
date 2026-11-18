@@ -12,7 +12,7 @@ El producto incorpora la entrada `scopegrain` (CLI y servidor MCP, tools
 `scopegrain_*`) y conserva `tasksystem` (alias de binario) y `.tasksystem`
 (rutas legadas) como identificadores tecnicos de compatibilidad. El nombre de
 producto no implica una migracion automatica de comandos o registros.
-El [README](../README.md) contiene el inicio rapido.
+El [README](../README.es.md) contiene el inicio rapido.
 
 ## 2. Destinatarios y problemas
 

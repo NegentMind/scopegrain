@@ -79,7 +79,7 @@ verification execution and redistributable packaging.
 
 The catalog, native proposals, dependent plans, artifacts and current
 sessions are described in [workflows](workflows.md) and
-[migration map](../component-migration.md). They are extensions of the
+[migration map](component-migration.md). They are extensions of the
 first base, not implicit imports of the original archive.
 
 The expansion includes Google Antigravity and native proposal variants

@@ -1,230 +1,233 @@
 # Scopegrain
 
-Harness portable de ingenieria proporcional para agentes de IA.
+Portable proportional engineering harness for AI agents.
 
-Scopegrain ayuda a equipos y operadores que usan agentes de codigo a
-organizar trabajo entre proyectos y sesiones sin depender de un unico
-anfitrion. Separa el contexto y los contratos de trabajo de las
-convenciones de cada herramienta, y ofrece una ruta ligera o formal segun
-los hechos y riesgos declarados.
+> Canonical README in English. Spanish translation: `README.es.md`.
 
-El producto se llama Scopegrain. `scopegrain` es la entrada CLI y el
-nombre del servidor MCP (tools `scopegrain_*`). El alias de binario
-`tasksystem` y las rutas legadas `.tasksystem` se mantienen por
-compatibilidad. Esto no implica publicacion de un paquete.
+Scopegrain helps teams and operators who use coding agents to organize
+work across projects and sessions without depending on a single host. It
+separates work context and contracts from each tool's conventions, and
+offers a lightweight or formal route according to the declared facts and
+risks.
 
-## Flujo de trabajo
+The product is called Scopegrain. `scopegrain` is the CLI entry point
+and the MCP server name (`scopegrain_*` tools). The `tasksystem` binary
+alias and legacy `.tasksystem` paths are kept for compatibility. This
+does not imply publishing a package.
 
-1. **Descubrimiento de solo lectura.** Inspeccionar manifiestos e
-   instrucciones con limites de lectura; los comandos encontrados se
-   presentan como propuestas y no se ejecutan automaticamente.
-2. **Incorporacion y aprobacion.** Elegir anfitriones, metodologia, rutas y
-   preferencias de versionado. Revisar la vista previa y confirmar antes de
-   crear archivos. La aprobacion de archivos no autoriza otras operaciones.
-3. **Contexto y snapshots.** Consultar el catalogo de procedimientos, roles,
-   skills, reglas y perfiles. El proyecto conserva un snapshot de recursos
-   para construir paquetes de contexto sin activar agentes.
-4. **Tareas y planes proporcionales.** Registrar contratos, alcance y estado;
-   organizar dependencias en un DAG. Organic Driven Development (ODD) usa
-   una ruta ligera o SDD formal segun los hechos declarados.
-5. **Evidencia, revision y aceptacion.** Registrar verificaciones y review
-   o waiver. La ruta formal vincula especificacion, design, asignaciones,
-   aprobaciones e informe vigente antes de aceptar una tarea.
-6. **Continuidad y recuperacion.** Consultar el estado, reanudar sesiones
-   registradas y diagnosticar recursos del snapshot sin repetir comandos ni
-   activar trabajo automaticamente.
+## Workflow
 
-El descubrimiento no demuestra comprension semantica del codigo. La persona
-o el agente debe investigar y decidir que verificaciones son apropiadas.
-Las reglas del proyecto y los permisos del propietario prevalecen sobre las
-sugerencias del harness.
+1. **Read-only discovery.** Inspect manifests and instructions with read
+   limits; discovered commands are presented as proposals and are not
+   executed automatically.
+2. **Onboarding and approval.** Choose hosts, methodology, paths and
+   versioning preferences. Review the preview and confirm before files
+   are created. Approving files does not authorize other operations.
+3. **Context and snapshots.** Query the catalog of procedures, roles,
+   skills, rules and profiles. The project keeps a snapshot of resources
+   to build context packages without activating agents.
+4. **Proportional tasks and plans.** Record contracts, scope and state;
+   organize dependencies in a DAG. Organic Driven Development (ODD) uses
+   a lightweight route or formal SDD according to the declared facts.
+5. **Evidence, review and acceptance.** Record verifications and review
+   or waiver. The formal route links specification, design, assignments,
+   approvals and a current report before accepting a task.
+6. **Continuity and recovery.** Query state, resume registered sessions
+   and diagnose snapshot resources without repeating commands or
+   activating work automatically.
 
-## Inicio
+Discovery does not demonstrate semantic understanding of the code. The
+person or agent must investigate and decide which verifications are
+appropriate. The project rules and the owner's permissions prevail over
+the harness's suggestions.
 
-Se requiere Node.js 22 o posterior. El CLI usa modulos nativos; el servidor
-MCP opcional requiere las dependencias declaradas en `package.json`.
+## Getting started
 
-Desde la raiz del repositorio:
+Node.js 22 or later is required. The CLI uses native modules; the
+optional MCP server requires the dependencies declared in
+`package.json`.
 
-```powershell
-node ./bin/scopegrain.mjs inspect --project "C:\ruta\mi-proyecto"
-node ./bin/scopegrain.mjs init --project "C:\ruta\mi-proyecto"
-node ./bin/scopegrain.mjs doctor --project "C:\ruta\mi-proyecto"
-```
-
-`inspect` no escribe ni ejecuta los comandos que descubre: es la
-instantanea acotada de manifiestos que `init` guarda como
-`discovery.json`. `investigate` es el analisis semantico profundo
-(topologia, plataformas, pruebas, senales de anfitrion) que ademas
-propone respuestas de init. `init` interactivo
-pregunta por la configuracion, muestra los archivos propuestos y solicita
-confirmacion explicita; la respuesta por defecto es no. `doctor` revisa el
-estado de la configuracion y los archivos generados.
-
-Tambien se puede usar un archivo de respuestas:
+From the repository root:
 
 ```powershell
-node ./bin/tasksystem.mjs init --project "C:\ruta\mi-proyecto" --answers "C:\ruta\respuestas.json"
+node ./bin/scopegrain.mjs inspect --project "C:\path\my-project"
+node ./bin/scopegrain.mjs init --project "C:\path\my-project"
+node ./bin/scopegrain.mjs doctor --project "C:\path\my-project"
 ```
 
-Con `--answers` y sin `--apply`, `init` solo presenta el plan. Agregar
-`--apply` autoriza la creacion de los archivos propuestos, no la ejecucion
-de comandos ni el reemplazo de contenido existente. `--yes` y `--force` no
-son opciones de bypass. Las rutas de artefactos deben permanecer dentro del
-proyecto; una configuracion alternativa se indica con `--config`.
-La config predeterminada es `.scopegrain/config.json`; si solo existe
-`.tasksystem/config.json`, se usa sin migrarla. Si existen ambas entradas,
-se requiere `--config` explicito; una ruta explicita no tiene fallback.
-Consultar el [ejemplo de respuestas](examples/answers.json) y su
-[esquema](schemas/answers.schema.json).
+`inspect` neither writes nor executes the commands it discovers: it is
+the bounded manifest snapshot `init` stores as `discovery.json`.
+`investigate` is the deeper semantic analysis (topology, platforms,
+tests, host signals) that additionally proposes init answers.
+Interactive `init` asks for the configuration, shows the proposed files
+and requests explicit confirmation; the default answer is no. `doctor`
+checks the state of the configuration and the generated files.
 
-Para operaciones del journal, consulte la
-[guia de recuperacion explicita](docs/journal-recovery.md). Para notas de
-captura tipadas con ownership probado, consulte
-[capturas selectivas](docs/captures.md). Para la prueba de ownership
-compartida de creaciones (`capture`, `spec`, `design` y `report`, todos
-revision 0), consulte
-[creacion con ownership probado](docs/record-ownership.md).
-El CLI `specification create|show --owned` es opt-in explicito y conserva
-el modo legacy por defecto. `design create` y `outcome create` tambien
-aceptan `--owned` opcional; `design show` y `outcome show` lo requieren.
-Sin ese flag, las creaciones conservan sus entradas y resultados legacy,
-sin autodeteccion ni enrolamiento implicito. Las lecturas genericas
-`artifact show design UUID` y `artifact show report UUID` siguen siendo
-estructurales, no pruebas de ownership.
+An answers file can also be used:
 
-Los stores tipados `createOwnedDesignStore(ctx, { areaIds })` y
-`createOwnedOutcomeStore(ctx, { areaIds })` reciben respectivamente
-`{ areaIds, design }` y `{ areaIds, outcome }` y exponen `prepare`, `create`
-y `get`. Requieren workspace enrolado y areas solicitadas explicitamente;
-los grants locales para todas las areas no sustituyen la autorizacion
-all-of. El design exige una spec V2 estructurada con binding de hash
-valido, no ownership del padre. Crear un outcome exige una tarea formal
-real en REVIEW, verification y bindings sanos; leer su report probado no
-revalida la elegibilidad actual para ACCEPT. Los gates siguen evaluando
-vigencia. No se activan productores, hooks ni integraciones nativas.
+```powershell
+node ./bin/tasksystem.mjs init --project "C:\path\my-project" --answers "C:\path\answers.json"
+```
 
-## Organic y SDD
+With `--answers` and without `--apply`, `init` only presents the plan.
+Adding `--apply` authorizes the creation of the proposed files, not the
+execution of commands nor the replacement of existing content. `--yes`
+and `--force` are not bypass options. Artifact paths must remain inside
+the project; an alternative configuration is indicated with `--config`.
+The default config is `.scopegrain/config.json`; if only
+`.tasksystem/config.json` exists, it is used without migrating it. If
+both entries exist, an explicit `--config` is required; an explicit path
+has no fallback.
+See the [answers example](examples/answers.json) and its
+[schema](schemas/answers.schema.json).
 
-La metodologia se selecciona al incorporar el proyecto:
+For journal operations, see the
+[explicit recovery guide](docs/en/journal-recovery.md). For typed capture
+notes with proven ownership, see
+[selective captures](docs/en/captures.md). For the shared ownership proof
+of creations (`capture`, `spec`, `design` and `report`, all revision 0),
+see
+[creation with proven ownership](docs/en/record-ownership.md).
+The `specification create|show --owned` CLI is explicit opt-in and keeps
+the legacy mode by default. `design create` and `outcome create` also
+accept optional `--owned`; `design show` and `outcome show` require it.
+Without that flag, creations keep their legacy inputs and results, with
+no auto-detection or implicit enrollment. The generic reads
+`artifact show design UUID` and `artifact show report UUID` remain
+structural, not ownership proofs.
 
-| Modo | Uso |
+The typed stores `createOwnedDesignStore(ctx, { areaIds })` and
+`createOwnedOutcomeStore(ctx, { areaIds })` respectively receive
+`{ areaIds, design }` and `{ areaIds, outcome }` and expose `prepare`,
+`create` and `get`. They require an enrolled workspace and explicitly
+requested areas; local grants for all areas do not substitute the
+all-of authorization. The design requires a structured V2 spec with a
+valid hash binding, not parent ownership. Creating an outcome requires
+a real formal task in REVIEW, a verification and healthy bindings;
+reading its proven report does not revalidate current eligibility for
+ACCEPT. The gates keep evaluating validity. No producers, hooks or
+native integrations are activated.
+
+## Organic and SDD
+
+The methodology is selected when onboarding the project:
+
+| Mode | Use |
 | --- | --- |
-| `manual` | Compatibilidad con tareas V1, sin migracion implicita. |
-| `organic-sdd` | Ruta ligera o formal segun los hechos declarados. |
-| `sdd` | Referencias formales para trabajo de cambio. |
+| `manual` | Compatibility with V1 tasks, no implicit migration. |
+| `organic-sdd` | Lightweight or formal route according to the declared facts. |
+| `sdd` | Formal references for change work. |
 
-Una configuracion antigua sin metodologia se interpreta como `manual` sin
-reescribir sus bytes. En un proyecto interactivo nuevo se propone
-`organic-sdd`, sujeto a confirmacion. Los controles de una tarea V2 no se
-desactivan por cambiar el modo del proyecto a `manual`.
+An old configuration without a methodology is interpreted as `manual`
+without rewriting its bytes. A new interactive project is offered
+`organic-sdd`, subject to confirmation. A V2 task's controls are not
+disabled by switching the project mode to `manual`.
 
-La clasificacion considera intencion, autorizacion, comprension,
-incertidumbre, riesgo y continuidad declarados; no se basa en el numero de
-lineas del diff. Una consulta de solo lectura no autoriza cambios. La
-autorizacion ausente o rechazada, la comprension insuficiente, la
-incertidumbre pendiente o el riesgo desconocido bloquean la ruta de cambio.
-Una tarea ligera no requiere inventar artefactos formales.
+Classification considers declared intent, authorization, understanding,
+uncertainty, risk and continuity; it is not based on the number of diff
+lines. A read-only query does not authorize changes. Missing or rejected
+authorization, insufficient understanding, pending uncertainty or
+unknown risk block the change route. A lightweight task does not require
+inventing formal artifacts.
 
-En SDD, cada tarea formal, incluidas las preparatorias, necesita al menos un
-escenario asignado. Un plan debe cubrir todos los escenarios de su
-especificacion; las tareas comprueban sus propias asignaciones y sus
-dependencias. ACT y ACCEPT revalidan las condiciones y aprobaciones
-aplicables. Una consulta metodologica no sustituye permisos humanos ni
-permisos del anfitrion. Ver [Organic y SDD](docs/methodology.md).
+In SDD, every formal task, including preparatory ones, needs at least
+one assigned scenario. A plan must cover all the scenarios of its
+specification; tasks check their own assignments and their dependencies.
+ACT and ACCEPT revalidate the applicable conditions and approvals. A
+methodology query does not substitute human permissions or host
+permissions. See [Organic and SDD](docs/en/methodology.md).
 
-## Comandos y continuidad
+## Commands and continuity
 
 ```powershell
 node ./bin/tasksystem.mjs catalog list command
-node ./bin/tasksystem.mjs pipeline --project "C:\ruta\mi-proyecto" --mode plan
-node ./bin/tasksystem.mjs plan create --project "C:\ruta\mi-proyecto" --input plan.json
-node ./bin/tasksystem.mjs plan next entrega --project "C:\ruta\mi-proyecto"
+node ./bin/tasksystem.mjs pipeline --project "C:\path\my-project" --mode plan
+node ./bin/tasksystem.mjs plan create --project "C:\path\my-project" --input plan.json
+node ./bin/tasksystem.mjs plan next entrega --project "C:\path\my-project"
 ```
 
-Los aliases de workflow, como `pipeline`, `spec`, `audit` o `research`,
-entregan procedimientos y contexto; no ejecutan modelos, agentes ni scripts.
-Los planes guardan dependencias; los artefactos conservan especificaciones,
-designs, informes y otros registros. Las sesiones registran operaciones y
-presupuesto explicito; reanudarlas recupera contexto, no repite acciones.
-Las creaciones JSON usan vista previa por defecto y requieren `--apply`;
-las operaciones historicas de tarea mantienen su comportamiento previo.
+Workflow aliases, such as `pipeline`, `spec`, `audit` or `research`,
+deliver procedures and context; they do not execute models, agents or
+scripts. Plans store dependencies; artifacts keep specifications,
+designs, reports and other records. Sessions register operations and an
+explicit budget; resuming them recovers context, it does not repeat
+actions. JSON creations use preview by default and require `--apply`;
+historic task operations keep their previous behavior.
 
-Los ejemplos antiguos de tareas y planes sin referencias formales
-corresponden a `manual`; el ejemplo de respuestas incluido selecciona
-`organic-sdd`. Consultar [workflows y continuidad](docs/workflows.md) y
-[flujo de tareas](docs/task-workflow.md) antes de aplicar operaciones.
+Old task and plan examples without formal references correspond to
+`manual`; the included answers example selects `organic-sdd`. See
+[workflows and continuity](docs/en/workflows.md) and
+[task flow](docs/en/task-workflow.md) before applying operations.
 
-## Anfitriones y limites de confianza
+## Hosts and trust boundaries
 
-Se generan propuestas para Claude Code, Codex, OpenCode V2, Devin Local/CLI,
-Google Antigravity y Hermes Agent (provisional, formato sin verificar). Los
-puentes nativos
-y fragmentos MCP son propuestas para revision y activacion manual, no
-integraciones certificadas — salvo el piloto real de Devin Local
-(2026-11-17) — ni una garantia de equivalencia de permisos o
-comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver
-[formatos nativos](docs/native-hosts.md).
+Proposals are generated for Claude Code, Codex, OpenCode V2, Devin
+Local/CLI, Google Antigravity and Hermes Agent (provisional, unverified
+format). Native bridges and MCP fragments are
+proposals for review and manual activation, not certified integrations —
+except the certified Devin Local real-session pilot (2026-11-17) —
+or a guarantee of permission or behavior equivalence. Devin Cloud is not
+considered equivalent to Local/CLI. See
+[native formats](docs/en/native-hosts.md).
 
-- No hay ejecutor de modelos ni ejecucion automatica de agentes o SDK de
-  anfitriones. Las instrucciones no son un sandbox ni interceptan todas las
-  herramientas nativas.
-- El MCP opcional ofrece consultas de solo lectura; no ejecuta shell ni
-  modifica tareas. Los presupuestos cuentan operaciones registradas, no
-  todas las llamadas del anfitrion, tokens ni gasto.
-- Los hashes vinculan registros y evidencia declarada; no prueban ejecucion
-  real, identidad de actores o revisores, ni el contenido completo del
-  worktree. Una review independiente o waiver es una declaracion del proceso.
-- Las comprobaciones de rutas y locks no constituyen una transaccion
-  serializable entre todos los archivos ni aislamiento del sistema operativo.
-  Los cuerpos libres pueden contener datos sensibles y deben revisarse antes
-  de persistirse o compartirse.
-- No se ejecutan automaticamente comandos descubiertos, instalaciones,
-  publicaciones u operaciones Git. Ver el
-  [modelo de seguridad](docs/security.md).
+- There is no model executor and no automatic execution of agents or
+  host SDKs. The instructions are not a sandbox and do not intercept
+  every native tool.
+- The optional MCP offers read-only queries; it does not execute shell
+  or modify tasks. Budgets count registered operations, not every host
+  call, tokens or spend.
+- Hashes bind records and declared evidence; they do not prove actual
+  execution, actor or reviewer identity, or the full content of the
+  worktree. An independent review or waiver is a process declaration.
+- Path checks and locks do not constitute a serializable transaction
+  across all files or operating-system isolation. Free-text bodies may
+  contain sensitive data and must be reviewed before being persisted or
+  shared.
+- Discovered commands, installations, publications or Git operations are
+  not executed automatically. See the
+  [security model](docs/en/security.md).
 
-## Verificacion
+## Verification
 
-La ultima ejecucion integral local (`npm test`, serial por archivo,
-2026-11-17) termino con 1065 pruebas aprobadas, ninguna fallida y ninguna
-omitida en Windows, Node.js v26.8.1 y npm 11.6.0. Las integrales
-intermedias y las tandas anteriores son ejecuciones separadas; su alcance
-y resultados historicos estan en [verificacion](docs/verification.md).
-El piloto nativo de Devin Local quedo certificado en una sesion fresca
-real el 2026-11-17 (42 skills `scopegrain-*` y 15 subagentes auto-cargados,
-MCP `scopegrain` activo desde `.devin/mcp_config.json`); los otros cinco
-anfitriones documentados siguen sin piloto nativo. Las pruebas no
-certifican los seis anfitriones ni una ejecucion real del trabajo
-declarado.
-El [workflow de GitHub Actions](.github/workflows/verify.yml) se activa solo
-manualmente y aun no se ha ejecutado.
+The most recent local full run (`npm test`, per-file serial, 2026-11-17)
+finished with 1065 passing tests, none failed and none skipped on Windows,
+Node.js v26.8.1 and npm 11.6.0. Intermediate full runs and earlier batches
+are separate executions; their scope and historic results are in
+[verification](docs/en/verification.md). The Devin Local native pilot was
+certified in a fresh real session on 2026-11-17 (42 `scopegrain-*` skills
+and 15 subagents auto-loaded, `scopegrain` MCP active from
+`.devin/mcp_config.json`); the other five documented hosts still lack a
+native pilot. The tests do not certify the six hosts or a real execution
+of the declared work.
+The [GitHub Actions workflow](.github/workflows/verify.yml) is triggered
+manually only and has not run yet.
 
-## Codigo y licencia
+## Code and license
 
-El repositorio puede estar disponible para lectura de su codigo fuente, pero
-esa disponibilidad no concede una licencia de codigo abierto ni de
-redistribucion. `package.json` conserva `private: true` y `UNLICENSED`;
-no se publica un paquete npm. El material heredado permanece fuera del
-circuito activo y sujeto a revision de procedencia y derechos.
+The repository may be available for source reading, but that
+availability does not grant an open-source or redistribution license.
+`package.json` keeps `private: true` and `UNLICENSED`; no npm package is
+published. The inherited material remains outside the active circuit and
+subject to provenance and rights review.
 
-## Documentacion
+## Documentation
 
-- [Arquitectura](docs/architecture.md)
-- [Incorporacion y personalizacion](docs/onboarding.md)
-- [Compatibilidad y fuentes oficiales](docs/compatibility.md)
-- [Seguridad y modelo de confianza](docs/security.md)
-- [Migracion y limitaciones conocidas](docs/migration.md)
-- [Destino de comandos, agentes, skills, reglas y referencias](docs/component-migration.md)
-- [Flujo de tareas y evidencias](docs/task-workflow.md)
-- [Organic, SDD, aprobaciones y limites de evidencia](docs/methodology.md)
-- [Workflows y continuidad](docs/workflows.md)
-- [Verificacion y reproduccion](docs/verification.md)
-- [Capturas selectivas tipadas](docs/captures.md)
-- [Creacion con ownership probado](docs/record-ownership.md)
-- [Informe completo del sistema](docs/system-report.md)
-- [Contrato del producto](docs/product-contract.md)
-- [Contrato de implementacion](docs/implementation.md)
-- [Ciclo de vida: adopt, update, backup, restore, uninstall](docs/lifecycle.md)
-- [Investigacion semantica acotada](docs/semantic-discovery.md)
-- [Visor y API de solo lectura](docs/viewer.md)
-- [Procedencia y atestacion del catalogo](docs/provenance.md)
+- [Architecture](docs/en/architecture.md)
+- [Onboarding and customization](docs/en/onboarding.md)
+- [Compatibility and official sources](docs/en/compatibility.md)
+- [Security and trust model](docs/en/security.md)
+- [Migration and known limitations](docs/en/migration.md)
+- [Destination of commands, agents, skills, rules and references](docs/en/component-migration.md)
+- [Task flow and evidence](docs/en/task-workflow.md)
+- [Organic, SDD, approvals and evidence boundaries](docs/en/methodology.md)
+- [Workflows and continuity](docs/en/workflows.md)
+- [Verification and reproduction](docs/en/verification.md)
+- [Typed selective captures](docs/en/captures.md)
+- [Creation with proven ownership](docs/en/record-ownership.md)
+- [Complete system report](docs/system-report.md)
+- [Product contract](docs/en/product-contract.md)
+- [Implementation contract](docs/implementation.md)
+- [Lifecycle: adopt, update, backup, restore, uninstall](docs/en/lifecycle.md)
+- [Bounded semantic investigation](docs/en/semantic-discovery.md)
+- [Read-only viewer and API](docs/en/viewer.md)
+- [Catalog provenance and attestation](docs/en/provenance.md)

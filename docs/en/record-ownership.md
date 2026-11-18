@@ -207,7 +207,7 @@ The specification help note is preserved and a separate one is added:
 `--config REL` still selects an explicit configuration in these
 commands; the `plans`, `reports` and `state` paths are the configured
 ones. Config selection keeps the rules from
-[getting started](../../README.en.md#getting-started): two configs
+[getting started](../../README.md#getting-started): two configs
 require explicit selection and an explicit path has no fallback.
 `--input FILE` resolves from the current working directory, not from
 the project. There is no `--yes`, `--force`, destination override or

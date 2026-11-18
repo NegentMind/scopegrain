@@ -600,7 +600,7 @@ export function resolveInvocation(catalog, { command, mode }) {
 }
 
 // --- Frozen provenance ledger (metadata only) ---
-// catalog/legacy-inventory.json is authored frozen data: counts, hashes and
+// provenance/legacy-inventory.json is authored frozen data: counts, hashes and
 // review indicators. Bodies are never read or served; originalActivation is
 // 'blocked' for every entry.
 
@@ -612,7 +612,7 @@ export function loadLegacyInventory({ installRoot = INSTALL_ROOT } = {}) {
       limitedDoc(abs, 'legacy inventory'), 'LEGACY_MALFORMED', 'legacy inventory'));
   } catch (e) {
     if (e && e.code === 'CATALOG_MISSING_FILE') {
-      throw err('LEGACY_NOT_FOUND', 'catalog/legacy-inventory.json not found');
+      throw err('LEGACY_NOT_FOUND', 'provenance/legacy-inventory.json not found');
     }
     if (e instanceof SyntaxError) {
       throw err('LEGACY_MALFORMED', 'legacy inventory is not valid JSON');
@@ -663,7 +663,7 @@ function activeCatalogOnce(opts) {
   }
 }
 
-// Frozen identifier triage: catalog/legacy-classification.json entries carry
+// Frozen identifier triage: provenance/legacy-classification.json entries carry
 // {id,category,family,basis,reviewRequired,...} (no kind). Joined ONLY for
 // legacy kind 'skill' by id. Missing file is optional; malformed or
 // oversized content is a structured error, never swallowed.

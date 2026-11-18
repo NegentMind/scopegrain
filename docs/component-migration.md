@@ -24,7 +24,7 @@ de los manifiestos:
 | `opencode-loop/` | 52 archivos recursivos | No; son estado e historico, no una biblioteca portable |
 
 La fuente activa es `resources/manifest.json`, incluido su arreglo `aliases`.
-El inventario historico de `catalog/` no determina el numero de recursos
+El inventario historico de `provenance/` no determina el numero de recursos
 actuales. No se certifica equivalencia textual o funcional
 con cada original; se conservan los temas y los contratos neutrales.
 
@@ -54,7 +54,7 @@ resources/profiles/   Especializaciones optativas, complementadas con core
 resources/prompts/    Briefs y contexto, no logica de almacenamiento
 templates/hosts/      Formatos nativos generados desde fuentes canonicas
 policy/               Politicas que el codigo realmente valida
-catalog/              Inventarios historicos de procedencia/triage
+provenance/                          Inventarios historicos de procedencia/triage
 docs/                 Documentacion del producto, no artefactos de tareas
 .scopegrain/          Planes, task files, informes, reviews, memoria y estado
 legacy/               Copia local de procedencia, nunca fuente activa implicita
@@ -131,8 +131,8 @@ declararlo y pedir intervencion humana o una excepcion explicita.
 ## Skills: catalogo amplio, carga selectiva
 
 Se capturaron las 197 skills individualmente con hashes, indicadores y
-bloqueos en `catalog/legacy-inventory.json`. El triage por identificador
-esta en `catalog/legacy-classification.json`:
+bloqueos en `provenance/legacy-inventory.json`. El triage por identificador
+esta en `provenance/legacy-classification.json`:
 
 - **Ingenieria general (37):** planificacion, especificacion, implementacion
   incremental, debugging, revision, investigacion y documentacion.

@@ -201,7 +201,7 @@ Se conserva la nota de ayuda de specification y se agrega una separada:
 
 `--config REL` sigue seleccionando una configuracion explicita en estos
 comandos; las rutas `plans`, `reports` y `state` son las configuradas. La
-seleccion de config conserva las reglas del [inicio](../README.md#inicio):
+seleccion de config conserva las reglas del [inicio](../README.es.md#inicio):
 dos configs requieren seleccion explicita y una ruta explicita no tiene
 fallback. `--input FILE` se resuelve desde el directorio de trabajo actual,
 no desde el proyecto. No hay `--yes`, `--force`, override de destino ni

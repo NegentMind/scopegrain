@@ -624,13 +624,12 @@ Superficie `verify` con registros cerrados persistidos en
   declarar `packageManager` en el package.json de ese cwd, cometer un
   unico lockfile o declarar el comando literal con `verify add`.
 - `verify approve ID [--apply]` — aprobacion explicita por registro;
-  es la unica via CLI para que un comando (declarado o inferido) pase
-  a `approved:true`. El nucleo tambien expone la via masiva
-  `prepareApproveDiscoveredCommands`/`applyApproveDiscoveredCommands`:
-  importa candidatos literales y los aprueba en una sola escritura
+  la via CLI para que un comando (declarado o inferido) pase
+  a `approved:true`. Vias masivas: `verify discover --approve` importa
+  los candidatos literales y los aprueba en una sola escritura
   bloqueada (los no resueltos quedan en `skipped`, nunca se guardan);
-  sin `commands` aprueba los registros `inferred` almacenados. Todavia
-  sin verbo CLI.
+  `verify approve-discovered [--apply]` aprueba los registros
+  `inferred` ya almacenados. Ambas vistas previas por defecto.
 - `verify run ID [--timeout MS] [--fail-on-error]` — ejecuta un unico
   registro aprobado. Por defecto imprime el JSON del resultado y sale
   con codigo 0; `--fail-on-error` propaga el codigo de salida del
