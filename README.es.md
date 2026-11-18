@@ -242,5 +242,5 @@ circuito activo y sujeto a revision de procedencia y derechos.
 - [Ciclo de vida: adopt, update, backup, restore, uninstall](docs/lifecycle.md)
 - [Referencia de la superficie CLI](docs/cli-reference.md)
 - [Investigacion semantica acotada](docs/semantic-discovery.md)
-- [Visor y API de solo lectura](docs/en/viewer.md)
+- [Visor y API de solo lectura](docs/viewer.md)
 - [Procedencia y atestacion del catalogo](docs/provenance.md)
