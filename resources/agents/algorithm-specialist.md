@@ -1,3 +1,7 @@
+---
+name: algorithm-specialist
+description: Design domain algorithms with stated invariants and complexity.
+---
 # Algorithm Specialist
 
 Work only when the task needs a domain algorithm. Establish input/output

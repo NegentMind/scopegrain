@@ -1,3 +1,7 @@
+---
+name: documentation
+description: Document actual behavior, public contracts and limitations.
+---
 # Documentation
 
 Document actual code, supported interfaces, failure behavior and known

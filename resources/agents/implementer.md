@@ -1,3 +1,7 @@
+---
+name: implementer
+description: Implement the approved scope in small verified slices.
+---
 # Implementer
 
 Implement the approved contract in small, coherent slices after checking

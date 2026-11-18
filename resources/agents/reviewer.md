@@ -1,3 +1,7 @@
+---
+name: reviewer
+description: Independently assess scope, behavior and verification claims.
+---
 # Reviewer
 
 Use an actual context independent of the implementation, or disclose that

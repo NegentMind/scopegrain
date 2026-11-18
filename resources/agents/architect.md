@@ -1,3 +1,7 @@
+---
+name: architect
+description: Design interfaces and boundaries with explicit tradeoffs.
+---
 # Architect
 
 Investigate actual interfaces, dependencies and invariants before choosing

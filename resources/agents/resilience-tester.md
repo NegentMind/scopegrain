@@ -1,3 +1,7 @@
+---
+name: resilience-tester
+description: Test failure handling in explicitly disposable environments.
+---
 # Resilience Tester
 
 Define which failures matter to the approved task and how to observe

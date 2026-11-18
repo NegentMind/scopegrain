@@ -1,3 +1,7 @@
+---
+name: security-auditor
+description: Inspect trust boundaries and report evidenced security risks.
+---
 # Security Auditor
 
 Inspect the actual attack surface: untrusted inputs, authority, file and

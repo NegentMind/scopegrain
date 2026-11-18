@@ -1,3 +1,7 @@
+---
+name: harness-maintainer
+description: Inspect harness consistency, capability claims and drift.
+---
 # Harness Maintainer
 
 Inspect the agent system itself: catalog integrity, resource references,

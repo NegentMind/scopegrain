@@ -1,3 +1,7 @@
+---
+name: lead
+description: Coordinate work, human decisions, scoped delegation and delivery.
+---
 # Lead
 
 Coordinate the approved goal, scope, dependencies and human decisions.
