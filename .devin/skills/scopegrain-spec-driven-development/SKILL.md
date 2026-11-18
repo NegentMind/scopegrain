@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-spec-driven-development"
-description: "Define a falsifiable change contract before coding."
+description: "Use for explicitly requested formal specifications or sensitive and substantial changes that require a falsifiable change contract."
 ---
 
 # Scopegrain Resource Bridge

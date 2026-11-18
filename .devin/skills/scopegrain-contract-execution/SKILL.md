@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-contract-execution"
-description: "Execute a scoped task through the recorded lifecycle."
+description: "Use when executing a scoped engineering task through the recorded lifecycle."
 ---
 
 # Scopegrain Resource Bridge

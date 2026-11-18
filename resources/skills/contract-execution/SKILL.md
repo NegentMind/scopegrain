@@ -1,6 +1,6 @@
 ---
 name: contract-execution
-description: Execute a scoped engineering task with acceptance criteria, verification evidence, review and a resumable handoff.
+description: Use when executing a scoped engineering task through the recorded lifecycle, with acceptance criteria, verification evidence, review and a resumable handoff.
 ---
 
 # Contract execution
@@ -19,6 +19,9 @@ description: Execute a scoped engineering task with acceptance criteria, verific
 9. If implementation changes, invalidate old evidence and obtain a new review.
 10. Save changed files, results, evidence, unresolved risks and next action.
     Stop at the agreed boundary. Never push or publish implicitly.
+
+Workflow modes (PLAN, ACT, VERIFY, COLLATERAL, RESEARCH, EVALUATE, REVIEW,
+ACCEPT, STALL) are defined in `policy/workflow.json`.
 
 Scopegrain state checks do not intercept all native host tools. Do not
 describe the workflow as a sandbox or claim authenticated reviewer identity.

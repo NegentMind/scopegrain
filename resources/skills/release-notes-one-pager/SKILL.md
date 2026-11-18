@@ -1,6 +1,6 @@
 ---
 name: release-notes-one-pager
-description: Use to describe actual delivered changes and upgrade risks without inventing a release
+description: Use when preparing release communication to describe actual delivered changes and upgrade risks without inventing a release
 ---
 # Release Communication
 

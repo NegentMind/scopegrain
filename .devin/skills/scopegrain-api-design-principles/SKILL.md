@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-api-design-principles"
-description: "Review public HTTP and GraphQL contracts."
+description: "Use to review an existing HTTP or GraphQL API for consistency, authority boundaries and evolution."
 ---
 
 # Scopegrain Resource Bridge

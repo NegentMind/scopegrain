@@ -1,6 +1,6 @@
 ---
 name: spec-driven-development
-description: Use for explicitly requested formal specifications or sensitive and substantial changes selected by Organic classification.
+description: Use for explicitly requested formal specifications or sensitive and substantial changes that require a falsifiable change contract.
 ---
 # Spec-Driven Development
 

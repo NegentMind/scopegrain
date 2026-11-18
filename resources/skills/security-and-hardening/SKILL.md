@@ -2,7 +2,7 @@
 name: security-and-hardening
 description: Use when a change touches untrusted inputs, permissions, sensitive data or dependency trust
 ---
-# Trust Boundaries
+# Security and Hardening
 
 Map inputs, identities, authority and sensitive outputs for the actual path.
 Check validation, containment, injection, privilege and error disclosure.

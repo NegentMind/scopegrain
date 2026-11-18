@@ -1,6 +1,6 @@
 ---
 name: api-design-principles
-description: Use to review an HTTP or GraphQL API for consistency, authority boundaries and evolution
+description: Use to review an existing HTTP or GraphQL API for consistency, authority boundaries and evolution
 ---
 # API Review
 

@@ -1,6 +1,6 @@
 ---
 name: git-workflow-and-versioning
-description: Use when preparing a local commit or reviewing what generated artifacts may be shared
+description: Use when preparing a local commit, applying versioning or ignore policy, or deciding what generated artifacts may be shared
 ---
 # Git Authority
 

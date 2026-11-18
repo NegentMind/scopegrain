@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-plan-design-review"
-description: "Inspect a settled design for acceptance and execution gaps."
+description: "Review a proposed design or task plan for acceptance and execution gaps before implementation."
 ---
 
 # Scopegrain Resource Bridge

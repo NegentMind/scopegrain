@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-release-notes-one-pager"
-description: "Describe actual delivered behavior and upgrade risks."
+description: "Use when preparing release communication to describe actual delivered changes and upgrade risks."
 ---
 
 # Scopegrain Resource Bridge
