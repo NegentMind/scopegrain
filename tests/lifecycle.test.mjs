@@ -168,6 +168,19 @@ test('applyUpdate creates missing only, never overwrites foreign bytes', () => {
   } finally { cleanup(a.dir); cleanup(b.dir); }
 });
 
+test('applyUpdate regenerates an absent discovery.json, never writes null', () => {
+  const a = bootstrappedMiniCtx();
+  try {
+    const rel = '.tasksystem/discovery.json';
+    fs.rmSync(path.join(a.dir, rel));
+    const res = applyUpdate(a.ctx, { installRoot: a.installRoot });
+    assert.ok(res.files.includes(rel));
+    const doc = JSON.parse(fs.readFileSync(path.join(a.dir, rel), 'utf8'));
+    assert.equal(typeof doc, 'object');
+    assert.equal(typeof doc.fingerprint, 'string');
+  } finally { cleanup(a.dir); }
+});
+
 test('update rejects unknown options', () => {
   const { dir, ctx } = configuredCtx();
   try {

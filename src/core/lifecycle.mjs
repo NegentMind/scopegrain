@@ -16,6 +16,7 @@ import {
   configDirOf, loadConfig, PATH_KEYS, resolveConfigPath,
 } from './config.mjs';
 import { applyPlan, buildInitPlan } from './bootstrap.mjs';
+import { inspectProject } from '../discovery/inspect.mjs';
 import { validateWorkspace, workspaceFileRel } from './workspaces.mjs';
 import { catalogDestRel, loadWorkspaceCatalog } from './catalog.mjs';
 import { loadLimits } from './policy.mjs';
@@ -153,13 +154,17 @@ function generatedPlan(ctx, options) {
   const cfgDir = configDirOf(ctx.configPath);
   const discoveryRel = cfgDir === '.'
     ? 'discovery.json' : `${cfgDir}/discovery.json`;
+  const discoveryContent = diskContent(ctx.projectRoot, discoveryRel);
   const input = {
     projectRoot: ctx.projectRoot,
     configRel: ctx.configPath,
     config,
     configContent: diskContent(ctx.projectRoot, ctx.configPath),
-    discovery: null,
-    discoveryContent: diskContent(ctx.projectRoot, discoveryRel),
+    // Update preserves existing discovery bytes; an absent file is repaired
+    // by a fresh bounded inspection, never by serializing null.
+    discovery: discoveryContent === undefined
+      ? inspectProject(ctx.projectRoot) : null,
+    discoveryContent,
   };
   if (options.installRoot !== undefined) {
     input.installRoot = options.installRoot;
