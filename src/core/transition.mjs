@@ -101,7 +101,22 @@ export function evaluateTaskTransition(ctx, task, input,
     throw err('REVISION_MISMATCH',
       `expected revision ${expectedRevision} but stored ${task.revision}`);
   }
-  if (!isTransitionAllowed(task.state, to)) {
+  if (to === task.state) {
+    // A self-loop is not a real state transition. REVIEW -> REVIEW is the
+    // single exception, and only as an evidence attach: a task parked in
+    // REVIEW must be able to accumulate verification/review material
+    // without a voiding detour through ACT. Every other self-loop stays
+    // invalid, and an evidence-less REVIEW self-loop is a no-op revision
+    // bump that only adds history noise, so it is rejected too.
+    if (task.state !== 'REVIEW') {
+      throw err('INVALID_TRANSITION',
+        `transition ${task.state} -> ${to} is not allowed by workflow policy`);
+    }
+    if (input.verification === undefined && input.review === undefined) {
+      throw err('INVALID_TRANSITION',
+        'transition REVIEW -> REVIEW requires verification or review evidence');
+    }
+  } else if (!isTransitionAllowed(task.state, to)) {
     throw err('INVALID_TRANSITION',
       `transition ${task.state} -> ${to} is not allowed by workflow policy`);
   }

@@ -195,6 +195,44 @@ test('ACCEPT requires valid evidence; failures leave state unchanged', () => {
   } finally { cleanup(dir); }
 });
 
+test('REVIEW -> REVIEW attaches evidence; other self-loops are rejected', () => {
+  const { dir, ctx, task } = setup();
+  try {
+    toReview(ctx, task); // state REVIEW, revision 4
+    const file = taskFilePath(ctx, task.id);
+    const before = fs.readFileSync(file);
+    // An evidence-less self-loop is a no-op revision bump: rejected.
+    assert.throws(() => step(ctx, task.id, 'REVIEW', 4),
+      (e) => e.code === 'INVALID_TRANSITION');
+    // CAS still applies to the evidence-attach path.
+    assert.throws(() => step(ctx, task.id, 'REVIEW', 3, { review: FRESH_REVIEW }),
+      (e) => e.code === 'REVISION_MISMATCH');
+    assert.ok(fs.readFileSync(file).equals(before),
+      'rejected self-loops must not alter bytes');
+    // Attach verification while parked: state stays, revision advances.
+    const withVerify = step(ctx, task.id, 'REVIEW', 4, {
+      verification: VERIFY_OK,
+    });
+    assert.equal(withVerify.state, 'REVIEW');
+    assert.equal(withVerify.revision, 5);
+    assert.deepEqual(withVerify.verification, VERIFY_OK);
+    // Attach review on a second self-loop: verification is preserved.
+    const withReview = step(ctx, task.id, 'REVIEW', 5, {
+      review: FRESH_REVIEW,
+    });
+    assert.equal(withReview.state, 'REVIEW');
+    assert.equal(withReview.revision, 6);
+    assert.deepEqual(withReview.review, FRESH_REVIEW);
+    assert.deepEqual(withReview.verification, VERIFY_OK);
+    // Evidence accumulated while parked satisfies the ACCEPT gates.
+    const accepted = step(ctx, task.id, 'ACCEPT', 6);
+    assert.equal(accepted.state, 'ACCEPT');
+    // Self-loops on any other state stay invalid.
+    assert.throws(() => step(ctx, task.id, 'ACCEPT', 7, { review: FRESH_REVIEW }),
+      (e) => e.code === 'INVALID_TRANSITION');
+  } finally { cleanup(dir); }
+});
+
 test('waiver requires owner, reference and reason; ACT voids evidence', () => {
   const { dir, ctx, task } = setup();
   try {

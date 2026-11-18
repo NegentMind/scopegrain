@@ -35,6 +35,15 @@ STALL -> PLAN
 CLOSE -> (terminal)
 ```
 
+Existe una excepcion que no es arista de la politica: `REVIEW -> REVIEW`
+se admite en codigo exclusivamente como adjunto de evidencia. Permite
+acumular `verification` y/o `review` mientras la tarea esta aparcada en
+REVIEW, sin el rodeo via ACT que vaciaria la evidencia almacenada. El
+estado queda en REVIEW y la revision avanza como en toda transicion CAS.
+Un `REVIEW -> REVIEW` sin evidencia se rechaza (`INVALID_TRANSITION`):
+una auto-transicion vacia solo agregaria ruido al historial. Los
+auto-bucles de cualquier otro estado siguen siendo invalidos.
+
 Acciones permitidas por estado (tambien en la politica): `read` en todos;
 `research` en PLAN/COLLATERAL/RESEARCH; `propose` en PLAN/ACT/VERIFY/
 COLLATERAL/RESEARCH; `edit` solo en ACT; `verify` en VERIFY; `evaluate` en
@@ -108,7 +117,9 @@ declaraciones registradas, no identidad autenticada.
 - Volver a `ACT` borra `verification` y `review` almacenados; no se puede
   arrastrar aprobacion de una implementacion anterior.
 - Adjuntar una nueva `verification` sin `review` en la misma llamada
-  invalida la review previa.
+  invalida la review previa. Esto tambien aplica al adjunto
+  `REVIEW -> REVIEW`: para conservar la review hay que reenviarla o
+  adjuntarla en otra auto-transicion posterior.
 - Una transicion rechazada por validacion o por la politica deja el
   archivo, el estado y la revision intactos. Esto no promete recuperacion
   ante fallos de hardware o corte de energia a mitad de escritura.
