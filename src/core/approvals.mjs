@@ -10,6 +10,9 @@ import {
   decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited,
   removeIfExists, writeFileExclusive,
 } from './fsx.mjs';
+import {
+  acquireVerifiedLock, releaseVerifiedLock,
+} from './locks.mjs';
 import { assertDestination, resolveInside }
   from './paths.mjs';
 import { loadLimits } from './policy.mjs';
@@ -575,45 +578,40 @@ function applyAnswer(ctx, a, input) {
 
 // Locked answer: input validated and prospective record prepared BEFORE the
 // lock (read-only), then reprepared INSIDE the lock so a concurrent answer
-// cannot silently overwrite. Borrowed lock/tmp ownership from task
-// transitions — never delete foreign sentinels.
+// cannot silently overwrite. The lock is a verified token lock: release
+// re-proves inode + token ownership, so a foreign replacement is never
+// deleted by our finally.
 export function answerApproval(ctx, input) {
   // Preflight: all input/basic failures surface with zero filesystem writes.
   const preflight = prepareApprovalAnswer(ctx, input);
   const { abs } = preflight.file;
-  const lockPath = `${abs}.lock`;
-  let lockFd = null;
-  let lockOwned = false;
+  const lock = acquireVerifiedLock(`${abs}.lock`, 'APPROVAL_LOCKED',
+    'approval lock exists; refusing to recover it automatically');
   let tmpPath = null;
   let tmpOwned = false;
+  let next;
+  let failure;
   try {
-    try {
-      lockFd = fs.openSync(lockPath, 'wx');
-      lockOwned = true;
-    } catch (e) {
-      if (e && e.code === 'EEXIST') {
-        throw err('APPROVAL_LOCKED',
-          'approval lock exists; refusing to recover it automatically');
-      }
-      throw e;
-    }
-    fs.closeSync(lockFd);
-    lockFd = null;
-    const { next, file } = prepareApprovalAnswer(ctx, input); // reprepare
+    const reprepared = prepareApprovalAnswer(ctx, input); // reprepare
     mkdirpSync(path.dirname(abs));
     tmpPath = `${abs}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
-    writeFileExclusive(tmpPath, file.content);
+    writeFileExclusive(tmpPath, reprepared.file.content);
     tmpOwned = true;
     fs.renameSync(tmpPath, abs);
     tmpOwned = false;
-    return next;
+    next = reprepared.next;
+  } catch (e) {
+    failure = e;
   } finally {
-    if (lockFd !== null) {
-      try { fs.closeSync(lockFd); } catch { /* already closed */ }
-    }
-    if (lockOwned) removeIfExists(lockPath);
     if (tmpOwned) removeIfExists(tmpPath);
+    try {
+      releaseVerifiedLock(lock); // unlinks only the lock proven ours
+    } catch (e) {
+      if (!failure) failure = e; // a domain failure is never masked
+    }
   }
+  if (failure) throw failure;
+  return next;
 }
 
 // ---------------------------------------------------------------------

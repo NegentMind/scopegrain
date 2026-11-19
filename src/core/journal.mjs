@@ -227,13 +227,19 @@ function release(loc, lock) {
   fs.unlinkSync(abs);
 }
 
-function directory(loc, rel, limit) {
+// Bounded listing with a capacity gate producers can keep strict. With
+// failAtCapacity false the caller gets the bounded window and decides
+// itself - used so drain/read paths stay available on a saturated or
+// over-limit directory instead of deadlocking on JOURNAL_CAPACITY.
+function directory(loc, rel, limit, { failAtCapacity = true } = {}) {
   const abs = absolute(loc, rel);
   const stat = lstatOrNull(abs);
   if (!stat) return [];
   if (!stat.isDirectory()) throw err('JOURNAL_MALFORMED', `not a directory: ${rel}`);
   const result = readDirBounded(abs, limit);
-  if (result.truncated) throw err('JOURNAL_CAPACITY', 'journal directory exceeds limit');
+  if (failAtCapacity && result.truncated) {
+    throw err('JOURNAL_CAPACITY', 'journal directory exceeds limit');
+  }
   return result.entries;
 }
 
@@ -443,8 +449,13 @@ function readAck(loc, operationId, event) {
   return ack;
 }
 
-function outbox(loc, policy) {
-  const entries = directory(loc, sub(loc, 'outbox'), policy.maxPendingOperations);
+// Pending index listing, bounded by maxPendingOperations in every mode.
+// Producers keep the strict default (JOURNAL_CAPACITY on overflow, ahead
+// of the explicit pending.length checks); readers pass failAtCapacity
+// false so a full outbox can still be listed, acked and recovered.
+function outbox(loc, policy, { failAtCapacity = true } = {}) {
+  const entries = directory(loc, sub(loc, 'outbox'),
+    policy.maxPendingOperations, { failAtCapacity });
   const ids = [];
   for (const entry of entries) {
     const match = /^([0-9a-f-]+)\.json$/.exec(entry.name);
@@ -514,7 +525,7 @@ export function listJournalPending(bound, options = {}) {
     throw err('INVALID_JOURNAL_INPUT', 'invalid pending cursor or limit');
   }
   const head = readHead(loc);
-  const pending = outbox(loc, policy);
+  const pending = outbox(loc, policy, { failAtCapacity: false });
   if (head.activeOperation && !pending.includes(head.activeOperation.operationId)) {
     throw err('JOURNAL_RECOVERY_REQUIRED', 'active operation is missing from outbox');
   }

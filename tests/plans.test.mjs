@@ -10,6 +10,7 @@ import {
 } from '../src/core/plans.mjs';
 import { getTask } from '../src/core/tasks.mjs';
 import { transitionTask } from '../src/core/transition.mjs';
+import { seedState } from './methodology-fixtures.mjs';
 import {
   VALID_ANSWERS, cleanup, exists, makeTempDir, writeJson,
 } from './helpers.mjs';
@@ -140,6 +141,26 @@ test('nextPlanTasks reports ready/blocked/active/closed from real state', () => 
       `${dir}/docs/agent/tasks/${api.id}.json`, '{broken');
     assert.throws(() => nextPlanTasks(ctx, 'rel-1'),
       (e) => e.code === 'TASK_MALFORMED');
+  } finally { cleanup(dir); }
+});
+
+test('nextPlanTasks walks transitive deps like the ACT gate', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    applyPlan(dir, preflightPlan(dir, preparePlan(ctx, GOOD).files));
+    const plan = getPlan(ctx, 'rel-1');
+    const apiId = plan.tasks.find((t) => t.key === 'api').id;
+    // Synthetic CLOSE on the middle link: docs's direct dep is closed but
+    // its transitive ancestor base is still PLAN. The ACT gate
+    // (checkDependencies, PLAN_DEPENDENCY_OPEN) walks the whole ancestor
+    // chain and would reject ACT, so reporting 'ready' would be a lie.
+    seedState({ dir, ctx }, getTask(ctx, apiId), 'CLOSE', null);
+    const next = Object.fromEntries(
+      nextPlanTasks(ctx, 'rel-1').map((t) => [t.key, t]));
+    assert.equal(next.base.status, 'ready');
+    assert.equal(next.api.status, 'closed');
+    assert.equal(next.docs.status, 'blocked');
+    assert.deepEqual(next.docs.blockedBy, ['base']);
   } finally { cleanup(dir); }
 });
 

@@ -28,9 +28,10 @@ not amount to a security certification.
   (different, link, directory) block the whole plan. Writes use the
   exclusive `wx` flag; rollback removes only what that operation
   created.
-- **Consistent state:** exclusive per-task lock + revision CAS +
-  exclusive temp and rename. A foreign lock is a conflict, it is not
-  recovered.
+- **Consistent state:** verified exclusive lock (token + `dev`/`ino`
+  identity re-proven before release, like the journal) + revision CAS +
+  exclusive temp and rename. A foreign lock is a conflict: it is neither
+  recovered nor deleted by a foreign `finally`.
 - **Continuity:** plans with validated dependencies, immutable
   artifacts and sessions with CAS and a registered-operations limit.
   These mechanisms do not count calls the host omits to register.

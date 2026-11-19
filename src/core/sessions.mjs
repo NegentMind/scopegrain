@@ -11,6 +11,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited, removeIfExists, writeFileExclusive } from './fsx.mjs';
+import { acquireVerifiedLock, releaseVerifiedLock } from './locks.mjs';
 import { resolveInside, assertDestination, toCanonicalRelative } from './paths.mjs';
 import { canonicalJSON } from './digests.mjs';
 import { loadLimits, knownActions } from './policy.mjs';
@@ -186,18 +187,6 @@ export function prepareSession(ctx, input) {
   };
 }
 
-function acquireLock(lockPath) {
-  try {
-    writeFileExclusive(lockPath, '');
-  } catch (e) {
-    if (e && e.code === 'EEXIST') {
-      throw err('SESSION_LOCKED',
-        'session is locked by another operation; no stale-lock recovery');
-    }
-    throw e;
-  }
-}
-
 function validateRecordInput(input) {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw err('INVALID_SESSION', 'record input must be an object');
@@ -282,10 +271,12 @@ function assertSessionFits(next) {
 export function recordSession(ctx, input) {
   validateRecordInput(input);
   const file = sessionFileAbs(ctx, input.id);
-  const lockPath = `${file}.lock`;
+  const lock = acquireVerifiedLock(`${file}.lock`, 'SESSION_LOCKED',
+    'session is locked by another operation; no stale-lock recovery');
   let tmpPath = null;
   let tmpOwned = false;
-  acquireLock(lockPath);
+  let next;
+  let failure;
   try {
     const session = readSessionFile(file, input.id);
     if (session.revision !== input.expectedRevision) {
@@ -303,18 +294,25 @@ export function recordSession(ctx, input) {
         `operation limit ${session.limit} reached`);
     }
     const at = new Date().toISOString();
-    const next = buildNextSession(session, input, at);
+    next = buildNextSession(session, input, at);
     const serialized = assertSessionFits(next);
     tmpPath = `${file}.${crypto.randomBytes(6).toString('hex')}.tmp`;
     writeFileExclusive(tmpPath, serialized); // cleans itself on write failure
     tmpOwned = true;
     fs.renameSync(tmpPath, file);
     tmpOwned = false;
-    return next;
+  } catch (e) {
+    failure = e;
   } finally {
     if (tmpOwned) removeIfExists(tmpPath);
-    removeIfExists(lockPath);
+    try {
+      releaseVerifiedLock(lock); // unlinks only the lock proven ours
+    } catch (e) {
+      if (!failure) failure = e; // a domain failure is never masked
+    }
   }
+  if (failure) throw failure;
+  return next;
 }
 
 // Resume: actual task state, current evidence, usage and remaining budget.

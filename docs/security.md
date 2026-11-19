@@ -24,8 +24,10 @@ alcance probado y las limitaciones se registran en
 - **Create-only:** preflight completo antes de escribir; conflictos
   (distinto, enlace, directorio) bloquean todo el plan. Escrituras con flag
   exclusivo `wx`; el rollback solo retira lo creado por esa operacion.
-- **Estado consistente:** lock exclusivo por tarea + CAS de revision +
-  temporal exclusivo y rename. Un lock ajeno es conflicto, no se recupera.
+- **Estado consistente:** lock exclusivo verificado (token + identidad
+  `dev`/`ino` probada antes de liberar, como el journal) + CAS de revision
+  + temporal exclusivo y rename. Un lock ajeno es conflicto, no se recupera
+  ni se borra desde un `finally` ajeno.
 - **Continuidad:** planes con dependencias validadas, artefactos inmutables
   y sesiones con CAS y limite de operaciones registradas. Estos mecanismos
   no cuentan llamadas que el anfitrion omita registrar.

@@ -432,6 +432,64 @@ test('a root realpath mismatch remains stale after the path is restored', () => 
   } finally { fs.realpathSync = realpath; cleanup(dir); }
 });
 
+test('a differently-cased root spelling keeps a live binding on Windows', {
+  skip: process.platform !== 'win32',
+}, () => {
+  const { dir, ctx } = fixture();
+  try {
+    const doc = create(ctx);
+    // Same root, different spelling: lowercase drive letter plus a
+    // flipped segment case. The realpath is unchanged, so binding and
+    // revalidation must not go stale.
+    const recased = ctx.projectRoot
+      .replace(/^([a-zA-Z]):/, (match) => `${match[0].toLowerCase()}:`)
+      .replace(/([\\/])([a-zA-Z])/,
+        (match, sep, c) => `${sep}${c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase()}`);
+    assert.notEqual(recased, ctx.projectRoot);
+    const bound = bindWorkspace({ projectRoot: recased, config: ctx.config },
+      { areaIds: [doc.areas[0].id] });
+    assert.deepEqual(authorizeScope(bound, scope(doc)).areaIds, [doc.areas[0].id]);
+    assert.equal(resolveWorkspaceRepository(bound, doc.repositoryId), recased);
+  } finally { cleanup(dir); }
+});
+
+test('root identity comparison follows platform case semantics', () => {
+  const { dir, ctx } = fixture();
+  const realpath = fs.realpathSync;
+  const stat = fs.statSync;
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+  // Flip the first letter's case (the drive letter on Windows, the first
+  // segment elsewhere): a realpath for the same root under a different
+  // spelling, exercisable on any host via injected platform semantics.
+  const recased = ctx.projectRoot.replace(/[a-zA-Z]/,
+    (c) => (c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase()));
+  assert.notEqual(recased, ctx.projectRoot);
+  try {
+    const doc = create(ctx);
+    fs.realpathSync = function (file, ...args) {
+      const result = realpath.call(this, file, ...args);
+      return file === ctx.projectRoot && result === ctx.projectRoot
+        ? recased : result;
+    };
+    fs.statSync = function (file, ...args) {
+      return stat.call(this, file === recased ? ctx.projectRoot : file, ...args);
+    };
+    // Byte-exact platforms: a case-only realpath divergence still stales.
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    assert.throws(() => bindWorkspace(ctx, { areaIds: [doc.areas[0].id] }),
+      (e) => e.code === 'WORKSPACE_STALE');
+    // Case-insensitive platforms: the same divergence stays bound.
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    const bound = bindWorkspace(ctx, { areaIds: [doc.areas[0].id] });
+    assert.deepEqual(authorizeScope(bound, scope(doc)).areaIds, [doc.areas[0].id]);
+  } finally {
+    fs.realpathSync = realpath;
+    fs.statSync = stat;
+    Object.defineProperty(process, 'platform', platform);
+    cleanup(dir);
+  }
+});
+
 test('temporary workspace read errors do not invalidate a binding', () => {
   const { dir, ctx } = fixture();
   const open = fs.openSync;

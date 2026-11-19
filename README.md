@@ -202,7 +202,7 @@ considered equivalent to Local/CLI. See
 ## Verification
 
 The most recent local full run (`npm test`, per-file serial, 2026-11-18)
-finished with 1140 passing tests, none failed and none skipped on Windows,
+finished with 1152 passing tests, none failed and none skipped on Windows,
 Node.js v26.8.1 and npm 11.6.0. Intermediate full runs and earlier batches
 are separate executions; their scope and historic results are in
 [verification](docs/en/verification.md). The Devin Local native pilot was

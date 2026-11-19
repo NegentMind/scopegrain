@@ -522,6 +522,72 @@ test('pending capacity overflow fails before creating a source', () => {
   } finally { fs.opendirSync = opendir; cleanup(f.dir); }
 });
 
+test('a saturated outbox stays listable and drainable while writes fail closed', () => {
+  const f = fixture();
+  const open = fs.openSync;
+  try {
+    const ops = ['records/first', 'records/second', 'records/third'].map(
+      (rel, index) => applyJournaledCreation(f.bound,
+        [change([f.a], rel, 'content', `record-${index}`)]));
+    // Shrink the authored pending bound below the live outbox depth by
+    // redirecting the journal-policy read to a fixture copy.
+    const shrunk = path.join(f.dir, 'journal-policy-shrunk.json');
+    fs.writeFileSync(shrunk, JSON.stringify({ schemaVersion: 1,
+      maxOperationEvents: 101, maxPendingOperations: 2,
+      defaultPageSize: 50, maxPageSize: 100 }));
+    fs.openSync = function (file, flags, ...args) {
+      return open.call(this,
+        String(file).endsWith(`${path.sep}journal.json`) ? shrunk : file,
+        flags, ...args);
+    };
+    // Three indexes over the bound: the listing returns the bounded
+    // window instead of deadlocking on JOURNAL_CAPACITY.
+    const listed = listJournalPending(f.bound);
+    assert.equal(listed.items.length, 2);
+    const hidden = ops.find((op) =>
+      listed.items.every((item) => item.operationId !== op.operationId));
+    assert.ok(hidden);
+    // Producers still fail closed at/over the bound.
+    assert.throws(() => applyJournaledCreation(f.bound,
+        [change([f.a], 'records/fourth', 'content', 'record-4')]),
+      (e) => e.code === 'JOURNAL_CAPACITY');
+    // Draining stays available per operation: ack removes the index.
+    const event = getJournalEvent(f.bound, hidden.operationId,
+      hidden.eventIds[0]).event;
+    ackJournalEvent(f.bound, hidden.operationId, event.eventId, evidence(event));
+    assert.equal(fs.existsSync(path.join(f.journal, 'outbox',
+      `${hidden.operationId}.json`)), false);
+    // At the bound every pending operation is visible; writes still fail.
+    assert.equal(listJournalPending(f.bound).items.length, 2);
+    assert.throws(() => applyJournaledCreation(f.bound,
+        [change([f.a], 'records/fourth', 'content', 'record-4')]),
+      (e) => e.code === 'JOURNAL_CAPACITY');
+    // Recovery of a concrete operation also stays available.
+    const target = ops.find((op) => op !== hidden);
+    const { intentDigest } = getJournalOperation(f.bound, target.operationId);
+    const preview = prepareJournalRecovery(f.bound, target.operationId, {
+      action: 'finalize-committed', expectedIntentDigest: intentDigest,
+      reason: 'capacity regression drain check' });
+    assert.equal(preview.mode, 'dry-run');
+    assert.deepEqual(preview.pendingEventIds, target.eventIds);
+    const applied = recoverJournalOperation(f.bound, target.operationId, {
+      action: 'finalize-committed', expectedIntentDigest: intentDigest,
+      reason: 'capacity regression drain check' });
+    assert.equal(applied.mode, 'applied');
+    // Draining below the bound unblocks producers again.
+    const last = ops.find((op) => op !== hidden && op !== target);
+    const lastEvent = getJournalEvent(f.bound, last.operationId,
+      last.eventIds[0]).event;
+    ackJournalEvent(f.bound, last.operationId, lastEvent.eventId,
+      evidence(lastEvent));
+    const created = applyJournaledCreation(f.bound,
+      [change([f.a], 'records/fourth', 'content', 'record-4')]);
+    assert.ok(created.operationId);
+    assert.equal(fs.readFileSync(path.join(f.dir, 'records/fourth'), 'utf8'),
+      'content');
+  } finally { fs.openSync = open; cleanup(f.dir); }
+});
+
 test('head pointer cleanup failure keeps committed marker and blocks later writes', () => {
   const f = fixture();
   const rename = fs.renameSync;

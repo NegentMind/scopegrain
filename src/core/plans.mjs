@@ -381,6 +381,11 @@ export function listPlans(ctx) {
 // Dependency readiness from ACTUAL stored task state: ready = PLAN with
 // every dependency CLOSE; closed = CLOSE; blocked = PLAN with unfinished
 // deps; anything else = active. Missing/malformed tasks are errors.
+// The ancestor walk mirrors the ACT gate (checkDependencies in
+// methodology.mjs): transitive, so a closed direct dependency cannot hide
+// an unfinished ancestor and 'ready' is exactly 'would pass the gate now'.
+// getPlan re-validates the stored DAG, so `seen` only bounds each walk to
+// the plan's own task count (maxPlanTasks) as a defensive measure.
 export function nextPlanTasks(ctx, key) {
   const plan = getPlan(ctx, key);
   const states = new Map();
@@ -388,10 +393,20 @@ export function nextPlanTasks(ctx, key) {
     const task = getTask(ctx, t.id);
     states.set(t.key, task);
   }
+  const depsOf = new Map(plan.tasks.map((t) => [t.key, t.dependsOn]));
   return plan.tasks.map((t) => {
     const task = states.get(t.key);
-    const unfinished = t.dependsOn
-      .filter((d) => states.get(d).state !== 'CLOSE');
+    const unfinished = [];
+    const seen = new Set();
+    const pending = [...t.dependsOn];
+    while (pending.length > 0) {
+      const d = pending.pop();
+      if (seen.has(d)) continue;
+      seen.add(d);
+      if (states.get(d).state !== 'CLOSE') unfinished.push(d);
+      const deps = depsOf.get(d); // keys/DAG re-validated by getPlan
+      if (deps) pending.push(...deps);
+    }
     let status;
     if (task.state === 'CLOSE') status = 'closed';
     else if (task.state === 'PLAN' && unfinished.length === 0) status = 'ready';

@@ -303,7 +303,7 @@ See [security](security.md) and [compatibility](compatibility.md).
 ## 16. Verification status
 
 The latest full local run (`npm test` serial, 2026-11-17) finished
-with **1140 pass, 0 fail, 0 skipped and 0 cancelled**, exit 0, on
+with **1152 pass, 0 fail, 0 skipped and 0 cancelled**, exit 0, on
 Windows with Node.js v26.8.1 and npm 11.6.0. The intermediate full runs
 (673, 699, 770 and 813) and the earlier batches of each block are
 separate runs, not summable figures; their scope and historical results

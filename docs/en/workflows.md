@@ -107,7 +107,7 @@ new folder type or a certification of the cited files.
 ## Approvals and actions
 
 The latest local full suite (serial `npm test`, 2026-11-18) finished with
-1140 passing tests. The Devin Local pilot was certified in a real session;
+1152 passing tests. The Devin Local pilot was certified in a real session;
 Antigravity was piloted on 2026-11-18; Claude, Codex,
 OpenCode and Hermes are still pending. See results and limits in
 [verification](verification.md).

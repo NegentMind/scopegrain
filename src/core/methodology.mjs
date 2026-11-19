@@ -173,7 +173,7 @@ export function evaluateMethodology(ctx, task,
     classification = classifyWork(task.methodology);
     if (classification.route === 'read-only') {
       issues.push(issue('READ_ONLY_INTENT',
-        'read-only intent cannot enter product ACT or ACCEPT'));
+        'read-only intent cannot enter product ACT, ACCEPT or CLOSE'));
       return result('read-only');
     }
     if (classification.route === 'blocked') {

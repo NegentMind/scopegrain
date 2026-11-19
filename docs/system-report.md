@@ -295,7 +295,7 @@ Ver [seguridad](security.md) y [compatibilidad](compatibility.md).
 ## 16. Estado de verificacion
 
 La ultima ejecucion integral local (`npm test` serial, 2026-11-18) termino
-con **1140 pass, 0 fail, 0 skipped y 0 cancelled**, exit 0, en Windows con
+con **1152 pass, 0 fail, 0 skipped y 0 cancelled**, exit 0, en Windows con
 Node.js v26.8.1 y npm 11.6.0. Las integrales intermedias (673, 699, 770 y
 813) y las tandas anteriores de cada bloque son ejecuciones separadas, no
 cifras sumables; su alcance y resultados historicos estan en

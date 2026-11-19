@@ -7,7 +7,7 @@ import path from 'node:path';
 import { transitionTask } from '../src/core/transition.mjs';
 import { getTask, taskFilePath } from '../src/core/tasks.mjs';
 import {
-  formalFixture, fresh, lightFixture, outcome, snapshot,
+  formalFixture, fresh, lightFixture, outcome, reanswer, snapshot,
   verification, waiver,
 } from './methodology-fixtures.mjs';
 import { cleanup } from './helpers.mjs';
@@ -74,6 +74,33 @@ test('actual disjoint S1/S2 plan: first report and CLOSE unlock only its success
     assert.deepEqual(accepted.verification.coverage.map((c) => c.scenarioId), ['S1']);
     move(f, 'CLOSE');
     assert.equal(move(f, 'ACT', {}, b).state, 'ACT');
+  } finally { cleanup(f.dir); }
+});
+
+test('ACCEPT->CLOSE revalidates the methodology gate: revoked approval blocks, re-approval restores', () => {
+  const f = formalFixture();
+  try {
+    const t = toReview(f);
+    const r = outcome(f, t);
+    const accepted = move(f, 'ACCEPT', {
+      verification: { ...t.verification, outcomeEvidenceId: r.artifact.id },
+      review: t.review,
+    });
+    assert.equal(accepted.state, 'ACCEPT');
+    // The grant was valid at ACCEPT; revoking it must stop CLOSE.
+    reanswer(f, f.approvals.task, 'revoke');
+    const before = snapshot(f.dir);
+    assert.throws(() => move(f, 'CLOSE'), (e) => {
+      assert.equal(e.code, 'METHODOLOGY_BLOCKED');
+      assert.ok(e.issues.some((i) => i.code === 'APPROVAL_NOT_APPROVED'),
+        JSON.stringify(e.issues));
+      assert.equal(e.message, 'methodology gate blocked CLOSE: '
+        + `${e.issues[0].code}: ${e.issues[0].message}`);
+      return true;
+    });
+    assert.deepEqual(snapshot(f.dir), before);
+    reanswer(f, f.approvals.task, 'approve');
+    assert.equal(move(f, 'CLOSE').state, 'CLOSE');
   } finally { cleanup(f.dir); }
 });
 

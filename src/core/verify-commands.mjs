@@ -18,6 +18,9 @@ import {
   removeIfExists, writeFileExclusive,
 } from './fsx.mjs';
 import { resolveInside, toCanonicalRelative } from './paths.mjs';
+import {
+  acquireVerifiedLock, releaseVerifiedLock,
+} from './locks.mjs';
 import { loadLimits } from './policy.mjs';
 
 export const VERIFY_STORE_NAME = 'verify-commands.json';
@@ -290,24 +293,18 @@ export function listVerifyCommands(ctx) {
 // trusted: every apply re-reads and re-validates the current store.
 function withStoreLock(ctx, fn) {
   const abs = verifyStoreAbs(ctx);
-  const lockPath = `${abs}.lock`;
   mkdirpSync(path.dirname(abs));
-  try {
-    writeFileExclusive(lockPath, '');
-  } catch (e) {
-    if (e && e.code === 'EEXIST') {
-      throw err('VERIFY_LOCKED',
-        'verify store is locked by another operation; no stale-lock recovery');
-    }
-    throw e;
-  }
+  const lock = acquireVerifiedLock(`${abs}.lock`, 'VERIFY_LOCKED',
+    'verify store is locked by another operation; no stale-lock recovery');
   let tmpPath = null;
   let tmpOwned = false;
+  let result;
+  let failure;
   try {
     const current = readStoreDoc(abs);
-    const { doc, result } = fn(current);
-    if (doc !== null) {
-      const serialized = Buffer.from(JSON.stringify(doc, null, 2) + '\n');
+    const out = fn(current);
+    if (out.doc !== null) {
+      const serialized = Buffer.from(JSON.stringify(out.doc, null, 2) + '\n');
       if (serialized.length > loadLimits().maxDocumentBytes) {
         throw err('DOCUMENT_TOO_LARGE',
           'mutated verify store would exceed document limit');
@@ -319,11 +316,19 @@ function withStoreLock(ctx, fn) {
       fs.renameSync(tmpPath, abs);
       tmpOwned = false;
     }
-    return result;
+    result = out.result;
+  } catch (e) {
+    failure = e;
   } finally {
     if (tmpOwned) removeIfExists(tmpPath);
-    removeIfExists(lockPath);
+    try {
+      releaseVerifiedLock(lock); // unlinks only the lock proven ours
+    } catch (e) {
+      if (!failure) failure = e; // a domain failure is never masked
+    }
   }
+  if (failure) throw failure;
+  return result;
 }
 
 function closedOptions(input, keys, label) {

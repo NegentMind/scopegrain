@@ -201,7 +201,7 @@ comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver
 ## Verificacion
 
 La ultima ejecucion integral local (`npm test`, serial por archivo,
-2026-11-18) termino con 1140 pruebas aprobadas, ninguna fallida y ninguna
+2026-11-18) termino con 1152 pruebas aprobadas, ninguna fallida y ninguna
 omitida en Windows, Node.js v26.8.1 y npm 11.6.0. Las integrales
 intermedias y las tandas anteriores son ejecuciones separadas; su alcance
 y resultados historicos estan en [verificacion](docs/verification.md).

@@ -17,6 +17,7 @@ export const RESERVED_PREFIXES = new Set(['.git', 'node_modules', 'legacy', '.op
 
 const DEVICE_NAMES = new Set([
   'con', 'prn', 'aux', 'nul',
+  'clock$', 'conin$', 'conout$',
   'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
   'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9',
 ]);
@@ -39,7 +40,11 @@ function validateSegment(seg, original) {
     throw err('INVALID_PATH',
       `path segment may not end in space or dot: ${original}`);
   }
-  const base = seg.split('.')[0].toLowerCase();
+  // Win32 strips trailing spaces/dots from the name before the
+  // extension, so 'con .txt' still resolves the CON device: the base
+  // check must trimEnd before comparing. Leading spaces are preserved
+  // by Win32, so only the tail is trimmed.
+  const base = seg.split('.')[0].trimEnd().toLowerCase();
   if (DEVICE_NAMES.has(base)) {
     throw err('INVALID_PATH',
       `path segment uses a reserved device name: ${original}`);
@@ -98,8 +103,11 @@ export function isSameOrAncestor(ancestor, child,
     const c = assertDestination(child, 'child');
     return c === a || c.startsWith(a + '/');
   }
-  const a = portableKey(ancestor);
-  const c = portableKey(child);
+  // Canonicalize both sides before comparing: a direct call with
+  // non-canonical input ('a\b' vs 'a/b/c') must not silently miss the
+  // ancestor relation. Already-canonical inputs pass through unchanged.
+  const a = portableKey(toCanonicalRelative(ancestor, 'ancestor'));
+  const c = portableKey(toCanonicalRelative(child, 'child'));
   return c === a || c.startsWith(a + '/');
 }
 

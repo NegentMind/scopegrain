@@ -23,6 +23,9 @@ import {
   assertDestination, resolveInside,
 } from './paths.mjs';
 import {
+  acquireVerifiedLock, releaseVerifiedLock,
+} from './locks.mjs';
+import {
   getTask, prepareTask, taskFilePath, validateTaskShape,
 } from './tasks.mjs';
 import { validateReview, validateVerification } from './evidence.mjs';
@@ -46,13 +49,9 @@ const TRANSITION_KEYS = new Set([
 function acquireLock(taskFile) {
   const lockPath = taskFile + '.lock';
   try {
-    writeFileExclusive(lockPath, '');
-    return lockPath;
+    return acquireVerifiedLock(lockPath, 'TASK_LOCKED',
+      'task lock exists; refusing to recover it automatically');
   } catch (e) {
-    if (e && e.code === 'EEXIST') {
-      throw err('TASK_LOCKED',
-        'task lock exists; refusing to recover it automatically');
-    }
     if (e && e.code === 'ENOENT') {
       throw err('TASK_NOT_FOUND', 'task directory does not exist');
     }
@@ -90,7 +89,7 @@ export function validateTransitionInput(input) {
 
 // All transition decision logic given the current stored record: revision
 // CAS, workflow edge, evidence merge, ACCEPT gates, next-record shape and
-// the ACT/ACCEPT methodology gate, ending in the serialized bytes. Pure
+// the ACT/ACCEPT/CLOSE methodology gate, ending in the serialized bytes. Pure
 // with respect to the task file itself - callers own the write path
 // (legacy tmp+rename, or a journaled CAS update). `at` defaults to now;
 // journal-backed callers align it to the operation identity instead.
@@ -162,7 +161,13 @@ export function evaluateTaskTransition(ctx, task, input,
     }],
   };
   validateTaskShape(next, `task ${id}`);
-  if (to === 'ACT' || to === 'ACCEPT') {
+  // CLOSE re-runs the gate too: an approval valid at ACCEPT can be revoked
+  // afterwards, and closure must not carry a stale grant. evaluateMethodology
+  // only adds the outcome/acceptance proof for to === 'ACCEPT', so CLOSE gets
+  // the ACT-equivalent baseline — bindings, approvals, dependencies re-proven
+  // against the CURRENT records. gatedTaskStates stays the authored pair;
+  // this is revalidation, not a new user-facing gate target.
+  if (to === 'ACT' || to === 'ACCEPT' || to === 'CLOSE') {
     const result = evaluateMethodology(ctx, next, {
       to, previousRevision: task.revision,
     });
@@ -186,23 +191,33 @@ export function evaluateTaskTransition(ctx, task, input,
 export function transitionTask(ctx, input) {
   validateTransitionInput(input);
   const file = taskFilePath(ctx, input.id);
-  const lockPath = acquireLock(file);
+  const lock = acquireLock(file);
   let tmpPath = null;
   let tmpOwned = false;
+  let next;
+  let failure;
   try {
     const task = getTask(ctx, input.id);
-    const { next, serialized } = evaluateTaskTransition(ctx, task, input);
+    const evaluated = evaluateTaskTransition(ctx, task, input);
     mkdirpSync(path.dirname(file));
     tmpPath = `${file}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
-    writeFileExclusive(tmpPath, serialized); // cleans itself on write failure
+    writeFileExclusive(tmpPath, evaluated.serialized); // cleans itself on write failure
     tmpOwned = true;
     fs.renameSync(tmpPath, file);
     tmpOwned = false;
-    return next;
+    next = evaluated.next;
+  } catch (e) {
+    failure = e;
   } finally {
-    removeIfExists(lockPath); // only the lock file created above
     if (tmpOwned) removeIfExists(tmpPath); // rename path only
+    try {
+      releaseVerifiedLock(lock); // unlinks only the lock proven ours
+    } catch (e) {
+      if (!failure) failure = e; // a domain failure is never masked
+    }
   }
+  if (failure) throw failure;
+  return next;
 }
 
 // checkAction reports whether an action is permitted by policy in the task's
@@ -488,9 +503,10 @@ export function createOwnedTaskStore(ctx, options) {
     validateTransitionInput(inner);
     const recordId = String(inner.id).toLowerCase();
     const file = taskFilePath(privateCtx, inner.id);
-    const lockPath = acquireLock(file);
+    const lock = acquireLock(file);
     let built = null;
     let journal;
+    let failure;
     try {
       const sourceRel = sourceRelFor(recordId);
       const ownershipRel = ownershipRelFor(recordId);
@@ -529,9 +545,16 @@ export function createOwnedTaskStore(ctx, options) {
             file: { rel: ownershipRel, content: nextSidecarBytes } },
         ];
       });
+    } catch (e) {
+      failure = e;
     } finally {
-      removeIfExists(lockPath); // only the lock file created above
+      try {
+        releaseVerifiedLock(lock); // unlinks only the lock proven ours
+      } catch (e) {
+        if (!failure) failure = e; // a domain failure is never masked
+      }
     }
+    if (failure) throw failure;
     return {
       mode: 'applied', record: built ? built.next : null,
       sourceRel: sourceRelFor(recordId),

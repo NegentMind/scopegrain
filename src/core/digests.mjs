@@ -70,18 +70,31 @@ export function canonicalDigest(value) {
     .digest('hex');
 }
 
+// scope and scenarioRefs are semantically unordered sets: approvals.mjs
+// revalidates scope paths as sorted copies and stored validation dedupes
+// scenarioRefs on the lowercase rid/sid key. A stored reorder must not
+// invalidate the digest, so the projection emits sorted copies — never
+// mutating the task itself. Multiplicity is preserved (no dedupe).
+const scenarioPairOrder = (a, b) => {
+  const ka = `${a.requirementId}/${a.scenarioId}`;
+  const kb = `${b.requirementId}/${b.scenarioId}`;
+  return ka < kb ? -1 : ka > kb ? 1 : 0;
+};
+
 export function taskStaticProjection(task) {
   return {
     id: task.id,
     title: task.title,
     contract: task.contract,
     authorContext: task.authorContext,
-    scope: task.scope,
+    scope: Array.isArray(task.scope) ? [...task.scope].sort() : task.scope,
     createdAt: task.createdAt,
     specId: task.specId ?? null,
     designId: task.designId ?? null,
     planKey: task.planKey ?? null,
     methodology: task.methodology ?? null,
-    scenarioRefs: task.scenarioRefs ?? null,
+    scenarioRefs: Array.isArray(task.scenarioRefs)
+      ? [...task.scenarioRefs].sort(scenarioPairOrder)
+      : (task.scenarioRefs ?? null),
   };
 }

@@ -3,7 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, readFileLimited } from './fsx.mjs';
-import { assertDestination, resolveInside, resolveProjectRoot } from './paths.mjs';
+import { assertDestination, portableKey, resolveInside, resolveProjectRoot }
+  from './paths.mjs';
 import { loadLimits } from './policy.mjs';
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
 // NOTE: journal.mjs already imports this module, so these imports form a
@@ -206,9 +207,20 @@ function areaIds(value) {
   return [...value].sort();
 }
 
+// The lexical resolve must match the realpath so a rebound root cannot
+// keep a live binding through a link/junction. Win32 filesystems are
+// case-insensitive, so the same root legitimately arrives with a
+// different drive-letter or segment casing: the comparison follows
+// portableKey there and stays byte-exact on case-sensitive platforms.
+function sameRoot(resolved, lexical) {
+  return process.platform === 'win32'
+    ? portableKey(resolved) === portableKey(lexical)
+    : resolved === lexical;
+}
+
 function rootIdentity(root) {
   const resolved = resolveProjectRoot(root);
-  if (resolved !== path.resolve(root)) {
+  if (!sameRoot(resolved, path.resolve(root))) {
     throw err('WORKSPACE_STALE', 'workspace root changed');
   }
   const stat = fs.statSync(resolved, { bigint: true });
