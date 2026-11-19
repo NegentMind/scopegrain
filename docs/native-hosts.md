@@ -18,14 +18,19 @@ Los formatos documentados y las pruebas locales con fixtures no son
 certificacion nativa. Las comprobaciones estructurales de parseo sobre
 fixtures aplicados verifican solo que los archivos generados son
 sintacticamente bien formados, nunca que un binario de host real los
-acepta, descubre o hace cumplir. Un piloto nativo esta certificado: una
-sesion fresca real de Devin Local el 2026-11-17 auto-cargo las 42 skills
-`scopegrain-*` y 15 subagentes, activo el MCP `scopegrain` desde
+acepta, descubre o hace cumplir. Dos pilotos nativos estan certificados:
+una sesion fresca real de Devin Local el 2026-11-17 auto-cargo las 42
+skills `scopegrain-*` y 15 subagentes, activo el MCP `scopegrain` desde
 `.devin/mcp_config.json` e invoco `scopegrain_status` (solo lectura, 16
-checks de doctor, catalogo de 130 entradas verificado por hash). Los
-demas hosts — Claude, Codex, OpenCode, Antigravity y el provisional
-Hermes — aun carecen de piloto nativo. La suite de fundacion completo
-localmente con un archivo de test a la vez; ver
+checks de doctor, catalogo de 130 entradas verificado por hash); y una
+sesion fresca real de Antigravity App/CLI el 2026-11-19 auto-descubrio
+las 72 skills `scopegrain-*` y 15 subagentes bajo `.agents/`, activo el
+MCP `scopegrain` desde `.agents/mcp_config.json` (18 herramientas de solo
+lectura) e invoco `scopegrain_status` y `scopegrain_catalog_list` en
+vivo. Los demas hosts y superficies — Claude, Codex, OpenCode, la
+superficie IDE de Antigravity y el provisional Hermes — aun carecen de
+piloto nativo. La suite de fundacion completo localmente con un archivo
+de test a la vez; ver
 [verificacion](verification.md) para su alcance y ejecuciones anteriores
 separadas.
 Ningun host fue activado por estos cambios. La inicializacion crea
@@ -109,9 +114,14 @@ especificas del host:
 
 Estos alcances no son garantias equivalentes. Validar los nombres reales
 de herramientas, la denegacion efectiva, los efectos secundarios de MCP
-y la politica de la organizacion dentro del host. Otros roles heredan la
-politica nativa del propietario; los prompts de modelo no son un sandbox
-ni un sustituto de la aplicacion nativa de permisos.
+y la politica de la organizacion dentro del host. El piloto App/CLI del
+2026-11-19 confirmo la denegacion efectiva de las herramientas nativas de
+escritura y shell para el rol de solo lectura, pero `call_mcp_tool`
+siguio expuesto y alcanza otros servidores MCP globales con operaciones
+de escritura externas: la lista de herramientas de lectura no aisla
+efectos MCP de terceros. Otros roles heredan la politica nativa del
+propietario; los prompts de modelo no son un sandbox ni un sustituto de
+la aplicacion nativa de permisos.
 
 El `allowed-tools` inline de skills de Devin otorga autoaprobacion en
 lugar de restringir disponibilidad. Las skills inline generadas lo omiten
@@ -210,11 +220,12 @@ Ver [onboarding](onboarding.md), [seguridad](security.md) y
 
 ## Pilotos nativos
 
-Devin Local completo su piloto en una sesion fresca real el 2026-11-17
-(ver Estado arriba); Devin Cloud permanece fuera de su alcance. Para
-cada otra version/superficie seleccionada — Claude, Codex, OpenCode,
-Antigravity y el provisional Hermes — aprobar separadamente un piloto
-aislado:
+Devin Local completo su piloto en una sesion fresca real el 2026-11-17 y
+Antigravity App/CLI completo el suyo el 2026-11-19 (ver Estado arriba);
+Devin Cloud permanece fuera del alcance del piloto de Devin. Para cada
+otra version/superficie seleccionada — Claude, Codex, OpenCode, la
+superficie IDE de Antigravity y el provisional Hermes — aprobar
+separadamente un piloto aislado:
 verificar descubrimiento e invocacion, herramientas reales de roles y
 denegaciones de escritura, efectos MCP/red no aprobados, delegacion,
 interrupcion/reanudacion, recuperacion sin repetir efectos y limpieza

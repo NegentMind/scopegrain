@@ -19,10 +19,10 @@ ACT/ACCEPT gates are implemented. The evidence and gate blocks have
 scoped tests recorded in [verification](verification.md).
 The local full foundation suite completed one test file at a time;
 scope and separate runs are in [verification](verification.md). The
-Devin Local native pilot was certified in a real session on 2026-11-17;
-Claude, Codex, OpenCode, Antigravity and Hermes still lack a native
-pilot. This guide does not certify behavior inside an uncertified
-host.
+Devin Local native pilot was certified in a real session on 2026-11-17
+and the Antigravity App/CLI pilot on 2026-11-19; Claude, Codex, OpenCode,
+the Antigravity IDE surface and Hermes still lack a native pilot. This
+guide does not certify behavior inside an uncertified host.
 
 ## Modes
 

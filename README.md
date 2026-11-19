@@ -208,9 +208,13 @@ are separate executions; their scope and historic results are in
 [verification](docs/en/verification.md). The Devin Local native pilot was
 certified in a fresh real session on 2026-11-17 (42 `scopegrain-*` skills
 and 15 subagents auto-loaded, `scopegrain` MCP active from
-`.devin/mcp_config.json`); Antigravity was piloted on 2026-11-18 (`.agents/` activation applied and
-its agent session consumed the projections); the other four documented
-hosts still lack a native pilot. The tests do not certify the six hosts
+`.devin/mcp_config.json`); the Antigravity App/CLI native pilot was
+certified in a fresh real session on 2026-11-19 (72 `scopegrain-*` skills
+and 15 subagents auto-discovered, `scopegrain` MCP active from
+`.agents/mcp_config.json`, with live `scopegrain_status` and
+`scopegrain_catalog_list` invocations). Claude, Codex, OpenCode, the
+Antigravity IDE surface and the provisional Hermes still lack a native
+pilot. The tests do not certify the six hosts
 or a real execution of the declared work.
 The [GitHub Actions workflow](.github/workflows/verify.yml) is triggered
 manually only; its first remote run completed successfully on 2026-11-18.

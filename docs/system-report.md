@@ -306,9 +306,14 @@ El piloto nativo de Devin Local quedo certificado en una sesion fresca real
 el 2026-11-17: 42 skills `scopegrain-*` y 15 subagentes auto-cargados, MCP
 `scopegrain` activo desde `.devin/mcp_config.json` y `scopegrain_status`
 invocado (doctor con 16 checks y catalogo de 130 entradas integro por
-hash). Los demas anfitriones (Claude, Codex, OpenCode y
-Hermes) no tienen piloto nativo; Antigravity se piloto el 2026-11-18 con
-su activacion `.agents/` aplicada y consumida por su sesion de agente.
+hash). Antigravity se piloto primero el 2026-11-18 (activacion `.agents/`
+aplicada y consumida por su sesion de agente) y su superficie App/CLI
+completo el piloto nativo certificado en una sesion fresca real el
+2026-11-19: 72 skills `scopegrain-*` y 15 subagentes auto-descubiertos,
+MCP `scopegrain` activo desde `.agents/mcp_config.json` e invocaciones
+en vivo de `scopegrain_status` y `scopegrain_catalog_list`. Los demas
+anfitriones y superficies (Claude, Codex, OpenCode, la IDE de
+Antigravity y Hermes) no tienen piloto nativo.
 CI ya se despacho con exito (2026-11-18). Estas pruebas no
 certifican anfitriones, versiones o sistemas operativos no probados.
 
@@ -330,8 +335,9 @@ dependencias transitivas.
 
 1. Realizar pilotos aislados y autorizados por version y superficie nativa;
    los fixtures no sustituyen pruebas reales de permisos y recuperacion.
-   Devin Local ya tiene su piloto certificado (sesion real, 2026-11-17);
-   quedan pendientes Claude, Codex, OpenCode, Antigravity y Hermes.
+   Devin Local y Antigravity App/CLI ya tienen su piloto certificado
+   (sesiones reales, 2026-11-17 y 2026-11-19); quedan pendientes Claude,
+   Codex, OpenCode, la superficie IDE de Antigravity y Hermes.
 2. Resolver licencia y procedencia antes de conceder redistribucion. La
    disponibilidad del codigo fuente no concede licencia open-source;
    `private: true` y `UNLICENSED` permanecen en el paquete.

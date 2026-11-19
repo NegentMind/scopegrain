@@ -79,8 +79,9 @@ sesiones actuales se describen en [workflows](workflows.md) y
 base, no importaciones implicitas del archivo original.
 
 La ampliacion incluye Google Antigravity y variantes de propuestas nativas
-para seis anfitriones en total; el piloto nativo de Devin Local quedo
-certificado en una sesion real el 2026-11-17 y los demas siguen pendientes.
+para seis anfitriones en total; los pilotos nativos de Devin Local y
+Antigravity App/CLI quedaron certificados en sesiones reales (2026-11-17
+y 2026-11-19) y los demas siguen pendientes.
 Organic/SDD
 agrega clasificacion proporcional, referencias y aprobaciones por contenido,
 cobertura asignada e informes vinculados; no un ejecutor de agentes ni una

@@ -314,11 +314,15 @@ The Devin Local native pilot was certified in a fresh real session on
 2026-11-17: 42 `scopegrain-*` skills and 15 subagents auto-loaded, the
 `scopegrain` MCP active from `.devin/mcp_config.json` and
 `scopegrain_status` invoked (doctor with 16 checks and a 130-entry
-catalog hash-verified). The other hosts (Claude, Codex, OpenCode,
-Antigravity and Hermes) had no native pilot.
-Antigravity was piloted on 2026-11-18 (`.agents/` activation applied and
-consumed by its agent session); Claude, Codex, OpenCode and Hermes still
-lack one. CI was dispatched successfully on 2026-11-18. These tests do not certify untested hosts, versions or
+catalog hash-verified).
+Antigravity was first piloted on 2026-11-18 (`.agents/` activation
+applied and consumed by its agent session), and its App/CLI surface
+completed the certified native pilot in a fresh real session on
+2026-11-19: 72 `scopegrain-*` skills and 15 subagents auto-discovered,
+the `scopegrain` MCP active from `.agents/mcp_config.json` and live
+`scopegrain_status` and `scopegrain_catalog_list` invocations. The other
+hosts and surfaces (Claude, Codex, OpenCode, the Antigravity IDE surface
+and Hermes) still lack one. CI was dispatched successfully on 2026-11-18. These tests do not certify untested hosts, versions or
 operating systems.
 
 ## 17. Continuous integration
@@ -339,9 +343,9 @@ reproducibility of transitive dependencies.
 
 1. Run isolated, authorized pilots per native version and surface;
    fixtures do not replace real permission and recovery testing.
-   Devin Local already has its certified pilot (real session,
-   2026-11-17); Claude, Codex, OpenCode, Antigravity and Hermes remain
-   pending.
+   Devin Local and Antigravity App/CLI already have their certified
+   pilots (real sessions, 2026-11-17 and 2026-11-19); Claude, Codex,
+   OpenCode, the Antigravity IDE surface and Hermes remain pending.
 2. Resolve licensing and provenance before granting redistribution. The
    availability of the source code does not grant an open-source
    license; `private: true` and `UNLICENSED` remain in the package.

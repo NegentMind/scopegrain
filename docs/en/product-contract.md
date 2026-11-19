@@ -83,8 +83,9 @@ sessions are described in [workflows](workflows.md) and
 first base, not implicit imports of the original archive.
 
 The expansion includes Google Antigravity and native proposal variants
-for six hosts in total; the Devin Local native pilot was certified in a
-real session on 2026-11-17 and the rest remain pending. Organic/SDD adds
+for six hosts in total; the Devin Local and Antigravity App/CLI native
+pilots were certified in real sessions (2026-11-17 and 2026-11-19) and
+the rest remain pending. Organic/SDD adds
 proportional classification, references and content-bound approvals,
 assigned coverage and linked reports; not an agent executor or a
 guarantee that operator declarations are true. Implementation status

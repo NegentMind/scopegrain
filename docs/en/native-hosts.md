@@ -14,14 +14,18 @@ The `scopegrain-` namespace avoids replacing built-ins.
 Documented formats and local fixture tests are not native certification.
 Structural parse checks on applied fixtures verify only that generated
 files are syntactically well-formed, never that a real host binary accepts,
-discovers or enforces them. One native pilot is certified: a fresh real
+discovers or enforces them. Two native pilots are certified: a fresh real
 Devin Local session on 2026-11-17 auto-loaded the 42 `scopegrain-*` skills
 and 15 subagents, activated the `scopegrain` MCP from
 `.devin/mcp_config.json` and invoked `scopegrain_status` (read-only, 16
-doctor checks, 130-entry catalog hash-verified). The other hosts — Claude,
-Codex, OpenCode, Antigravity and the provisional Hermes — still lack a
-native pilot. The foundation suite completed locally with one test file at
-a time; see
+doctor checks, 130-entry catalog hash-verified); and a fresh real
+Antigravity App/CLI session on 2026-11-19 auto-discovered the 72
+`scopegrain-*` skills and 15 subagents under `.agents/`, activated the
+`scopegrain` MCP from `.agents/mcp_config.json` (18 read-only tools) and
+invoked `scopegrain_status` and `scopegrain_catalog_list` live. The other
+hosts and surfaces — Claude, Codex, OpenCode, the Antigravity IDE surface
+and the provisional Hermes — still lack a native pilot. The foundation
+suite completed locally with one test file at a time; see
 [verification](verification.md) for its scope and separate earlier runs.
 No host was activated by these changes. Initialization creates proposals
 under the selected configuration directory, normally
@@ -97,8 +101,12 @@ Selected read-only roles receive host-specific restrictions:
 
 These scopes are not equivalent guarantees. Validate actual tool names,
 effective denial, MCP side effects and organization policy inside the host.
-Other roles inherit the owner's native policy; model prompts are not a
-sandbox or a substitute for native permission enforcement.
+The 2026-11-19 App/CLI pilot confirmed effective denial of the native
+write and shell tools for the read-only role, yet `call_mcp_tool` stayed
+exposed and reaches other globally configured MCP servers with external
+write operations — the read-tool list does not isolate third-party MCP
+effects. Other roles inherit the owner's native policy; model prompts are
+not a sandbox or a substitute for native permission enforcement.
 
 Devin inline skill `allowed-tools` grants auto-approval rather than
 restricting availability. Generated inline skills deliberately omit it.
@@ -184,10 +192,11 @@ See [onboarding](onboarding.md), [security](security.md) and
 
 ## Native Pilots
 
-Devin Local completed its pilot in a fresh real session on 2026-11-17 (see
-Status above); Devin Cloud remains outside its scope. For every other
-selected version/surface — Claude, Codex, OpenCode, Antigravity and the
-provisional Hermes — separately approve an isolated pilot:
+Devin Local completed its pilot in a fresh real session on 2026-11-17 and
+Antigravity App/CLI completed its own on 2026-11-19 (see Status above);
+Devin Cloud remains outside the Devin pilot's scope. For every other
+selected version/surface — Claude, Codex, OpenCode, the Antigravity IDE
+surface and the provisional Hermes — separately approve an isolated pilot:
 verify discovery and invocation, actual role tools and write denials,
 unapproved MCP/network effects, delegation, interruption/resumption,
 recovery without repeating effects and cleanup of only approved owned

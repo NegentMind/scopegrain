@@ -16,8 +16,9 @@ pruebas acotadas registradas en [verificacion](verification.md).
 La suite integral local de foundation se completo con un archivo de test a
 la vez; el alcance y las ejecuciones separadas figuran en
 [verificacion](verification.md). El piloto nativo de Devin Local quedo
-certificado en una sesion real el 2026-11-17; Claude, Codex, OpenCode,
-Antigravity y Hermes siguen sin piloto nativo. Esta guia no acredita
+certificado en una sesion real el 2026-11-17 y el de Antigravity App/CLI
+el 2026-11-19; Claude, Codex, OpenCode, la superficie IDE de Antigravity
+y Hermes siguen sin piloto nativo. Esta guia no acredita
 comportamiento dentro de un anfitrion no certificado.
 
 ## Modos

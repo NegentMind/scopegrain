@@ -219,8 +219,9 @@ the host -> verify -> review -> close -> recover context. The
 executed evidence and its gaps are in
 [verification](verification.md). Full equivalence with plugins,
 sandbox or specialties that remain archived is not claimed, nor real
-certification in the six hosts: only Devin Local has a certified
-native pilot (real session, 2026-11-17).
+certification in the six hosts: only Devin Local (real session,
+2026-11-17) and Antigravity App/CLI (real session, 2026-11-19) have
+certified native pilots.
 
 A piece only changes from pending to active when its references and
 permissions are coherent, it does not impose a domain, it preserves

@@ -47,8 +47,9 @@ No sumar tandas acotadas ni resultados historicos.
 | Control nativo de embeddings | Modelo/runtime locales existentes, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; fase positiva aprobada, controles negativos fallidos |
 | Piloto Devin Local (este repo) | Sesion fresca Devin, 2026-11-17 | 42 skills `scopegrain-*` + 15 subagentes auto-cargados; MCP `scopegrain` activo desde `.devin/mcp_config.json`; `scopegrain_status` invocado: doctor con 16 checks y catalogo de 130 entradas integro por hash |
 | Piloto Antigravity (este repo) | Sesion Antigravity, 2026-11-18 | `host activate --surface app-cli --apply` genero 86 archivos `.agents/`; la sesion consumio las proyecciones y ejecuto un FMEA multi-agente que reporto 7 hallazgos (F-01..F-07), todos corregidos |
+| Piloto nativo Antigravity App/CLI (este repo) | Sesion fresca Antigravity, 2026-11-19 | 72 skills `scopegrain-*` y 15 subagentes auto-descubiertos desde `.agents/`; MCP `scopegrain` activo desde `.agents/mcp_config.json` con 18 herramientas read-only; `scopegrain_status` y `scopegrain_catalog_list` invocados en vivo (doctor `needs-attention` solo por `AGENTS.md`/`CLAUDE.md` deliberadamente divergentes y warnings `changedDiscovery`/`SCAN_PARTIAL_DEPTH`; catalogo de 130 entradas integro por hash); el subagente `scopegrain-reviewer` carecio de herramientas nativas de escritura/shell pero conservo `call_mcp_tool` hacia otros servidores MCP globales |
 | Primera ejecucion CI | GitHub Actions `verify.yml` manual, run 44391417084, 2026-11-18 | Exit 0: ~3.6 minutos por job |
-| Pilotos en anfitriones restantes | Pendientes | Claude, Codex, OpenCode y Hermes no certificados |
+| Pilotos en anfitriones restantes | Pendientes | Claude, Codex, OpenCode, la superficie IDE de Antigravity y Hermes no certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
 `c2d1-green-final.log`, `c2d2-green-final.log`, sus RED causales y diffs
@@ -451,9 +452,10 @@ El gate de whitespace detecto terminadores/espacios finales en archivos
 editados. Se normalizaron sin cambios de comportamiento y se comprueba
 por separado; ese ajuste no se presenta como otra ejecucion de la suite.
 
-El piloto Devin Local quedo certificado en sesion real (skills + MCP +
-invocacion read-only); no se ejecutaron sesiones reales de Claude Code,
-Codex, OpenCode, Antigravity u Hermes.
+Los pilotos de Devin Local y Antigravity App/CLI quedaron certificados en
+sesiones reales (skills + MCP + invocacion read-only); no se ejecutaron
+sesiones reales de Claude Code, Codex, OpenCode, la superficie IDE de
+Antigravity ni Hermes.
 No se certifican las 197 skills originales archivadas, plugins externos,
 aislamiento nativo, Node.js 22 ni otros sistemas operativos.
 Los logs, fixtures y reviews operativos permanecen privados e ignorados;
