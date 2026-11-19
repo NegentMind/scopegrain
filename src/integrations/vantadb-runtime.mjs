@@ -8,9 +8,9 @@ import { err } from '../core/errors.mjs';
 import { readJsonFile, mkdirpSync, writeFileExclusive, removeIfExists }
   from '../core/fsx.mjs';
 import { resolveInside } from '../core/paths.mjs';
-import { listJournalPending } from '../core/journal.mjs';
+import { listJournalAcked, listJournalPending } from '../core/journal.mjs';
 import { loadJournalPolicy } from '../core/policy.mjs';
-import { createVantaDBProjector } from './vantadb.mjs';
+import { createVantaDBProjector, projectionScopeHash } from './vantadb.mjs';
 
 export const DEFAULT_VANTADB_VERSION = '0.9.0';
 export const VANTADB_REPO = 'ness-e/Vantadb';
@@ -464,6 +464,79 @@ export async function vantaDBContext({ cfg, recordId, topK, maxNamespaces,
     }
     return { recordId, namespacesFound: names.length,
       namespacesScanned: scanned.length, truncated: names.length > cap, hits };
+  });
+}
+
+const L1_NS_PREFIX = 'l1/sg-';
+const L1_SESSION_KEY = 'scopegrain';
+const L1_ISOLATION = { agent_id: 'default', team_id: 'default' };
+
+// Curated L1 dual-write: one episodic MemoryRecord per remote-verified
+// (acked) journal event, keyed by eventId so re-runs are idempotent
+// upserts. L1 records live under l1/* namespaces where memory_recall's
+// cross-session pool reads them; agent_id/team_id = VantaDB's default
+// isolation so scope=agent recall sees them. The curated `content` line
+// is a deterministic summary — the formal truth stays in sg-formal-v1-*.
+export async function vantaDBDistill({ bound, cfg, limit, timeoutMs, spawnImpl }) {
+  const policy = loadJournalPolicy();
+  const page = limit === undefined ? policy.defaultPageSize : Number(limit);
+  if (!Number.isSafeInteger(page) || page <= 0 || page > policy.maxPageSize) {
+    throw err('VANTADB_INVALID_INPUT', 'limit must be a positive integer within policy');
+  }
+  const items = listJournalAcked(bound, { limit: page }).items;
+  return withMcpClient(cfg, timeoutMs, spawnImpl, async (client) => {
+    const distilled = [];
+    const failed = [];
+    for (const { event, evidence } of items) {
+      const scopeHash = projectionScopeHash(event);
+      const namespace = `${L1_NS_PREFIX}${scopeHash.slice(0, 16)}`;
+      const key = `sg-event-${event.eventId}`;
+      const record = {
+        id: event.eventId,
+        content: `Scopegrain ${event.operation} of ${event.sourceKind} `
+          + `record ${event.recordId} (op ${event.operationId}, `
+          + `seq ${event.journalSequence})`,
+        type: 'episodic',
+        priority: 50,
+        scene_name: '',
+        source_message_ids: [],
+        metadata: {
+          scopegrain: true,
+          eventId: event.eventId,
+          operationId: event.operationId,
+          recordId: event.recordId,
+          sourceKind: event.sourceKind,
+          sourceHash: event.sourceHash,
+          formalNamespace: evidence?.remoteNamespace
+            ?? `sg-formal-v1-${scopeHash}`,
+          formalKey: evidence?.remoteKey ?? event.eventId,
+        },
+        created_at: event.createdAt,
+        updated_at: event.createdAt,
+        version: 1,
+        session_key: L1_SESSION_KEY,
+        ...L1_ISOLATION,
+      };
+      try {
+        const put = await client.invoke({ name: 'memory_put',
+          arguments: { namespace, key, payload: JSON.stringify(record) } });
+        if (put?.isError) {
+          failed.push({ eventId: event.eventId, error: put });
+          continue;
+        }
+        const got = await client.invoke({ name: 'memory_get',
+          arguments: { namespace, key } });
+        if (got?.isError) {
+          failed.push({ eventId: event.eventId, error: got });
+          continue;
+        }
+        distilled.push({ eventId: event.eventId, namespace, key });
+      } catch (e) {
+        failed.push({ eventId: event.eventId,
+          error: { code: e.code ?? 'VANTADB_RPC_ERROR', message: e.message } });
+      }
+    }
+    return { distilled, failed, candidateEvents: items.length };
   });
 }
 

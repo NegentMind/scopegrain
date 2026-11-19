@@ -566,6 +566,46 @@ export function listJournalPending(bound, options = {}) {
   return { items, nextAfterSequence: hasMore ? items.at(-1).event.journalSequence : null };
 }
 
+// Acked enumeration: committed events whose remote acknowledgement exists.
+// Mirrors listJournalPending pagination; operations fully acked lose their
+// outbox index, so the scan walks operations/ directly instead of outbox/.
+export function listJournalAcked(bound, options = {}) {
+  const loc = location(bound);
+  const policy = loadJournalPolicy();
+  plain(options, ['afterSequence', 'limit'], [], 'INVALID_JOURNAL_INPUT', 'acked options');
+  const after = Object.hasOwn(options, 'afterSequence') ? options.afterSequence : 0;
+  const limit = Object.hasOwn(options, 'limit') ? options.limit : policy.defaultPageSize;
+  if (!Number.isSafeInteger(after) || after < 0
+      || !Number.isSafeInteger(limit) || limit <= 0 || limit > policy.maxPageSize) {
+    throw err('INVALID_JOURNAL_INPUT', 'invalid acked cursor or limit');
+  }
+  const ids = [];
+  for (const entry of directory(loc, sub(loc, 'operations'), policy.maxPendingOperations)) {
+    if (entry.isDirectory() && uuid(entry.name)) ids.push(entry.name);
+  }
+  ids.sort();
+  const next = [];
+  for (const operationId of ids) {
+    const loaded = operation(loc, operationId, policy);
+    if (loaded.state !== 'committed') continue;
+    for (const event of loaded.intent.events) {
+      if (event.journalSequence <= after) continue;
+      const ack = readAck(loc, operationId, event);
+      if (!ack) continue;
+      try {
+        authorizeEvent(bound, event);
+      } catch {
+        continue;
+      }
+      next.push({ operationId, event, evidence: ack.evidence });
+    }
+  }
+  next.sort((a, b) => a.event.journalSequence - b.event.journalSequence);
+  const hasMore = next.length > limit;
+  const items = next.slice(0, limit);
+  return { items, nextAfterSequence: hasMore ? items.at(-1).event.journalSequence : null };
+}
+
 export function ackJournalEvent(bound, operationId, eventId, evidence) {
   const loc = location(bound);
   const policy = loadJournalPolicy();

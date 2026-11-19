@@ -58,7 +58,7 @@ import { applyActivation, prepareActivation } from './hosts/activation.mjs';
 import { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool,
   defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary,
   getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig,
-  syncVantaDB, vantaDBContext, vantaDBStatus }
+  syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBStatus }
   from './integrations/vantadb-runtime.mjs';
 import {
   proposeFromInitAnswers, proposeFromJournal, reviewProposal,
@@ -170,6 +170,10 @@ const COMMANDS = {
     flags: ['--project', '--config', '--record-id', '--top-k', '--limit',
       '--timeout'], pos: 0,
     usage: 'vantadb context --project PATH --record-id ID [--top-k N] [--limit N] [--timeout MS]',
+  },
+  'vantadb distill': {
+    flags: ['--project', '--config', '--limit', '--timeout'], pos: 0,
+    usage: 'vantadb distill --project PATH [--limit N] [--timeout MS]',
   },
   'capture create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
@@ -1181,6 +1185,11 @@ async function cmdVantaDB(sub, positional, flags) {
       topK: flags['--top-k'] !== undefined ? Number(flags['--top-k']) : undefined,
       maxNamespaces: flags['--limit'] !== undefined
         ? Number(flags['--limit']) : undefined,
+      timeoutMs });
+  }
+  if (sub === 'distill') {
+    return vantaDBDistill({ bound, cfg: requireVantaDBConfig(ctx),
+      limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
       timeoutMs });
   }
   const cfg = requireVantaDBConfig(ctx);

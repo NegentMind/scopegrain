@@ -19,6 +19,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`vantadb context` verb** — record-level rehydration: enumerates
   `sg-formal-v1-*` namespaces and searches projected journal events
   for a record ID.
+- **`vantadb distill` verb** — curated L1 dual-write: one episodic
+  `MemoryRecord` (`l1/sg-<scopeHash>`) per remote-verified journal
+  event, making projected history visible to `memory_recall`
+  (`scope: agent`, verified end-to-end against vantadb-server 0.9.0).
 - **CLI `journal list`** — pending-ops listing with `--limit` and
   `--since-sequence` pagination.
 - **CI gates** — `verify.yml` now triggers on PRs to `develop` and

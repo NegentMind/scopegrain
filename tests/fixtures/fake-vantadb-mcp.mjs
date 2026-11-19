@@ -94,8 +94,30 @@ process.stdin.on('data', (chunk) => {
         continue;
       }
       if (name === 'memory_recall') {
-        const v = { prepend_context: 'ctx', recalled: [{ content: 'm', score: 0.9,
-          type: 'episodic' }], effective_mode: 'hybrid' };
+        // Mimic the real pool: l1/* namespaces, agent scope filters
+        // agent_id == 'default', session/team analogous.
+        const scope = args.scope ?? 'agent';
+        const recalled = [...store.entries()]
+          .map(([sk, v]) => [JSON.parse(sk), v])
+          .filter(([[ns]]) => ns.startsWith('l1/'))
+          .map(([[ns, key], payload]) => {
+            let rec;
+            try { rec = JSON.parse(payload); }
+            catch { rec = { content: payload, agent_id: null, team_id: null }; }
+            return { ns, key, rec };
+          })
+          .filter(({ rec }) => {
+            if (scope === 'agent') return rec.agent_id === 'default';
+            if (scope === 'team') return rec.team_id === 'default';
+            return true;
+          })
+          .filter(({ rec }) => !args.query
+            || String(rec.content).includes(args.query))
+          .map(({ rec }) => ({ content: rec.content, score: 0.9,
+            type: rec.type ?? 'episodic' }))
+          .slice(0, args.top_k ?? 5);
+        const v = { prepend_context: recalled.length ? 'ctx' : null,
+          recalled, effective_mode: 'keyword' };
         send({ jsonrpc: '2.0', id: m.id, result: {
           structuredContent: v,
           content: [{ type: 'text', text: JSON.stringify(v) }],

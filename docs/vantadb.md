@@ -61,7 +61,18 @@ scopegrain vantadb recall --project PATH --query TEXT [--scope session|agent|tea
 # Rehidratacion por record: busca su recordId en todos los
 # namespaces sg-formal-v1-* proyectados (una sesion stdio)
 scopegrain vantadb context --project PATH --record-id ID [--top-k N] [--limit N]
+
+# Dual-write L1: un MemoryRecord episodico curado por evento
+# remoto-verificado (acked) — hace los eventos visibles a memory_recall
+scopegrain vantadb distill --project PATH [--limit N] [--timeout MS]
 ```
+
+`distill` escribe en `l1/sg-<scopeHash>` (prefijo `l1/*` = pool de recall
+cross-session) un `MemoryRecord` valido (`type: episodic`,
+`agent_id/team_id: default`, `session_key: scopegrain`) con un resumen
+determinista por linea. Clave `sg-event-<eventId>` — re-ejecuciones son
+upserts idempotentes. La verdad formal sigue en `sg-formal-v1-*`; los
+registros L1 son derivados y su metadata apunta al registro formal.
 
 Los verbos de lectura (`get`/`list`/`search`/`recall`) son proxies acotados
 sobre el mismo canal stdio: auto-spawn del servidor, validacion de

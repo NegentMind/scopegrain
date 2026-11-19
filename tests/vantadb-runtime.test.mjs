@@ -12,7 +12,7 @@ import { bindWorkspace, prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
   DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, createStdioMcpClient,
   ensureVantaDBBinary, callVantaDBTool, getVantaDBRecord, loadVantaDBConfig, releaseAsset,
-  vantaDBContext,
+  vantaDBContext, vantaDBDistill,
   requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, targetTriple,
   vantaDBStatus,
 } from '../src/integrations/vantadb-runtime.mjs';
@@ -266,8 +266,9 @@ test('callVantaDBTool proxies search/list/recall over stdio and validates input'
     const recall = await callVantaDBTool({ cfg: c, name: 'memory_recall',
       arguments: { query: 'what changed', scope: 'agent', top_k: 5 },
       spawnImpl: fakeSpawn() });
-    assert.equal(recall.structuredContent.recalled.length, 1);
-    assert.equal(recall.structuredContent.effective_mode, 'hybrid');
+    // No l1/* records seeded: honest empty pool, keyword mode.
+    assert.equal(recall.structuredContent.recalled.length, 0);
+    assert.equal(recall.structuredContent.effective_mode, 'keyword');
 
     // Input bounds fail closed before any spawn.
     for (const [name, args, want] of [
@@ -320,6 +321,39 @@ test('vantaDBContext scans sg-formal namespaces for a record ID', async () => {
       vantaDBContext({ cfg: c, recordId: 'ok-record-id', topK: 999,
         spawnImpl: fakeSpawn() }),
       (e) => e.code === 'VANTADB_INVALID_INPUT');
+  } finally {
+    cleanup(f.dir);
+  }
+});
+
+test('vantaDBDistill writes curated L1 records recallable via memory_recall', async () => {
+  const f = fixture();
+  try {
+    const c = cfg(f.dir);
+    fs.writeFileSync(c.binaryPath, 'placeholder');
+    const sp = fakeSpawn();
+    // Seed a committed+projected journal event via the real drain path.
+    await applyJournaledCreation(f.bound, [change([f.a], 'rec-1')]);
+    const synced = await syncVantaDB({ ctx: f.ctx, bound: f.bound, cfg: c,
+      spawnImpl: fakeSpawn() });
+    assert.equal(synced.acknowledgedEventIds.length, 1);
+
+    const out = await vantaDBDistill({ bound: f.bound, cfg: c, spawnImpl: sp });
+    assert.equal(out.candidateEvents, 1);
+    assert.equal(out.failed.length, 0);
+    assert.equal(out.distilled.length, 1);
+    assert.match(out.distilled[0].namespace, /^l1\/sg-[0-9a-f]{16}$/);
+
+    // Re-run is idempotent (upsert by eventId key).
+    const again = await vantaDBDistill({ bound: f.bound, cfg: c, spawnImpl: sp });
+    assert.equal(again.distilled.length, 1);
+
+    // The recall pool sees it under agent scope (agent_id: 'default').
+    const recall = await callVantaDBTool({ cfg: c, name: 'memory_recall',
+      arguments: { query: 'rec-1', scope: 'agent', top_k: 5 },
+      spawnImpl: fakeSpawn() });
+    assert.equal(recall.structuredContent.recalled.length, 1);
+    assert.match(recall.structuredContent.recalled[0].content, /rec-1/);
   } finally {
     cleanup(f.dir);
   }

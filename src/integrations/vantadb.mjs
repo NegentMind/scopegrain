@@ -121,6 +121,16 @@ function scope(event) {
   };
 }
 
+// Public scope helpers: the runtime read/distill paths must derive the
+// identical namespaces the projector writes into.
+export function projectionScopeHash(event) {
+  return canonicalDigest(scope(event));
+}
+
+export function projectionEventNamespace(event) {
+  return `sg-formal-v1-${projectionScopeHash(event)}`;
+}
+
 function chunksFor(snapshot, event) {
   const decoded = snapshot.toString('utf8');
   const encoding = Buffer.from(decoded, 'utf8').equals(snapshot) ? 'utf8' : 'base64';

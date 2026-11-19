@@ -57,6 +57,7 @@ test('help lists exactly the authored vantadb usages', async () => {
   assert.ok(usages.includes('vantadb list --project PATH --namespace NS [--timeout MS]'));
   assert.ok(usages.includes('vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N] [--timeout MS]'));
   assert.ok(usages.includes('vantadb context --project PATH --record-id ID [--top-k N] [--limit N] [--timeout MS]'));
+  assert.ok(usages.includes('vantadb distill --project PATH [--limit N] [--timeout MS]'));
 });
 
 test('setup preview is read-only: no config, no storage dir, no writes', async () => {
@@ -135,6 +136,7 @@ test('sync and get without enrollment fail closed VANTADB_NOT_CONFIGURED', async
       ['list', '--namespace', 'n'],
       ['recall', '--query', 'q'],
       ['context', '--record-id', 'abc12345-def0'],
+      ['distill'],
     ]) {
       const r = await call(['vantadb', verb[0], '--project', f.dir,
         '--config', f.configRel, ...verb.slice(1)]);
