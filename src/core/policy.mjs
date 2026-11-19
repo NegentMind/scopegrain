@@ -54,8 +54,8 @@ export function knownActions() {
   return all;
 }
 
-function loadPolicyFile(name, label) {
-  const file = path.join(POLICY_DIR, name);
+function loadPolicyFile(name, label, dir = POLICY_DIR) {
+  const file = path.join(dir, name);
   let data;
   try {
     const limited = readFileLimited(file, LIMIT_BYTES);
@@ -85,8 +85,9 @@ function loadPolicyFile(name, label) {
 
 // Authored operation limits (policy/operation-limits.json): document size
 // bounds, plan/session caps and capability flags.
-export function loadLimits() {
-  const d = loadPolicyFile('operation-limits.json', 'operation limits');
+export function loadLimits(opts = {}) {
+  const d = loadPolicyFile('operation-limits.json', 'operation limits',
+    opts.policyDir ?? POLICY_DIR);
   for (const key of ['maxDocumentBytes', 'maxPlanTasks', 'maxSessionEvents']) {
     if (!Number.isInteger(d[key]) || d[key] <= 0) {
       throw err('POLICY_MALFORMED', `operation-limits.${key} must be a positive integer`);

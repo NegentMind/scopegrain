@@ -359,33 +359,39 @@ test('legacy classification rejects non-roundtrippable UTF-8 (LEGACY_MALFORMED)'
 
 // --- policy.mjs: loadPolicyFile (POLICY_MALFORMED) ---
 
-// loadPolicyFile reads from the fixed installation policy/ directory - the
-// only seam is a byte-exact backup + restore around each assertion.
-const LIMITS_PATH = fileURLToPath(
+// loadPolicyFile reads from a policy/ directory - the loadLimits({policyDir})
+// seam redirects it to a temp copy so tests never mutate the real
+// installation file (parallel test files race on the shared bytes).
+const REAL_LIMITS = fileURLToPath(
   new URL('../policy/operation-limits.json', import.meta.url));
 
+function limitsFixture() {
+  const dir = makeTempDir('ij8-limits');
+  const policyDir = path.join(dir, 'policy');
+  fs.mkdirSync(policyDir, { recursive: true });
+  const doc = JSON.parse(fs.readFileSync(REAL_LIMITS, 'utf8'));
+  return { dir, policyDir, doc };
+}
+
 test('loadPolicyFile rejects non-roundtrippable UTF-8 (POLICY_MALFORMED)', () => {
-  const original = fs.readFileSync(LIMITS_PATH);
-  const doc = JSON.parse(original.toString('utf8'));
+  const { dir, policyDir, doc } = limitsFixture();
   doc.note = `x${TOKEN}x`;
   try {
-    fs.writeFileSync(LIMITS_PATH, corruptJson(doc, [0xff]));
-    assert.throws(() => loadLimits(), (e) => e.code === 'POLICY_MALFORMED');
-  } finally {
-    fs.writeFileSync(LIMITS_PATH, original);
-  }
+    fs.writeFileSync(path.join(policyDir, 'operation-limits.json'),
+      corruptJson(doc, [0xff]));
+    assert.throws(() => loadLimits({ policyDir }),
+      (e) => e.code === 'POLICY_MALFORMED');
+  } finally { cleanup(dir); }
 });
 
 test('loadPolicyFile accepts literal U+FFFD in stored strings', () => {
-  const original = fs.readFileSync(LIMITS_PATH);
-  const doc = JSON.parse(original.toString('utf8'));
-  doc.note = 'x\ufffdx';
+  const { dir, policyDir, doc } = limitsFixture();
+  doc.note = 'x�x';
   try {
-    fs.writeFileSync(LIMITS_PATH, JSON.stringify(doc));
-    assert.equal(loadLimits().note, 'x\ufffdx');
-  } finally {
-    fs.writeFileSync(LIMITS_PATH, original);
-  }
+    fs.writeFileSync(path.join(policyDir, 'operation-limits.json'),
+      JSON.stringify(doc));
+    assert.equal(loadLimits({ policyDir }).note, 'x�x');
+  } finally { cleanup(dir); }
 });
 
 // --- doctor.mjs: stored-record readers (MALFORMED_JSON / JOURNAL_MALFORMED) ---

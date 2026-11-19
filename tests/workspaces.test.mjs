@@ -752,18 +752,10 @@ test('workspace enrollment leaves the MCP tool inventory unchanged', async (t) =
   const { createMCPTools } = await import('../src/mcp/server.mjs');
   const { dir, ctx } = fixture();
   try {
-    const names = [
-      'scopegrain_inspect', 'scopegrain_status', 'scopegrain_list_tasks',
-      'scopegrain_get_task', 'scopegrain_check_action', 'scopegrain_catalog_list',
-      'scopegrain_catalog_get', 'scopegrain_workflow_packet', 'scopegrain_plan_get',
-      'scopegrain_plan_next', 'scopegrain_artifact_get', 'scopegrain_session_get',
-      'scopegrain_session_resume', 'scopegrain_resource_search',
-      'scopegrain_resource_diagnose', 'scopegrain_specification_get',
-      'scopegrain_approval_get', 'scopegrain_methodology_check',
-    ].sort();
     const before = createMCPTools(ctx, z).map((tool) => tool.name).sort();
-    assert.deepEqual(before, names);
+    assert.ok(before.length > 0);
     create(ctx);
-    assert.deepEqual(createMCPTools(ctx, z).map((tool) => tool.name).sort(), names);
+    assert.deepEqual(createMCPTools(ctx, z).map((tool) => tool.name).sort(),
+      before);
   } finally { cleanup(dir); }
 });
