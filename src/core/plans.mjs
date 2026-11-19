@@ -32,14 +32,167 @@ import {
 } from './owned-chain.mjs';
 
 const KEY_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const TRIAGE_DECISIONS = new Set(['do', 'defer', 'skip', 'blocked']);
+const CYNEFIN_DOMAINS = new Set(
+  ['clear', 'complicated', 'complex', 'chaotic', 'confused']);
+const RISK_GRADES = new Set(['low', 'medium', 'high']);
+const APPETITES = new Set(['hours', 'day', 'days', 'weeks']);
+// Task V3 fields a plan task entry may forward to its task record.
+// 'dependsOn' is intentionally excluded: inside a plan it names plan
+// keys (the DAG), not task-record UUIDs.
+const TASK_V3_FORWARD = [
+  'backlog', 'priority', 'severity', 'type', 'effort', 'estimate',
+  'source', 'relations', 'goalIds', 'analysis', 'steps', 'notes',
+  'skills', 'uncertainty',
+];
+const PLAN_V3_KEYS = new Set([
+  'triage', 'appetite', 'cynefin', 'riskRegister', 'premortem',
+  'stopConditions', 'budget',
+]);
 const PLAN_INPUT_KEYS = new Set(
-  ['key', 'title', 'authorContext', 'tasks', 'specId', 'designId']);
+  ['key', 'title', 'authorContext', 'tasks', 'specId', 'designId',
+    ...PLAN_V3_KEYS]);
 const PLAN_TASK_KEYS = new Set(
-  ['key', 'title', 'contract', 'scope', 'dependsOn', 'scenarioRefs']);
+  ['key', 'title', 'contract', 'scope', 'dependsOn', 'scenarioRefs',
+    'triage', 'triageReason', ...TASK_V3_FORWARD]);
 const PLAN_KEYS = new Set([
   'schemaVersion', 'key', 'title', 'authorContext', 'inputDigest',
-  'tasks', 'createdAt', 'specId', 'designId',
+  'tasks', 'createdAt', 'specId', 'designId', ...PLAN_V3_KEYS,
 ]);
+
+function validateTriageEntry(value, label) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw err('INVALID_PLAN', `${label} must be an object`);
+  }
+  for (const k of Object.keys(value)) {
+    if (!['decision', 'reason'].includes(k)) {
+      throw err('UNKNOWN_KEY', `${label} received unknown key '${k}'`);
+    }
+  }
+  if (!TRIAGE_DECISIONS.has(value.decision)) {
+    throw err('INVALID_PLAN',
+      `${label}.decision must be do|defer|skip|blocked`);
+  }
+  if (value.reason !== undefined && value.reason !== null
+      && typeof value.reason !== 'string') {
+    throw err('INVALID_PLAN', `${label}.reason must be a string`);
+  }
+  return { decision: value.decision, reason: value.reason ?? null };
+}
+
+function validateRiskRegister(value, label) {
+  if (!Array.isArray(value)) {
+    throw err('INVALID_PLAN', `${label} must be an array`);
+  }
+  return value.map((r, i) => {
+    const rl = `${label}[${i}]`;
+    if (r === null || typeof r !== 'object' || Array.isArray(r)) {
+      throw err('INVALID_PLAN', `${rl} must be an object`);
+    }
+    for (const k of Object.keys(r)) {
+      if (!['risk', 'likelihood', 'impact', 'mitigation'].includes(k)) {
+        throw err('UNKNOWN_KEY', `${rl} received unknown key '${k}'`);
+      }
+    }
+    if (typeof r.risk !== 'string' || r.risk.trim() === '') {
+      throw err('INVALID_PLAN', `${rl}.risk must be a non-empty string`);
+    }
+    for (const g of ['likelihood', 'impact']) {
+      if (r[g] !== undefined && r[g] !== null && !RISK_GRADES.has(r[g])) {
+        throw err('INVALID_PLAN', `${rl}.${g} must be low|medium|high`);
+      }
+    }
+    if (r.mitigation !== undefined && r.mitigation !== null
+        && typeof r.mitigation !== 'string') {
+      throw err('INVALID_PLAN', `${rl}.mitigation must be a string`);
+    }
+    return {
+      risk: r.risk, likelihood: r.likelihood ?? null,
+      impact: r.impact ?? null, mitigation: r.mitigation ?? null,
+    };
+  });
+}
+
+function validateBudget(value, label) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw err('INVALID_PLAN', `${label} must be an object or null`);
+  }
+  for (const k of Object.keys(value)) {
+    if (!['turns', 'notes'].includes(k)) {
+      throw err('UNKNOWN_KEY', `${label} received unknown key '${k}'`);
+    }
+  }
+  if (value.turns !== undefined && value.turns !== null
+      && (!Number.isSafeInteger(value.turns) || value.turns < 0)) {
+    throw err('INVALID_PLAN', `${label}.turns must be an integer >= 0`);
+  }
+  if (value.notes !== undefined && value.notes !== null
+      && typeof value.notes !== 'string') {
+    throw err('INVALID_PLAN', `${label}.notes must be a string`);
+  }
+  return { turns: value.turns ?? null, notes: value.notes ?? null };
+}
+
+// Plan-level semantic layer (schemaVersion 3): the legacy plan file's
+// triage gate, appetite, Cynefin classification, risk register, pre-mortem,
+// stop conditions and budget — normalized identically at input and at
+// stored-shape validation.
+function normalizePlanV3(input, taskKeys, errorFn) {
+  const has = (k) => input[k] !== undefined;
+  const v3 = {};
+  if (has('triage')) {
+    if (input.triage !== null
+        && (typeof input.triage !== 'object' || Array.isArray(input.triage))) {
+      throw errorFn('triage must be an object map taskKey->{decision,reason}');
+    }
+    if (input.triage !== null) {
+      const clean = {};
+      for (const k of Object.keys(input.triage)) {
+        if (!taskKeys.has(k)) {
+          throw errorFn(`triage references unknown task key '${k}'`);
+        }
+        clean[k] = validateTriageEntry(input.triage[k], `triage['${k}']`);
+      }
+      v3.triage = clean;
+    } else v3.triage = null;
+  }
+  if (has('appetite')) {
+    if (input.appetite !== null && !APPETITES.has(input.appetite)) {
+      throw errorFn('appetite must be hours|day|days|weeks or null');
+    }
+    v3.appetite = input.appetite;
+  }
+  if (has('cynefin')) {
+    if (input.cynefin !== null && !CYNEFIN_DOMAINS.has(input.cynefin)) {
+      throw errorFn(
+        'cynefin must be clear|complicated|complex|chaotic|confused or null');
+    }
+    v3.cynefin = input.cynefin;
+  }
+  if (has('riskRegister')) {
+    v3.riskRegister = input.riskRegister === null ? null
+      : validateRiskRegister(input.riskRegister, 'riskRegister');
+  }
+  if (has('premortem')) {
+    if (input.premortem !== null && typeof input.premortem !== 'string') {
+      throw errorFn('premortem must be a string or null');
+    }
+    v3.premortem = input.premortem;
+  }
+  if (has('stopConditions')) {
+    if (input.stopConditions !== null
+        && (!Array.isArray(input.stopConditions)
+          || !input.stopConditions.every((s) => typeof s === 'string'))) {
+      throw errorFn('stopConditions must be an array of strings or null');
+    }
+    v3.stopConditions = input.stopConditions;
+  }
+  if (has('budget')) {
+    v3.budget = input.budget === null ? null
+      : validateBudget(input.budget, 'budget');
+  }
+  return Object.keys(v3).length ? v3 : null;
+}
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUUID = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -123,9 +276,22 @@ export function validatePlanInput(ctx, input) {
       throw err('METHODOLOGY_REQUIRED',
         `tasks[${i}].scenarioRefs requires plan specId+designId`);
     }
+    if (t.triage !== undefined && !TRIAGE_DECISIONS.has(t.triage)) {
+      throw err('INVALID_PLAN',
+        `tasks[${i}].triage must be do|defer|skip|blocked`);
+    }
+    if (t.triageReason !== undefined
+        && typeof t.triageReason !== 'string') {
+      throw err('INVALID_PLAN', `tasks[${i}].triageReason must be a string`);
+    }
+    const v3Forward = {};
+    for (const k of TASK_V3_FORWARD) {
+      if (t[k] !== undefined) v3Forward[k] = t[k];
+    }
     const clean = normalizeTaskInput(ctx, {
       title: t.title, contract: t.contract,
       authorContext, scope: t.scope === undefined ? [] : t.scope,
+      ...v3Forward,
       ...(hasPair ? {
         methodology: null, specId: input.specId, designId: input.designId,
         planKey: key, scenarioRefs: t.scenarioRefs,
@@ -136,9 +302,16 @@ export function validatePlanInput(ctx, input) {
       throw err('INVALID_PLAN', `tasks[${i}].dependsOn must be an array`);
     }
     const deps = dependsOn.map((d) => requireKey(d, `tasks[${i}].dependsOn`));
-    return { key: tkey, ...clean, dependsOn: deps };
+    return {
+      key: tkey, ...clean, dependsOn: deps,
+      ...(t.triage !== undefined || t.triageReason !== undefined
+        ? { triage: t.triage ?? null, triageReason: t.triageReason ?? null }
+        : {}),
+    };
   });
 
+  const v3 = normalizePlanV3(input, seen,
+    (msg) => err('INVALID_PLAN', `plan input: ${msg}`));
   validateDag(tasks.map((t) => ({ key: t.key, dependsOn: t.dependsOn })),
     'plan input', seen);
   // Formal coverage: union of task assignments must cover the whole spec —
@@ -158,7 +331,7 @@ export function validatePlanInput(ctx, input) {
       }
     }
   }
-  return { key, title, authorContext, tasks,
+  return { key, title, authorContext, tasks, v3,
     specId: spec?.id, designId: design?.id };
 }
 
@@ -217,7 +390,12 @@ export function preparePlan(ctx, input) {
     const id = crypto.randomUUID();
     const record = buildTaskRecord(t, { id, at, initial: policy.initial });
     validateTaskShape(record, `plan task '${t.key}'`);
-    tasks.push({ key: t.key, id, dependsOn: t.dependsOn });
+    tasks.push({
+      key: t.key, id, dependsOn: t.dependsOn,
+      ...(clean.v3
+        ? { triage: t.triage ?? null, triageReason: t.triageReason ?? null }
+        : {}),
+    });
     const rel = `${ctx.config.paths.tasks}/${id}.json`;
     files.push({
       rel,
@@ -226,15 +404,20 @@ export function preparePlan(ctx, input) {
     });
   }
   const plan = {
-    schemaVersion: clean.specId !== undefined ? 2 : 1,
+    schemaVersion: clean.v3 ? 3 : (clean.specId !== undefined ? 2 : 1),
     key: clean.key,
     title: clean.title,
     authorContext: clean.authorContext,
     inputDigest: planDigest(input),
     tasks,
     createdAt: at,
-    ...(clean.specId !== undefined
-      ? { specId: clean.specId, designId: clean.designId } : {}),
+    ...(clean.v3
+      ? {
+        specId: clean.specId ?? null, designId: clean.designId ?? null,
+        ...clean.v3,
+      }
+      : clean.specId !== undefined
+        ? { specId: clean.specId, designId: clean.designId } : {}),
   };
   validatePlanShape(plan, 'prepared plan');
   const planRel = `${ctx.config.paths.plans}/${clean.key}.json`;
@@ -259,11 +442,17 @@ export function validatePlanShape(plan, label = 'plan') {
   const iso = (v) => typeof v === 'string' && v !== ''
     && !Number.isNaN(Date.parse(v))
     && new Date(Date.parse(v)).toISOString() === v;
-  if ((plan.schemaVersion !== 1 && plan.schemaVersion !== 2)
+  if ((plan.schemaVersion !== 1 && plan.schemaVersion !== 2
+        && plan.schemaVersion !== 3)
       || (plan.schemaVersion === 2
         && (!isUUID(plan.specId) || !isUUID(plan.designId)))
       || (plan.schemaVersion === 1
         && (plan.specId !== undefined || plan.designId !== undefined))
+      || (plan.schemaVersion === 3
+        && (plan.specId === undefined || plan.designId === undefined
+          || (plan.specId !== null && !isUUID(plan.specId))
+          || (plan.designId !== null && !isUUID(plan.designId))
+          || (plan.specId === null) !== (plan.designId === null)))
       || typeof plan.title !== 'string' || plan.title.trim() === ''
       || typeof plan.authorContext !== 'string'
       || plan.authorContext.trim() === ''
@@ -279,13 +468,31 @@ export function validatePlanShape(plan, label = 'plan') {
   }
   const keys = new Set();
   const ids = new Set();
+  const taskEntryKeys = plan.schemaVersion === 3
+    ? ['key', 'id', 'dependsOn', 'triage', 'triageReason']
+    : ['key', 'id', 'dependsOn'];
   for (const [i, t] of plan.tasks.entries()) {
     if (t === null || typeof t !== 'object' || Array.isArray(t)) {
       throw err('PLAN_MALFORMED', `${label}.tasks[${i}] is not an object`);
     }
+    for (const k of taskEntryKeys) {
+      if (plan.schemaVersion === 3 && t[k] === undefined) {
+        throw err('PLAN_MALFORMED', `${label}.tasks[${i}] requires '${k}'`);
+      }
+    }
     for (const k of Object.keys(t)) {
-      if (!['key', 'id', 'dependsOn'].includes(k)) {
+      if (!taskEntryKeys.includes(k)) {
         throw err('PLAN_MALFORMED', `${label}.tasks[${i}] has unknown key '${k}'`);
+      }
+    }
+    if (plan.schemaVersion === 3) {
+      if (t.triage !== null && !TRIAGE_DECISIONS.has(t.triage)) {
+        throw err('PLAN_MALFORMED',
+          `${label}.tasks[${i}].triage must be do|defer|skip|blocked or null`);
+      }
+      if (t.triageReason !== null && typeof t.triageReason !== 'string') {
+        throw err('PLAN_MALFORMED',
+          `${label}.tasks[${i}].triageReason must be a string or null`);
       }
     }
     requireKey(t.key, `${label}.tasks[${i}].key`);
@@ -304,6 +511,26 @@ export function validatePlanShape(plan, label = 'plan') {
     if (!Array.isArray(t.dependsOn)
         || !t.dependsOn.every((d) => KEY_RE.test(d))) {
       throw err('PLAN_MALFORMED', `${label}.tasks[${i}].dependsOn invalid`);
+    }
+  }
+  if (plan.schemaVersion === 3) {
+    for (const k of PLAN_V3_KEYS) {
+      if (plan[k] === undefined) {
+        throw err('PLAN_MALFORMED', `${label} V3 requires '${k}'`);
+      }
+    }
+    // Same validators as input: triage map keys must be plan task keys.
+    try {
+      normalizePlanV3(plan, keys, (m) => { throw new Error(m); });
+    } catch (e) {
+      throw err('PLAN_MALFORMED', `${label}: ${e.message}`);
+    }
+  } else {
+    for (const k of PLAN_V3_KEYS) {
+      if (plan[k] !== undefined) {
+        throw err('PLAN_MALFORMED',
+          `${label} V${plan.schemaVersion} may not carry '${k}'`);
+      }
     }
   }
   // Stored records get the same DAG check as inputs: self, missing, cycles.
@@ -409,12 +636,15 @@ export function nextPlanTasks(ctx, key) {
     }
     let status;
     if (task.state === 'CLOSE') status = 'closed';
+    else if (t.triage && t.triage !== 'do') status = 'triaged';
     else if (task.state === 'PLAN' && unfinished.length === 0) status = 'ready';
     else if (task.state === 'PLAN') status = 'blocked';
     else status = 'active';
     return {
       key: t.key, id: task.id, state: task.state, status,
       blockedBy: unfinished,
+      ...(t.triage !== undefined
+        ? { triage: t.triage, triageReason: t.triageReason } : {}),
     };
   });
 }

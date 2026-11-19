@@ -33,6 +33,28 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `skills` | `[string]` or null | Capability names exercised. |
 | `uncertainty` | `{uphill: int, downhill: int}` or null | Known-unknown vs settled work split. |
 
+## Plan semantic layer (schemaVersion 3)
+
+Plan records may carry the legacy plan-file semantics. Any semantic key
+at `plan create` upgrades the stored plan to `schemaVersion: 3`;
+`specId`/`designId` become present-but-nullable (both null or both
+UUIDs). Every plan task entry may also carry `triage`
+(`do|defer|skip|blocked`) + `triageReason`, and any task semantic field
+except `dependsOn` (which inside a plan names plan keys, the DAG).
+
+| Field | Type | Meaning |
+|---|---|---|
+| `triage` | `{taskKey: {decision: do|defer|skip|blocked, reason?}}` or null | Per-item gate; keys must be plan task keys. |
+| `appetite` | `hours|day|days|weeks` or null | Shape-Up time budget. |
+| `cynefin` | `clear|complicated|complex|chaotic|confused` or null | Domain classification for approach selection. |
+| `riskRegister` | `[{risk, likelihood?, impact?, mitigation?}]` or null | likelihood/impact: `low|medium|high`. |
+| `premortem` | string or null | Recorded pre-mortem analysis. |
+| `stopConditions` | `[string]` or null | Conditions that halt execution. |
+| `budget` | `{turns?: int>=0, notes?: string}` or null | Turn ceiling + notes. |
+
+`plan next` is triage-aware: entries triaged `defer|skip|blocked` report
+status `triaged` instead of `ready`/`blocked`.
+
 ## Operational memory (`.tasksystem/memory/*.jsonl`)
 
 Bounded append-only JSONL logs; `memory add --log X --input FILE`,

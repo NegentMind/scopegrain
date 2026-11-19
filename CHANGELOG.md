@@ -24,6 +24,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   create|list|transition` and `metrics` (derived aggregates: state/
   backlog/priority/disposition counts, verification and first-try rates,
   close-time p50/p95/p99, per-skill outcome rates).
+- **Plan semantic layer (schemaVersion 3)** — legacy plan-file semantics
+  on `plan create`: per-task `triage` (`do|defer|skip|blocked` +
+  `triageReason`), plan-level `triage` map, `appetite`, `cynefin`,
+  `riskRegister`, `premortem`, `stopConditions` and `budget`. Plan task
+  entries forward the full task V3 field set (except `dependsOn`, which
+  stays the plan DAG) to the generated task records. `plan next` is
+  triage-aware: defer/skip/blocked report `triaged`, never `ready`.
 - **MCP wave-2 tools (23 → 32)** — `scopegrain_next_task` (priority- and
   dependency-aware selection with note-based `claimBy`),
   `scopegrain_task_meta`, `scopegrain_task_disposition`,
