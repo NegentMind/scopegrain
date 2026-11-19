@@ -25,8 +25,10 @@ import {
   StateBadge,
 } from '@/components/StatusBits';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
 
 export function TasksView() {
+  const t = useT();
   const [selected, setSelected] = useState<string | null>(null);
   const list = useApi(() => api.tasks());
   const detail = useApi<TaskDetail | null>(
@@ -43,24 +45,24 @@ export function TasksView() {
     <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <Card className="min-w-0">
         <CardHeader>
-          <CardTitle>Work items</CardTitle>
+          <CardTitle>{t('tasks.title')}</CardTitle>
           <CardDescription>
-            {tasks.length} task{tasks.length === 1 ? '' : 's'}
-            {list.data?.truncated ? ' (list truncated by API)' : ''}
+            {tasks.length} {t('tasks.count')}
+            {list.data?.truncated ? t('common.truncatedByApi') : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {tasks.length === 0 && malformed.length === 0 ? (
-            <EmptyBox>No tasks recorded yet.</EmptyBox>
+            <EmptyBox>{t('tasks.empty')}</EmptyBox>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-20">Id</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead className="hidden md:table-cell">Route</TableHead>
-                  <TableHead className="hidden md:table-cell">Updated</TableHead>
+                  <TableHead>{t('common.title')}</TableHead>
+                  <TableHead>{t('common.state')}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t('tasks.route')}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t('common.updated')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -106,8 +108,7 @@ export function TasksView() {
           {malformed.length > 0 ? (
             <div className="mt-4 space-y-1 text-xs">
               <p className="font-medium text-destructive">
-                {malformed.length} malformed entr
-                {malformed.length === 1 ? 'y' : 'ies'} (surfaced, not dropped)
+                {malformed.length} {t('common.malformedEntries')}
               </p>
               {malformed.map((m) => (
                 <p key={m.file} className="font-mono text-muted-foreground">
@@ -121,14 +122,14 @@ export function TasksView() {
 
       <Card className="min-w-0 self-start">
         <CardHeader>
-          <CardTitle>Task detail</CardTitle>
+          <CardTitle>{t('tasks.detail')}</CardTitle>
           <CardDescription>
-            {selected ? <ShortId id={selected} /> : 'Select a task'}
+            {selected ? <ShortId id={selected} /> : t('tasks.selectTask')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {!selected ? (
-            <EmptyBox>Select a task from the list.</EmptyBox>
+            <EmptyBox>{t('tasks.selectPrompt')}</EmptyBox>
           ) : detail.loading ? (
             <ListSkeleton rows={3} />
           ) : detail.error ? (
@@ -143,6 +144,7 @@ export function TasksView() {
 }
 
 function TaskDetailPanel({ task }: { task: TaskDetail }) {
+  const t = useT();
   return (
     <div className="space-y-4 text-sm">
       <div>
@@ -153,25 +155,25 @@ function TaskDetailPanel({ task }: { task: TaskDetail }) {
           <Badge variant="secondary">v{task.schemaVersion}</Badge>
         </div>
       </div>
-      <section aria-label="Contract">
+      <section aria-label={t('tasks.contract')}>
         <h4 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-          Contract
+          {t('tasks.contract')}
         </h4>
         <p className="whitespace-pre-wrap break-words">{task.contract}</p>
         {task.contractTruncated ? (
-          <p className="text-xs text-muted-foreground">(truncated by API)</p>
+          <p className="text-xs text-muted-foreground">{t('common.truncatedByApi')}</p>
         ) : null}
       </section>
-      <section aria-label="Author context">
+      <section aria-label={t('tasks.authorContext')}>
         <h4 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-          Author context
+          {t('tasks.authorContext')}
         </h4>
         <p className="whitespace-pre-wrap break-words">{task.authorContext}</p>
       </section>
       {task.scope.length > 0 ? (
-        <section aria-label="Scope">
+        <section aria-label={t('tasks.scope')}>
           <h4 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-            Scope
+            {t('tasks.scope')}
           </h4>
           <ul className="list-inside list-disc font-mono text-xs">
             {task.scope.map((s) => (
@@ -180,9 +182,9 @@ function TaskDetailPanel({ task }: { task: TaskDetail }) {
           </ul>
         </section>
       ) : null}
-      <section aria-label="History">
+      <section aria-label={t('tasks.history')}>
         <h4 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-          History
+          {t('tasks.history')}
         </h4>
         <ol className="space-y-1 border-l-2 border-border pl-3">
           {task.history.map((h, i) => (

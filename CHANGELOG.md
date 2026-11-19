@@ -7,6 +7,20 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Viewer surface: memory, goals, metrics, reports + i18n** — new
+  read-only API routes (`/api/memory`, `/api/goals`, `/api/metrics`,
+  `/api/reports`) expose the JSONL worklogs, goals, derived metrics and
+  persisted doctor reports. New React views consume them and the whole
+  viewer UI is localized ES/EN via `useT()` + locale toggle; project
+  `locale` seeds the UI language. Canonical agent resources stay English.
+- **Retroactive activity registration** — `activity record` (dry-run /
+  `--apply`, `--input` JSON) creates an ops task (`source:
+  activity:<kind>`) plus a `progress` worklog entry for work done outside
+  the task lifecycle; `taskId` links to an existing task instead. Gated
+  methodology modes get a declared assessment (actor-authorized, never a
+  fabricated approval). `hooks install|uninstall` manages an idempotent
+  `.git/hooks/post-commit` block that auto-records every out-of-loop
+  commit and never breaks the commit (always exits 0).
 - **Task semantic layer (schemaVersion 3)** — optional backlog/task-file
   fields orthogonal to the lifecycle: named `backlog`, `disposition`
   (deferred/icebox/future/discarded/cancelled, `active` clears),

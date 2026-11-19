@@ -25,8 +25,10 @@ import {
   ShortId,
 } from '@/components/StatusBits';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
 
 export function JournalView() {
+  const t = useT();
   const [selected, setSelected] = useState<string | null>(null);
   const list = useApi(() => api.journalOperations());
   const detail = useApi<JournalOperationDetail | null>(
@@ -46,21 +48,21 @@ export function JournalView() {
     <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <Card className="min-w-0">
         <CardHeader>
-          <CardTitle>Journal operations</CardTitle>
+          <CardTitle>{t('journal.operations')}</CardTitle>
           <CardDescription>
             Create-only record operations; committed / prepared / abandoned.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {ops.length === 0 && malformed.length === 0 ? (
-            <EmptyBox>No journal operations.</EmptyBox>
+            <EmptyBox>{t('journal.empty')}</EmptyBox>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-20">Op</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>Events</TableHead>
+                  <TableHead>{t('common.state')}</TableHead>
+                  <TableHead>{t('journal.events')}</TableHead>
                   <TableHead className="hidden md:table-cell">Kinds</TableHead>
                   <TableHead className="hidden md:table-cell">Created</TableHead>
                 </TableRow>
@@ -106,8 +108,7 @@ export function JournalView() {
           )}
           {malformed.length > 0 ? (
             <p className="mt-4 text-xs text-destructive">
-              {malformed.length} malformed journal entr
-              {malformed.length === 1 ? 'y' : 'ies'} surfaced.
+              {malformed.length} {t('common.malformedEntries')}
             </p>
           ) : null}
         </CardContent>
@@ -115,14 +116,14 @@ export function JournalView() {
 
       <Card className="min-w-0 self-start">
         <CardHeader>
-          <CardTitle>Operation events</CardTitle>
+          <CardTitle>{t('journal.opEvents')}</CardTitle>
           <CardDescription>
-            {selected ? <ShortId id={selected} /> : 'Select an operation'}
+            {selected ? <ShortId id={selected} /> : t('journal.selectOperation')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {!selected ? (
-            <EmptyBox>Select an operation from the list.</EmptyBox>
+            <EmptyBox>{t('journal.selectPromptFull')}</EmptyBox>
           ) : detail.loading ? (
             <ListSkeleton rows={3} />
           ) : detail.error ? (

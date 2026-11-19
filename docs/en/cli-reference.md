@@ -229,3 +229,29 @@ scopegrain report list --project PATH [--tail N]
 `save` runs the live doctor report and persists it create-only under
 `paths.reports` as `<ISO>-status.json`; `list` enumerates saved reports
 newest-first (default 50).
+
+### activity record
+
+```text
+scopegrain activity record --project PATH --input FILE [--apply]
+```
+
+Retroactively registers work done outside the task lifecycle: creates a
+`type: ops` task with `source: activity:<kind>` plus a `progress` log
+entry. With `taskId` it links the action to an existing task instead.
+Input: `{kind: action|commit|note, title, summary?, ref?, files?,
+taskId?, author?, methodology?}`. Under gated methodology modes it
+synthesizes a **declared** assessment (authorized by the actor - never a
+fabricated approval).
+
+### hooks install / hooks uninstall
+
+```text
+scopegrain hooks install --project PATH [--apply]
+scopegrain hooks uninstall --project PATH [--apply]
+```
+
+Installs/removes a managed block in `.git/hooks/post-commit` that calls
+`activity record` after every commit (auto-registration of out-of-loop
+commits). Idempotent, never rewrites user hook content and never breaks
+a commit (always exits 0).

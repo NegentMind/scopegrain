@@ -10,6 +10,12 @@ import { prepareInit, applyPlan, preflightPlan } from './core/bootstrap.mjs';
 import { runDoctor } from './core/doctor.mjs';
 import { inspectProject } from './discovery/inspect.mjs';
 import { createTask, getTask, listTasks, prepareTask } from './core/tasks.mjs';
+import {
+  normalizeActivityInput, recordActivity,
+} from './core/activity.mjs';
+import {
+  installHooks, planHooks, uninstallHooks,
+} from './core/hooks.mjs';
 import { transitionTask, updateTaskMeta, checkAction } from './core/transition.mjs';
 import {
   appendWorklog, readWorklog, listGoals, createGoal, transitionGoal,
@@ -260,6 +266,18 @@ const COMMANDS = {
   'report list': {
     flags: ['--project', '--config', '--tail'], pos: 0,
     usage: 'report list --project PATH [--tail N]',
+  },
+  'activity record': {
+    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
+    usage: 'activity record --project PATH --input FILE [--apply]',
+  },
+  'hooks install': {
+    flags: ['--project', '--config', '--apply'], pos: 0,
+    usage: 'hooks install --project PATH [--apply]',
+  },
+  'hooks uninstall': {
+    flags: ['--project', '--config', '--apply'], pos: 0,
+    usage: 'hooks uninstall --project PATH [--apply]',
   },
   'specification create': {
     flags: ['--project', '--config', '--input', '--apply', '--owned'], pos: 0,
@@ -1237,6 +1255,54 @@ function cmdMemory(sub, flags) {
   throw err('INVALID_ARGS', `unknown memory subcommand '${sub}'`);
 }
 
+// Retroactive activity registration: actions done outside the task loop
+// (direct commits, ad-hoc edits) are recorded as a task plus a progress
+// entry. --input carries the activity payload; without --apply it is a
+// dry-run echoing the normalized input.
+function cmdActivity(sub, flags) {
+  if (sub !== 'record') {
+    throw err('INVALID_ARGS', `unknown activity subcommand '${sub}'`);
+  }
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'),
+    config: flags['--config'],
+  });
+  const input = readInputFile(
+    requireFlag(flags, '--input'), 'activity input');
+  if (!flags['--apply']) {
+    return { mode: 'dry-run', activity: normalizeActivityInput(input) };
+  }
+  return { mode: 'applied', ...recordActivity(ctx, input) };
+}
+
+// Git hook management: `hooks install` appends a managed post-commit
+// block that auto-registers every commit via `activity record`; the
+// preview reports create/append/already-installed and writes nothing.
+function cmdHooks(sub, flags) {
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'),
+    config: flags['--config'],
+  });
+  if (sub === 'install') {
+    const binAbs = path.resolve(process.argv[1]);
+    if (!flags['--apply']) {
+      const plan = planHooks(ctx, { binAbs });
+      return { mode: 'dry-run', file: plan.file, state: plan.state };
+    }
+    return { mode: 'applied', ...installHooks(ctx, { binAbs }) };
+  }
+  if (sub === 'uninstall') {
+    if (!flags['--apply']) {
+      const plan = planHooks(ctx, {
+        binAbs: path.resolve(process.argv[1]),
+      });
+      return { mode: 'dry-run', file: plan.file, state: plan.state };
+    }
+    return { mode: 'applied', ...uninstallHooks(ctx) };
+  }
+  throw err('INVALID_ARGS', `unknown hooks subcommand '${sub}'`);
+}
+
 // Goals are the meta/objective layer: append-only entries in goals.jsonl,
 // latest per id wins; tasks link via task.goalIds.
 function cmdGoal(sub, positional, flags) {
@@ -1759,7 +1825,7 @@ export async function run(argv, io) {
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
       'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb',
-      'memory', 'goal', 'report']);
+      'memory', 'goal', 'report', 'activity', 'hooks']);
     let cmdKey;
     let spec;
     let aliasCommand = null;
@@ -1881,6 +1947,10 @@ export async function run(argv, io) {
       }));
     } else if (cmdKey.startsWith('report ')) {
       result = cmdReport(cmdKey.slice(7), flags);
+    } else if (cmdKey.startsWith('activity ')) {
+      result = cmdActivity(cmdKey.slice(9), flags);
+    } else if (cmdKey.startsWith('hooks ')) {
+      result = cmdHooks(cmdKey.slice(6), flags);
     } else if (cmdKey.startsWith('host ')) {
       result = cmdHost(flags);
     } else {

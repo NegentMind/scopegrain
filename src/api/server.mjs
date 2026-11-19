@@ -108,6 +108,16 @@ const ROUTES = [
     handler: (q, _url, p) => q.journalOperation(p.id) },
   { pattern: ['api', 'captures'], query: ['limit', 'offset'],
     handler: (q, url) => q.captures(parseListOptions(url)) },
+  { pattern: ['api', 'memory'], query: ['log', 'tail'],
+    handler: (q, url) => q.memory(url) },
+  { pattern: ['api', 'goals'], query: [],
+    handler: (q) => q.goals() },
+  { pattern: ['api', 'metrics'], query: [],
+    handler: (q) => q.metrics() },
+  { pattern: ['api', 'reports'], query: ['limit', 'offset'],
+    handler: (q, url) => q.reports(parseListOptions(url)) },
+  { pattern: ['api', 'reports', ':name'], query: [],
+    handler: (q, _url, p) => q.report(p.name) },
 ];
 
 function matchRoute(segments) {

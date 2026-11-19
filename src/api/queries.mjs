@@ -4,7 +4,13 @@
 // dynamic filesystem access outside the configured Scopegrain stores.
 import fs from 'node:fs';
 import { err, toErrorPayload } from '../core/errors.mjs';
-import { lstatOrNull, readDirBounded } from '../core/fsx.mjs';
+import {
+  decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited,
+} from '../core/fsx.mjs';
+import { loadLimits } from '../core/policy.mjs';
+import {
+  listGoals, readWorklog, taskMetrics,
+} from '../core/worklog.mjs';
 import { resolveInside } from '../core/paths.mjs';
 import { getTask, listTasks } from '../core/tasks.mjs';
 import { getPlan, listPlans, nextPlanTasks } from '../core/plans.mjs';
@@ -34,6 +40,9 @@ export const LIMITS = Object.freeze({
 });
 
 const TRUNCATED_MARKER = '\n[truncated by api]';
+
+const MEMORY_LOGS = new Set(['lessons', 'outcomes', 'progress', 'goals']);
+const REPORT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,120}-status\.json$/;
 
 function boundedInt(raw, fallback, { min, max, label }) {
   if (raw === null) return fallback;
@@ -504,8 +513,72 @@ export function createApiQueries(ctx) {
     return { captures: items, malformed, truncated };
   }
 
+  function memory(url) {
+    const log = url.searchParams.get('log');
+    if (log === null || !MEMORY_LOGS.has(log)) {
+      throw err('INVALID_QUERY',
+        `memory requires ?log= (${[...MEMORY_LOGS].join(', ')})`);
+    }
+    const tail = boundedInt(url.searchParams.get('tail'),
+      LIMITS.defaultListLimit, { min: 1, max: 1000, label: 'tail' });
+    const { entries, malformed } = readWorklog(ctx, log, { tail });
+    return { log, entries, malformed };
+  }
+
+  function goals() {
+    return listGoals(ctx);
+  }
+
+  function metrics() {
+    return taskMetrics(ctx);
+  }
+
+  const reportsDirAbs = () =>
+    resolveInside(ctx.projectRoot, ctx.config.paths.reports, 'paths.reports');
+
+  function reports({ limit, offset }) {
+    const out = { reports: [], malformed: [], truncated: false };
+    const dir = reportsDirAbs();
+    const st = lstatOrNull(dir);
+    if (!st) return out;
+    if (st.isSymbolicLink() || !st.isDirectory()) {
+      throw err('INVALID_PATH', 'reports path is not a real directory');
+    }
+    const scanned = readDirBounded(dir, LIMITS.dirScanCap);
+    out.truncated = scanned.truncated;
+    const names = scanned.entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith('-status.json'))
+      .map((entry) => entry.name)
+      .sort()
+      .reverse();
+    out.reports = names.slice(offset, offset + limit);
+    if (offset + out.reports.length < names.length) out.truncated = true;
+    return out;
+  }
+
+  function report(name) {
+    if (!REPORT_NAME_RE.test(name)) {
+      throw err('INVALID_VALUE',
+        'report name must match <stamp>-status.json');
+    }
+    const abs = resolveInside(reportsDirAbs(), name, 'report file');
+    const st = lstatOrNull(abs);
+    if (!st || st.isSymbolicLink() || !st.isFile()) {
+      throw err('NOT_FOUND', `report '${name}' not found`);
+    }
+    const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
+    if (limited.exceeded) {
+      throw err('DOCUMENT_TOO_LARGE', 'report exceeds document limit');
+    }
+    return {
+      name,
+      report: JSON.parse(decodeUtf8Strict(limited.content, 'report file')),
+    };
+  }
+
   return Object.freeze({
     health, workspace, tasks, task, plans, plan,
     artifacts, artifact, journalOperations, journalOperation, captures,
+    memory, goals, metrics, reports, report,
   });
 }

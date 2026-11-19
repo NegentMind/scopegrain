@@ -74,13 +74,19 @@ export function appendWorklog(ctx, name, fields) {
     entry = { taskId: fields.taskId, outcome: fields.outcome, skills: fields.skills };
   } else if (name === 'progress') {
     validateEntryFields(fields,
-      new Set(['taskId', 'title', 'result', 'summary', 'domain', 'ref']),
+      new Set(['taskId', 'title', 'result', 'summary', 'domain', 'ref',
+        'kind', 'files', 'author', 'linked']),
       'progress');
     if (!isUUID(fields.taskId)) {
       throw err('INVALID_ID', 'progress.taskId must be a task UUID');
     }
     if (typeof fields.title !== 'string' || fields.title.trim() === '') {
       throw err('INVALID_VALUE', 'progress.title must be a non-empty string');
+    }
+    if (fields.files !== undefined
+        && (!Array.isArray(fields.files)
+          || !fields.files.every((f) => typeof f === 'string' && f !== ''))) {
+      throw err('INVALID_VALUE', 'progress.files must be strings');
     }
     entry = {
       taskId: fields.taskId,
@@ -89,6 +95,10 @@ export function appendWorklog(ctx, name, fields) {
       summary: fields.summary ?? null,
       domain: fields.domain ?? null,
       ref: fields.ref ?? null,
+      kind: fields.kind ?? null,
+      files: fields.files ?? null,
+      author: fields.author ?? null,
+      linked: fields.linked ?? null,
     };
   } else if (name === 'goals') {
     validateEntryFields(fields,

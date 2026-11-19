@@ -34,6 +34,7 @@ import {
   ShortId,
 } from '@/components/StatusBits';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
 
 const CHAIN_KINDS: ArtifactKind[] = ['spec', 'design', 'report'];
 const OTHER_KINDS: ArtifactKind[] = [
@@ -46,6 +47,7 @@ const OTHER_KINDS: ArtifactKind[] = [
 const ALL_KINDS: ArtifactKind[] = [...CHAIN_KINDS, ...OTHER_KINDS];
 
 export function ArtifactsView() {
+  const t = useT();
   const [kind, setKind] = useState<ArtifactKind>('spec');
   const [selected, setSelected] = useState<string | null>(null);
   const list = useApi(() => api.artifacts(kind), [kind]);
@@ -88,8 +90,7 @@ export function ArtifactsView() {
             <CardHeader>
               <CardTitle className="font-mono">{kind}</CardTitle>
               <CardDescription>
-                {(list.data?.artifacts.length ?? 0)} artifact
-                {(list.data?.artifacts.length ?? 0) === 1 ? '' : 's'}
+                {(list.data?.artifacts.length ?? 0)} {t('artifacts.count')}
                 {kind === 'spec' || kind === 'design' || kind === 'report'
                   ? ' · chain: spec → design → report'
                   : ''}
@@ -97,17 +98,15 @@ export function ArtifactsView() {
             </CardHeader>
             <CardContent>
               {(list.data?.artifacts.length ?? 0) === 0 ? (
-                <EmptyBox>No {kind} artifacts.</EmptyBox>
+                <EmptyBox>{t('artifacts.empty')}</EmptyBox>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-20">Id</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Ver</TableHead>
-                      <TableHead className="hidden md:table-cell">
-                        Created
-                      </TableHead>
+                      <TableHead>{t('common.title')}</TableHead>
+                      <TableHead>{t('artifacts.view')}</TableHead>
+                      <TableHead className="hidden md:table-cell">{t('artifacts.created')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -147,14 +146,14 @@ export function ArtifactsView() {
 
           <Card className="min-w-0 self-start">
             <CardHeader>
-              <CardTitle>Artifact</CardTitle>
+              <CardTitle>{t('artifacts.detail')}</CardTitle>
               <CardDescription>
-                {selected ? <ShortId id={selected} /> : 'Select an artifact'}
+                {selected ? <ShortId id={selected} /> : t('artifacts.selectArtifact')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {!selected ? (
-                <EmptyBox>Select an artifact from the list.</EmptyBox>
+                <EmptyBox>{t('artifacts.selectPromptFull')}</EmptyBox>
               ) : detail.loading ? (
                 <ListSkeleton rows={3} />
               ) : detail.error ? (
@@ -171,6 +170,7 @@ export function ArtifactsView() {
 }
 
 function ArtifactPanel({ artifact }: { artifact: ArtifactSummary }) {
+  const t = useT();
   const data = artifact.data as Record<string, unknown> | null;
   return (
     <div className="space-y-4 text-sm">
@@ -182,20 +182,20 @@ function ArtifactPanel({ artifact }: { artifact: ArtifactSummary }) {
           v{artifact.schemaVersion}
         </Badge>
       </div>
-      <section aria-label="Body">
+      <section aria-label={t('artifacts.body')}>
         <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/50 p-3 text-xs">
           {artifact.body}
         </pre>
         {artifact.bodyTruncated ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            Body truncated by the API bounds.
+            {t('artifacts.bodyTruncated')}
           </p>
         ) : null}
       </section>
       {data && artifact.kind === 'design' ? (
-        <section aria-label="Spec binding" className="text-xs">
+        <section aria-label={t('artifacts.specBinding')} className="text-xs">
           <h4 className="mb-1 font-medium uppercase text-muted-foreground">
-            Spec binding
+            {t('artifacts.specBinding')}
           </h4>
           <p className="break-all font-mono">
             specId {String(data.specId ?? '—')}
@@ -206,9 +206,9 @@ function ArtifactPanel({ artifact }: { artifact: ArtifactSummary }) {
         </section>
       ) : null}
       {artifact.references.length > 0 ? (
-        <section aria-label="References">
+        <section aria-label={t('artifacts.references')}>
           <h4 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-            References
+            {t('artifacts.references')}
           </h4>
           <ul className="list-inside list-disc font-mono text-xs">
             {artifact.references.map((r) => (

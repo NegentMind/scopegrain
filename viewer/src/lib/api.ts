@@ -269,6 +269,69 @@ export interface CaptureList {
   truncated: boolean;
 }
 
+export type MemoryLogName = 'lessons' | 'outcomes' | 'progress' | 'goals';
+
+export interface MemoryLogResult {
+  log: MemoryLogName;
+  entries: Record<string, unknown>[];
+  malformed: { line: string }[];
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  description: string | null;
+  status: 'open' | 'achieved' | 'dropped';
+  horizon: string | null;
+  metrics: string | null;
+  [key: string]: unknown;
+}
+
+export interface GoalList {
+  goals: Goal[];
+  malformed: { line: string }[];
+}
+
+export interface Metrics {
+  schemaVersion: number;
+  tasks: {
+    total: number;
+    byState: Record<string, number>;
+    byBacklog: Record<string, number>;
+    byType: Record<string, number>;
+    byPriority: Record<string, number>;
+    byDisposition: Record<string, number>;
+  };
+  verification: {
+    checks: number;
+    passed: number;
+    passRate: number | null;
+    firstTryTotal: number;
+    firstTryPass: number;
+    firstTryRate: number | null;
+  };
+  durationMs: { p50: number | null; p95: number | null; p99: number | null };
+  skillOutcomes: Record<string, { ok: number; fail: number }>;
+  malformed: MalformedEntry[];
+}
+
+export interface ReportList {
+  reports: string[];
+  malformed: MalformedEntry[];
+  truncated: boolean;
+}
+
+export interface ReportDetail {
+  name: string;
+  report: {
+    schemaVersion: number;
+    status: string;
+    summary?: { ok: number; warnings: number; failures: number };
+    checks?: { name: string; ok: boolean; detail: string; severity?: string }[];
+    [key: string]: unknown;
+  };
+}
+
 async function request<T>(path: string): Promise<T> {
   const res = await fetch(path, { headers: { Accept: 'application/json' } });
   let body: unknown = null;
@@ -313,4 +376,13 @@ export const api = {
       `/api/journal/operations/${encodeURIComponent(id)}`),
   captures: (limit = 200) =>
     request<CaptureList>(`/api/captures?limit=${encodeURIComponent(limit)}`),
+  memory: (log: MemoryLogName, tail = 200) =>
+    request<MemoryLogResult>(
+      `/api/memory?log=${encodeURIComponent(log)}&tail=${encodeURIComponent(tail)}`),
+  goals: () => request<GoalList>('/api/goals'),
+  metrics: () => request<Metrics>('/api/metrics'),
+  reports: (limit = 200) =>
+    request<ReportList>(`/api/reports?limit=${encodeURIComponent(limit)}`),
+  report: (name: string) =>
+    request<ReportDetail>(`/api/reports/${encodeURIComponent(name)}`),
 };

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { CaptureStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
 
 const STATE_TONE: Record<string, string> = {
   PLAN: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30',
@@ -87,6 +88,7 @@ export function ErrorBox({
   error: { code?: string; message: string; status?: number };
   onRetry?: () => void;
 }) {
+  const t = useT();
   return (
     <div
       role="alert"
@@ -95,7 +97,7 @@ export function ErrorBox({
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
       <div className="min-w-0 flex-1">
         <p className="font-medium text-destructive">
-          {error.code ? `${error.code}` : 'Request failed'}
+          {error.code ? `${error.code}` : t('common.requestFailed')}
           {error.status ? ` (HTTP ${error.status})` : ''}
         </p>
         <p className="mt-1 break-words text-muted-foreground">{error.message}</p>
@@ -105,10 +107,10 @@ export function ErrorBox({
           variant="outline"
           size="sm"
           onClick={onRetry}
-          aria-label="Retry request"
+          aria-label={t('error.retryAria')}
         >
           <RefreshCw className="mr-1 h-3.5 w-3.5" />
-          Retry
+          {t('common.retry')}
         </Button>
       ) : null}
     </div>

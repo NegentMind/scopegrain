@@ -228,3 +228,29 @@ scopegrain report list --project PATH [--tail N]
 `save` ejecuta el doctor-report en vivo y lo persiste create-only en
 `paths.reports` como `<ISO>-status.json`; `list` enumera los reportes
 guardados, mas reciente primero (default 50).
+
+### activity record
+
+```text
+scopegrain activity record --project PATH --input FILE [--apply]
+```
+
+Registra retroactivamente trabajo hecho fuera del ciclo de tareas: crea
+una tarea `type: ops` con `source: activity:<kind>` y una entrada en el
+log `progress`. Con `taskId` enlaza la acción a una tarea existente.
+Input: `{kind: action|commit|note, title, summary?, ref?, files?,
+taskId?, author?, methodology?}`. Bajo modos metodológicos exigentes
+sintetiza una evaluación **declarada** (authorized por el actor, no una
+aprobación fabricada).
+
+### hooks install / hooks uninstall
+
+```text
+scopegrain hooks install --project PATH [--apply]
+scopegrain hooks uninstall --project PATH [--apply]
+```
+
+Instala/retira un bloque administrado en `.git/hooks/post-commit` que
+invoca `activity record` tras cada commit (auto-registro de commits
+fuera de tarea). Idempotente, nunca sobreescribe hooks de usuario y
+nunca rompe un commit (exit 0 siempre).

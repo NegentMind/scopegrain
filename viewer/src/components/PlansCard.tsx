@@ -8,6 +8,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
+import { useT } from '@/lib/i18n';
 import {
   EmptyBox,
   ErrorBox,
@@ -26,6 +27,7 @@ const READINESS_TONE: Record<string, string> = {
 };
 
 export function PlansCard() {
+  const t = useT();
   const { data, loading, error, reload } = useApi(() => api.plans());
 
   if (loading) return <ListSkeleton rows={2} />;
@@ -35,21 +37,19 @@ export function PlansCard() {
   return (
     <Card className="md:col-span-2">
       <CardHeader>
-        <CardTitle>Plans</CardTitle>
-        <CardDescription>
-          Dependency DAGs with readiness from current task state.
-        </CardDescription>
+        <CardTitle>{t('workspace.plans')}</CardTitle>
+        <CardDescription>{t('plans.description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {plans.length === 0 ? (
-          <EmptyBox>No plans recorded.</EmptyBox>
+          <EmptyBox>{t('plans.empty')}</EmptyBox>
         ) : (
           plans.map((p) => (
             <div key={p.key} className="rounded-lg border p-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono font-medium">{p.key}</span>
                 <span className="text-muted-foreground">{p.title}</span>
-                <Badge variant="secondary">{p.taskCount} tasks</Badge>
+                <Badge variant="secondary">{p.taskCount} {t('plans.tasks')}</Badge>
               </div>
               {p.readiness ? (
                 <ul className="mt-2 flex flex-wrap gap-2">
@@ -68,7 +68,7 @@ export function PlansCard() {
                       </Badge>
                       {r.blockedBy.length > 0 ? (
                         <span className="text-muted-foreground">
-                          blocked by {r.blockedBy.join(', ')}
+                          {t('plans.blockedBy')} {r.blockedBy.join(', ')}
                         </span>
                       ) : null}
                     </li>
@@ -76,7 +76,7 @@ export function PlansCard() {
                 </ul>
               ) : (
                 <p className="mt-2 text-xs text-destructive">
-                  readiness unavailable: {p.readinessError?.code}
+                  {t('plans.readinessUnavailable')} {p.readinessError?.code}
                 </p>
               )}
             </div>
