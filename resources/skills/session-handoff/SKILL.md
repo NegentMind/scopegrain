@@ -8,5 +8,8 @@ Read current task and plan records rather than relying on conversation.
 Report completed work, active work, blockers and the next safe action.
 Identify executed versus pending checks and any changed assumptions.
 Preserve useful partial work and mention unrelated changes.
+Distill durable learnings into the lessons log (`memory add --log lessons`)
+so the next session inherits them, and note any task-level claim or
+disposition changes through the meta verbs, not prose.
 Save a concise handoff in the configured harness workspace.
 Do not invent completion percentages or silently advance task states.

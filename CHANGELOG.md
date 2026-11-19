@@ -24,6 +24,15 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   create|list|transition` and `metrics` (derived aggregates: state/
   backlog/priority/disposition counts, verification and first-try rates,
   close-time p50/p95/p99, per-skill outcome rates).
+- **Capability feedback loop** — `select-capabilities` now consults the
+  `outcomes` log/`metrics` skill rates as a selection signal;
+  `contract-execution` records `outcome: ok|fail` + used skills at task
+  completion; `session-handoff` distills learnings into the `lessons`
+  log. This closes the legacy `skill-outcomes.json` producer/consumer
+  loop over the JSONL worklog.
+- **Persisted reports** — `report save` writes the live doctor snapshot
+  create-only under `paths.reports` (`<ISO>-status.json`); `report list`
+  enumerates saved reports newest-first.
 - **Plan semantic layer (schemaVersion 3)** — legacy plan-file semantics
   on `plan create`: per-task `triage` (`do|defer|skip|blocked` +
   `triageReason`), plan-level `triage` map, `appetite`, `cynefin`,

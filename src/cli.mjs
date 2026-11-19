@@ -5,7 +5,7 @@ import readline from 'node:readline/promises';
 import { err, toErrorPayload } from './core/errors.mjs';
 import { DEFAULT_PATH_PROPOSALS, KNOWN_HOSTS, PATH_KEYS, VERSIONING_KEYS, loadConfig, resolveConfigPath, validateMethodologyMode } from './core/config.mjs';
 import { resolveContext } from './core/context.mjs';
-import { resolveProjectRoot } from './core/paths.mjs';
+import { resolveInside, resolveProjectRoot } from './core/paths.mjs';
 import { prepareInit, applyPlan, preflightPlan } from './core/bootstrap.mjs';
 import { runDoctor } from './core/doctor.mjs';
 import { inspectProject } from './discovery/inspect.mjs';
@@ -15,7 +15,9 @@ import {
   appendWorklog, readWorklog, listGoals, createGoal, transitionGoal,
   taskMetrics,
 } from './core/worklog.mjs';
-import { decodeUtf8Strict, readFileLimited } from './core/fsx.mjs';
+import {
+  decodeUtf8Strict, mkdirpSync, readFileLimited, writeFileExclusive,
+} from './core/fsx.mjs';
 import fs from 'node:fs';
 import { loadLimits, loadMethodologyPolicy } from './core/policy.mjs';
 import { checkCatalog, getResource, legacyGet, legacyList, loadCatalog, loadWorkspaceCatalog } from './core/catalog.mjs';
@@ -250,6 +252,14 @@ const COMMANDS = {
   metrics: {
     flags: ['--project', '--config'], pos: 0,
     usage: 'metrics --project PATH',
+  },
+  'report save': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'report save --project PATH',
+  },
+  'report list': {
+    flags: ['--project', '--config', '--tail'], pos: 0,
+    usage: 'report list --project PATH [--tail N]',
   },
   'specification create': {
     flags: ['--project', '--config', '--input', '--apply', '--owned'], pos: 0,
@@ -1172,6 +1182,41 @@ function cmdCaptureProposals(project, flags) {
   };
 }
 
+// Persisted reports: `report save` snapshots the live doctor report
+// under paths.reports (create-only timestamped file); `report list`
+// enumerates them newest-first. The avance/reports store the legacy
+// system kept under docs/dev/reports.
+function cmdReport(sub, flags) {
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'),
+    config: flags['--config'],
+  });
+  const dir = resolveInside(
+    ctx.projectRoot, ctx.config.paths.reports, 'paths.reports');
+  if (sub === 'save') {
+    const report = runDoctor(ctx);
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const rel = `${ctx.config.paths.reports}/${stamp}-status.json`;
+    const abs = resolveInside(ctx.projectRoot, rel, 'report file');
+    mkdirpSync(path.dirname(abs));
+    writeFileExclusive(abs, JSON.stringify(report, null, 2) + '\n');
+    return { rel, status: report.status, summary: report.summary };
+  }
+  if (sub === 'list') {
+    const tail = flags['--tail'] !== undefined
+      ? decimalInt(flags['--tail'], '--tail') : 50;
+    let names = [];
+    try {
+      names = fs.readdirSync(dir)
+        .filter((n) => n.endsWith('.json')).sort().reverse();
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
+    return { reports: names.slice(0, Math.min(tail, 1000)) };
+  }
+  throw err('INVALID_ARGS', `unknown report subcommand '${sub}'`);
+}
+
 // Append-only operational memory: lessons, skill outcomes and the
 // progress archive live as bounded JSONL under paths.memory.
 function cmdMemory(sub, flags) {
@@ -1714,7 +1759,7 @@ export async function run(argv, io) {
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
       'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb',
-      'memory', 'goal']);
+      'memory', 'goal', 'report']);
     let cmdKey;
     let spec;
     let aliasCommand = null;
@@ -1834,6 +1879,8 @@ export async function run(argv, io) {
         project: requireFlag(flags, '--project'),
         config: flags['--config'],
       }));
+    } else if (cmdKey.startsWith('report ')) {
+      result = cmdReport(cmdKey.slice(7), flags);
     } else if (cmdKey.startsWith('host ')) {
       result = cmdHost(flags);
     } else {

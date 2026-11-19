@@ -217,3 +217,14 @@ UUID; `transition` re-anexa la entrada actual con el nuevo estado.
 Agregados derivados al leer (nada precomputado al escribir): conteos por
 estado/backlog/tipo/prioridad/disposicion, tasas de verificacion y
 first-try, duraciones de cierre p50/p95/p99 y tasas ok/fail por skill.
+
+### report save / report list
+
+```text
+scopegrain report save --project PATH
+scopegrain report list --project PATH [--tail N]
+```
+
+`save` ejecuta el doctor-report en vivo y lo persiste create-only en
+`paths.reports` como `<ISO>-status.json`; `list` enumera los reportes
+guardados, mas reciente primero (default 50).

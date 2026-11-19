@@ -218,3 +218,14 @@ records in `goals.jsonl`; latest entry per `id` wins. Tasks link via
 Aggregates derived on read (nothing precomputed on write): counts by
 state/backlog/type/priority/disposition, verification and first-try
 rates, close-time p50/p95/p99 and per-skill ok/fail rates.
+
+### report save / report list
+
+```text
+scopegrain report save --project PATH
+scopegrain report list --project PATH [--tail N]
+```
+
+`save` runs the live doctor report and persists it create-only under
+`paths.reports` as `<ISO>-status.json`; `list` enumerates saved reports
+newest-first (default 50).
