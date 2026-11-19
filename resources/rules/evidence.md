@@ -7,3 +7,5 @@
 - Static inspection cannot establish all runtime or population properties.
 - A stale passing result does not prove a changed implementation.
 - Report missing, corrupted or unavailable evidence instead of suppressing it.
+- Test doubles and fixtures must mirror the real contract shape; a suite
+  that passes against a drifting double is not evidence of behavior.
