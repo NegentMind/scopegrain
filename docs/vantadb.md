@@ -77,6 +77,10 @@ scopegrain vantadb context --project PATH --record-id ID [--top-k N] [--limit N]
 # Dual-write L1: un MemoryRecord episodico curado por evento
 # remoto-verificado (acked) — hace los eventos visibles a memory_recall
 scopegrain vantadb distill --project PATH [--limit N] [--timeout MS]
+
+# Worklogs operativos (lessons/outcomes/progress/goals de paths.memory)
+# como MemoryRecords L1 — clave por digest del contenido (idempotente)
+scopegrain vantadb sync-memory --project PATH [--limit N] [--timeout MS]
 ```
 
 `distill` escribe en `l1/sg-<scopeHash>` (prefijo `l1/*` = pool de recall
@@ -85,6 +89,15 @@ cross-session) un `MemoryRecord` valido (`type: episodic`,
 determinista por linea. Clave `sg-event-<eventId>` — re-ejecuciones son
 upserts idempotentes. La verdad formal sigue en `sg-formal-v1-*`; los
 registros L1 son derivados y su metadata apunta al registro formal.
+
+`sync-memory` proyecta los worklogs operativos locales
+(`.tasksystem/memory/{lessons,outcomes,progress,goals}.jsonl` — el almacen
+autoritativo, sin cambios) al mismo namespace `l1/sg-<scopeHash>` del
+proyecto, clave `sg-worklog-<log>-<digest16>` derivada del contenido:
+entradas sin cambios se reportan como `skipped` y las re-ejecuciones no
+generan duplicados. Cada registro lleva `metadata.record_type:
+'sg-worklog'` (filtrable por `memory_list.filters`), `log`, `entryDigest`,
+`taskId` y `kind`, y la entrada completa en el payload.
 
 Los verbos de lectura (`get`/`list`/`search`/`recall`) son proxies acotados
 sobre el mismo canal stdio: auto-spawn del servidor, validacion de

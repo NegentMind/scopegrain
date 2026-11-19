@@ -7,6 +7,31 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Viewer: operational surfaces + visualizations** — new read-only API
+  routes (`/api/sessions`, `/api/approvals`, `/api/catalog`,
+  `/api/verify`, `/api/vantadb`, `/api/workflow`) expose session records,
+  the HITL approval queue, the resource catalog, verified commands,
+  backend status and the C0 workflow policy. New views: Sessions,
+  Approvals, Catalog, System, Graph; task summaries now carry semantic V3
+  fields (priority, backlog, disposition, type, dependsOn, relations,
+  goalIds, steps, uncertainty) with list filters, badges and a detail
+  panel that renders all V3 sections with cross-links. `viz.tsx` renders
+  the lifecycle funnel (live counts per state) and a layered dependency
+  DAG in pure SVG; `usePoll` gives data views auto-refresh.
+
+- **Worklog → VantaDB projection** — `vantadb sync-memory` upserts the
+  local operational logs (lessons/outcomes/progress/goals, still the
+  authoritative store) as L1 `MemoryRecord`s under the project-scope
+  `l1/sg-*` namespace, keyed by content digest (`sg-worklog-<log>-<h16>`)
+  so re-runs report `skipped` and produce no duplicates. Each record
+  carries `metadata.record_type: 'sg-worklog'` plus `log`, `entryDigest`,
+  `taskId`, `kind` and the full entry payload.
+
+- **Rule: subprocess environment isolation** — `mcp-integration` now
+  requires spawned MCP servers to pin or strip the target server's
+  profile/injection/taint/budget variables explicitly instead of
+  inheriting the ambient environment (C1-class defect).
+
 - **VantaDB integration hardening (audit-driven)** — spawn environment is
   now controlled: `VANTADB_MCP_PROFILE` pinned to `brain` (restricted
   profiles reject dispatch-only tools), injection ACL scoped to `l1/`,

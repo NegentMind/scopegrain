@@ -77,6 +77,10 @@ scopegrain vantadb context --project PATH --record-id ID [--top-k N] [--limit N]
 # L1 dual-write: one curated episodic MemoryRecord per remote-verified
 # (acked) journal event — makes events visible to memory_recall
 scopegrain vantadb distill --project PATH [--limit N] [--timeout MS]
+
+# Operational worklogs (paths.memory lessons/outcomes/progress/goals)
+# as L1 MemoryRecords — content-digest keys (idempotent)
+scopegrain vantadb sync-memory --project PATH [--limit N] [--timeout MS]
 ```
 
 `distill` writes a valid `MemoryRecord` (`type: episodic`,
@@ -85,6 +89,15 @@ scopegrain vantadb distill --project PATH [--limit N] [--timeout MS]
 deterministic one-line summary. Key `sg-event-<eventId>` — re-runs are
 idempotent upserts. The formal truth stays in `sg-formal-v1-*`; L1
 records are derived and their metadata points back to the formal record.
+
+`sync-memory` projects the local operational worklogs
+(`.tasksystem/memory/{lessons,outcomes,progress,goals}.jsonl` — the
+authoritative store, unchanged) into the same project-scope
+`l1/sg-<scopeHash>` namespace, keyed `sg-worklog-<log>-<digest16>` from the
+entry content: unchanged entries report `skipped` and re-runs produce no
+duplicates. Each record carries `metadata.record_type: 'sg-worklog'`
+(filterable via `memory_list.filters`), `log`, `entryDigest`, `taskId` and
+`kind`, plus the full entry in the payload.
 
 The read verbs (`get`/`list`/`search`/`recall`) are bounded proxies over the
 same stdio channel: server auto-spawn, argument validation before config

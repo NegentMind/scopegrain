@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react';
 import {
   Activity,
+  BookMarked,
   Camera,
   FileText,
   Flag,
   Gauge,
+  Handshake,
   LayoutDashboard,
   ListTodo,
+  MonitorCog,
   Newspaper,
   ScrollText,
+  Share2,
+  Timer,
   Brain,
 } from 'lucide-react';
 import {
@@ -20,13 +25,18 @@ import {
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { adoptProjectLocale, setLocale, useLocale, useT } from '@/lib/i18n';
+import { ApprovalsView } from '@/views/ApprovalsView';
 import { ArtifactsView } from '@/views/ArtifactsView';
 import { CapturesView } from '@/views/CapturesView';
+import { CatalogView } from '@/views/CatalogView';
 import { GoalsView } from '@/views/GoalsView';
+import { GraphView } from '@/views/GraphView';
 import { JournalView } from '@/views/JournalView';
 import { MemoryView } from '@/views/MemoryView';
 import { MetricsView } from '@/views/MetricsView';
 import { ReportsView } from '@/views/ReportsView';
+import { SessionsView } from '@/views/SessionsView';
+import { SystemView } from '@/views/SystemView';
 import { TasksView } from '@/views/TasksView';
 import { WorkspaceView } from '@/views/WorkspaceView';
 import { cn } from '@/lib/utils';
@@ -34,13 +44,18 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { value: 'workspace', labelKey: 'nav.workspace', icon: LayoutDashboard },
   { value: 'tasks', labelKey: 'nav.tasks', icon: ListTodo },
+  { value: 'graph', labelKey: 'nav.graph', icon: Share2 },
   { value: 'journal', labelKey: 'nav.journal', icon: ScrollText },
   { value: 'artifacts', labelKey: 'nav.artifacts', icon: FileText },
   { value: 'captures', labelKey: 'nav.captures', icon: Camera },
   { value: 'memory', labelKey: 'nav.memory', icon: Brain },
   { value: 'goals', labelKey: 'nav.goals', icon: Flag },
+  { value: 'sessions', labelKey: 'nav.sessions', icon: Timer },
+  { value: 'approvals', labelKey: 'nav.approvals', icon: Handshake },
+  { value: 'catalog', labelKey: 'nav.catalog', icon: BookMarked },
   { value: 'metrics', labelKey: 'nav.metrics', icon: Gauge },
   { value: 'reports', labelKey: 'nav.reports', icon: Newspaper },
+  { value: 'system', labelKey: 'nav.system', icon: MonitorCog },
 ] as const;
 
 type NavValue = (typeof NAV)[number]['value'];
@@ -150,6 +165,9 @@ export default function App() {
           <TabsContent value="tasks">
             <TasksView />
           </TabsContent>
+          <TabsContent value="graph">
+            <GraphView />
+          </TabsContent>
           <TabsContent value="journal">
             <JournalView />
           </TabsContent>
@@ -165,11 +183,23 @@ export default function App() {
           <TabsContent value="goals">
             <GoalsView />
           </TabsContent>
+          <TabsContent value="sessions">
+            <SessionsView />
+          </TabsContent>
+          <TabsContent value="approvals">
+            <ApprovalsView />
+          </TabsContent>
+          <TabsContent value="catalog">
+            <CatalogView />
+          </TabsContent>
           <TabsContent value="metrics">
             <MetricsView />
           </TabsContent>
           <TabsContent value="reports">
             <ReportsView />
+          </TabsContent>
+          <TabsContent value="system">
+            <SystemView />
           </TabsContent>
         </Tabs>
       </main>

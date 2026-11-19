@@ -19,6 +19,12 @@ import { getJournalOperation } from '../core/journal.mjs';
 import { bindWorkspace, getWorkspace } from '../core/workspaces.mjs';
 import { createCaptureStore } from '../core/captures.mjs';
 import { classifyWork } from '../core/methodology-data.mjs';
+import { getSession, sessionsDirAbs } from '../core/sessions.mjs';
+import { getApproval } from '../core/approvals.mjs';
+import { loadWorkspaceCatalog } from '../core/catalog.mjs';
+import { listVerifyCommands } from '../core/verify-commands.mjs';
+import { loadPolicy } from '../core/policy.mjs';
+import { vantaDBStatus } from '../integrations/vantadb-runtime.mjs';
 
 export const ARTIFACT_KINDS = Object.freeze(
   ['spec', 'design', 'report', 'research', 'decision', 'lesson',
@@ -85,7 +91,7 @@ function truncateString(value, max, label) {
 // Lists `<dirAbs>` JSON documents boundedly, reading each through `read`.
 // Mirrors listTasks/listArtifacts semantics: malformed entries surface,
 // non-UUID stems are malformed, symlinks/non-files are skipped.
-function listStoreDir(dirAbs, read, limit, offset) {
+function listStoreDir(dirAbs, read, limit, offset, idPattern = UUID_RE) {
   const out = { items: [], malformed: [], truncated: false };
   const st = lstatOrNull(dirAbs);
   if (!st) return out;
@@ -102,10 +108,10 @@ function listStoreDir(dirAbs, read, limit, offset) {
   let collected = 0;
   for (const name of names) {
     const stem = name.slice(0, -'.json'.length);
-    if (!UUID_RE.test(stem)) {
+    if (!idPattern.test(stem)) {
       out.malformed.push({
         file: name,
-        error: { code: 'MALFORMED_NAME', message: 'filename is not a UUID' },
+        error: { code: 'MALFORMED_NAME', message: 'filename is not a valid id' },
       });
       continue;
     }
@@ -201,6 +207,20 @@ function taskSummary(task) {
     reviewVerdict: task.review?.verdict ?? null,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
+    // V3 semantic layer (null/absent on V1/V2 records).
+    backlog: task.backlog ?? null,
+    disposition: task.disposition ?? null,
+    priority: task.priority ?? null,
+    type: task.type ?? null,
+    effort: task.effort ?? null,
+    source: task.source ?? null,
+    dependsOn: Array.isArray(task.dependsOn) ? task.dependsOn : [],
+    relations: task.relations ?? {},
+    goalIds: Array.isArray(task.goalIds) ? task.goalIds : [],
+    stepsTotal: Array.isArray(task.steps) ? task.steps.length : 0,
+    stepsDone: Array.isArray(task.steps)
+      ? task.steps.filter((s) => s.status === 'done').length : 0,
+    uncertainty: task.uncertainty ?? null,
   };
 }
 
@@ -576,9 +596,100 @@ export function createApiQueries(ctx) {
     };
   }
 
+  const approvalsDirAbs = () =>
+    resolveInside(ctx.projectRoot,
+      `${ctx.config.paths.decisions}/approvals`, 'approvals');
+
+  const SHA_RE = /^[0-9a-f]{64}$/;
+
+  function sessions({ limit, offset }) {
+    const { items, malformed, truncated } = listStoreDir(
+      sessionsDirAbs(ctx),
+      (id) => {
+        const s = getSession(ctx, id);
+        return {
+          id: s.id, taskId: s.taskId, limit: s.limit, used: s.used,
+          revision: s.revision, createdAt: s.createdAt,
+          updatedAt: s.updatedAt, events: s.events.length,
+        };
+      }, limit, offset);
+    return { sessions: items, malformed, truncated };
+  }
+
+  function session(id) {
+    return { session: getSession(ctx, requireUuid(id, 'session id')) };
+  }
+
+  function approvals({ limit, offset }) {
+    const { items, malformed, truncated } = listStoreDir(
+      approvalsDirAbs(),
+      (id) => {
+        const a = getApproval(ctx, id);
+        return {
+          id: a.id, status: a.status,
+          target: a.target,
+          specId: a.specId ?? null,
+          createdAt: a.createdAt, updatedAt: a.updatedAt,
+          answers: Array.isArray(a.answers) ? a.answers.length : 0,
+        };
+      }, limit, offset, SHA_RE);
+    return { approvals: items, malformed, truncated };
+  }
+
+  function approval(id) {
+    if (!SHA_RE.test(id)) {
+      throw err('INVALID_ID', 'approval id must be a sha256 digest');
+    }
+    return { approval: getApproval(ctx, id) };
+  }
+
+  function catalog() {
+    const c = loadWorkspaceCatalog(ctx);
+    const byKind = {};
+    for (const e of c.entries ?? []) {
+      const list = byKind[e.kind] ?? (byKind[e.kind] = []);
+      if (list.length < LIMITS.maxListLimit) {
+        const desc = truncateString(e.description ?? '', LIMITS.maxFieldChars);
+        list.push({ id: e.id, description: desc.value, path: e.path ?? null });
+      }
+    }
+    const counts = Object.fromEntries(
+      Object.entries(byKind).map(([k, v]) => [k, v.length]));
+    return { catalog: { counts, entries: byKind,
+      aliases: c.aliases ?? {} } };
+  }
+
+  function verifyCommands() {
+    const { store, commands } = listVerifyCommands(ctx);
+    const page = commands.slice(0, LIMITS.maxListLimit);
+    return { store, commands: page,
+      truncated: commands.length > page.length };
+  }
+
+  function vantadb() {
+    let boundNow = null;
+    let pendingCommittedEvents = null;
+    try {
+      boundNow = boundOrThrow();
+    } catch { /* unenrolled workspace: status still reports config */ }
+    try {
+      const status = vantaDBStatus({ ctx, bound: boundNow });
+      return { vantadb: status };
+    } catch (e) {
+      return { vantadb: { configured: false,
+        error: toErrorPayload(e) } };
+    }
+  }
+
+  function workflow() {
+    return { workflow: loadPolicy() };
+  }
+
   return Object.freeze({
     health, workspace, tasks, task, plans, plan,
     artifacts, artifact, journalOperations, journalOperation, captures,
     memory, goals, metrics, reports, report,
+    sessions, session, approvals, approval, catalog, verifyCommands,
+    vantadb, workflow,
   });
 }

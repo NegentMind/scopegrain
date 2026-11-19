@@ -71,7 +71,7 @@ import { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool,
   defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary,
   getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig,
   syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBProbe,
-  vantaDBReinforce, vantaDBStatus }
+  vantaDBReinforce, vantaDBStatus, vantaDBSyncWorklogs }
   from './integrations/vantadb-runtime.mjs';
 import {
   proposeFromInitAnswers, proposeFromJournal, reviewProposal,
@@ -195,6 +195,10 @@ const COMMANDS = {
   'vantadb distill': {
     flags: ['--project', '--config', '--limit', '--timeout'], pos: 0,
     usage: 'vantadb distill --project PATH [--limit N] [--timeout MS]',
+  },
+  'vantadb sync-memory': {
+    flags: ['--project', '--config', '--limit', '--timeout'], pos: 0,
+    usage: 'vantadb sync-memory --project PATH [--limit N] [--timeout MS]',
   },
   'capture create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
@@ -1513,6 +1517,12 @@ async function cmdVantaDB(sub, positional, flags) {
   }
   if (sub === 'distill') {
     return vantaDBDistill({ bound, cfg: requireVantaDBConfig(ctx),
+      limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
+      timeoutMs });
+  }
+  if (sub === 'sync-memory') {
+    return vantaDBSyncWorklogs({ ctx, bound,
+      cfg: requireVantaDBConfig(ctx),
       limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
       timeoutMs });
   }

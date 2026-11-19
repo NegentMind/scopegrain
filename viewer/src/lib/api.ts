@@ -78,6 +78,18 @@ export interface TaskSummary {
   reviewVerdict: string | null;
   createdAt: string;
   updatedAt: string;
+  backlog: string | null;
+  disposition: string | null;
+  priority: string | null;
+  type: string | null;
+  effort: string | null;
+  source: string | null;
+  dependsOn: string[];
+  relations: Record<string, string[]>;
+  goalIds: string[];
+  stepsTotal: number;
+  stepsDone: number;
+  uncertainty: string | null;
 }
 
 export interface TaskHistoryEntry {
@@ -110,6 +122,26 @@ export interface TaskDetail {
   designId?: string | null;
   planKey?: string | null;
   scenarioRefs?: { requirementId: string; scenarioId: string }[];
+  backlog?: string | null;
+  disposition?: string | null;
+  priority?: string | null;
+  severity?: string | null;
+  type?: string | null;
+  effort?: string | null;
+  estimate?: { turns?: number; appetite?: string } | null;
+  source?: string | null;
+  dependsOn?: string[];
+  relations?: Record<string, string[]>;
+  goalIds?: string[];
+  analysis?: {
+    blastRadius?: string; impact?: string; invariants?: string[];
+    debt?: string; debugEvidence?: string; security?: string;
+    performance?: string; [k: string]: unknown;
+  } | null;
+  steps?: { text: string; status: string }[];
+  notes?: { text: string; at?: string; by?: string }[];
+  skills?: string[];
+  uncertainty?: string | null;
 }
 
 export interface TaskList {
@@ -385,4 +417,80 @@ export const api = {
     request<ReportList>(`/api/reports?limit=${encodeURIComponent(limit)}`),
   report: (name: string) =>
     request<ReportDetail>(`/api/reports/${encodeURIComponent(name)}`),
+  sessions: (limit = 200) =>
+    request<SessionList>(`/api/sessions?limit=${encodeURIComponent(limit)}`),
+  session: (id: string) =>
+    request<{ session: SessionRecord }>(`/api/sessions/${encodeURIComponent(id)}`),
+  approvals: (limit = 200) =>
+    request<ApprovalList>(`/api/approvals?limit=${encodeURIComponent(limit)}`),
+  approval: (id: string) =>
+    request<{ approval: ApprovalRecord }>(`/api/approvals/${encodeURIComponent(id)}`),
+  catalog: () => request<CatalogResponse>('/api/catalog'),
+  verify: () => request<VerifyResponse>('/api/verify'),
+  vantadb: () => request<VantaDBResponse>('/api/vantadb'),
+  workflow: () => request<WorkflowResponse>('/api/workflow'),
 };
+
+export interface SessionSummary {
+  id: string;
+  taskId: string;
+  limit: number;
+  used: number;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+  events: number;
+}
+export interface SessionEvent { action: string; evidence: string; context: string; at: string }
+export interface SessionRecord extends Omit<SessionSummary, 'events'> { events: SessionEvent[] }
+export interface SessionList { sessions: SessionSummary[]; malformed: { file: string }[]; truncated: boolean }
+
+export interface ApprovalSummary {
+  id: string;
+  status: string;
+  target: { kind?: string; id?: string; artifactKind?: string; [k: string]: unknown };
+  specId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  answers: number;
+}
+export interface ApprovalRecord extends Omit<ApprovalSummary, 'answers'> {
+  answers: { answer: string; actor?: string; at?: string; rationale?: string }[] | number;
+  scope?: { paths?: string[] };
+  digest?: string;
+  [k: string]: unknown;
+}
+export interface ApprovalList { approvals: ApprovalSummary[]; malformed: { file: string }[]; truncated: boolean }
+
+export interface CatalogEntry { id: string; description: string; path: string | null }
+export interface CatalogResponse {
+  catalog: { counts: Record<string, number>; entries: Record<string, CatalogEntry[]>; aliases: Record<string, string> };
+}
+
+export interface VerifyCommand {
+  id: string; command: string; argv: string[]; cwd: string;
+  source: string; approved: boolean; fingerprint: string;
+  [k: string]: unknown;
+}
+export interface VerifyResponse { store: string; commands: VerifyCommand[]; truncated: boolean }
+
+export interface VantaDBStatus {
+  configured: boolean;
+  config?: { backendId: string; version: string; binaryPath: string; storagePath: string };
+  binaryPresent?: boolean;
+  storagePresent?: boolean;
+  pendingCommittedEvents?: number | null;
+  warnings?: { signal: string; detail?: string }[];
+  error?: { code: string; message: string };
+}
+export interface VantaDBResponse { vantadb: VantaDBStatus }
+
+export interface WorkflowPolicy {
+  schemaVersion: number;
+  initial: string;
+  transitions: Record<string, string[]>;
+  actions: Record<string, string[]>;
+  acceptance?: unknown;
+  execution?: unknown;
+}
+export interface WorkflowResponse { workflow: WorkflowPolicy }

@@ -10,6 +10,8 @@ import { readJsonFile, mkdirpSync, writeFileExclusive, removeIfExists }
 import { resolveInside } from '../core/paths.mjs';
 import { listJournalAcked, listJournalPending } from '../core/journal.mjs';
 import { loadJournalPolicy } from '../core/policy.mjs';
+import { canonicalDigest } from '../core/digests.mjs';
+import { readWorklog } from '../core/worklog.mjs';
 import { createVantaDBProjector, projectionScopeHash } from './vantadb.mjs';
 
 export const DEFAULT_VANTADB_VERSION = '0.9.0';
@@ -660,4 +662,85 @@ export function vantaDBStatus({ ctx, bound }) {
     storagePresent: cfg ? fs.existsSync(cfg.storagePath) : false,
     pendingCommittedEvents: pending.length,
   };
+}
+
+const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals'];
+
+function worklogSummary(log, entry) {
+  const text = entry.summary ?? entry.title ?? entry.text ?? entry.outcome
+    ?? entry.id ?? '';
+  return `${String(text).slice(0, 200)}`;
+}
+
+// Operational worklog projection: reads the local JSONL logs under
+// paths.memory (the authoritative store — unchanged) and upserts one L1
+// MemoryRecord per entry under the project-scope l1/sg-* namespace.
+// Idempotent: the key embeds a digest of the raw entry, so unchanged
+// entries report as skipped and re-runs converge without duplicates.
+export async function vantaDBSyncWorklogs({ ctx, bound, cfg, limit, timeoutMs,
+  spawnImpl }) {
+  const policy = loadJournalPolicy();
+  const perLogCap = limit === undefined ? policy.defaultPageSize : Number(limit);
+  if (!Number.isSafeInteger(perLogCap) || perLogCap <= 0
+      || perLogCap > policy.maxPageSize) {
+    throw err('VANTADB_INVALID_INPUT',
+      'limit must be a positive integer within policy');
+  }
+  const scopeHash = canonicalDigest({
+    workspaceId: bound.workspaceId, projectId: bound.projectId,
+    repositoryId: bound.repositoryId, areaIds: [...bound.areaIds].sort(),
+  });
+  const namespace = `${L1_NS_PREFIX}${scopeHash.slice(0, 16)}`;
+  const projected = [];
+  const skipped = [];
+  const failed = [];
+  return withMcpClient(cfg, timeoutMs, spawnImpl, async (client) => {
+    for (const log of WORKLOG_NAMES) {
+      const { entries } = readWorklog(ctx, log, { tail: perLogCap });
+      for (const entry of entries) {
+        const digest = crypto.createHash('sha256')
+          .update(JSON.stringify(entry), 'utf8').digest('hex');
+        const key = `sg-worklog-${log}-${digest.slice(0, 16)}`;
+        try {
+          const existing = await client.invoke({ name: 'memory_get',
+            arguments: { namespace, key } });
+          if (existing && !existing.isError) {
+            skipped.push({ log, key });
+            continue;
+          }
+          const record = {
+            id: key,
+            content: `Scopegrain ${log} entry: ${worklogSummary(log, entry)}`,
+            type: 'episodic',
+            priority: 50,
+            scene_name: '',
+            source_message_ids: [],
+            metadata: {
+              scopegrain: true, record_type: 'sg-worklog', log,
+              entryDigest: digest,
+              taskId: entry.taskId ?? null, kind: entry.kind ?? null,
+            },
+            created_at: entry.at ?? null,
+            updated_at: entry.at ?? null,
+            version: 1,
+            session_key: L1_SESSION_KEY,
+            ...L1_ISOLATION,
+            entry,
+          };
+          const put = await client.invoke({ name: 'memory_put',
+            arguments: { namespace, key, payload: JSON.stringify(record) } });
+          if (put?.isError) {
+            failed.push({ log, key, error: put });
+            continue;
+          }
+          projected.push({ log, key });
+        } catch (e) {
+          failed.push({ log, key,
+            error: { code: e.code ?? 'VANTADB_RPC_ERROR',
+              message: e.message } });
+        }
+      }
+    }
+    return { namespace, projected, skipped, failed };
+  });
 }

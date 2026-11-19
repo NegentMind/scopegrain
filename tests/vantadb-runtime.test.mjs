@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,8 +15,9 @@ import {
   ensureVantaDBBinary, callVantaDBTool, getVantaDBRecord, loadVantaDBConfig, releaseAsset,
   vantaDBContext, vantaDBDistill, vantaDBProbe,
   requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, targetTriple,
-  vantaDBReinforce, vantaDBStatus,
+  vantaDBReinforce, vantaDBStatus, vantaDBSyncWorklogs,
 } from '../src/integrations/vantadb-runtime.mjs';
+import { appendWorklog } from '../src/core/worklog.mjs';
 import { VALID_ANSWERS, cleanup, makeTempDir, writeJson } from './helpers.mjs';
 
 const FAKE_SERVER = fileURLToPath(
@@ -432,6 +434,32 @@ test('spawn env pins brain profile, l1 injection ACL and strips overrides', asyn
       if (!(k in prev)) delete process.env[k];
     }
     Object.assign(process.env, prev);
+    cleanup(f.dir);
+  }
+});
+
+test('vantaDBSyncWorklogs projects JSONL entries to L1 and skips repeats', async () => {
+  const f = fixture();
+  try {
+    const c = cfg(f.dir);
+    fs.writeFileSync(c.binaryPath, 'placeholder');
+    appendWorklog(f.ctx, 'progress', { taskId: crypto.randomUUID(),
+      title: 'w1', kind: 'action' });
+    appendWorklog(f.ctx, 'progress', { taskId: crypto.randomUUID(),
+      title: 'w2', kind: 'commit', ref: 'abc' });
+
+    const out = await vantaDBSyncWorklogs({ ctx: f.ctx, bound: f.bound, cfg: c,
+      spawnImpl: fakeSpawn() });
+    assert.equal(out.failed.length, 0);
+    assert.equal(out.projected.length, 2);
+    assert.match(out.namespace, /^l1\/sg-[0-9a-f]{16}$/);
+
+    // Idempotent: unchanged entries are skipped on re-run.
+    const again = await vantaDBSyncWorklogs({ ctx: f.ctx, bound: f.bound,
+      cfg: c, spawnImpl: fakeSpawn() });
+    assert.equal(again.projected.length, 0);
+    assert.equal(again.skipped.length, 2);
+  } finally {
     cleanup(f.dir);
   }
 });

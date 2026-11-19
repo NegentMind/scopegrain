@@ -118,6 +118,22 @@ const ROUTES = [
     handler: (q, url) => q.reports(parseListOptions(url)) },
   { pattern: ['api', 'reports', ':name'], query: [],
     handler: (q, _url, p) => q.report(p.name) },
+  { pattern: ['api', 'sessions'], query: ['limit', 'offset'],
+    handler: (q, url) => q.sessions(parseListOptions(url)) },
+  { pattern: ['api', 'sessions', ':id'], query: [],
+    handler: (q, _url, p) => q.session(p.id) },
+  { pattern: ['api', 'approvals'], query: ['limit', 'offset'],
+    handler: (q, url) => q.approvals(parseListOptions(url)) },
+  { pattern: ['api', 'approvals', ':id'], query: [],
+    handler: (q, _url, p) => q.approval(p.id) },
+  { pattern: ['api', 'catalog'], query: [],
+    handler: (q) => q.catalog() },
+  { pattern: ['api', 'verify'], query: [],
+    handler: (q) => q.verifyCommands() },
+  { pattern: ['api', 'vantadb'], query: [],
+    handler: (q) => q.vantadb() },
+  { pattern: ['api', 'workflow'], query: [],
+    handler: (q) => q.workflow() },
 ];
 
 function matchRoute(segments) {
