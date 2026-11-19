@@ -12,7 +12,7 @@ import { bindWorkspace, prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
   DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, createStdioMcpClient,
   ensureVantaDBBinary, callVantaDBTool, getVantaDBRecord, loadVantaDBConfig, releaseAsset,
-  vantaDBContext, vantaDBDistill,
+  vantaDBContext, vantaDBDistill, vantaDBProbe,
   requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, targetTriple,
   vantaDBStatus,
 } from '../src/integrations/vantadb-runtime.mjs';
@@ -354,6 +354,25 @@ test('vantaDBDistill writes curated L1 records recallable via memory_recall', as
       spawnImpl: fakeSpawn() });
     assert.equal(recall.structuredContent.recalled.length, 1);
     assert.match(recall.structuredContent.recalled[0].content, /rec-1/);
+  } finally {
+    cleanup(f.dir);
+  }
+});
+
+test('vantaDBProbe surfaces embedding capability state; unenrolled fails closed', async () => {
+  const f = fixture();
+  try {
+    const c = cfg(f.dir);
+    fs.writeFileSync(c.binaryPath, 'placeholder');
+    const probe = await vantaDBProbe({ cfg: c, spawnImpl: fakeSpawn() });
+    assert.equal(probe.embedding.provider, 'fake-local');
+    assert.equal(probe.embedding.fallback, true);
+    assert.equal(probe.embedding.model_present, false);
+    assert.equal(probe.vector_search, true);
+    await assert.rejects(
+      vantaDBProbe({ cfg: { ...c, binaryPath: path.join(f.dir, 'absent') },
+        spawnImpl: fakeSpawn() }),
+      (e) => e.code === 'VANTADB_BINARY_MISSING');
   } finally {
     cleanup(f.dir);
   }

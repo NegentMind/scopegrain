@@ -388,6 +388,44 @@ export async function syncVantaDB({ ctx, bound, cfg, limit, timeoutMs, spawnImpl
   });
 }
 
+// Opt-in capability probe: spawns the server once, calls `capabilities`
+// and surfaces the embedding provider state (fallback/model_present/
+// status) plus the raw feature flags. Status without --probe never
+// touches the process — this is the only spawn-on-read verb.
+export async function vantaDBProbe({ cfg, timeoutMs, spawnImpl }) {
+  const result = await withMcpClient(cfg, timeoutMs, spawnImpl,
+    async (client) => client.invoke({ name: 'capabilities', arguments: {} }));
+  let body = result?.structuredContent ?? null;
+  if (body === null) {
+    try {
+      body = JSON.parse(result?.content?.[0]?.text ?? 'null');
+    } catch {
+      body = null;
+    }
+  }
+  if (!body || typeof body !== 'object') {
+    return { embedding: null, serverInfo: null,
+      warning: 'capabilities response had no structured body' };
+  }
+  const embedding = body.embedding && typeof body.embedding === 'object'
+    ? {
+        provider: body.embedding.provider ?? null,
+        fallback: body.embedding.fallback ?? null,
+        model_present: body.embedding.model_present ?? null,
+        model_dir: body.embedding.model_dir ?? null,
+        status: body.embedding.status ?? body.embedding.reason ?? null,
+        notice: body.embedding.notice ?? null,
+      }
+    : null;
+  return {
+    embedding,
+    vector_search: body.vector_search ?? null,
+    persistence: body.persistence ?? null,
+    iql_queries: body.iql_queries ?? null,
+    runtime_profile: body.runtime_profile ?? null,
+  };
+}
+
 const TOOL_ARGS_BOUND = 65536;
 
 export async function callVantaDBTool({ cfg, name, arguments: args, timeoutMs, spawnImpl }) {

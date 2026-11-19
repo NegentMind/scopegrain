@@ -50,7 +50,7 @@ test('help lists exactly the authored vantadb usages', async () => {
   assert.equal(result.code, 0);
   const usages = result.output.commands.map((command) => command.command);
   assert.ok(usages.includes('vantadb setup --project PATH [--version X] [--storage PATH] [--binary PATH] [--install-dir DIR] [--apply]'));
-  assert.ok(usages.includes('vantadb status --project PATH'));
+  assert.ok(usages.includes('vantadb status --project PATH [--probe] [--timeout MS]'));
   assert.ok(usages.includes('vantadb sync --project PATH [--limit N] [--timeout MS]'));
   assert.ok(usages.includes('vantadb get --project PATH --namespace NS --key K [--timeout MS]'));
   assert.ok(usages.includes('vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--timeout MS]'));

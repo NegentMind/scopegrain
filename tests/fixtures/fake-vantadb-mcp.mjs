@@ -84,6 +84,18 @@ process.stdin.on('data', (chunk) => {
         } });
         continue;
       }
+      if (name === 'capabilities') {
+        const v = { embedding: { provider: 'fake-local', fallback: true,
+          model_present: false, model_dir: 'embeddings/models/x',
+          status: 'StrictUnavailable', notice: 'fake notice' },
+          vector_search: true, persistence: true, iql_queries: true,
+          runtime_profile: 'Performance' };
+        send({ jsonrpc: '2.0', id: m.id, result: {
+          structuredContent: v,
+          content: [{ type: 'text', text: JSON.stringify(v) }],
+        } });
+        continue;
+      }
       if (name === 'memory_list_namespaces') {
         const namespaces = [...new Set([...store.keys()]
           .map((sk) => JSON.parse(sk)[0]))].sort();

@@ -82,8 +82,10 @@ test('advertised input schemas bound every string argument', async (t) => {
         assert.ok(
           Array.isArray(prop.enum)
             || (typeof prop.maxLength === 'number'
-              && prop.maxLength <= MAX_ARG_CHARS),
-          `${tool.name}.${name} lacks maxLength: ${JSON.stringify(prop)}`);
+              && prop.maxLength <= MAX_ARG_CHARS)
+            || ((prop.type === 'number' || prop.type === 'integer')
+              && typeof prop.maximum === 'number'),
+          `${tool.name}.${name} lacks a bound: ${JSON.stringify(prop)}`);
       }
     }
     // An over-limit argument is rejected through the real wire too.

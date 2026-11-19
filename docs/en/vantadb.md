@@ -43,6 +43,10 @@ scopegrain vantadb setup --project PATH --binary /abs/vantadb-server --apply
 # Status: enrollment, binary presence, pending events
 scopegrain vantadb status --project PATH
 
+# Status + capability probe (one spawn; reports the embedding
+# provider: fallback, model_present, status and backend notice)
+scopegrain vantadb status --project PATH --probe [--timeout MS]
+
 # Drain pending committed events to VantaDB (auto-spawn)
 scopegrain vantadb sync --project PATH [--limit N] [--timeout MS]
 

@@ -58,7 +58,7 @@ import { applyActivation, prepareActivation } from './hosts/activation.mjs';
 import { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool,
   defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary,
   getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig,
-  syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBStatus }
+  syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBProbe, vantaDBStatus }
   from './integrations/vantadb-runtime.mjs';
 import {
   proposeFromInitAnswers, proposeFromJournal, reviewProposal,
@@ -93,7 +93,7 @@ const VALUE_FLAGS = new Set([
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
-  '--reconcile', '--defaults',
+  '--reconcile', '--defaults', '--probe',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -141,8 +141,8 @@ const COMMANDS = {
     usage: 'vantadb setup --project PATH [--version X] [--storage PATH] [--binary PATH] [--install-dir DIR] [--apply]',
   },
   'vantadb status': {
-    flags: ['--project', '--config'], pos: 0,
-    usage: 'vantadb status --project PATH',
+    flags: ['--project', '--config', '--probe', '--timeout'], pos: 0,
+    usage: 'vantadb status --project PATH [--probe] [--timeout MS]',
   },
   'vantadb sync': {
     flags: ['--project', '--config', '--limit', '--timeout'], pos: 0,
@@ -1152,9 +1152,21 @@ async function cmdVantaDB(sub, positional, flags) {
   }
   const workspace = getWorkspace(ctx);
   const bound = bindWorkspace(ctx, { areaIds: workspace.areas.map((area) => area.id) });
-  if (sub === 'status') return vantaDBStatus({ ctx, bound });
   const timeoutMs = flags['--timeout'] !== undefined
     ? Number(flags['--timeout']) : undefined;
+  if (sub === 'status') {
+    const report = vantaDBStatus({ ctx, bound });
+    if (flags['--probe'] === true) {
+      try {
+        report.probe = await vantaDBProbe({ cfg: requireVantaDBConfig(ctx),
+          timeoutMs });
+      } catch (e) {
+        report.probe = { error: { code: e.code ?? 'VANTADB_PROBE_FAILED',
+          message: e.message } };
+      }
+    }
+    return report;
+  }
   if (sub === 'get') {
     const namespace = requireFlag(flags, '--namespace');
     const key = requireFlag(flags, '--key');
