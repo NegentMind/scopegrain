@@ -20,6 +20,9 @@ import { getSpecification } from '../core/specifications.mjs';
 import { getApproval } from '../core/approvals.mjs';
 import { checkMethodology } from '../core/methodology.mjs';
 import { getSession, resumeSession } from '../core/sessions.mjs';
+import { bindWorkspace, getWorkspace } from '../core/workspaces.mjs';
+import { callVantaDBTool, getVantaDBRecord, requireVantaDBConfig, vantaDBStatus }
+  from '../integrations/vantadb-runtime.mjs';
 
 const PROTOCOL_NOTE = 'stdout is reserved for MCP protocol; logs go to stderr';
 
@@ -302,6 +305,76 @@ export function createMCPTools(ctx, z) {
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ id }) => resumeSession(ctx, id)),
+    },
+    {
+      name: 'scopegrain_memory_status',
+      config: {
+        description: 'VantaDB enrollment, binary/storage presence and pending committed journal events (read-only)',
+        inputSchema: {},
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async () => {
+        const workspace = getWorkspace(ctx);
+        const bound = bindWorkspace(ctx, {
+          areaIds: workspace.areas.map((area) => area.id),
+        });
+        return vantaDBStatus({ ctx, bound });
+      }),
+    },
+    {
+      name: 'scopegrain_memory_get',
+      config: {
+        description: 'Read one record from the enrolled VantaDB memory backend by namespace and key',
+        inputSchema: {
+          namespace: z.string().max(MAX_ARG_CHARS).describe('memory record namespace'),
+          key: z.string().max(MAX_ARG_CHARS).describe('memory record key'),
+        },
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async ({ namespace, key }) =>
+        getVantaDBRecord({ cfg: requireVantaDBConfig(ctx), namespace, key })),
+    },
+    {
+      name: 'scopegrain_memory_search',
+      config: {
+        description: 'Hybrid search over one namespace of the enrolled VantaDB memory backend',
+        inputSchema: {
+          namespace: z.string().max(MAX_ARG_CHARS).describe('memory record namespace'),
+          query: z.string().max(MAX_ARG_CHARS).optional()
+            .describe('optional text query for hybrid search'),
+          topK: z.number().int().min(1).max(100).optional()
+            .describe('maximum hits, default server-side'),
+        },
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async ({ namespace, query, topK }) => {
+        const args = { namespace };
+        if (query !== undefined) args.text_query = query;
+        if (topK !== undefined) args.top_k = topK;
+        return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
+          name: 'memory_search', arguments: args });
+      }),
+    },
+    {
+      name: 'scopegrain_memory_recall',
+      config: {
+        description: 'L1 memory recall (dual-pool RRF) over the enrolled VantaDB backend; returns recalled hits plus prepend_context',
+        inputSchema: {
+          query: z.string().max(MAX_ARG_CHARS).describe('raw recall query text'),
+          scope: z.enum(['session', 'agent', 'team']).optional()
+            .describe('cross-session reach of the L1 recall pool, default agent'),
+          topK: z.number().int().min(1).max(100).optional()
+            .describe('maximum memories returned, default 5'),
+        },
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async ({ query, scope, topK }) => {
+        const args = { query };
+        if (scope !== undefined) args.scope = scope;
+        if (topK !== undefined) args.top_k = topK;
+        return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
+          name: 'memory_recall', arguments: args });
+      }),
     },
   ]);
 }

@@ -48,7 +48,34 @@ scopegrain vantadb sync --project PATH [--limit N] [--timeout MS]
 
 # Point read against the backend (memory_get)
 scopegrain vantadb get --project PATH --namespace NS --key K
+
+# List keys in a namespace (memory_list)
+scopegrain vantadb list --project PATH --namespace NS
+
+# Hybrid search within a namespace (memory_search)
+scopegrain vantadb search --project PATH --namespace NS --query TEXT [--top-k N]
+
+# L1 memory recall with dual-pool RRF (memory_recall)
+scopegrain vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N]
 ```
+
+The read verbs (`get`/`list`/`search`/`recall`) are bounded proxies over the
+same stdio channel: server auto-spawn, argument validation before config
+access, no local writes.
+
+## `scopegrain_memory_*` MCP tools
+
+The MCP server exposes four additional read-only tools:
+
+| Tool | Equivalent |
+|---|---|
+| `scopegrain_memory_status` | `vantadb status` (enrollment, binary, pending) |
+| `scopegrain_memory_get` | `vantadb get` (`memory_get`) |
+| `scopegrain_memory_search` | `vantadb search` (`memory_search`; optional `query`, `topK` 1..100) |
+| `scopegrain_memory_recall` | `vantadb recall` (`memory_recall`; `scope` session/agent/team, `topK`) |
+
+Without enrollment they return `VANTADB_NOT_CONFIGURED` as a structured
+error; arguments are validated against the bound ctx with no path redirect.
 
 ## Errors and bounds
 

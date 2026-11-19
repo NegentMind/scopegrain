@@ -24,6 +24,8 @@ const OLD_NAMES = [
 ];
 const NEW_NAMES = [
   'scopegrain_specification_get', 'scopegrain_approval_get', 'scopegrain_methodology_check',
+  'scopegrain_memory_status', 'scopegrain_memory_get',
+  'scopegrain_memory_search', 'scopegrain_memory_recall',
 ];
 function filesAndBytes(root) {
   const out = {};
@@ -78,8 +80,8 @@ async function withWire(f, body) {
   }
 }
 function namesContract(tools) {
-  assert.equal(tools.length, 18);
-  assert.equal(new Set(tools.map((t) => t.name)).size, 18);
+  assert.equal(tools.length, 22);
+  assert.equal(new Set(tools.map((t) => t.name)).size, 22);
   assert.deepEqual(tools.map((t) => t.name).sort(), [...OLD_NAMES, ...NEW_NAMES].sort());
   assert.deepEqual(tools.filter((t) => !OLD_NAMES.includes(t.name)).map((t) => t.name).sort(),
     [...NEW_NAMES].sort());
@@ -104,7 +106,7 @@ test('server import remains lazy and cannot implicitly start stdio', async () =>
   assert.equal(typeof mod.startMCPServer, 'function');
 });
 
-test('descriptors are exact18, only three additions with lead-authored literal metadata', async () => {
+test('descriptors are exact22, additions carry lead-authored literal metadata', async () => {
   const f = formalFixture();
   try {
     const tools = await descriptors(f);
@@ -235,7 +237,7 @@ test('blocked methodology is an ordinary allowed:false response, direct and wire
   } finally { cleanup(f.dir); }
 });
 
-test('wire registers exact18 strict tools, reads bound records and ACCEPT locator without any writes', async () => {
+test('wire registers exact22 strict tools, reads bound records and ACCEPT locator without any writes', async () => {
   const f = formalFixture();
   try {
     f.task = seedState(f, f.task); // SYNTHETIC declared REVIEW fixture only

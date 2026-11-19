@@ -221,7 +221,7 @@ Ver [onboarding](onboarding.md) y [workflows](workflows.md).
 
 ## 11. MCP opcional
 
-El servidor MCP ofrece 18 herramientas de solo lectura, estrictamente
+El servidor MCP ofrece 22 herramientas de solo lectura, estrictamente
 vinculadas al proyecto y configuracion seleccionados al iniciar. Entre ellas
 estan `scopegrain_specification_get`, `scopegrain_approval_get` y
 `scopegrain_methodology_check`. Esta ultima consulta gates sobre registros

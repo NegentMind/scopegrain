@@ -25,7 +25,7 @@ skills `scopegrain-*` y 15 subagentes, activo el MCP `scopegrain` desde
 checks de doctor, catalogo de 130 entradas verificado por hash); y una
 sesion fresca real de Antigravity App/CLI el 2026-11-19 auto-descubrio
 las 72 skills `scopegrain-*` y 15 subagentes bajo `.agents/`, activo el
-MCP `scopegrain` desde `.agents/mcp_config.json` (18 herramientas de solo
+MCP `scopegrain` desde `.agents/mcp_config.json` (22 herramientas de solo
 lectura) e invoco `scopegrain_status` y `scopegrain_catalog_list` en
 vivo. Los demas hosts y superficies — Claude, Codex, OpenCode, la
 superficie IDE de Antigravity y el provisional Hermes — aun carecen de

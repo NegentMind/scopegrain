@@ -388,15 +388,37 @@ export async function syncVantaDB({ ctx, bound, cfg, limit, timeoutMs, spawnImpl
   });
 }
 
+const TOOL_ARGS_BOUND = 65536;
+
+export async function callVantaDBTool({ cfg, name, arguments: args, timeoutMs, spawnImpl }) {
+  if (typeof name !== 'string' || !/^[a-z][a-z0-9_]{0,63}$/.test(name)) {
+    throw err('VANTADB_INVALID_INPUT', 'tool name must be a bounded identifier');
+  }
+  if (args === undefined || args === null
+      || ![Object.prototype, null].includes(Object.getPrototypeOf(args))) {
+    throw err('VANTADB_INVALID_INPUT', 'tool arguments must be a plain object');
+  }
+  let bytes;
+  try {
+    bytes = Buffer.byteLength(JSON.stringify(args));
+  } catch {
+    throw err('VANTADB_INVALID_INPUT', 'tool arguments are not JSON-serializable');
+  }
+  if (bytes > TOOL_ARGS_BOUND) {
+    throw err('VANTADB_INVALID_INPUT', 'tool arguments exceed bound');
+  }
+  return withMcpClient(cfg, timeoutMs, spawnImpl, async (client) => {
+    return client.invoke({ name, arguments: args });
+  });
+}
+
 export async function getVantaDBRecord({ cfg, namespace, key, timeoutMs, spawnImpl }) {
   if (typeof namespace !== 'string' || !namespace || namespace.length > 256
       || typeof key !== 'string' || !key || key.length > 512) {
     throw err('VANTADB_INVALID_INPUT', 'namespace and key must be bounded strings');
   }
-  return withMcpClient(cfg, timeoutMs, spawnImpl, async (client) => {
-    const result = await client.invoke({ name: 'memory_get', arguments: { namespace, key } });
-    return result;
-  });
+  return callVantaDBTool({ cfg, name: 'memory_get',
+    arguments: { namespace, key }, timeoutMs, spawnImpl });
 }
 
 export function vantaDBStatus({ ctx, bound }) {

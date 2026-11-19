@@ -228,7 +228,7 @@ See [onboarding](onboarding.md) and [workflows](workflows.md).
 
 ## 11. Optional MCP
 
-The MCP server offers 18 read-only tools, strictly bound to the project
+The MCP server offers 22 read-only tools, strictly bound to the project
 and configuration selected at startup. Among them are
 `scopegrain_specification_get`, `scopegrain_approval_get` and
 `scopegrain_methodology_check`. The latter queries gates over existing

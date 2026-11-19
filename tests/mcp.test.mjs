@@ -19,6 +19,8 @@ const EXPECTED_TOOLS = [
   'scopegrain_resource_search', 'scopegrain_resource_diagnose',
   'scopegrain_specification_get', 'scopegrain_approval_get',
   'scopegrain_methodology_check',
+  'scopegrain_memory_status', 'scopegrain_memory_get',
+  'scopegrain_memory_search', 'scopegrain_memory_recall',
 ];
 
 async function depsAvailable() {
@@ -49,8 +51,8 @@ test('descriptors are exactly 18 read-only tools bound to ctx', async (t) => {
   const { dir, ctx } = bootstrappedCtx();
   try {
     const tools = createMCPTools(ctx, z);
-    assert.equal(tools.length, 18);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 18);
+    assert.equal(tools.length, 22);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 22);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     for (const tool of tools) {
       assert.equal(tool.config.annotations.readOnlyHint, true);
@@ -95,8 +97,8 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
       server.connect(serverT), client.connect(clientT),
     ]);
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 18);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 18);
+    assert.equal(tools.length, 22);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 22);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     assert.ok(tools.every((x) => x.annotations?.readOnlyHint === true));
     const res = await client.callTool({
@@ -132,4 +134,43 @@ test('createMCPServer registers all tools without connecting', async (t) => {
     try { if (server) await server.close(); }
     finally { cleanup(dir); }
   }
+});
+
+test('memory tools: status reports unenrolled; get/search/recall fail closed without config', async (t) => {
+  if (!(await depsAvailable())) {
+    t.skip('optional MCP dependencies are not installed');
+    return;
+  }
+  const { z } = await import('zod');
+  const { resolveContext } = await import('../src/core/context.mjs');
+  const { prepareWorkspace } = await import('../src/core/workspaces.mjs');
+  const { createMCPTools } = await import('../src/mcp/server.mjs');
+  const dir = makeTempDir('mcp-memory');
+  try {
+    writeJson(dir, '.tasksystem/config.json',
+      createConfig(dir, VALID_ANSWERS, {}));
+    const ctx = resolveContext({ project: dir });
+    const prepared = prepareWorkspace(ctx, { areas: [{ key: 'a', name: 'A' }] });
+    applyPlan(dir, [prepared.file]);
+    const tools = new Map(createMCPTools(ctx, z).map((x) => [x.name, x]));
+
+    const status = await tools.get('scopegrain_memory_status').handler({});
+    const parsed = JSON.parse(status.content[0].text);
+    assert.equal(parsed.configured, false);
+    assert.equal(parsed.pendingCommittedEvents, 0);
+
+    for (const [name, args] of [
+      ['scopegrain_memory_get', { namespace: 'n', key: 'k' }],
+      ['scopegrain_memory_search', { namespace: 'n', query: 'q' }],
+      ['scopegrain_memory_recall', { query: 'q' }],
+    ]) {
+      const res = await tools.get(name).handler(args);
+      assert.equal(res.isError, true);
+      assert.match(res.content[0].text, /VANTADB_NOT_CONFIGURED/);
+    }
+    // Arg bounds rejected by wrap() before the handler runs.
+    const bad = await tools.get('scopegrain_memory_get')
+      .handler({ namespace: 'x'.repeat(5000), key: 'k' });
+    assert.equal(bad.isError, true);
+  } finally { cleanup(dir); }
 });

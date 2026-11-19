@@ -55,9 +55,10 @@ import {
   buildResearchRecord, investigateProject, suggestAnswers,
 } from './discovery/semantic.mjs';
 import { applyActivation, prepareActivation } from './hosts/activation.mjs';
-import { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, defaultInstallRoot,
-  defaultStoragePath, ensureVantaDBBinary, getVantaDBRecord, releaseAsset,
-  requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, vantaDBStatus }
+import { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool,
+  defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary,
+  getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig,
+  syncVantaDB, vantaDBStatus }
   from './integrations/vantadb-runtime.mjs';
 import {
   proposeFromInitAnswers, proposeFromJournal, reviewProposal,
@@ -88,7 +89,7 @@ const VALUE_FLAGS = new Set([
   '--query', '--interaction', '--spec', '--design', '--plan', '--to',
   '--outcome-evidence', '--from', '--surface', '--since-sequence', '--port',
   '--command', '--timeout', '--version', '--storage', '--binary',
-  '--install-dir', '--namespace', '--key',
+  '--install-dir', '--namespace', '--key', '--top-k',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -150,6 +151,20 @@ const COMMANDS = {
   'vantadb get': {
     flags: ['--project', '--config', '--namespace', '--key', '--timeout'], pos: 0,
     usage: 'vantadb get --project PATH --namespace NS --key K [--timeout MS]',
+  },
+  'vantadb search': {
+    flags: ['--project', '--config', '--namespace', '--query', '--top-k',
+      '--timeout'], pos: 0,
+    usage: 'vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--timeout MS]',
+  },
+  'vantadb list': {
+    flags: ['--project', '--config', '--namespace', '--timeout'], pos: 0,
+    usage: 'vantadb list --project PATH --namespace NS [--timeout MS]',
+  },
+  'vantadb recall': {
+    flags: ['--project', '--config', '--query', '--scope', '--top-k',
+      '--timeout'], pos: 0,
+    usage: 'vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N] [--timeout MS]',
   },
   'capture create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
@@ -1135,6 +1150,25 @@ async function cmdVantaDB(sub, positional, flags) {
     const namespace = requireFlag(flags, '--namespace');
     const key = requireFlag(flags, '--key');
     return getVantaDBRecord({ cfg: requireVantaDBConfig(ctx), namespace, key, timeoutMs });
+  }
+  if (sub === 'search') {
+    const args = { namespace: requireFlag(flags, '--namespace') };
+    if (flags['--query'] !== undefined) args.text_query = flags['--query'];
+    if (flags['--top-k'] !== undefined) args.top_k = Number(flags['--top-k']);
+    return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
+      name: 'memory_search', arguments: args, timeoutMs });
+  }
+  if (sub === 'list') {
+    const namespace = requireFlag(flags, '--namespace');
+    return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
+      name: 'memory_list', arguments: { namespace }, timeoutMs });
+  }
+  if (sub === 'recall') {
+    const args = { query: requireFlag(flags, '--query') };
+    if (flags['--scope'] !== undefined) args.scope = flags['--scope'];
+    if (flags['--top-k'] !== undefined) args.top_k = Number(flags['--top-k']);
+    return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
+      name: 'memory_recall', arguments: args, timeoutMs });
   }
   const cfg = requireVantaDBConfig(ctx);
   const limit = flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined;

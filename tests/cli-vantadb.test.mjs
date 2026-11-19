@@ -53,6 +53,9 @@ test('help lists exactly the authored vantadb usages', async () => {
   assert.ok(usages.includes('vantadb status --project PATH'));
   assert.ok(usages.includes('vantadb sync --project PATH [--limit N] [--timeout MS]'));
   assert.ok(usages.includes('vantadb get --project PATH --namespace NS --key K [--timeout MS]'));
+  assert.ok(usages.includes('vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--timeout MS]'));
+  assert.ok(usages.includes('vantadb list --project PATH --namespace NS [--timeout MS]'));
+  assert.ok(usages.includes('vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N] [--timeout MS]'));
 });
 
 test('setup preview is read-only: no config, no storage dir, no writes', async () => {
@@ -126,6 +129,16 @@ test('sync and get without enrollment fail closed VANTADB_NOT_CONFIGURED', async
       '--config', f.configRel, '--namespace', 'n', '--key', 'k']);
     assert.equal(get.code, 1);
     assert.equal(get.output.code, 'VANTADB_NOT_CONFIGURED');
+    for (const verb of [
+      ['search', '--namespace', 'n', '--query', 'q'],
+      ['list', '--namespace', 'n'],
+      ['recall', '--query', 'q'],
+    ]) {
+      const r = await call(['vantadb', verb[0], '--project', f.dir,
+        '--config', f.configRel, ...verb.slice(1)]);
+      assert.equal(r.code, 1);
+      assert.equal(r.output.code, 'VANTADB_NOT_CONFIGURED');
+    }
   } finally {
     cleanup(f.dir);
   }
@@ -165,6 +178,19 @@ test('vantadb commands reject unknown flags and missing required flags', async (
     const pending = await call(['vantadb', 'pending', '--project', f.dir]);
     assert.equal(pending.code, 1);
     assert.equal(pending.output.code, 'INVALID_ARGS');
+    // Read verbs validate required flags before touching config (pre-IO).
+    const noQuery = await call(['vantadb', 'recall', '--project', f.dir,
+      '--config', f.configRel]);
+    assert.equal(noQuery.code, 1);
+    assert.equal(noQuery.output.code, 'INVALID_ARGS');
+    const noNsSearch = await call(['vantadb', 'search', '--project', f.dir,
+      '--config', f.configRel, '--query', 'q']);
+    assert.equal(noNsSearch.code, 1);
+    assert.equal(noNsSearch.output.code, 'INVALID_ARGS');
+    const noNsList = await call(['vantadb', 'list', '--project', f.dir,
+      '--config', f.configRel]);
+    assert.equal(noNsList.code, 1);
+    assert.equal(noNsList.output.code, 'INVALID_ARGS');
   } finally {
     cleanup(f.dir);
   }

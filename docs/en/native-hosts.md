@@ -21,7 +21,7 @@ and 15 subagents, activated the `scopegrain` MCP from
 doctor checks, 130-entry catalog hash-verified); and a fresh real
 Antigravity App/CLI session on 2026-11-19 auto-discovered the 72
 `scopegrain-*` skills and 15 subagents under `.agents/`, activated the
-`scopegrain` MCP from `.agents/mcp_config.json` (18 read-only tools) and
+`scopegrain` MCP from `.agents/mcp_config.json` (22 read-only tools) and
 invoked `scopegrain_status` and `scopegrain_catalog_list` live. The other
 hosts and surfaces — Claude, Codex, OpenCode, the Antigravity IDE surface
 and the provisional Hermes — still lack a native pilot. The foundation

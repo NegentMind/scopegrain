@@ -11,7 +11,7 @@ import { applyJournaledCreation, listJournalPending } from '../src/core/journal.
 import { bindWorkspace, prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
   DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, createStdioMcpClient,
-  ensureVantaDBBinary, getVantaDBRecord, loadVantaDBConfig, releaseAsset,
+  ensureVantaDBBinary, callVantaDBTool, getVantaDBRecord, loadVantaDBConfig, releaseAsset,
   requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, targetTriple,
   vantaDBStatus,
 } from '../src/integrations/vantadb-runtime.mjs';
@@ -233,6 +233,56 @@ test('getVantaDBRecord reads through stdio; missing binary and bad ids fail clos
       (e) => e.code === 'VANTADB_BINARY_MISSING');
     await assert.rejects(
       getVantaDBRecord({ cfg: c, namespace: '', key: 'k' }),
+      (e) => e.code === 'VANTADB_INVALID_INPUT');
+  } finally {
+    cleanup(f.dir);
+  }
+});
+
+test('callVantaDBTool proxies search/list/recall over stdio and validates input', async () => {
+  const f = fixture();
+  try {
+    const c = cfg(f.dir);
+    fs.writeFileSync(c.binaryPath, 'placeholder');
+    const sp = fakeSpawn();
+    // Seed one record via put so list/search see it.
+    const put = await callVantaDBTool({ cfg: c, name: 'memory_put',
+      arguments: { namespace: 'sg-formal-v1-x', key: 'k1',
+        payload: { type: 'scopegrain.journal-event', marker: 'drift' } },
+      spawnImpl: sp });
+    assert.equal(put.isError, undefined);
+
+    const search = await callVantaDBTool({ cfg: c, name: 'memory_search',
+      arguments: { namespace: 'sg-formal-v1-x', text_query: 'drift', top_k: 5 },
+      spawnImpl: fakeSpawn() });
+    assert.equal(search.structuredContent.hits.length, 1);
+    assert.equal(search.structuredContent.hits[0].key, 'k1');
+
+    const list = await callVantaDBTool({ cfg: c, name: 'memory_list',
+      arguments: { namespace: 'sg-formal-v1-x' }, spawnImpl: fakeSpawn() });
+    assert.equal(list.structuredContent.hits.length, 1);
+
+    const recall = await callVantaDBTool({ cfg: c, name: 'memory_recall',
+      arguments: { query: 'what changed', scope: 'agent', top_k: 5 },
+      spawnImpl: fakeSpawn() });
+    assert.equal(recall.structuredContent.recalled.length, 1);
+    assert.equal(recall.structuredContent.effective_mode, 'hybrid');
+
+    // Input bounds fail closed before any spawn.
+    for (const [name, args, want] of [
+      ['Bad Name!', {}, 'VANTADB_INVALID_INPUT'],
+      ['memory_get', 'not-an-object', 'VANTADB_INVALID_INPUT'],
+      ['memory_get', { circular: null }, 'VANTADB_INVALID_INPUT'],
+    ]) {
+      if (args && typeof args === 'object') args.circular = args;
+      await assert.rejects(
+        callVantaDBTool({ cfg: c, name, arguments: args, spawnImpl: fakeSpawn() }),
+        (e) => e.code === want);
+    }
+    const big = { data: 'x'.repeat(70000) };
+    await assert.rejects(
+      callVantaDBTool({ cfg: c, name: 'memory_get', arguments: big,
+        spawnImpl: fakeSpawn() }),
       (e) => e.code === 'VANTADB_INVALID_INPUT');
   } finally {
     cleanup(f.dir);
