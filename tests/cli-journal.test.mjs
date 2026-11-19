@@ -80,8 +80,45 @@ test('journal help lists exactly the authored grouped usages', async () => {
   const result = await call(['--help']);
   assert.equal(result.code, 0);
   const usages = result.output.commands.map((command) => command.command);
+  assert.ok(usages.includes('journal list --project PATH [--config REL] [--since-sequence N] [--limit N]'));
   assert.ok(usages.includes('journal show OPERATION --project PATH [--config REL]'));
   assert.ok(usages.includes('journal recover OPERATION --project PATH [--config REL] --input FILE [--apply]'));
+});
+
+test('journal list pages unacknowledged events within the bound', async () => {
+  const f = fixture();
+  try {
+    const ops = [applyJournaledCreation(f.bound, [change(f, 'item-a')]),
+      applyJournaledCreation(f.bound, [change(f, 'item-b')])];
+    const eventIds = ops.flatMap((op) => op.eventIds);
+    const listed = await call(['journal', 'list', '--project', f.dir,
+      '--config', f.configRel]);
+    assert.equal(listed.code, 0);
+    assert.equal(listed.output.items.length, eventIds.length);
+    assert.deepEqual(listed.output.items.map((i) => i.event.eventId).sort(),
+      eventIds.sort());
+    assert.equal(listed.output.nextAfterSequence, null);
+    // --limit truncates the page and exposes the continuation cursor.
+    const paged = await call(['journal', 'list', '--project', f.dir,
+      '--config', f.configRel, '--limit', '1']);
+    assert.equal(paged.code, 0);
+    assert.equal(paged.output.items.length, 1);
+    const cursor = paged.output.nextAfterSequence;
+    assert.ok(Number.isSafeInteger(cursor));
+    const rest = await call(['journal', 'list', '--project', f.dir,
+      '--config', f.configRel, '--since-sequence', String(cursor)]);
+    assert.equal(rest.code, 0);
+    assert.equal(rest.output.items.length, eventIds.length - 1);
+    assert.equal(rest.output.nextAfterSequence, null);
+    // Malformed cursors and limits fail closed before any listing.
+    for (const bad of [['--since-sequence', 'x'], ['--since-sequence', '-1'],
+        ['--limit', '0'], ['--limit', 'NaN']]) {
+      const rejected = await call(['journal', 'list', '--project', f.dir,
+        '--config', f.configRel, ...bad]);
+      assert.equal(rejected.code, 1);
+      assert.equal(rejected.output.code, 'INVALID_JOURNAL_INPUT');
+    }
+  } finally { cleanup(f.dir); }
 });
 
 test('journal show and both recovery previews are read-only with custom state/config', async () => {

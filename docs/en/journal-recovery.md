@@ -8,6 +8,13 @@ and workspace. Coordinate writer and worker inactivity first; the lock
 is cooperative, not operating-system isolation or administrative
 identity authentication.
 
+List pending, unacknowledged events through a bounded window
+(`--since-sequence` pages by journal sequence, `--limit` bounds the page):
+
+```text
+scopegrain journal list --project PATH [--config REL] [--since-sequence N] [--limit N]
+```
+
 Query the operation and its intent digest:
 
 ```text

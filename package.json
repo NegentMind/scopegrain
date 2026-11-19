@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "npm@11.6.0",
   "description": "Project-neutral engineering harness for coding agents",
   "files": [
     "bin",

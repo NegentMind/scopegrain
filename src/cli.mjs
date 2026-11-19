@@ -40,7 +40,8 @@ import {
   recordSession, resumeSession,
 } from './core/sessions.mjs';
 import { bindWorkspace, getWorkspace, prepareWorkspace } from './core/workspaces.mjs';
-import { getJournalOperation, prepareJournalRecovery, recoverJournalOperation }
+import { getJournalOperation, listJournalPending, prepareJournalRecovery,
+  recoverJournalOperation }
   from './core/journal.mjs';
 import { createCaptureStore } from './core/captures.mjs';
 import { openInitSession, answer as sessionAnswer, status as sessionStatus,
@@ -115,6 +116,10 @@ const COMMANDS = {
   'workspace init': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
     usage: 'workspace init --project PATH [--config REL] [--input FILE] [--apply]',
+  },
+  'journal list': {
+    flags: ['--project', '--config', '--since-sequence', '--limit'], pos: 0,
+    usage: 'journal list --project PATH [--config REL] [--since-sequence N] [--limit N]',
   },
   'journal show': {
     flags: ['--project', '--config'], pos: 1,
@@ -1011,7 +1016,8 @@ function cmdCaptureReview(project, flags) {
   for (const key of Object.keys(input)) {
     if (!['proposal', 'action', 'reason', 'changes'].includes(key)) {
       throw err('INVALID_ARGS',
-        `capture review input has unknown key '${key}'`);
+        `capture review input has unknown key '${key}'`
+          + `; expected one of: action, changes, proposal, reason`);
     }
   }
   const decision = { action: input.action };
@@ -1038,6 +1044,16 @@ function cmdJournal(sub, positional, flags) {
   });
   const workspace = getWorkspace(ctx);
   const bound = bindWorkspace(ctx, { areaIds: workspace.areas.map((area) => area.id) });
+  if (sub === 'list') {
+    const options = {};
+    if (flags['--since-sequence'] !== undefined) {
+      options.afterSequence = Number(flags['--since-sequence']);
+    }
+    if (flags['--limit'] !== undefined) {
+      options.limit = Number(flags['--limit']);
+    }
+    return listJournalPending(bound, options);
+  }
   if (sub === 'show') return getJournalOperation(bound, positional[0]);
   const input = readInputFile(requireFlag(flags, '--input'), 'journal recovery input');
   return flags['--apply']

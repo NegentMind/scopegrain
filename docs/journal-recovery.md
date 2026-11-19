@@ -5,6 +5,14 @@ ya enrolados. Coordine primero la inactividad de escritores y trabajadores;
 el lock es cooperativo, no aislamiento del sistema operativo ni autenticacion
 de identidad administrativa.
 
+Liste los eventos pendientes de reconocimiento con una ventana acotada
+(`--since-sequence` pagina por secuencia de journal, `--limit` acota la
+pagina):
+
+```text
+scopegrain journal list --project PATH [--config REL] [--since-sequence N] [--limit N]
+```
+
 Consulte la operacion y su digest de intent:
 
 ```text
