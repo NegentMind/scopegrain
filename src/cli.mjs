@@ -55,6 +55,10 @@ import {
   buildResearchRecord, investigateProject, suggestAnswers,
 } from './discovery/semantic.mjs';
 import { applyActivation, prepareActivation } from './hosts/activation.mjs';
+import { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, defaultInstallRoot,
+  defaultStoragePath, ensureVantaDBBinary, getVantaDBRecord, releaseAsset,
+  requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, vantaDBStatus }
+  from './integrations/vantadb-runtime.mjs';
 import {
   proposeFromInitAnswers, proposeFromJournal, reviewProposal,
 } from './core/capture-proposals.mjs';
@@ -83,7 +87,8 @@ const VALUE_FLAGS = new Set([
   '--input', '--task', '--mode', '--host', '--profile', '--limit',
   '--query', '--interaction', '--spec', '--design', '--plan', '--to',
   '--outcome-evidence', '--from', '--surface', '--since-sequence', '--port',
-  '--command', '--timeout',
+  '--command', '--timeout', '--version', '--storage', '--binary',
+  '--install-dir', '--namespace', '--key',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -128,6 +133,23 @@ const COMMANDS = {
   'journal recover': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 1,
     usage: 'journal recover OPERATION --project PATH [--config REL] --input FILE [--apply]',
+  },
+  'vantadb setup': {
+    flags: ['--project', '--config', '--version', '--storage', '--binary',
+      '--install-dir', '--apply'], pos: 0,
+    usage: 'vantadb setup --project PATH [--version X] [--storage PATH] [--binary PATH] [--install-dir DIR] [--apply]',
+  },
+  'vantadb status': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'vantadb status --project PATH',
+  },
+  'vantadb sync': {
+    flags: ['--project', '--config', '--limit', '--timeout'], pos: 0,
+    usage: 'vantadb sync --project PATH [--limit N] [--timeout MS]',
+  },
+  'vantadb get': {
+    flags: ['--project', '--config', '--namespace', '--key', '--timeout'], pos: 0,
+    usage: 'vantadb get --project PATH --namespace NS --key K [--timeout MS]',
   },
   'capture create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
@@ -1061,6 +1083,64 @@ function cmdJournal(sub, positional, flags) {
     : prepareJournalRecovery(bound, positional[0], input);
 }
 
+async function cmdVantaDB(sub, positional, flags) {
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'), config: flags['--config'],
+  });
+  if (sub === 'setup') {
+    const version = flags['--version'] ?? DEFAULT_VANTADB_VERSION;
+    const storagePath = flags['--storage']
+      ? path.resolve(flags['--storage']) : defaultStoragePath();
+    const installRoot = flags['--install-dir']
+      ? path.resolve(flags['--install-dir']) : defaultInstallRoot();
+    const explicitBinary = flags['--binary'] ? path.resolve(flags['--binary']) : null;
+    const asset = explicitBinary ? null : releaseAsset(version);
+    const configRel = `${ctx.configDir}/vantadb.json`;
+    if (!flags['--apply']) {
+      return {
+        preview: true, version, storagePath, installRoot,
+        binary: explicitBinary ?? `download ${asset.name}`,
+        asset, configRel,
+      };
+    }
+    let binaryPath;
+    let downloaded = false;
+    let sha256 = null;
+    if (explicitBinary) {
+      if (!fs.existsSync(explicitBinary) || !fs.statSync(explicitBinary).isFile()) {
+        throw err('VANTADB_BINARY_MISSING',
+          `--binary does not name a file: ${explicitBinary}`);
+      }
+      binaryPath = explicitBinary;
+    } else {
+      const ensured = await ensureVantaDBBinary({ version, installRoot });
+      binaryPath = ensured.binaryPath;
+      downloaded = ensured.downloaded;
+      sha256 = ensured.sha256;
+    }
+    fs.mkdirSync(storagePath, { recursive: true });
+    const cfg = {
+      schemaVersion: 1, backendId: VANTADB_BACKEND_ID, version,
+      binaryPath, storagePath,
+    };
+    const configAbs = saveVantaDBConfig(ctx, cfg);
+    return { applied: true, config: cfg, configPath: configAbs, downloaded, sha256 };
+  }
+  const workspace = getWorkspace(ctx);
+  const bound = bindWorkspace(ctx, { areaIds: workspace.areas.map((area) => area.id) });
+  if (sub === 'status') return vantaDBStatus({ ctx, bound });
+  const timeoutMs = flags['--timeout'] !== undefined
+    ? Number(flags['--timeout']) : undefined;
+  if (sub === 'get') {
+    const namespace = requireFlag(flags, '--namespace');
+    const key = requireFlag(flags, '--key');
+    return getVantaDBRecord({ cfg: requireVantaDBConfig(ctx), namespace, key, timeoutMs });
+  }
+  const cfg = requireVantaDBConfig(ctx);
+  const limit = flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined;
+  return syncVantaDB({ ctx, bound, cfg, limit, timeoutMs });
+}
+
 function cmdOwnedSpecification(sub, positional, flags) {
   const project = requireFlag(flags, '--project');
   const input = sub === 'create'
@@ -1406,7 +1486,7 @@ export async function run(argv, io) {
       return 0;
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
-      'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify']);
+      'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb']);
     let cmdKey;
     let spec;
     let aliasCommand = null;
@@ -1478,6 +1558,8 @@ export async function run(argv, io) {
       result = cmdWorkspace(cmdKey.slice(10), flags);
     } else if (cmdKey.startsWith('journal ')) {
       result = cmdJournal(cmdKey.slice(8), rest, flags);
+    } else if (cmdKey.startsWith('vantadb ')) {
+      result = await cmdVantaDB(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('capture ')) {
       result = cmdCapture(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('catalog ')) {

@@ -183,7 +183,8 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   cada entrada sigue pidiendo sus areas explicitas all-of. Sin
   autodeteccion de envolturas, enrolamiento/adopcion implicitos,
   productores automaticos ni hooks; la activacion nativa solo existe como
-  comando explicito (`host activate`) y la de VantaDB sigue bloqueada.
+  comando explicito (`host activate`) y la de VantaDB solo via el enrolamiento
+  explicito de `vantadb setup`.
   Contrato de resultados, errores y limites en la
   [guia de ownership](record-ownership.md#cli).
 - Un ack local es una declaracion del adaptador, no prueba de ejecucion remota.
@@ -205,8 +206,13 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   del estado actual requiere ownership y comprobaciones de hash posteriores;
   no hay activacion de escritores, captura automatica, gateway ni motor.
   Un lease cooperativo limita el trabajador sin retener el lock del journal
-  durante llamadas remotas; el timeout es contrato del cliente futuro, no
-  garantia para callbacks arbitrarios.
+  durante llamadas remotas; el timeout es contrato del cliente, no
+  garantia para callbacks arbitrarios. El cliente concreto vive en
+  `src/integrations/vantadb-runtime.mjs`: descarga el binario oficial
+  verificado por sha256 solo dentro de `vantadb setup --apply`, spawnea
+  `vantadb-server --mcp` por operacion con `VANTADB_STORAGE_PATH` sobre una
+  instancia compartida por maquina, y cierra el proceso al terminar. Ver
+  [vantadb.md](vantadb.md).
 - `policy/workflow.json` define estados, aristas, acciones y aceptacion
   base. `policy/methodology.json` define el contrato metodologico.
   Los gates agregan controles; no crean otra maquina de estados.
