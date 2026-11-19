@@ -84,7 +84,12 @@ test('advertised input schemas bound every string argument', async (t) => {
             || (typeof prop.maxLength === 'number'
               && prop.maxLength <= MAX_ARG_CHARS)
             || ((prop.type === 'number' || prop.type === 'integer')
-              && typeof prop.maximum === 'number'),
+              && typeof prop.maximum === 'number')
+            // Structured object args (meta patches, log entries) carry no
+            // per-key advertised bound: their size is capped by the
+            // serialized-args ceiling in strictify and their contents are
+            // validated by the core validators before any write.
+            || prop.type === 'object',
           `${tool.name}.${name} lacks a bound: ${JSON.stringify(prop)}`);
       }
     }

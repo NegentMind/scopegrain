@@ -1,6 +1,8 @@
-// Optional read-only MCP server (stdio). Bound to one project root and one
-// config at startup; tools never accept paths. Importing this module does
-// not start the server and does not load the optional dependencies.
+// Optional MCP server (stdio). Bound to one project root and one config at
+// startup; tools never accept paths. Mutations are bounded CAS/append
+// writes under the same locks and validators the CLI path enforces.
+// Importing this module does not start the server and does not load the
+// optional dependencies.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { toErrorPayload } from '../core/errors.mjs';
@@ -9,7 +11,11 @@ import { resolveContext } from '../core/context.mjs';
 import { runDoctor } from '../core/doctor.mjs';
 import { inspectProject } from '../discovery/inspect.mjs';
 import { getTask, listTasks } from '../core/tasks.mjs';
-import { checkAction } from '../core/transition.mjs';
+import { checkAction, updateTaskMeta } from '../core/transition.mjs';
+import {
+  appendWorklog, readWorklog, listGoals, createGoal, transitionGoal,
+  taskMetrics,
+} from '../core/worklog.mjs';
 import { catalogDestRel, getResource, loadCatalog, loadWorkspaceCatalog } from '../core/catalog.mjs';
 import { diagnoseResource, findResources } from '../core/resource-recovery.mjs';
 import { err } from '../core/errors.mjs';
@@ -30,6 +36,19 @@ const PROTOCOL_NOTE = 'stdout is reserved for MCP protocol; logs go to stderr';
 const READ_ONLY = {
   readOnlyHint: true, destructiveHint: false, openWorldHint: false,
 };
+const WRITE_LOCAL = {
+  readOnlyHint: false, destructiveHint: false, openWorldHint: false,
+  idempotentHint: false,
+};
+// Worklog logs agents may append to directly. 'goals' stays excluded:
+// goal records need generated ids, so they go through the goal tools.
+const WORKLOG_APPEND = ['lessons', 'outcomes', 'progress'];
+const WORKLOG_READ = [...WORKLOG_APPEND, 'goals'];
+const DISPOSITION_KINDS =
+  ['deferred', 'icebox', 'future', 'discarded', 'cancelled', 'active'];
+const STEP_STATUSES = ['pending', 'done', 'skipped'];
+const GOAL_STATUSES = ['open', 'achieved', 'dropped'];
+const PRIORITY_RANK = { p0: 0, p1: 1, p2: 2, p3: 3, backlog: 4 };
 
 // Tool-argument bounds. The stdio transport parses a whole JSON-RPC line
 // before validation, so caps live in BOTH layers: per-field zod maxLength
@@ -394,6 +413,177 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async ({ recordId, topK, maxNamespaces }) =>
         vantaDBContext({ cfg: requireVantaDBConfig(ctx), recordId,
           topK, maxNamespaces })),
+    },
+    {
+      // Next ready task: PLAN, active disposition, unclaimed, all
+      // dependsOn targets already CLOSE. Ordering: priority then
+      // createdAt. claimBy appends a 'claimed by X' note through the
+      // same CAS writer the CLI uses; claimed tasks are skipped.
+      name: 'scopegrain_next_task',
+      config: {
+        description: 'Select the next ready task (PLAN + active + deps met), optionally claiming it with a note',
+        inputSchema: {
+          backlog: z.string().max(MAX_ARG_CHARS).optional()
+            .describe('restrict to a named backlog'),
+          claimBy: z.string().max(MAX_ARG_CHARS).optional()
+            .describe('actor name; appends a claim note via CAS update'),
+        },
+        // Selection is read-only, but claimBy performs a CAS write, so the
+        // tool is advertised as mutating.
+        annotations: WRITE_LOCAL,
+      },
+      handler: wrap(async ({ backlog, claimBy }) => {
+        const { tasks } = listTasks(ctx);
+        const closed = new Set(
+          tasks.filter((t) => t.state === 'CLOSE').map((t) => t.id));
+        const isClaimed = (t) => Array.isArray(t.notes)
+          && t.notes.some((n) => n.startsWith('claimed by '));
+        const candidates = tasks.filter((t) =>
+          t.state === 'PLAN'
+          && (t.disposition ?? null) === null
+          && !isClaimed(t)
+          && (backlog === undefined || (t.backlog ?? 'default') === backlog)
+          && (!Array.isArray(t.dependsOn)
+            || t.dependsOn.every((d) => closed.has(d))));
+        candidates.sort((a, b) =>
+          (PRIORITY_RANK[a.priority] ?? 5) - (PRIORITY_RANK[b.priority] ?? 5)
+          || String(a.createdAt).localeCompare(String(b.createdAt)));
+        const next = candidates[0] ?? null;
+        let claimed = null;
+        if (next && claimBy) {
+          claimed = updateTaskMeta(ctx, {
+            id: next.id, expectedRevision: next.revision,
+            addNote: `claimed by ${claimBy}`,
+          });
+        }
+        return {
+          next: claimed ?? next,
+          claimed: claimed !== null,
+          candidates: candidates.length,
+        };
+      }),
+    },
+    {
+      name: 'scopegrain_task_meta',
+      config: {
+        description: 'CAS metadata patch on a task: set semantic fields, append a note, or update a step status',
+        inputSchema: {
+          id: z.string().max(MAX_ARG_CHARS).describe('task UUID'),
+          expectedRevision: z.number().int().min(0)
+            .max(Number.MAX_SAFE_INTEGER).describe('CAS revision'),
+          set: z.record(z.unknown()).optional()
+            .describe('semantic fields patch (backlog, priority, type, ...)'),
+          addNote: z.string().max(MAX_ARG_CHARS).optional(),
+          stepIndex: z.number().int().min(0).max(1000000).optional(),
+          stepStatus: z.enum(STEP_STATUSES).optional(),
+        },
+        annotations: WRITE_LOCAL,
+      },
+      handler: wrap(async (a) => {
+        const input = {
+          id: a.id, expectedRevision: a.expectedRevision,
+        };
+        if (a.set !== undefined) input.set = a.set;
+        if (a.addNote !== undefined) input.addNote = a.addNote;
+        if (a.stepIndex !== undefined || a.stepStatus !== undefined) {
+          input.stepStatus = { index: a.stepIndex, status: a.stepStatus };
+        }
+        return updateTaskMeta(ctx, input);
+      }),
+    },
+    {
+      name: 'scopegrain_task_disposition',
+      config: {
+        description: 'Set or clear a task disposition (deferred|icebox|future|discarded|cancelled; active clears)',
+        inputSchema: {
+          id: z.string().max(MAX_ARG_CHARS).describe('task UUID'),
+          expectedRevision: z.number().int().min(0)
+            .max(Number.MAX_SAFE_INTEGER).describe('CAS revision'),
+          kind: z.enum(DISPOSITION_KINDS),
+          reason: z.string().max(MAX_ARG_CHARS).optional(),
+          by: z.string().max(MAX_ARG_CHARS).optional(),
+        },
+        annotations: WRITE_LOCAL,
+      },
+      handler: wrap(async (a) => updateTaskMeta(ctx, {
+        id: a.id, expectedRevision: a.expectedRevision,
+        disposition: a.kind === 'active' ? null : {
+          kind: a.kind,
+          ...(a.reason !== undefined ? { reason: a.reason } : {}),
+          ...(a.by !== undefined ? { by: a.by } : {}),
+        },
+      })),
+    },
+    {
+      name: 'scopegrain_memory_add',
+      config: {
+        description: 'Append an entry to an operational memory log (lessons|outcomes|progress)',
+        inputSchema: {
+          log: z.enum(WORKLOG_APPEND),
+          entry: z.record(z.unknown())
+            .describe('log entry fields; validated by the core'),
+        },
+        annotations: WRITE_LOCAL,
+      },
+      handler: wrap(async ({ log, entry }) =>
+        appendWorklog(ctx, log, entry)),
+    },
+    {
+      name: 'scopegrain_memory_read',
+      config: {
+        description: 'Read tail entries from an operational memory log',
+        inputSchema: {
+          log: z.enum(WORKLOG_READ),
+          tail: z.number().int().min(0).max(1000).optional(),
+        },
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async ({ log, tail }) =>
+        readWorklog(ctx, log, tail === undefined ? {} : { tail })),
+    },
+    {
+      name: 'scopegrain_goal_create',
+      config: {
+        description: 'Create a goal/objective record tasks can link to via goalIds',
+        inputSchema: {
+          title: z.string().max(MAX_ARG_CHARS),
+          description: z.string().max(MAX_ARG_CHARS).optional(),
+          horizon: z.string().max(MAX_ARG_CHARS).optional(),
+          metrics: z.record(z.unknown()).optional(),
+        },
+        annotations: WRITE_LOCAL,
+      },
+      handler: wrap(async (a) => createGoal(ctx, a)),
+    },
+    {
+      name: 'scopegrain_goal_list',
+      config: {
+        description: 'List goals; latest entry per id wins',
+        inputSchema: {},
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async () => listGoals(ctx)),
+    },
+    {
+      name: 'scopegrain_goal_transition',
+      config: {
+        description: 'Change a goal status (open|achieved|dropped)',
+        inputSchema: {
+          id: z.string().max(MAX_ARG_CHARS).describe('goal UUID'),
+          to: z.enum(GOAL_STATUSES),
+        },
+        annotations: WRITE_LOCAL,
+      },
+      handler: wrap(async ({ id, to }) => transitionGoal(ctx, id, to)),
+    },
+    {
+      name: 'scopegrain_metrics',
+      config: {
+        description: 'Derived task metrics: state/backlog/priority/disposition counts, verification and first-try rates, close-time percentiles, per-skill outcomes',
+        inputSchema: {},
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async () => taskMetrics(ctx)),
     },
   ]);
 }

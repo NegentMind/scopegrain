@@ -28,6 +28,18 @@ const NEW_NAMES = [
   'scopegrain_memory_search', 'scopegrain_memory_recall',
   'scopegrain_memory_context',
 ];
+const W2_NAMES = [
+  'scopegrain_next_task', 'scopegrain_task_meta',
+  'scopegrain_task_disposition', 'scopegrain_memory_add',
+  'scopegrain_memory_read', 'scopegrain_goal_create',
+  'scopegrain_goal_list', 'scopegrain_goal_transition',
+  'scopegrain_metrics',
+];
+const WRITE_TOOLS = new Set([
+  'scopegrain_next_task', 'scopegrain_task_meta',
+  'scopegrain_task_disposition', 'scopegrain_memory_add',
+  'scopegrain_goal_create', 'scopegrain_goal_transition',
+]);
 function filesAndBytes(root) {
   const out = {};
   function walk(dir, prefix = '') {
@@ -81,17 +93,25 @@ async function withWire(f, body) {
   }
 }
 function namesContract(tools) {
-  assert.equal(tools.length, 23);
-  assert.equal(new Set(tools.map((t) => t.name)).size, 23);
-  assert.deepEqual(tools.map((t) => t.name).sort(), [...OLD_NAMES, ...NEW_NAMES].sort());
+  const ALL = [...OLD_NAMES, ...NEW_NAMES, ...W2_NAMES];
+  assert.equal(tools.length, 32);
+  assert.equal(new Set(tools.map((t) => t.name)).size, 32);
+  assert.deepEqual(tools.map((t) => t.name).sort(), [...ALL].sort());
   assert.deepEqual(tools.filter((t) => !OLD_NAMES.includes(t.name)).map((t) => t.name).sort(),
-    [...NEW_NAMES].sort());
+    [...NEW_NAMES, ...W2_NAMES].sort());
   for (const t of tools) {
-    assert.doesNotMatch(t.name, /create|answer|apply|mutate|assess/);
     const annotations = t.config?.annotations ?? t.annotations;
-    assert.deepEqual(annotations, {
-      readOnlyHint: true, destructiveHint: false, openWorldHint: false,
-    });
+    if (WRITE_TOOLS.has(t.name)) {
+      assert.deepEqual(annotations, {
+        readOnlyHint: false, destructiveHint: false,
+        openWorldHint: false, idempotentHint: false,
+      });
+    } else {
+      assert.doesNotMatch(t.name, /create|answer|apply|mutate|assess/);
+      assert.deepEqual(annotations, {
+        readOnlyHint: true, destructiveHint: false, openWorldHint: false,
+      });
+    }
   }
 }
 
@@ -107,7 +127,7 @@ test('server import remains lazy and cannot implicitly start stdio', async () =>
   assert.equal(typeof mod.startMCPServer, 'function');
 });
 
-test('descriptors are exact23, additions carry lead-authored literal metadata', async () => {
+test('descriptors are exact32, additions carry lead-authored literal metadata', async () => {
   const f = formalFixture();
   try {
     const tools = await descriptors(f);
@@ -238,7 +258,7 @@ test('blocked methodology is an ordinary allowed:false response, direct and wire
   } finally { cleanup(f.dir); }
 });
 
-test('wire registers exact23 strict tools, reads bound records and ACCEPT locator without any writes', async () => {
+test('wire registers exact32 strict tools, reads bound records and ACCEPT locator without any writes', async () => {
   const f = formalFixture();
   try {
     f.task = seedState(f, f.task); // SYNTHETIC declared REVIEW fixture only

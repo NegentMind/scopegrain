@@ -24,6 +24,14 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   create|list|transition` and `metrics` (derived aggregates: state/
   backlog/priority/disposition counts, verification and first-try rates,
   close-time p50/p95/p99, per-skill outcome rates).
+- **MCP wave-2 tools (23 → 32)** — `scopegrain_next_task` (priority- and
+  dependency-aware selection with note-based `claimBy`),
+  `scopegrain_task_meta`, `scopegrain_task_disposition`,
+  `scopegrain_memory_add`, `scopegrain_memory_read`,
+  `scopegrain_goal_create`, `scopegrain_goal_list`,
+  `scopegrain_goal_transition`, `scopegrain_metrics`. Write tools are
+  advertised `readOnlyHint: false` and run through the same CAS/lock
+  validators as the CLI; the server is no longer strictly read-only.
 - **VantaDB opt-in memory backend** — verified binary install from
   GitHub releases (sha256 sidecar enforced), stdio MCP client
   (NDJSON JSON-RPC), project-local enrollment at

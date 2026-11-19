@@ -221,17 +221,23 @@ Ver [onboarding](onboarding.md) y [workflows](workflows.md).
 
 ## 11. MCP opcional
 
-El servidor MCP ofrece 22 herramientas de solo lectura, estrictamente
-vinculadas al proyecto y configuracion seleccionados al iniciar. Entre ellas
-estan `scopegrain_specification_get`, `scopegrain_approval_get` y
-`scopegrain_methodology_check`. Esta ultima consulta gates sobre registros
-existentes; no registra ni reclasifica hechos ni autoriza herramientas.
+El servidor MCP ofrece 32 herramientas estrictamente vinculadas al
+proyecto y configuracion seleccionados al iniciar. 26 son de solo
+lectura; 6 mutan bajo la misma disciplina CAS/lock que el CLI
+(`scopegrain_next_task` con `claimBy`, `scopegrain_task_meta`,
+`scopegrain_task_disposition`, `scopegrain_memory_add`,
+`scopegrain_goal_create`, `scopegrain_goal_transition`). Entre las de
+lectura estan `scopegrain_specification_get`, `scopegrain_approval_get`,
+`scopegrain_methodology_check`, `scopegrain_memory_read`,
+`scopegrain_goal_list` y `scopegrain_metrics`.
 
 El transporte opcional es stdio. La carga del SDK es perezosa; las
 dependencias declaradas son `@modelcontextprotocol/sdk` 1.27.1 y `zod`
-4.5.4. Las herramientas no mutan tareas ni ejecutan shell; el harness no
-inicia red autonoma. La existencia de la interfaz no implica arrancar un
-servidor ni certificar una integracion nativa.
+4.5.4. Las herramientas no ejecutan shell ni inician red autonoma; los
+argumentos van acotados en dos capas (esquema anunciado + techo de bytes
+serializados) y los contenidos los valida el nucleo. La existencia de la
+interfaz no implica arrancar un servidor ni certificar una integracion
+nativa.
 
 ## 12. Propuestas para anfitriones
 

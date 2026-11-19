@@ -228,17 +228,23 @@ See [onboarding](onboarding.md) and [workflows](workflows.md).
 
 ## 11. Optional MCP
 
-The MCP server offers 22 read-only tools, strictly bound to the project
-and configuration selected at startup. Among them are
-`scopegrain_specification_get`, `scopegrain_approval_get` and
-`scopegrain_methodology_check`. The latter queries gates over existing
-records; it does not record or reclassify facts nor authorize tools.
+The MCP server offers 32 tools, strictly bound to the project and
+configuration selected at startup. 26 are read-only; 6 mutate under the
+same CAS/lock discipline as the CLI (`scopegrain_next_task` with
+`claimBy`, `scopegrain_task_meta`, `scopegrain_task_disposition`,
+`scopegrain_memory_add`, `scopegrain_goal_create`,
+`scopegrain_goal_transition`). Among the read-only tools are
+`scopegrain_specification_get`, `scopegrain_approval_get`,
+`scopegrain_methodology_check`, `scopegrain_memory_read`,
+`scopegrain_goal_list` and `scopegrain_metrics`.
 
 The optional transport is stdio. SDK loading is lazy; the declared
 dependencies are `@modelcontextprotocol/sdk` 1.27.1 and `zod`
-4.5.4. The tools do not mutate tasks or execute shell; the harness does
-not start an autonomous network. The existence of the interface does not
-imply starting a server or certifying a native integration.
+4.5.4. The tools never execute shell or start an autonomous network;
+arguments are bounded in two layers (advertised schema plus a serialized
+bytes ceiling) and contents are validated by the core. The existence of
+the interface does not imply starting a server or certifying a native
+integration.
 
 ## 12. Host proposals
 

@@ -22,6 +22,11 @@ const EXPECTED_TOOLS = [
   'scopegrain_memory_status', 'scopegrain_memory_get',
   'scopegrain_memory_search', 'scopegrain_memory_recall',
   'scopegrain_memory_context',
+  'scopegrain_next_task', 'scopegrain_task_meta',
+  'scopegrain_task_disposition', 'scopegrain_memory_add',
+  'scopegrain_memory_read', 'scopegrain_goal_create',
+  'scopegrain_goal_list', 'scopegrain_goal_transition',
+  'scopegrain_metrics',
 ];
 
 async function depsAvailable() {
@@ -41,7 +46,7 @@ test('importing server.mjs does not start a server or require deps', async () =>
   assert.equal(typeof mod.createMCPTools, 'function');
 });
 
-test('descriptors are exactly 23 read-only tools bound to ctx', async (t) => {
+test('descriptors are exactly 32 tools bound to ctx', async (t) => {
   if (!(await depsAvailable())) {
     t.skip('optional MCP dependencies are not installed');
     return;
@@ -52,12 +57,12 @@ test('descriptors are exactly 23 read-only tools bound to ctx', async (t) => {
   const { dir, ctx } = bootstrappedCtx();
   try {
     const tools = createMCPTools(ctx, z);
-    assert.equal(tools.length, 23);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 23);
+    assert.equal(tools.length, 32);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 32);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     for (const tool of tools) {
-      assert.equal(tool.config.annotations.readOnlyHint, true);
       assert.equal(tool.config.annotations.destructiveHint, false);
+      assert.equal(tool.config.annotations.openWorldHint, false);
     }
     const task = createTask(ctx, {
       title: 'T', contract: 'C', authorContext: 'a', scope: [],
@@ -98,10 +103,10 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
       server.connect(serverT), client.connect(clientT),
     ]);
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 23);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 23);
+    assert.equal(tools.length, 32);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 32);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
-    assert.ok(tools.every((x) => x.annotations?.readOnlyHint === true));
+    assert.ok(tools.every((x) => x.annotations?.destructiveHint === false));
     const res = await client.callTool({
       name: 'scopegrain_check_action',
       arguments: { taskId: '00000000-0000-4000-8000-000000000000', action: 'read' },

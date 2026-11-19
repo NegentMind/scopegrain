@@ -177,3 +177,44 @@ Other aliases declared in the catalog (`spec` -> `specify-change`,
 `status` -> `report-status`, `audit` -> `verify-work`/`review-change`/
 `audit-project` by mode, `research` -> `investigate`/
 `compare-options`) follow exactly the same mechanism.
+
+## Operational memory, goals and metrics
+
+Bounded append-only JSONL logs under `paths.memory`; field contract in
+`resources/references/backlog-format.md` and task verbs in
+`docs/en/task-workflow.md` (`task meta|disposition|note|step`,
+`task list --backlog`).
+
+### memory add / memory list
+
+```text
+memory add --project PATH --log lessons|outcomes|progress --input FILE
+memory list --project PATH --log lessons|outcomes|progress|goals [--tail N]
+```
+
+`add` validates the entry against the per-log closed schema (lessons
+`{topic?,text,ref?,taskId?}`, outcomes `{taskId,outcome,skills[]}`,
+progress `{taskId,title,result,...}`) and appends it; `list` returns the
+latest `tail` entries (default 50, max 1000) plus malformed lines. The
+`goals` log is read-only here: goals enter through `goal *`.
+
+### goal create / goal list / goal transition
+
+```text
+goal create --project PATH --input FILE
+goal list --project PATH
+goal transition --project PATH ID --to open|achieved|dropped
+```
+
+Meta-level objectives: `{id,title,description?,status,horizon?,metrics?}`
+records in `goals.jsonl`; latest entry per `id` wins. Tasks link via
+`task.goalIds`. `create` requires `title` and generates the UUID;
+`transition` re-appends the current entry with the new status.
+
+### metrics
+
+`metrics --project PATH`
+
+Aggregates derived on read (nothing precomputed on write): counts by
+state/backlog/type/priority/disposition, verification and first-try
+rates, close-time p50/p95/p99 and per-skill ok/fail rates.

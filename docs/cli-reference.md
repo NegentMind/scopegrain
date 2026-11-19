@@ -176,3 +176,44 @@ Otros alias declarados en el catalogo (`spec` -> `specify-change`,
 `status` -> `report-status`, `audit` -> `verify-work`/`review-change`/
 `audit-project` segun modo, `research` -> `investigate`/
 `compare-options`) siguen exactamente el mismo mecanismo.
+
+## Memoria operativa, metas y metricas
+
+Logs JSONL acotados y append-only bajo `paths.memory`; contrato de campos
+en `resources/references/backlog-format.md` y verbos de tarea en
+`docs/task-workflow.md` (`task meta|disposition|note|step`,
+`task list --backlog`).
+
+### memory add / memory list
+
+```text
+memory add --project PATH --log lessons|outcomes|progress --input FILE
+memory list --project PATH --log lessons|outcomes|progress|goals [--tail N]
+```
+
+`add` valida la entrada contra el esquema del log (cerrada por tipo:
+lecciones `{topic?,text,ref?,taskId?}`, outcomes `{taskId,outcome,skills[]}`,
+progreso `{taskId,title,result,...}`) y la anexa; `list` devuelve las
+ultimas `tail` entradas (default 50, max 1000) mas las lineas malformadas.
+El log `goals` es de solo lectura aqui: las metas entran por `goal *`.
+
+### goal create / goal list / goal transition
+
+```text
+goal create --project PATH --input FILE
+goal list --project PATH
+goal transition --project PATH ID --to open|achieved|dropped
+```
+
+Metas/objetivos generales: registros `{id,title,description?,status,
+horizon?,metrics?}` en `goals.jsonl`; el ultimo registro por `id` gana.
+Las tareas enlazan via `task.goalIds`. `create` exige `title` y genera el
+UUID; `transition` re-anexa la entrada actual con el nuevo estado.
+
+### metrics
+
+`metrics --project PATH`
+
+Agregados derivados al leer (nada precomputado al escribir): conteos por
+estado/backlog/tipo/prioridad/disposicion, tasas de verificacion y
+first-try, duraciones de cierre p50/p95/p99 y tasas ok/fail por skill.
