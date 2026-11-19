@@ -51,7 +51,8 @@ Compone `inspectProject` (no lo reimplementa) y agrega senales:
   (<=64 entradas, sin contenido); otros proveedores por existencia
   (GitLab, Azure, Jenkins, Travis, CircleCI, Bitbucket, Woodpecker).
 - **Anfitriones:** senales de existencia (.claude/, .codex/, .opencode/,
-  .devin/, .antigravity/, opencode.json, CLAUDE.md, AGENTS.md). Una
+  .devin/, .antigravity/, .agents/, .agent/, opencode.json, CLAUDE.md,
+  AGENTS.md, GEMINI.md). Una
   senal de directorio nunca lista su contenido.
 - **i18n:** directorios locales/i18n/l10n, i18next.config.* y
   dependencias de internacionalizacion.

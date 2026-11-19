@@ -54,7 +54,8 @@ signals:
   (<=64 entries, no content); other providers by existence (GitLab,
   Azure, Jenkins, Travis, CircleCI, Bitbucket, Woodpecker).
 - **Hosts:** existence signals (.claude/, .codex/, .opencode/,
-  .devin/, .antigravity/, opencode.json, CLAUDE.md, AGENTS.md). A
+  .devin/, .antigravity/, .agents/, .agent/, opencode.json, CLAUDE.md,
+  AGENTS.md, GEMINI.md). A
   directory signal never lists its content.
 - **i18n:** locales/i18n/l10n directories, i18next.config.* and
   internationalization dependencies.
