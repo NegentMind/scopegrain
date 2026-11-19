@@ -12,6 +12,7 @@ import { bindWorkspace, prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
   DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, createStdioMcpClient,
   ensureVantaDBBinary, callVantaDBTool, getVantaDBRecord, loadVantaDBConfig, releaseAsset,
+  vantaDBContext,
   requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, targetTriple,
   vantaDBStatus,
 } from '../src/integrations/vantadb-runtime.mjs';
@@ -282,6 +283,41 @@ test('callVantaDBTool proxies search/list/recall over stdio and validates input'
     const big = { data: 'x'.repeat(70000) };
     await assert.rejects(
       callVantaDBTool({ cfg: c, name: 'memory_get', arguments: big,
+        spawnImpl: fakeSpawn() }),
+      (e) => e.code === 'VANTADB_INVALID_INPUT');
+  } finally {
+    cleanup(f.dir);
+  }
+});
+
+test('vantaDBContext scans sg-formal namespaces for a record ID', async () => {
+  const f = fixture();
+  try {
+    const c = cfg(f.dir);
+    fs.writeFileSync(c.binaryPath, 'placeholder');
+    const rid = '327dc5cb-0cee-4d96-ac6c-bf6165429972';
+    // Seed two scopes: one formal with the recordId, one unrelated.
+    for (const [ns, key, payload] of [
+      ['sg-formal-v1-aaa', 'e1', { event: { recordId: rid }, type: 'x' }],
+      ['sg-formal-v1-bbb', 'e2', { event: { recordId: 'other' }, type: 'x' }],
+      ['user-notes', 'n1', { text: rid }],
+    ]) {
+      await callVantaDBTool({ cfg: c, name: 'memory_put',
+        arguments: { namespace: ns, key, payload }, spawnImpl: fakeSpawn() });
+    }
+    const out = await vantaDBContext({ cfg: c, recordId: rid,
+      spawnImpl: fakeSpawn() });
+    assert.equal(out.namespacesFound, 2); // only sg-formal-v1-* count
+    assert.equal(out.namespacesScanned, 2);
+    assert.equal(out.hits.length, 1);
+    assert.equal(out.hits[0].namespace, 'sg-formal-v1-aaa');
+    assert.equal(out.truncated, false);
+
+    await assert.rejects(
+      vantaDBContext({ cfg: c, recordId: 'x', spawnImpl: fakeSpawn() }),
+      (e) => e.code === 'VANTADB_INVALID_INPUT');
+    await assert.rejects(
+      vantaDBContext({ cfg: c, recordId: 'ok-record-id', topK: 999,
         spawnImpl: fakeSpawn() }),
       (e) => e.code === 'VANTADB_INVALID_INPUT');
   } finally {

@@ -21,6 +21,7 @@ const EXPECTED_TOOLS = [
   'scopegrain_methodology_check',
   'scopegrain_memory_status', 'scopegrain_memory_get',
   'scopegrain_memory_search', 'scopegrain_memory_recall',
+  'scopegrain_memory_context',
 ];
 
 async function depsAvailable() {
@@ -40,7 +41,7 @@ test('importing server.mjs does not start a server or require deps', async () =>
   assert.equal(typeof mod.createMCPTools, 'function');
 });
 
-test('descriptors are exactly 18 read-only tools bound to ctx', async (t) => {
+test('descriptors are exactly 23 read-only tools bound to ctx', async (t) => {
   if (!(await depsAvailable())) {
     t.skip('optional MCP dependencies are not installed');
     return;
@@ -51,8 +52,8 @@ test('descriptors are exactly 18 read-only tools bound to ctx', async (t) => {
   const { dir, ctx } = bootstrappedCtx();
   try {
     const tools = createMCPTools(ctx, z);
-    assert.equal(tools.length, 22);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 22);
+    assert.equal(tools.length, 23);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 23);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     for (const tool of tools) {
       assert.equal(tool.config.annotations.readOnlyHint, true);
@@ -97,8 +98,8 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
       server.connect(serverT), client.connect(clientT),
     ]);
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 22);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 22);
+    assert.equal(tools.length, 23);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 23);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     assert.ok(tools.every((x) => x.annotations?.readOnlyHint === true));
     const res = await client.callTool({

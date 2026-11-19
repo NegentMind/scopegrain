@@ -57,6 +57,10 @@ scopegrain vantadb search --project PATH --namespace NS --query TEXT [--top-k N]
 
 # L1 memory recall with dual-pool RRF (memory_recall)
 scopegrain vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N]
+
+# Record-level rehydration: searches its recordId across every
+# projected sg-formal-v1-* namespace (single stdio session)
+scopegrain vantadb context --project PATH --record-id ID [--top-k N] [--limit N]
 ```
 
 The read verbs (`get`/`list`/`search`/`recall`) are bounded proxies over the
@@ -73,6 +77,7 @@ The MCP server exposes four additional read-only tools:
 | `scopegrain_memory_get` | `vantadb get` (`memory_get`) |
 | `scopegrain_memory_search` | `vantadb search` (`memory_search`; optional `query`, `topK` 1..100) |
 | `scopegrain_memory_recall` | `vantadb recall` (`memory_recall`; `scope` session/agent/team, `topK`) |
+| `scopegrain_memory_context` | `vantadb context` (record-level `recordId` rehydration over `sg-formal-v1-*` namespaces) |
 
 Without enrollment they return `VANTADB_NOT_CONFIGURED` as a structured
 error; arguments are validated against the bound ctx with no path redirect.

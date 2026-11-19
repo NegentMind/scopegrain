@@ -1,0 +1,14 @@
+# Code owners for NegentMind/scopegrain.
+# Last matching pattern wins; every entry requires review by the owner
+# before merge. Extend with team handles as maintainers join.
+
+* @ness-e
+
+# Canonical contracts and core state handling — highest review weight.
+/policy/                  @ness-e
+/src/core/                @ness-e
+/resources/               @ness-e
+
+# Delivery pipeline and integration boundary.
+/.github/workflows/       @ness-e
+/src/integrations/        @ness-e

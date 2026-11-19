@@ -21,7 +21,8 @@ import { getApproval } from '../core/approvals.mjs';
 import { checkMethodology } from '../core/methodology.mjs';
 import { getSession, resumeSession } from '../core/sessions.mjs';
 import { bindWorkspace, getWorkspace } from '../core/workspaces.mjs';
-import { callVantaDBTool, getVantaDBRecord, requireVantaDBConfig, vantaDBStatus }
+import { callVantaDBTool, getVantaDBRecord, requireVantaDBConfig,
+  vantaDBContext, vantaDBStatus }
   from '../integrations/vantadb-runtime.mjs';
 
 const PROTOCOL_NOTE = 'stdout is reserved for MCP protocol; logs go to stderr';
@@ -375,6 +376,24 @@ export function createMCPTools(ctx, z) {
         return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
           name: 'memory_recall', arguments: args });
       }),
+    },
+    {
+      name: 'scopegrain_memory_context',
+      config: {
+        description: 'Rehydrate one record: searches every projected sg-formal-v1-* namespace for journal events mentioning the record ID',
+        inputSchema: {
+          recordId: z.string().max(MAX_ARG_CHARS)
+            .describe('task/capture/spec record UUID to look up remotely'),
+          topK: z.number().int().min(1).max(50).optional()
+            .describe('hits per namespace, default 10'),
+          maxNamespaces: z.number().int().min(1).max(256).optional()
+            .describe('namespace scan cap, default 32'),
+        },
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async ({ recordId, topK, maxNamespaces }) =>
+        vantaDBContext({ cfg: requireVantaDBConfig(ctx), recordId,
+          topK, maxNamespaces })),
     },
   ]);
 }

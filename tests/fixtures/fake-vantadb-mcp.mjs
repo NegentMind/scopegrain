@@ -84,6 +84,15 @@ process.stdin.on('data', (chunk) => {
         } });
         continue;
       }
+      if (name === 'memory_list_namespaces') {
+        const namespaces = [...new Set([...store.keys()]
+          .map((sk) => JSON.parse(sk)[0]))].sort();
+        send({ jsonrpc: '2.0', id: m.id, result: {
+          structuredContent: { namespaces },
+          content: [{ type: 'text', text: JSON.stringify(namespaces) }],
+        } });
+        continue;
+      }
       if (name === 'memory_recall') {
         const v = { prepend_context: 'ctx', recalled: [{ content: 'm', score: 0.9,
           type: 'episodic' }], effective_mode: 'hybrid' };

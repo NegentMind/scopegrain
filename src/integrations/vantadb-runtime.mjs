@@ -412,6 +412,61 @@ export async function callVantaDBTool({ cfg, name, arguments: args, timeoutMs, s
   });
 }
 
+const FORMAL_NS_PREFIX = 'sg-formal-v1-';
+const MAX_CONTEXT_NAMESPACES = 32;
+const MAX_CONTEXT_TOP_K = 50;
+
+// Record-level rehydration: enumerates remote sg-formal-v1-* namespaces
+// (one per distinct scope hash) and keyword-searches each for the record
+// ID. Projected journal events carry recordId verbatim in their payload,
+// so keyword search recovers every remote event for that record without
+// needing the local journal. Single stdio session; read-only.
+export async function vantaDBContext({ cfg, recordId, topK, maxNamespaces,
+  timeoutMs, spawnImpl }) {
+  if (typeof recordId !== 'string' || recordId.length < 8
+      || recordId.length > 256 || !/^[\w:.-]+$/.test(recordId)) {
+    throw err('VANTADB_INVALID_INPUT',
+      'recordId must be a bounded identifier (8..256, word/colon/dot/dash)');
+  }
+  const k = topK === undefined ? 10 : Number(topK);
+  const cap = maxNamespaces === undefined ? MAX_CONTEXT_NAMESPACES
+    : Number(maxNamespaces);
+  if (!Number.isInteger(k) || k < 1 || k > MAX_CONTEXT_TOP_K
+      || !Number.isInteger(cap) || cap < 1 || cap > 256) {
+    throw err('VANTADB_INVALID_INPUT', 'topK/maxNamespaces out of bounds');
+  }
+  return withMcpClient(cfg, timeoutMs, spawnImpl, async (client) => {
+    const listed = await client.invoke({ name: 'memory_list_namespaces',
+      arguments: {} });
+    // The real server answers this tool as a bare JSON array inside
+    // content[].text (no structuredContent); some builds nest it under
+    // structuredContent.namespaces. Accept both shapes defensively.
+    let raw = listed?.structuredContent?.namespaces
+      ?? listed?.structuredContent ?? null;
+    if (raw === null) {
+      try {
+        raw = JSON.parse(listed?.content?.[0]?.text ?? 'null');
+      } catch {
+        raw = null;
+      }
+    }
+    const names = (Array.isArray(raw) ? raw : raw?.namespaces ?? [])
+      .filter((n) => typeof n === 'string' && n.startsWith(FORMAL_NS_PREFIX))
+      .sort();
+    const scanned = names.slice(0, cap);
+    const hits = [];
+    for (const namespace of scanned) {
+      const res = await client.invoke({ name: 'memory_search',
+        arguments: { namespace, text_query: recordId, top_k: k } });
+      const page = res?.structuredContent ?? {};
+      const found = Array.isArray(page.hits) ? page.hits : [];
+      if (found.length > 0) hits.push({ namespace, hits: found });
+    }
+    return { recordId, namespacesFound: names.length,
+      namespacesScanned: scanned.length, truncated: names.length > cap, hits };
+  });
+}
+
 export async function getVantaDBRecord({ cfg, namespace, key, timeoutMs, spawnImpl }) {
   if (typeof namespace !== 'string' || !namespace || namespace.length > 256
       || typeof key !== 'string' || !key || key.length > 512) {

@@ -58,7 +58,7 @@ import { applyActivation, prepareActivation } from './hosts/activation.mjs';
 import { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool,
   defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary,
   getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig,
-  syncVantaDB, vantaDBStatus }
+  syncVantaDB, vantaDBContext, vantaDBStatus }
   from './integrations/vantadb-runtime.mjs';
 import {
   proposeFromInitAnswers, proposeFromJournal, reviewProposal,
@@ -89,7 +89,7 @@ const VALUE_FLAGS = new Set([
   '--query', '--interaction', '--spec', '--design', '--plan', '--to',
   '--outcome-evidence', '--from', '--surface', '--since-sequence', '--port',
   '--command', '--timeout', '--version', '--storage', '--binary',
-  '--install-dir', '--namespace', '--key', '--top-k',
+  '--install-dir', '--namespace', '--key', '--top-k', '--record-id',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -165,6 +165,11 @@ const COMMANDS = {
     flags: ['--project', '--config', '--query', '--scope', '--top-k',
       '--timeout'], pos: 0,
     usage: 'vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N] [--timeout MS]',
+  },
+  'vantadb context': {
+    flags: ['--project', '--config', '--record-id', '--top-k', '--limit',
+      '--timeout'], pos: 0,
+    usage: 'vantadb context --project PATH --record-id ID [--top-k N] [--limit N] [--timeout MS]',
   },
   'capture create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
@@ -1169,6 +1174,14 @@ async function cmdVantaDB(sub, positional, flags) {
     if (flags['--top-k'] !== undefined) args.top_k = Number(flags['--top-k']);
     return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
       name: 'memory_recall', arguments: args, timeoutMs });
+  }
+  if (sub === 'context') {
+    const recordId = requireFlag(flags, '--record-id');
+    return vantaDBContext({ cfg: requireVantaDBConfig(ctx), recordId,
+      topK: flags['--top-k'] !== undefined ? Number(flags['--top-k']) : undefined,
+      maxNamespaces: flags['--limit'] !== undefined
+        ? Number(flags['--limit']) : undefined,
+      timeoutMs });
   }
   const cfg = requireVantaDBConfig(ctx);
   const limit = flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined;

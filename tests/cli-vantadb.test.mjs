@@ -56,6 +56,7 @@ test('help lists exactly the authored vantadb usages', async () => {
   assert.ok(usages.includes('vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--timeout MS]'));
   assert.ok(usages.includes('vantadb list --project PATH --namespace NS [--timeout MS]'));
   assert.ok(usages.includes('vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N] [--timeout MS]'));
+  assert.ok(usages.includes('vantadb context --project PATH --record-id ID [--top-k N] [--limit N] [--timeout MS]'));
 });
 
 test('setup preview is read-only: no config, no storage dir, no writes', async () => {
@@ -133,6 +134,7 @@ test('sync and get without enrollment fail closed VANTADB_NOT_CONFIGURED', async
       ['search', '--namespace', 'n', '--query', 'q'],
       ['list', '--namespace', 'n'],
       ['recall', '--query', 'q'],
+      ['context', '--record-id', 'abc12345-def0'],
     ]) {
       const r = await call(['vantadb', verb[0], '--project', f.dir,
         '--config', f.configRel, ...verb.slice(1)]);
@@ -191,6 +193,10 @@ test('vantadb commands reject unknown flags and missing required flags', async (
       '--config', f.configRel]);
     assert.equal(noNsList.code, 1);
     assert.equal(noNsList.output.code, 'INVALID_ARGS');
+    const noRec = await call(['vantadb', 'context', '--project', f.dir,
+      '--config', f.configRel]);
+    assert.equal(noRec.code, 1);
+    assert.equal(noRec.output.code, 'INVALID_ARGS');
   } finally {
     cleanup(f.dir);
   }

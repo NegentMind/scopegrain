@@ -1,17 +1,24 @@
-name: Manual Verification
+name: Verification
 
-# NOTE (2026-11-17): This workflow has NEVER run remotely. It is
-# configuration only, triggered exclusively via workflow_dispatch, and no
-# execution evidence exists yet on any matrix cell (Node 22/24 x
-# ubuntu-latest/windows-latest). Local suite evidence lives in
-# docs/verification.md; treat this file as unverified CI config until its
-# first real run is recorded.
+# First remote execution evidence: run 44391417084 on develop
+# (2026-11-18, all matrix cells green). Local suite evidence lives in
+# docs/verification.md. PRs gate on the full suite; the viewer lane
+# typechecks and builds the SPA so frontend breakage cannot merge
+# silently.
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop, main]
 
 permissions:
   contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -41,3 +48,24 @@ jobs:
         run: npm install --ignore-scripts --no-package-lock --no-audit --no-fund
       - name: Run complete test suite
         run: npm test
+
+  viewer:
+    name: Viewer build + typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install viewer dependencies without lifecycle scripts
+        working-directory: viewer
+        run: npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+      - name: Typecheck and build viewer
+        working-directory: viewer
+        run: npm run build
