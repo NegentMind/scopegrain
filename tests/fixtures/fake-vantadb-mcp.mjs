@@ -60,13 +60,20 @@ process.stdin.on('data', (chunk) => {
         continue;
       }
       if (name === 'memory_list') {
-        const hits = [...store.entries()]
-          .map(([sk]) => JSON.parse(sk))
-          .filter(([ns]) => ns === args.namespace)
-          .map(([ns, key]) => ({ namespace: ns, key }));
+        // Real shape: {records, next_cursor, byte_count, truncated}.
+        const records = [...store.entries()]
+          .map(([sk, v]) => [JSON.parse(sk), v])
+          .filter(([[ns]]) => ns === args.namespace)
+          .map(([[ns, key], v]) => ({ namespace: ns, key, payload: v }));
+        const start = Number.isSafeInteger(args.cursor) ? args.cursor : 0;
+        const page = records.slice(start, start + 100);
+        const next = start + page.length < records.length
+          ? start + page.length : null;
+        const out = { records: page, next_cursor: next,
+          byte_count: page.length, truncated: false };
         send({ jsonrpc: '2.0', id: m.id, result: {
-          structuredContent: { hits, byte_count: hits.length, truncated: false },
-          content: [{ type: 'text', text: JSON.stringify(hits) }],
+          structuredContent: out,
+          content: [{ type: 'text', text: JSON.stringify(out) }],
         } });
         continue;
       }
@@ -102,6 +109,32 @@ process.stdin.on('data', (chunk) => {
         send({ jsonrpc: '2.0', id: m.id, result: {
           structuredContent: { namespaces },
           content: [{ type: 'text', text: JSON.stringify(namespaces) }],
+        } });
+        continue;
+      }
+      if (name === 'memory_reinforce') {
+        const sk = JSON.stringify([args.namespace, args.key]);
+        if (!store.has(sk)) {
+          send({ jsonrpc: '2.0', id: m.id, result: { isError: true,
+            content: [{ type: 'text', text: JSON.stringify({ code: -32004,
+              message: 'Record not found',
+              data: { code: 'VANTADB_NOT_FOUND', retriable: false } }) }] } });
+          continue;
+        }
+        const deltas = { used: 0.05, corrected: -0.1, unused: -0.1 };
+        if (!(args.outcome in deltas)) {
+          send({ jsonrpc: '2.0', id: m.id, result: { isError: true,
+            content: [{ type: 'text', text: JSON.stringify({ code: -32602,
+              message: 'invalid outcome',
+              data: { code: 'VANTADB_INVALID_ARGUMENT', retriable: false } }) }] } });
+          continue;
+        }
+        const v = { namespace: args.namespace, key: args.key,
+          confidence: Math.min(1, Math.max(0, 1 + deltas[args.outcome])),
+          last_validated_at_ms: Date.now(), outcome: args.outcome };
+        send({ jsonrpc: '2.0', id: m.id, result: {
+          structuredContent: v,
+          content: [{ type: 'text', text: JSON.stringify(v) }],
         } });
         continue;
       }

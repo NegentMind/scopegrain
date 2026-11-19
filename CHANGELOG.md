@@ -7,6 +7,19 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **VantaDB integration hardening (audit-driven)** — spawn environment is
+  now controlled: `VANTADB_MCP_PROFILE` pinned to `brain` (restricted
+  profiles reject dispatch-only tools), injection ACL scoped to `l1/`,
+  inherited `VANTADB_MCP_*` overrides stripped. `vantaDBContext` surfaces
+  engine `abstained`/`abstention_reason`/`truncated` signals instead of
+  letting them look like empty results. New `vantadb reinforce` verb
+  (host-declared confidence via `memory_reinforce`), `vantadb list
+  --cursor` pagination, `vantadb search --mode keyword|vector|hybrid`
+  search-profile override (also on `scopegrain_memory_search`), `vantadb
+  recall --scope` validated locally, `vantadb status --probe` aggregates
+  an `embedding-model-missing` warning, and projected formal records now
+  carry filterable `metadata` (`record_type`, `event_id`, `operation_id`).
+
 - **Viewer surface: memory, goals, metrics, reports + i18n** — new
   read-only API routes (`/api/memory`, `/api/goals`, `/api/metrics`,
   `/api/reports`) expose the JSONL worklogs, goals, derived metrics and

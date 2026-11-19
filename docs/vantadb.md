@@ -23,7 +23,10 @@ nada descarga, instala ni sincroniza sin un comando explicito.
 - **Auto-spawn por operacion**: `sync`/`get` lanzan `vantadb-server --mcp`
   con `VANTADB_STORAGE_PATH`, hablan JSON-RPC por stdio y el proceso muere
   al cerrar. El writer-discovery de VantaDB (`.vanta.server.json`) cubre
-  clientes concurrentes sobre el mismo storage.
+  clientes concurrentes sobre el mismo storage. El entorno del spawn es
+  controlado: `VANTADB_MCP_PROFILE` se fija a `brain` (los perfiles
+  restringidos rechazan tools no listadas), la ACL de inyeccion queda en
+  `l1/` y cualquier `VANTADB_MCP_*` heredado se descarta.
 - **Distribucion**: assets oficiales de GitHub releases (`ness-e/Vantadb`),
   verificados contra el sidecar `.sha256` antes de adoptarse. Un mismatch
   produce `VANTADB_HASH_MISMATCH` y no adopta nada.
@@ -53,14 +56,19 @@ scopegrain vantadb sync --project PATH [--limit N] [--timeout MS]
 # Lectura puntual contra el backend (memory_get)
 scopegrain vantadb get --project PATH --namespace NS --key K
 
-# Listar claves de un namespace (memory_list)
-scopegrain vantadb list --project PATH --namespace NS
+# Listar claves de un namespace (memory_list; --cursor pagina via next_cursor)
+scopegrain vantadb list --project PATH --namespace NS [--cursor N]
 
-# Busqueda hibrida en un namespace (memory_search)
-scopegrain vantadb search --project PATH --namespace NS --query TEXT [--top-k N]
+# Busqueda hibrida en un namespace (memory_search;
+# --mode keyword|vector|hybrid fuerza el search_profile del engine)
+scopegrain vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--mode keyword|vector|hybrid]
 
 # Recall de memoria L1 con RRF dual-pool (memory_recall)
 scopegrain vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N]
+
+# Refuerzo de confianza declarado por el host (memory_reinforce;
+# used +0.05, corrected/unused -0.10 — los registros derived se rechazan)
+scopegrain vantadb reinforce --project PATH --namespace NS --key K --outcome used|corrected|unused
 
 # Rehidratacion por record: busca su recordId en todos los
 # namespaces sg-formal-v1-* proyectados (una sesion stdio)

@@ -14,7 +14,7 @@ import {
   ensureVantaDBBinary, callVantaDBTool, getVantaDBRecord, loadVantaDBConfig, releaseAsset,
   vantaDBContext, vantaDBDistill, vantaDBProbe,
   requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, targetTriple,
-  vantaDBStatus,
+  vantaDBReinforce, vantaDBStatus,
 } from '../src/integrations/vantadb-runtime.mjs';
 import { VALID_ANSWERS, cleanup, makeTempDir, writeJson } from './helpers.mjs';
 
@@ -261,7 +261,9 @@ test('callVantaDBTool proxies search/list/recall over stdio and validates input'
 
     const list = await callVantaDBTool({ cfg: c, name: 'memory_list',
       arguments: { namespace: 'sg-formal-v1-x' }, spawnImpl: fakeSpawn() });
-    assert.equal(list.structuredContent.hits.length, 1);
+    // Real shape: records + next_cursor (not hits).
+    assert.equal(list.structuredContent.records.length, 1);
+    assert.equal(list.structuredContent.next_cursor, null);
 
     const recall = await callVantaDBTool({ cfg: c, name: 'memory_recall',
       arguments: { query: 'what changed', scope: 'agent', top_k: 5 },
@@ -374,6 +376,62 @@ test('vantaDBProbe surfaces embedding capability state; unenrolled fails closed'
         spawnImpl: fakeSpawn() }),
       (e) => e.code === 'VANTADB_BINARY_MISSING');
   } finally {
+    cleanup(f.dir);
+  }
+});
+
+test('vantaDBReinforce proxies memory_reinforce and validates outcome locally', async () => {
+  const f = fixture();
+  try {
+    const c = cfg(f.dir);
+    fs.writeFileSync(c.binaryPath, 'placeholder');
+    await callVantaDBTool({ cfg: c, name: 'memory_put',
+      arguments: { namespace: 'l1/sg-test', key: 'k1', payload: 'x' },
+      spawnImpl: fakeSpawn() });
+    const r = await vantaDBReinforce({ cfg: c, namespace: 'l1/sg-test',
+      key: 'k1', outcome: 'used', spawnImpl: fakeSpawn() });
+    assert.equal(r.structuredContent.outcome, 'used');
+    assert.equal(r.structuredContent.confidence <= 1, true);
+    await assert.rejects(
+      vantaDBReinforce({ cfg: c, namespace: 'l1/sg-test', key: 'k1',
+        outcome: 'magic', spawnImpl: fakeSpawn() }),
+      (e) => e.code === 'VANTADB_INVALID_INPUT');
+    // Not-found surfaces the exact -32004 contract.
+    const miss = await vantaDBReinforce({ cfg: c, namespace: 'l1/sg-test',
+      key: 'absent', outcome: 'used', spawnImpl: fakeSpawn() });
+    assert.equal(miss.isError, true);
+  } finally {
+    cleanup(f.dir);
+  }
+});
+
+test('spawn env pins brain profile, l1 injection ACL and strips overrides', async () => {
+  const f = fixture();
+  const prev = { ...process.env };
+  let captured = null;
+  try {
+    process.env.VANTADB_MCP_PROFILE = 'memory';
+    process.env.VANTADB_MCP_INJECT_NAMESPACES = 'evil/';
+    process.env.VANTADB_MCP_BYTE_BUDGET = '1';
+    const c = cfg(f.dir);
+    fs.writeFileSync(c.binaryPath, 'placeholder');
+    const spawnImpl = (bin, args, opts) => {
+      captured = opts.env;
+      return spawn(process.execPath, ['-e', 'setTimeout(()=>{},3000)'], opts);
+    };
+    await assert.rejects(callVantaDBTool({ cfg: c, name: 'memory_get',
+      arguments: { namespace: 'n', key: 'k', },
+      timeoutMs: 1500, spawnImpl }));
+    assert.equal(captured.VANTADB_MCP_PROFILE, 'brain');
+    assert.equal(captured.VANTADB_MCP_INJECT_NAMESPACES, 'l1/');
+    assert.equal(captured.VANTADB_MCP_BYTE_BUDGET, undefined);
+    assert.equal(captured.VANTADB_STORAGE_PATH, c.storagePath);
+    assert.equal(captured.VANTADB_QUIET, '1');
+  } finally {
+    for (const k of Object.keys(process.env)) {
+      if (!(k in prev)) delete process.env[k];
+    }
+    Object.assign(process.env, prev);
     cleanup(f.dir);
   }
 });

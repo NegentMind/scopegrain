@@ -23,7 +23,10 @@ or syncs without an explicit command.
 - **Auto-spawn per operation**: `sync`/`get` launch `vantadb-server --mcp`
   with `VANTADB_STORAGE_PATH`, speak JSON-RPC over stdio and the process
   exits on close. VantaDB's writer discovery (`.vanta.server.json`) covers
-  concurrent clients on the same storage.
+  concurrent clients on the same storage. The spawn environment is
+  controlled: `VANTADB_MCP_PROFILE` is pinned to `brain` (restricted
+  profiles reject unlisted tools), the injection ACL is `l1/` and any
+  inherited `VANTADB_MCP_*` override is stripped.
 - **Distribution**: official GitHub release assets (`ness-e/Vantadb`),
   verified against the `.sha256` sidecar before adoption. A mismatch
   yields `VANTADB_HASH_MISMATCH` and adopts nothing.
@@ -53,14 +56,19 @@ scopegrain vantadb sync --project PATH [--limit N] [--timeout MS]
 # Point read against the backend (memory_get)
 scopegrain vantadb get --project PATH --namespace NS --key K
 
-# List keys in a namespace (memory_list)
-scopegrain vantadb list --project PATH --namespace NS
+# List keys in a namespace (memory_list; --cursor paginates via next_cursor)
+scopegrain vantadb list --project PATH --namespace NS [--cursor N]
 
-# Hybrid search within a namespace (memory_search)
-scopegrain vantadb search --project PATH --namespace NS --query TEXT [--top-k N]
+# Hybrid search within a namespace (memory_search;
+# --mode keyword|vector|hybrid forces the engine search_profile)
+scopegrain vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--mode keyword|vector|hybrid]
 
 # L1 memory recall with dual-pool RRF (memory_recall)
 scopegrain vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N]
+
+# Host-declared confidence reinforcement (memory_reinforce;
+# used +0.05, corrected/unused -0.10 — derived records are rejected)
+scopegrain vantadb reinforce --project PATH --namespace NS --key K --outcome used|corrected|unused
 
 # Record-level rehydration: searches its recordId across every
 # projected sg-formal-v1-* namespace (single stdio session)

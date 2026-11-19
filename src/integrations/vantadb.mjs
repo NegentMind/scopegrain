@@ -295,8 +295,10 @@ async function getValue(bound, invoke, event, namespace, key) {
   return remote(bound, invoke, event, 'memory_get', { namespace, key });
 }
 
-async function putValue(bound, invoke, event, namespace, key, payload) {
-  const returned = await remote(bound, invoke, event, 'memory_put', { namespace, key, payload });
+async function putValue(bound, invoke, event, namespace, key, payload, metadata) {
+  const args = { namespace, key, payload };
+  if (metadata !== undefined) args.metadata = metadata;
+  const returned = await remote(bound, invoke, event, 'memory_put', args);
   requireMatching(returned, payload, false);
 }
 
@@ -323,7 +325,10 @@ async function projectOne(bound, backendId, invoke, operationId, eventId, result
         continue;
       }
       stage = 'write';
-      await putValue(bound, invoke, event, expected.chunkNamespace, key, payload);
+      await putValue(bound, invoke, event, expected.chunkNamespace, key,
+        payload, { record_type: 'scopegrain.journal-snapshot-chunk',
+          scopegrain: true, event_id: event.eventId,
+          source_hash: event.sourceHash ?? '' });
       stage = 'verify';
       const verified = await getValue(bound, invoke, event, expected.chunkNamespace, key);
       if (verified === null) {
@@ -337,7 +342,10 @@ async function projectOne(bound, backendId, invoke, operationId, eventId, result
       requireMatching(current, expected.payload, true);
     } else {
       stage = 'write';
-      await putValue(bound, invoke, event, expected.eventNamespace, eventId, expected.payload);
+      await putValue(bound, invoke, event, expected.eventNamespace, eventId,
+        expected.payload, { record_type: 'scopegrain.journal-event',
+          scopegrain: true, event_id: event.eventId,
+          operation_id: operationId });
       stage = 'verify';
       const verified = await getValue(bound, invoke, event, expected.eventNamespace, eventId);
       if (verified === null) {

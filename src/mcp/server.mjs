@@ -364,13 +364,16 @@ export function createMCPTools(ctx, z) {
             .describe('optional text query for hybrid search'),
           topK: z.number().int().min(1).max(100).optional()
             .describe('maximum hits, default server-side'),
+          mode: z.enum(['keyword', 'vector', 'hybrid']).optional()
+            .describe('search profile mode; keyword works without an embedding provider'),
         },
         annotations: READ_ONLY,
       },
-      handler: wrap(async ({ namespace, query, topK }) => {
+      handler: wrap(async ({ namespace, query, topK, mode }) => {
         const args = { namespace };
         if (query !== undefined) args.text_query = query;
         if (topK !== undefined) args.top_k = topK;
+        if (mode !== undefined) args.search_profile = { mode };
         return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
           name: 'memory_search', arguments: args });
       }),

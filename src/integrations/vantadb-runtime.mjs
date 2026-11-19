@@ -221,12 +221,39 @@ export async function ensureVantaDBBinary({
   }
 }
 
+// The server reads several VANTADB_MCP_* vars that silently change the
+// tool contract: a restricted profile rejects tools outside its
+// advertised list ("Tool not found: X (not in profile Y)") which would
+// break dispatch-only calls we rely on (memory_list_namespaces,
+// capabilities, memory_list); the injection ACLs gate what recall and
+// context_assemble may inject; the byte budget truncates search results.
+// Pin them explicitly instead of trusting inherited process.env.
+const SPAWN_ENV_STRIP = [
+  'VANTADB_MCP_PROFILE',
+  'VANTADB_MCP_INJECT_NAMESPACES',
+  'VANTADB_MCP_TAINTED_NAMESPACES',
+  'VANTADB_MCP_INCLUDE_TAINTED',
+  'VANTADB_MCP_BYTE_BUDGET',
+];
+
+function controlledEnv(storagePath) {
+  const env = { ...process.env };
+  for (const key of SPAWN_ENV_STRIP) delete env[key];
+  env.VANTADB_STORAGE_PATH = storagePath;
+  env.VANTADB_QUIET = '1';
+  env.VANTADB_MCP_PROFILE = 'brain';
+  // Injection ACL: recall/context may only inject the engine's own l1/*
+  // memory pool, never arbitrary namespaces such as sg-formal-v1-*.
+  env.VANTADB_MCP_INJECT_NAMESPACES = 'l1/';
+  return env;
+}
+
 export function createStdioMcpClient({
   binaryPath, storagePath, timeoutMs = DEFAULT_TIMEOUT_MS, spawnImpl, env,
 }) {
   const spawnFn = spawnImpl ?? spawn;
   const child = spawnFn(binaryPath, ['--mcp'], {
-    env: env ?? { ...process.env, VANTADB_STORAGE_PATH: storagePath, VANTADB_QUIET: '1' },
+    env: env ?? controlledEnv(storagePath),
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });
@@ -493,15 +520,29 @@ export async function vantaDBContext({ cfg, recordId, topK, maxNamespaces,
       .sort();
     const scanned = names.slice(0, cap);
     const hits = [];
+    const warnings = [];
     for (const namespace of scanned) {
       const res = await client.invoke({ name: 'memory_search',
         arguments: { namespace, text_query: recordId, top_k: k } });
       const page = res?.structuredContent ?? {};
       const found = Array.isArray(page.hits) ? page.hits : [];
       if (found.length > 0) hits.push({ namespace, hits: found });
+      // Surface engine signals instead of letting them look like "no hits":
+      // abstention means the search refused to rank (low confidence), and
+      // the 40KB response byte budget can silently drop trailing hits.
+      if (page.abstained === true) {
+        warnings.push({ namespace, signal: 'abstained',
+          reason: page.abstention_reason ?? null });
+      }
+      if (page.truncated === true) {
+        warnings.push({ namespace, signal: 'truncated',
+          reason: 'response byte budget exhausted' });
+      }
     }
     return { recordId, namespacesFound: names.length,
-      namespacesScanned: scanned.length, truncated: names.length > cap, hits };
+      namespacesScanned: scanned.length,
+      truncated: names.length > cap || warnings.some((w) => w.signal === 'truncated'),
+      hits, warnings };
   });
 }
 
@@ -576,6 +617,26 @@ export async function vantaDBDistill({ bound, cfg, limit, timeoutMs, spawnImpl }
     }
     return { distilled, failed, candidateEvents: items.length };
   });
+}
+
+const REINFORCE_OUTCOMES = ['used', 'corrected', 'unused'];
+
+// Host-declared outcome signal: adjusts a record's confidence
+// (used +0.05 / corrected,unused -0.10 server-side; derived records are
+// rejected by the engine). Lets the scopegrain outcome loop feed back
+// into L1 memory confidence.
+export async function vantaDBReinforce({ cfg, namespace, key, outcome,
+  timeoutMs, spawnImpl }) {
+  if (typeof namespace !== 'string' || !namespace || namespace.length > 256
+      || typeof key !== 'string' || !key || key.length > 512) {
+    throw err('VANTADB_INVALID_INPUT', 'namespace and key must be bounded strings');
+  }
+  if (!REINFORCE_OUTCOMES.includes(outcome)) {
+    throw err('VANTADB_INVALID_INPUT',
+      `outcome must be one of ${REINFORCE_OUTCOMES.join(',')}`);
+  }
+  return callVantaDBTool({ cfg, name: 'memory_reinforce',
+    arguments: { namespace, key, outcome }, timeoutMs, spawnImpl });
 }
 
 export async function getVantaDBRecord({ cfg, namespace, key, timeoutMs, spawnImpl }) {

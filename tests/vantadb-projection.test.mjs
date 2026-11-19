@@ -723,7 +723,8 @@ test('SDK 1.x in-memory MCP transport roundtrips exact get and put contract', as
   const { z } = await import('zod');
   const schemas = {
     memory_get: z.object({ namespace: z.string(), key: z.string() }).strict(),
-    memory_put: z.object({ namespace: z.string(), key: z.string(), payload: z.string() }).strict(),
+    memory_put: z.object({ namespace: z.string(), key: z.string(),
+      payload: z.string(), metadata: z.record(z.any()).optional() }).strict(),
   };
   const f = fixture();
   const b = backend();

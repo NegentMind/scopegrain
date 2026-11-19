@@ -70,7 +70,8 @@ import { applyActivation, prepareActivation } from './hosts/activation.mjs';
 import { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool,
   defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary,
   getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig,
-  syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBProbe, vantaDBStatus }
+  syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBProbe,
+  vantaDBReinforce, vantaDBStatus }
   from './integrations/vantadb-runtime.mjs';
 import {
   proposeFromInitAnswers, proposeFromJournal, reviewProposal,
@@ -103,7 +104,7 @@ const VALUE_FLAGS = new Set([
   '--command', '--timeout', '--version', '--storage', '--binary',
   '--install-dir', '--namespace', '--key', '--top-k', '--record-id',
   '--reason', '--by', '--log', '--tail', '--backlog', '--status', '--index',
-  '--text',
+  '--text', '--outcome', '--cursor',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -168,12 +169,18 @@ const COMMANDS = {
   },
   'vantadb search': {
     flags: ['--project', '--config', '--namespace', '--query', '--top-k',
-      '--timeout'], pos: 0,
-    usage: 'vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--timeout MS]',
+      '--mode', '--timeout'], pos: 0,
+    usage: 'vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--mode keyword|vector|hybrid] [--timeout MS]',
   },
   'vantadb list': {
-    flags: ['--project', '--config', '--namespace', '--timeout'], pos: 0,
-    usage: 'vantadb list --project PATH --namespace NS [--timeout MS]',
+    flags: ['--project', '--config', '--namespace', '--cursor', '--timeout'],
+    pos: 0,
+    usage: 'vantadb list --project PATH --namespace NS [--cursor N] [--timeout MS]',
+  },
+  'vantadb reinforce': {
+    flags: ['--project', '--config', '--namespace', '--key', '--outcome',
+      '--timeout'], pos: 0,
+    usage: 'vantadb reinforce --project PATH --namespace NS --key K --outcome used|corrected|unused [--timeout MS]',
   },
   'vantadb recall': {
     flags: ['--project', '--config', '--query', '--scope', '--top-k',
@@ -1377,6 +1384,9 @@ function cmdJournal(sub, positional, flags) {
     : prepareJournalRecovery(bound, positional[0], input);
 }
 
+const RECALL_SCOPES = ['session', 'agent', 'team'];
+const SEARCH_MODES = ['keyword', 'vector', 'hybrid'];
+
 async function cmdVantaDB(sub, positional, flags) {
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
@@ -1430,6 +1440,11 @@ async function cmdVantaDB(sub, positional, flags) {
       try {
         report.probe = await vantaDBProbe({ cfg: requireVantaDBConfig(ctx),
           timeoutMs });
+        if (report.probe?.embedding?.model_present === false) {
+          report.warnings = [{ signal: 'embedding-model-missing',
+            detail: report.probe.embedding.detail
+              ?? 'local embedding model files not present; vector search degrades to keyword-only' }];
+        }
       } catch (e) {
         report.probe = { error: { code: e.code ?? 'VANTADB_PROBE_FAILED',
           message: e.message } };
@@ -1446,20 +1461,47 @@ async function cmdVantaDB(sub, positional, flags) {
     const args = { namespace: requireFlag(flags, '--namespace') };
     if (flags['--query'] !== undefined) args.text_query = flags['--query'];
     if (flags['--top-k'] !== undefined) args.top_k = Number(flags['--top-k']);
+    if (flags['--mode'] !== undefined) {
+      if (!SEARCH_MODES.includes(flags['--mode'])) {
+        throw err('INVALID_ARGS',
+          `--mode must be one of ${SEARCH_MODES.join(',')}`);
+      }
+      args.search_profile = { mode: flags['--mode'] };
+    }
     return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
       name: 'memory_search', arguments: args, timeoutMs });
   }
   if (sub === 'list') {
     const namespace = requireFlag(flags, '--namespace');
+    const args = { namespace };
+    if (flags['--cursor'] !== undefined) {
+      const cursor = Number(flags['--cursor']);
+      if (!Number.isSafeInteger(cursor) || cursor < 0) {
+        throw err('INVALID_ARGS', '--cursor must be a non-negative integer');
+      }
+      args.cursor = cursor;
+    }
     return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
-      name: 'memory_list', arguments: { namespace }, timeoutMs });
+      name: 'memory_list', arguments: args, timeoutMs });
   }
   if (sub === 'recall') {
     const args = { query: requireFlag(flags, '--query') };
-    if (flags['--scope'] !== undefined) args.scope = flags['--scope'];
+    if (flags['--scope'] !== undefined) {
+      if (!RECALL_SCOPES.includes(flags['--scope'])) {
+        throw err('INVALID_ARGS',
+          `--scope must be one of ${RECALL_SCOPES.join(',')}`);
+      }
+      args.scope = flags['--scope'];
+    }
     if (flags['--top-k'] !== undefined) args.top_k = Number(flags['--top-k']);
     return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
       name: 'memory_recall', arguments: args, timeoutMs });
+  }
+  if (sub === 'reinforce') {
+    return vantaDBReinforce({ cfg: requireVantaDBConfig(ctx),
+      namespace: requireFlag(flags, '--namespace'),
+      key: requireFlag(flags, '--key'),
+      outcome: requireFlag(flags, '--outcome'), timeoutMs });
   }
   if (sub === 'context') {
     const recordId = requireFlag(flags, '--record-id');
