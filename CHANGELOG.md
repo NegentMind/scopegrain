@@ -7,6 +7,23 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Task semantic layer (schemaVersion 3)** — optional backlog/task-file
+  fields orthogonal to the lifecycle: named `backlog`, `disposition`
+  (deferred/icebox/future/discarded/cancelled, `active` clears),
+  `priority`, `severity`, `type`, `effort`, `estimate`, `source`,
+  `dependsOn`, typed `relations`, `goalIds`, deep `analysis`, `steps`,
+  `notes`, `skills` and `uncertainty`. Any semantic field at creation or
+  any `task meta` write upgrades the record to V3; V1/V2 records stay
+  valid. New verbs: `task meta|disposition|note|step`, `task list
+  --backlog`. CAS revision discipline and stored-shape validation match
+  the transition path.
+- **Operational memory, goals and metrics** — bounded append-only JSONL
+  logs under `paths.memory`: `lessons`, `outcomes` (per-skill ok/fail),
+  `progress` (auto-archived on CLOSE) and `goals` (meta objectives linked
+  from `task.goalIds`). New commands `memory add|list`, `goal
+  create|list|transition` and `metrics` (derived aggregates: state/
+  backlog/priority/disposition counts, verification and first-try rates,
+  close-time p50/p95/p99, per-skill outcome rates).
 - **VantaDB opt-in memory backend** — verified binary install from
   GitHub releases (sha256 sidecar enforced), stdio MCP client
   (NDJSON JSON-RPC), project-local enrollment at

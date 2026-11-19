@@ -10,7 +10,11 @@ import { prepareInit, applyPlan, preflightPlan } from './core/bootstrap.mjs';
 import { runDoctor } from './core/doctor.mjs';
 import { inspectProject } from './discovery/inspect.mjs';
 import { createTask, getTask, listTasks, prepareTask } from './core/tasks.mjs';
-import { transitionTask, checkAction } from './core/transition.mjs';
+import { transitionTask, updateTaskMeta, checkAction } from './core/transition.mjs';
+import {
+  appendWorklog, readWorklog, listGoals, createGoal, transitionGoal,
+  taskMetrics,
+} from './core/worklog.mjs';
 import { decodeUtf8Strict, readFileLimited } from './core/fsx.mjs';
 import fs from 'node:fs';
 import { loadLimits, loadMethodologyPolicy } from './core/policy.mjs';
@@ -90,6 +94,8 @@ const VALUE_FLAGS = new Set([
   '--outcome-evidence', '--from', '--surface', '--since-sequence', '--port',
   '--command', '--timeout', '--version', '--storage', '--binary',
   '--install-dir', '--namespace', '--key', '--top-k', '--record-id',
+  '--reason', '--by', '--log', '--tail', '--backlog', '--status', '--index',
+  '--text',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -190,8 +196,24 @@ const COMMANDS = {
     usage: 'task create --project PATH --input FILE [--apply]',
   },
   'task list': {
-    flags: ['--project', '--config'], pos: 0,
-    usage: 'task list --project PATH',
+    flags: ['--project', '--config', '--backlog'], pos: 0,
+    usage: 'task list --project PATH [--backlog NAME]',
+  },
+  'task meta': {
+    flags: ['--project', '--config', '--revision', '--input'], pos: 1,
+    usage: 'task meta --project PATH ID --revision N --input FILE',
+  },
+  'task disposition': {
+    flags: ['--project', '--config', '--revision', '--reason', '--by'], pos: 2,
+    usage: 'task disposition --project PATH ID KIND --revision N [--reason TEXT] [--by X]',
+  },
+  'task note': {
+    flags: ['--project', '--config', '--revision', '--text'], pos: 1,
+    usage: 'task note --project PATH ID --revision N --text TEXT',
+  },
+  'task step': {
+    flags: ['--project', '--config', '--revision', '--index', '--status'], pos: 1,
+    usage: 'task step --project PATH ID --revision N --index N --status pending|done|skipped',
   },
   'task show': {
     flags: ['--project', '--config'], pos: 1,
@@ -204,6 +226,30 @@ const COMMANDS = {
   'task check-action': {
     flags: ['--project', '--config'], pos: 2,
     usage: 'task check-action --project PATH ID ACTION',
+  },
+  'memory add': {
+    flags: ['--project', '--config', '--log', '--input'], pos: 0,
+    usage: 'memory add --project PATH --log lessons|outcomes|progress --input FILE',
+  },
+  'memory list': {
+    flags: ['--project', '--config', '--log', '--tail'], pos: 0,
+    usage: 'memory list --project PATH --log lessons|outcomes|progress [--tail N]',
+  },
+  'goal create': {
+    flags: ['--project', '--config', '--input'], pos: 0,
+    usage: 'goal create --project PATH --input FILE',
+  },
+  'goal list': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'goal list --project PATH',
+  },
+  'goal transition': {
+    flags: ['--project', '--config', '--to'], pos: 1,
+    usage: 'goal transition --project PATH ID --to open|achieved|dropped',
+  },
+  metrics: {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'metrics --project PATH',
   },
   'specification create': {
     flags: ['--project', '--config', '--input', '--apply', '--owned'], pos: 0,
@@ -785,7 +831,67 @@ async function cmdTask(sub, positional, flags, io) {
       ...(Object.hasOwn(flags, '--plan') ? { planKey: flags['--plan'] } : {}),
     });
   }
-  if (sub === 'list') return listTasks(ctx);
+  if (sub === 'list') {
+    const result = listTasks(ctx);
+    if (flags['--backlog']) {
+      const name = flags['--backlog'];
+      result.tasks = result.tasks.filter(
+        (t) => (t.backlog ?? 'default') === name);
+    }
+    return result;
+  }
+  if (sub === 'meta') {
+    const input = readInputFile(requireFlag(flags, '--input'), 'task meta input');
+    if (flags['--revision'] === undefined) {
+      throw err('INVALID_ARGS', '--revision N is required');
+    }
+    return updateTaskMeta(ctx, {
+      id: positional[0],
+      expectedRevision: decimalInt(flags['--revision'], '--revision'),
+      ...input,
+    });
+  }
+  if (sub === 'disposition') {
+    if (flags['--revision'] === undefined) {
+      throw err('INVALID_ARGS', '--revision N is required');
+    }
+    const kind = positional[1];
+    return updateTaskMeta(ctx, {
+      id: positional[0],
+      expectedRevision: decimalInt(flags['--revision'], '--revision'),
+      disposition: kind === 'active' ? null : {
+        kind,
+        ...(flags['--reason'] ? { reason: flags['--reason'] } : {}),
+        ...(flags['--by'] ? { by: flags['--by'] } : {}),
+      },
+    });
+  }
+  if (sub === 'note') {
+    if (flags['--revision'] === undefined) {
+      throw err('INVALID_ARGS', '--revision N is required');
+    }
+    return updateTaskMeta(ctx, {
+      id: positional[0],
+      expectedRevision: decimalInt(flags['--revision'], '--revision'),
+      addNote: requireFlag(flags, '--text'),
+    });
+  }
+  if (sub === 'step') {
+    if (flags['--revision'] === undefined) {
+      throw err('INVALID_ARGS', '--revision N is required');
+    }
+    if (flags['--index'] === undefined || flags['--status'] === undefined) {
+      throw err('INVALID_ARGS', '--index N and --status S are required');
+    }
+    return updateTaskMeta(ctx, {
+      id: positional[0],
+      expectedRevision: decimalInt(flags['--revision'], '--revision'),
+      stepStatus: {
+        index: decimalInt(flags['--index'], '--index'),
+        status: flags['--status'],
+      },
+    });
+  }
   if (sub === 'show') {
     if (positional.length !== 1) {
       throw err('INVALID_ARGS', 'task show requires exactly one ID');
@@ -803,12 +909,27 @@ async function cmdTask(sub, positional, flags, io) {
     const evidence = flags['--evidence']
       ? validateEvidenceArg(readInputFile(flags['--evidence'], 'evidence file'))
       : {};
-    return transitionTask(ctx, {
+    const next = transitionTask(ctx, {
       id: positional[0],
       to: positional[1],
       expectedRevision,
       ...evidence,
     });
+    // Closing a task archives its outcome in the progress log: the
+    // avance/backlog-history loop is append-only and derives from the
+    // final stored record, not from the transition input.
+    if (next.state === 'CLOSE') {
+      try {
+        appendWorklog(ctx, 'progress', {
+          taskId: next.id,
+          title: next.title,
+          result: next.review?.verdict ?? 'closed',
+          summary: next.contract,
+          domain: next.backlog,
+        });
+      } catch { /* progress archive is best-effort; the CLOSE already committed */ }
+    }
+    return next;
   }
   if (sub === 'check-action') {
     if (positional.length !== 2) {
@@ -1049,6 +1170,44 @@ function cmdCaptureProposals(project, flags) {
       ...proposeFromInitAnswers(answers, { areaIds }),
     ],
   };
+}
+
+// Append-only operational memory: lessons, skill outcomes and the
+// progress archive live as bounded JSONL under paths.memory.
+function cmdMemory(sub, flags) {
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'),
+    config: flags['--config'],
+  });
+  if (sub === 'add') {
+    const input = readInputFile(
+      requireFlag(flags, '--input'), 'memory input');
+    return appendWorklog(ctx, requireFlag(flags, '--log'), input);
+  }
+  if (sub === 'list') {
+    const tail = flags['--tail'] !== undefined
+      ? decimalInt(flags['--tail'], '--tail') : 50;
+    return readWorklog(ctx, requireFlag(flags, '--log'), { tail });
+  }
+  throw err('INVALID_ARGS', `unknown memory subcommand '${sub}'`);
+}
+
+// Goals are the meta/objective layer: append-only entries in goals.jsonl,
+// latest per id wins; tasks link via task.goalIds.
+function cmdGoal(sub, positional, flags) {
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'),
+    config: flags['--config'],
+  });
+  if (sub === 'create') {
+    const input = readInputFile(requireFlag(flags, '--input'), 'goal input');
+    return createGoal(ctx, input);
+  }
+  if (sub === 'list') return listGoals(ctx);
+  if (sub === 'transition') {
+    return transitionGoal(ctx, positional[0], requireFlag(flags, '--to'));
+  }
+  throw err('INVALID_ARGS', `unknown goal subcommand '${sub}'`);
 }
 
 // Pure review gate: the resolved decision is returned as-is; only an
@@ -1554,7 +1713,8 @@ export async function run(argv, io) {
       return 0;
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
-      'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb']);
+      'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb',
+      'memory', 'goal']);
     let cmdKey;
     let spec;
     let aliasCommand = null;
@@ -1665,6 +1825,15 @@ export async function run(argv, io) {
       result = await cmdView(flags, io);
     } else if (cmdKey.startsWith('verify ')) {
       result = await cmdVerify(cmdKey.slice(7), rest, flags, io);
+    } else if (cmdKey.startsWith('memory ')) {
+      result = cmdMemory(cmdKey.slice(7), flags);
+    } else if (cmdKey.startsWith('goal ')) {
+      result = cmdGoal(cmdKey.slice(5), rest, flags);
+    } else if (cmdKey === 'metrics') {
+      result = taskMetrics(resolveContext({
+        project: requireFlag(flags, '--project'),
+        config: flags['--config'],
+      }));
     } else if (cmdKey.startsWith('host ')) {
       result = cmdHost(flags);
     } else {

@@ -27,6 +27,7 @@ import {
 } from './locks.mjs';
 import {
   getTask, prepareTask, taskFilePath, validateTaskShape,
+  normalizeV3Input, V3_DEFAULTS,
 } from './tasks.mjs';
 import { validateReview, validateVerification } from './evidence.mjs';
 import { evaluateMethodology, evaluateTaskActions } from './methodology.mjs';
@@ -214,6 +215,196 @@ export function transitionTask(ctx, input) {
       releaseVerifiedLock(lock); // unlinks only the lock proven ours
     } catch (e) {
       if (!failure) failure = e; // a domain failure is never masked
+    }
+  }
+  if (failure) throw failure;
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// Metadata updates (Schema V3 semantics): priority, backlog, disposition,
+// steps, notes and the rest of the orthogonal backlog/task-file fields.
+// These are NOT lifecycle transitions - they never change `state` and do
+// not touch verification/review evidence. V1/V2 records are upgraded to
+// schemaVersion 3 on the first semantic write, preserving methodology
+// fields for V2 and nulling them for V1.
+// ---------------------------------------------------------------------------
+
+const META_UPDATE_KEYS = new Set([
+  'id', 'expectedRevision', 'set', 'addNote', 'stepStatus', 'disposition',
+]);
+const META_SETTABLE = new Set([
+  'backlog', 'priority', 'severity', 'type', 'effort', 'estimate', 'source',
+  'relations', 'dependsOn', 'goalIds', 'analysis', 'steps', 'notes',
+  'skills', 'uncertainty',
+]);
+const DISPOSITION_KINDS = new Set([
+  'deferred', 'icebox', 'future', 'discarded', 'cancelled',
+]);
+const STEP_STATUS = new Set(['pending', 'done', 'skipped']);
+
+export function validateMetaUpdateInput(input) {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw err('INVALID_ARGS', 'updateTaskMeta input must be an object');
+  }
+  for (const key of Object.keys(input)) {
+    if (!META_UPDATE_KEYS.has(key)) {
+      throw err('UNKNOWN_KEY', `updateTaskMeta received unknown key '${key}'`);
+    }
+  }
+  if (!Number.isSafeInteger(input.expectedRevision)
+      || input.expectedRevision < 0) {
+    throw err('REVISION_MISMATCH',
+      'expectedRevision must be a non-negative safe integer');
+  }
+  const mutations = ['set', 'addNote', 'stepStatus', 'disposition']
+    .filter((k) => input[k] !== undefined);
+  if (mutations.length === 0) {
+    throw err('INVALID_ARGS',
+      'updateTaskMeta requires at least one mutation');
+  }
+  if (input.set !== undefined) {
+    if (input.set === null || typeof input.set !== 'object'
+        || Array.isArray(input.set)) {
+      throw err('INVALID_VALUE', 'set must be an object of task meta keys');
+    }
+    for (const k of Object.keys(input.set)) {
+      if (!META_SETTABLE.has(k)) {
+        throw err('UNKNOWN_KEY',
+          `set received non-settable key '${k}'`);
+      }
+    }
+  }
+  if (input.addNote !== undefined
+      && (typeof input.addNote !== 'string' || input.addNote.trim() === '')) {
+    throw err('INVALID_VALUE', 'addNote must be a non-empty string');
+  }
+  if (input.stepStatus !== undefined) {
+    const s = input.stepStatus;
+    if (s === null || typeof s !== 'object' || Array.isArray(s)
+        || !Number.isSafeInteger(s.index) || s.index < 0
+        || !STEP_STATUS.has(s.status)
+        || Object.keys(s).some((k) => !['index', 'status'].includes(k))) {
+      throw err('INVALID_VALUE',
+        'stepStatus must be {index:int>=0,status:pending|done|skipped}');
+    }
+  }
+  if (input.disposition !== undefined && input.disposition !== null) {
+    const d = input.disposition;
+    if (typeof d !== 'object' || Array.isArray(d)
+        || !DISPOSITION_KINDS.has(d.kind)
+        || Object.keys(d).some((k) => !['kind', 'reason', 'by'].includes(k))) {
+      throw err('INVALID_VALUE',
+        'disposition must be null or {kind:deferred|icebox|future|discarded|cancelled,reason?,by?}');
+    }
+  }
+}
+
+// Pure meta update: same CAS revision and history discipline as
+// evaluateTaskTransition, restricted to non-lifecycle fields.
+export function evaluateTaskMeta(ctx, task, input,
+    at = new Date().toISOString()) {
+  if (task.revision !== input.expectedRevision) {
+    throw err('REVISION_MISMATCH',
+      `expected revision ${input.expectedRevision} but stored ${task.revision}`);
+  }
+  let next = task;
+  const fields = [];
+  if (next.schemaVersion !== 3) {
+    // Upgrade V1/V2 to the canonical V3 shape: V2 keeps its methodology
+    // bundle, V1 nulls it out; all semantic fields start at defaults.
+    next = {
+      ...next,
+      schemaVersion: 3,
+      methodology: next.schemaVersion === 2 ? next.methodology : null,
+      specId: next.schemaVersion === 2 ? next.specId : null,
+      designId: next.schemaVersion === 2 ? next.designId : null,
+      planKey: next.schemaVersion === 2 ? next.planKey : null,
+      scenarioRefs: next.schemaVersion === 2 ? next.scenarioRefs : [],
+      ...V3_DEFAULTS,
+    };
+    fields.push('schemaVersion');
+  }
+  if (input.set !== undefined) {
+    const patch = normalizeV3Input(input.set);
+    if (patch === null) {
+      throw err('INVALID_VALUE', 'set produced no normalized fields');
+    }
+    next = { ...next, ...patch };
+    fields.push(...Object.keys(patch));
+  }
+  if (input.disposition !== undefined) {
+    next = {
+      ...next,
+      disposition: input.disposition === null ? null : {
+        kind: input.disposition.kind,
+        reason: input.disposition.reason ?? null,
+        at,
+        by: input.disposition.by ?? null,
+      },
+    };
+    fields.push('disposition');
+  }
+  if (input.addNote !== undefined) {
+    next = { ...next, notes: [...(next.notes ?? []), input.addNote] };
+    fields.push('notes');
+  }
+  if (input.stepStatus !== undefined) {
+    if (!Array.isArray(next.steps)
+        || input.stepStatus.index >= next.steps.length) {
+      throw err('INVALID_VALUE',
+        `stepStatus.index ${input.stepStatus.index} out of range ` +
+        `(task has ${Array.isArray(next.steps) ? next.steps.length : 0} steps)`);
+    }
+    const steps = next.steps.map((s, i) => i === input.stepStatus.index
+      ? { ...s, status: input.stepStatus.status } : s);
+    next = { ...next, steps };
+    fields.push('steps');
+  }
+  next = {
+    ...next,
+    revision: task.revision + 1,
+    updatedAt: at,
+    history: [...task.history, {
+      at, event: 'meta-update', fields,
+      revision: task.revision + 1,
+    }],
+  };
+  validateTaskShape(next, `task ${input.id}`);
+  const serialized = JSON.stringify(next, null, 2) + '\n';
+  if (Buffer.byteLength(serialized, 'utf8') > loadLimits().maxDocumentBytes) {
+    throw err('DOCUMENT_TOO_LARGE',
+      'task record would exceed document bytes limit');
+  }
+  return { next, serialized };
+}
+
+export function updateTaskMeta(ctx, input) {
+  validateMetaUpdateInput(input);
+  const file = taskFilePath(ctx, input.id);
+  const lock = acquireLock(file);
+  let tmpPath = null;
+  let tmpOwned = false;
+  let next;
+  let failure;
+  try {
+    const task = getTask(ctx, input.id);
+    const evaluated = evaluateTaskMeta(ctx, task, input);
+    mkdirpSync(path.dirname(file));
+    tmpPath = `${file}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
+    writeFileExclusive(tmpPath, evaluated.serialized);
+    tmpOwned = true;
+    fs.renameSync(tmpPath, file);
+    tmpOwned = false;
+    next = evaluated.next;
+  } catch (e) {
+    failure = e;
+  } finally {
+    if (tmpOwned) removeIfExists(tmpPath);
+    try {
+      releaseVerifiedLock(lock);
+    } catch (e) {
+      if (!failure) failure = e;
     }
   }
   if (failure) throw failure;

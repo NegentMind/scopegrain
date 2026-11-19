@@ -87,6 +87,56 @@ node .\bin\tasksystem.mjs task check-action --project P <UUID> edit
 `--config` points to an alternative config in any of them.
 `--evidence` only accepts the `verification` and/or `review` keys.
 
+## Semantic layer (schemaVersion 3)
+
+Task records may carry an optional semantic layer — named backlog,
+disposition, priority, severity, type, effort, estimate, source,
+`dependsOn`, typed `relations`, `goalIds`, deep `analysis`, `steps`,
+`notes`, exercised `skills` and `uncertainty` (uphill/downhill). It is
+orthogonal to the lifecycle: it never changes `state` or touches evidence.
+Any semantic field at creation, or any `meta` write, upgrades the record
+to `schemaVersion: 3` (V2 records keep their methodology bundle; V1
+records null it out). Full field table:
+`resources/references/backlog-format.md`.
+
+```powershell
+# Metadata patch (CAS with --revision N): {set:{...}, disposition?,
+# addNote?, stepStatus?} in the --input file
+node .\bin\tasksystem.mjs task meta --project P <UUID> --revision 2 --input meta.json
+
+# Disposition shortcut: deferred|icebox|future|discarded|cancelled;
+# 'active' clears the disposition
+node .\bin\tasksystem.mjs task disposition --project P <UUID> deferred --revision 2 --reason "waiting on owner" --by agent
+
+# Note and step status
+node .\bin\tasksystem.mjs task note --project P <UUID> --revision 3 --text "root cause confirmed"
+node .\bin\tasksystem.mjs task step --project P <UUID> --revision 4 --index 0 --status done
+
+# List a named backlog (no filter = all)
+node .\bin\tasksystem.mjs task list --project P --backlog future
+```
+
+## Operational memory, goals and metrics
+
+Bounded append-only JSONL logs under `paths.memory`
+(`.tasksystem/memory/`): `lessons` (durable learnings), `outcomes`
+(ok/fail per skills used), `progress` (advance archive — written
+automatically when a task reaches CLOSE), `goals` (meta-level objectives;
+tasks link via `goalIds`, latest entry per `id` wins).
+
+```powershell
+node .\bin\tasksystem.mjs memory add --project P --log lessons --input lesson.json
+node .\bin\tasksystem.mjs memory list --project P --log outcomes [--tail 20]
+node .\bin\tasksystem.mjs goal create --project P --input goal.json
+node .\bin\tasksystem.mjs goal list --project P
+node .\bin\tasksystem.mjs goal transition --project P <UUID> --to achieved
+node .\bin\tasksystem.mjs metrics --project P
+```
+
+`metrics` aggregates the store on read: counts by state/backlog/type/
+priority/disposition, verification and first-try rates, close-time
+p50/p95/p99 and per-skill outcome rates.
+
 ## Typical progression
 
 1. `create` -> PLAN, revision 0.

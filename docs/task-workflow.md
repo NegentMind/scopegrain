@@ -81,6 +81,56 @@ node .\bin\tasksystem.mjs task check-action --project P <UUID> edit
 `--config` apunta a una config alternativa en cualquiera de ellos.
 `--evidence` solo acepta las claves `verification` y/o `review`.
 
+## Capa semantica (schemaVersion 3)
+
+El registro de tarea admite una capa semantica opcional — backlog nombrado,
+disposicion, prioridad, severidad, tipo, esfuerzo, estimacion, origen,
+dependencias (`dependsOn`), relaciones tipadas, enlaces a metas
+(`goalIds`), analisis profundo (`analysis`), pasos (`steps`), notas
+(`notes`), skills ejercidas e `uncertainty` (uphill/downhill). Es ortogonal
+al ciclo de vida: nunca cambia `state` ni toca evidencia. Cualquier campo
+semantico en la creacion, o cualquier escritura `meta`, sube el registro a
+`schemaVersion: 3` (los V2 conservan su bundle de metodologia; los V1 lo
+nulan). Tabla completa de campos: `resources/references/backlog-format.md`.
+
+```powershell
+# Parche de metadata (CAS con --revision N): {set:{...}, disposition?,
+# addNote?, stepStatus?} en el fichero --input
+node .\bin\tasksystem.mjs task meta --project P <UUID> --revision 2 --input meta.json
+
+# Disposicion (atalajo): deferred|icebox|future|discarded|cancelled;
+# 'active' limpia la disposicion
+node .\bin\tasksystem.mjs task disposition --project P <UUID> deferred --revision 2 --reason "waiting on owner" --by agent
+
+# Nota y estado de paso
+node .\bin\tasksystem.mjs task note --project P <UUID> --revision 3 --text "root cause confirmed"
+node .\bin\tasksystem.mjs task step --project P <UUID> --revision 4 --index 0 --status done
+
+# Listar por backlog nombrado (sin filtro = todos)
+node .\bin\tasksystem.mjs task list --project P --backlog futuro
+```
+
+## Memoria operativa, metas y metricas
+
+Logs JSONL acotados y append-only bajo `paths.memory`
+(`.tasksystem/memory/`): `lessons` (aprendizajes), `outcomes` (resultado
+ok/fail por skills usadas), `progress` (archivo de avance — se escribe
+solo al alcanzar CLOSE), `goals` (metas/objetivos generales; tasks enlazan
+via `goalIds`, el ultimo registro por `id` gana).
+
+```powershell
+node .\bin\tasksystem.mjs memory add --project P --log lessons --input lesson.json
+node .\bin\tasksystem.mjs memory list --project P --log outcomes [--tail 20]
+node .\bin\tasksystem.mjs goal create --project P --input goal.json
+node .\bin\tasksystem.mjs goal list --project P
+node .\bin\tasksystem.mjs goal transition --project P <UUID> --to achieved
+node .\bin\tasksystem.mjs metrics --project P
+```
+
+`metrics` agrega el store al leer: conteos por estado/backlog/tipo/
+prioridad/disposicion, tasas de verificacion y first-try, duraciones
+p50/p95/p99 de cierre y tasas de exito por skill.
+
 ## Progresion tipica
 
 1. `create` -> PLAN, revision 0.

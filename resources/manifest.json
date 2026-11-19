@@ -959,7 +959,7 @@
    "kind": "reference",
    "id": "backlog-format",
    "path": "resources/references/backlog-format.md",
-   "description": "A portable backlog record and readiness interpretation."
+   "description": "A portable backlog record, the task semantic layer, operational memory logs and derived metrics."
   },
   {
    "kind": "reference",
