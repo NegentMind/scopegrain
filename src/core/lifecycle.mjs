@@ -8,7 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
-import { decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited,
+  removeIfExists } from './fsx.mjs';
 import {
   assertDestination, isSameOrAncestor, portableKey, resolveInside,
   resolveProjectRoot,
@@ -551,43 +552,59 @@ export function prepareBackup(ctx, options = {}) {
 export function applyBackup(ctx, options = {}) {
   const preview = prepareBackup(ctx, options);
   const root = ctx.projectRoot;
-  const files = [];
   const kept = [];
   const skipped = [];
-  for (const e of preview.entries) {
-    const abs = resolveInside(root, e.rel, 'backup source');
-    const st = lstatOrNull(abs);
-    if (!st || !st.isFile() || st.isSymbolicLink()) {
-      skipped.push({ rel: e.rel, reason: 'not-regular' });
-      continue;
+  const created = [];
+  const createdAbs = [];
+  try {
+    for (const e of preview.entries) {
+      const abs = resolveInside(root, e.rel, 'backup source');
+      const st = lstatOrNull(abs);
+      if (!st || !st.isFile() || st.isSymbolicLink()) {
+        skipped.push({ rel: e.rel, reason: 'not-regular' });
+        continue;
+      }
+      const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
+      if (limited.exceeded) {
+        skipped.push({ rel: e.rel, reason: 'oversized' });
+        continue;
+      }
+      if (sha256(limited.content) !== e.sha256) {
+        skipped.push({ rel: e.rel, reason: 'changed-since-preview' });
+        continue;
+      }
+      kept.push({ rel: e.rel, sha256: e.sha256, bytes: e.bytes });
+      // Streamed apply: write this file before reading the next source so
+      // peak memory is one document, not the whole state. applyPlan's 'wx'
+      // + fsync + failure cleanup apply per file; createdAbs below
+      // preserves the old all-or-nothing failure shape across the loop.
+      const slice = applyPlan(root, [{
+        rel: `${preview.destination}/files/${e.rel}`,
+        content: limited.content,
+      }]);
+      for (const rel of slice.files) {
+        created.push(rel);
+        createdAbs.push(resolveInside(root, rel, 'backup output'));
+      }
     }
-    const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
-    if (limited.exceeded) {
-      skipped.push({ rel: e.rel, reason: 'oversized' });
-      continue;
-    }
-    if (sha256(limited.content) !== e.sha256) {
-      skipped.push({ rel: e.rel, reason: 'changed-since-preview' });
-      continue;
-    }
-    kept.push({ rel: e.rel, sha256: e.sha256, bytes: e.bytes });
-    files.push({
-      rel: `${preview.destination}/files/${e.rel}`,
-      content: limited.content,
-    });
+    const manifest = JSON.stringify({
+      schemaVersion: 1,
+      kind: BACKUP_KIND,
+      createdAt: new Date().toISOString(),
+      source: { configRel: ctx.configPath },
+      entries: kept,
+    }, null, 2) + '\n';
+    const tail = applyPlan(root, [
+      { rel: `${preview.destination}/manifest.json`, content: manifest },
+    ]);
+    for (const rel of tail.files) created.push(rel);
+  } catch (e) {
+    for (const p of createdAbs) removeIfExists(p);
+    throw e;
   }
-  const manifest = JSON.stringify({
-    schemaVersion: 1,
-    kind: BACKUP_KIND,
-    createdAt: new Date().toISOString(),
-    source: { configRel: ctx.configPath },
-    entries: kept,
-  }, null, 2) + '\n';
-  files.push({ rel: `${preview.destination}/manifest.json`, content: manifest });
-  const applied = applyPlan(root, files);
   return Object.freeze({
     mode: 'applied', destination: preview.destination,
-    created: applied.created, files: applied.files,
+    created: created.length, files: created,
     manifest: `${preview.destination}/manifest.json`,
     skipped, issues: preview.issues,
   });
@@ -679,47 +696,54 @@ function loadBundleManifest(root, bundleRel) {
   return { entries };
 }
 
-// Classifies every manifest entry: create|skip|conflict with a reason and,
+// Classifies one manifest entry: create|skip|conflict with a reason and,
 // for creates, the hash-verified payload bytes. Read-only.
+function classifyRestoreEntry(root, bundleRel, e) {
+  const base = { rel: e.rel, sha256: e.sha256 };
+  if (isSameOrAncestor(bundleRel, e.rel)) {
+    return { ...base, action: 'skip', reason: 'self-referential' };
+  }
+  const payloadAbs = resolveInside(
+    root, `${bundleRel}/files/${e.rel}`, 'backup payload');
+  const pst = lstatOrNull(payloadAbs);
+  if (!pst || !pst.isFile() || pst.isSymbolicLink()) {
+    return { ...base, action: 'skip', reason: 'payload-missing' };
+  }
+  let payload;
+  try {
+    payload = readFileLimited(payloadAbs, loadLimits().maxDocumentBytes);
+  } catch {
+    return { ...base, action: 'skip', reason: 'payload-unreadable' };
+  }
+  if (payload.exceeded || sha256(payload.content) !== e.sha256) {
+    return { ...base, action: 'skip', reason: 'payload-hash-mismatch' };
+  }
+  const targetAbs = resolveInside(root, e.rel, 'restore target');
+  const tst = lstatOrNull(targetAbs);
+  if (!tst) {
+    return { ...base, action: 'create', content: payload.content };
+  }
+  if (tst.isSymbolicLink() || !tst.isFile()) {
+    return { ...base, action: 'conflict', reason: 'link-or-non-file' };
+  }
+  let existing;
+  try {
+    existing = readFileLimited(targetAbs, payload.content.length);
+  } catch {
+    return { ...base, action: 'conflict', reason: 'target-unreadable' };
+  }
+  if (!existing.exceeded && existing.content.equals(payload.content)) {
+    return { ...base, action: 'skip', reason: 'identical' };
+  }
+  return { ...base, action: 'conflict', reason: 'different-content' };
+}
+
+// Classifies every manifest entry. Payload buffers are stripped so a
+// large bundle never keeps every payload live at once.
 function classifyRestore(root, bundleRel, entries) {
   return entries.map((e) => {
-    const base = { rel: e.rel, sha256: e.sha256 };
-    if (isSameOrAncestor(bundleRel, e.rel)) {
-      return { ...base, action: 'skip', reason: 'self-referential' };
-    }
-    const payloadAbs = resolveInside(
-      root, `${bundleRel}/files/${e.rel}`, 'backup payload');
-    const pst = lstatOrNull(payloadAbs);
-    if (!pst || !pst.isFile() || pst.isSymbolicLink()) {
-      return { ...base, action: 'skip', reason: 'payload-missing' };
-    }
-    let payload;
-    try {
-      payload = readFileLimited(payloadAbs, loadLimits().maxDocumentBytes);
-    } catch {
-      return { ...base, action: 'skip', reason: 'payload-unreadable' };
-    }
-    if (payload.exceeded || sha256(payload.content) !== e.sha256) {
-      return { ...base, action: 'skip', reason: 'payload-hash-mismatch' };
-    }
-    const targetAbs = resolveInside(root, e.rel, 'restore target');
-    const tst = lstatOrNull(targetAbs);
-    if (!tst) {
-      return { ...base, action: 'create', content: payload.content };
-    }
-    if (tst.isSymbolicLink() || !tst.isFile()) {
-      return { ...base, action: 'conflict', reason: 'link-or-non-file' };
-    }
-    let existing;
-    try {
-      existing = readFileLimited(targetAbs, payload.content.length);
-    } catch {
-      return { ...base, action: 'conflict', reason: 'target-unreadable' };
-    }
-    if (!existing.exceeded && existing.content.equals(payload.content)) {
-      return { ...base, action: 'skip', reason: 'identical' };
-    }
-    return { ...base, action: 'conflict', reason: 'different-content' };
+    const { content, ...rest } = classifyRestoreEntry(root, bundleRel, e);
+    return rest;
   });
 }
 
@@ -741,28 +765,55 @@ export function prepareRestore(projectRoot, bundleRel, options = {}) {
 
 // Creates ONLY entries whose current classification is 'create', writing
 // the exact hash-verified payload bytes. Conflicts are reported, never
-// merged or overwritten.
+// merged or overwritten. Every entry is classified BEFORE any write so a
+// malformed later entry can never strand a half-applied restore; payloads
+// for creates are re-read and re-hashed per file at write time, keeping
+// peak memory at one document instead of the whole bundle.
 export function applyRestore(projectRoot, bundleRel, options = {}) {
   closed(options, [], 'restore options');
   const root = resolveProjectRoot(projectRoot);
   const rel = assertDestination(bundleRel, 'bundle');
   const { entries } = loadBundleManifest(root, rel);
   const classified = classifyRestore(root, rel, entries);
-  const files = [];
   const restored = [];
   const skipped = [];
   const conflicts = [];
-  for (const e of classified) {
-    if (e.action === 'create') {
-      files.push({ rel: e.rel, content: e.content });
-      restored.push(e.rel);
-    } else if (e.action === 'conflict') {
-      conflicts.push({ rel: e.rel, reason: e.reason });
-    } else {
-      skipped.push({ rel: e.rel, reason: e.reason });
+  const createdAbs = [];
+  try {
+    for (const e of classified) {
+      if (e.action === 'create') {
+        // Re-verify at write time: a bundle mutated between the classify
+        // pass and this write is skipped, never restored stale.
+        const payloadAbs = resolveInside(
+          root, `${rel}/files/${e.rel}`, 'backup payload');
+        let payload;
+        try {
+          payload = readFileLimited(
+            payloadAbs, loadLimits().maxDocumentBytes);
+        } catch {
+          skipped.push({ rel: e.rel, reason: 'payload-unreadable' });
+          continue;
+        }
+        if (payload.exceeded
+            || sha256(payload.content) !== e.sha256) {
+          skipped.push({ rel: e.rel, reason: 'changed-since-classify' });
+          continue;
+        }
+        const slice = applyPlan(root, [{ rel: e.rel, content: payload.content }]);
+        for (const written of slice.files) {
+          createdAbs.push(resolveInside(root, written, 'restore output'));
+        }
+        restored.push(e.rel);
+      } else if (e.action === 'conflict') {
+        conflicts.push({ rel: e.rel, reason: e.reason });
+      } else {
+        skipped.push({ rel: e.rel, reason: e.reason });
+      }
     }
+  } catch (error) {
+    for (const p of createdAbs) removeIfExists(p);
+    throw error;
   }
-  if (files.length) applyPlan(root, files);
   return Object.freeze({ mode: 'applied', restored, skipped, conflicts });
 }
 

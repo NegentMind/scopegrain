@@ -197,6 +197,14 @@ progreso `{taskId,title,result,...}`) y la anexa; `list` devuelve las
 ultimas `tail` entradas (default 50, max 1000) mas las lineas malformadas.
 El log `goals` es de solo lectura aqui: las metas entran por `goal *`.
 
+Un log que supera el limite de documento configurado se lee como ventana
+de cola acotada, de modo que un log grande nunca rompe el arranque de
+sesion; el resultado marca `truncated: true`. Al anexar, un segmento
+activo que ya excede el limite rota completo a `paths.memory/archive/` —
+inmutable y nunca borrado — para que un fichero de log no crezca sin
+limite. La rotacion es best-effort: un fichero ocupado la difiere y el
+append se completa igualmente.
+
 ### goal create / goal list / goal transition
 
 ```text

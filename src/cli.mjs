@@ -7,85 +7,11 @@ import { err, toErrorPayload } from './core/errors.mjs';
 import { DEFAULT_PATH_PROPOSALS, KNOWN_HOSTS, PATH_KEYS, VERSIONING_KEYS, loadConfig, resolveConfigPath, validateMethodologyMode } from './core/config.mjs';
 import { resolveContext } from './core/context.mjs';
 import { resolveInside, resolveProjectRoot } from './core/paths.mjs';
-import { prepareInit, applyPlan, preflightPlan } from './core/bootstrap.mjs';
-import { runDoctor } from './core/doctor.mjs';
-import { inspectProject } from './discovery/inspect.mjs';
-import { createTask, getTask, listTasks, prepareTask } from './core/tasks.mjs';
-import {
-  normalizeActivityInput, recordActivity,
-} from './core/activity.mjs';
-import {
-  installHooks, planHooks, uninstallHooks,
-} from './core/hooks.mjs';
-import { transitionTask, updateTaskMeta, checkAction } from './core/transition.mjs';
-import {
-  appendWorklog, readWorklog, listGoals, createGoal, transitionGoal,
-  taskMetrics,
-} from './core/worklog.mjs';
 import {
   decodeUtf8Strict, mkdirpSync, readFileLimited, writeFileExclusive,
 } from './core/fsx.mjs';
 import fs from 'node:fs';
 import { loadLimits, loadMethodologyPolicy } from './core/policy.mjs';
-import { checkCatalog, getResource, legacyGet, legacyList, loadCatalog, loadWorkspaceCatalog } from './core/catalog.mjs';
-import { applyResourceRestore, diagnoseResource, findResources, prepareResourceRestore } from './core/resource-recovery.mjs';
-import { buildWorkflowPacket } from './core/workflows.mjs';
-import {
-  getPlan, listPlans, nextPlanTasks, planWaves, preparePlan,
-} from './core/plans.mjs';
-import { writeTaskDoc } from './core/taskdoc.mjs';
-import {
-  getArtifact, listArtifacts, prepareArtifact,
-} from './core/artifacts.mjs';
-import {
-  getSpecification, prepareDesign, prepareSpecification,
-} from './core/specifications.mjs';
-import { createOwnedSpecificationStore } from './core/owned-specifications.mjs';
-import { createOwnedDesignStore } from './core/owned-designs.mjs';
-import { createOwnedOutcomeStore } from './core/owned-outcomes.mjs';
-import { prepareOutcomeEvidence } from './core/outcomes.mjs';
-import {
-  answerApproval, describeApprovalTarget, getApproval, prepareApproval,
-  prepareApprovalAnswer,
-} from './core/approvals.mjs';
-import { checkMethodology } from './core/methodology.mjs';
-import {
-  ensureSessionsDir, getSession, prepareSession, prepareSessionRecord,
-  recordSession, resumeSession, sessionsDirAbs,
-} from './core/sessions.mjs';
-import { bindWorkspace, getWorkspace, prepareWorkspace } from './core/workspaces.mjs';
-import { getJournalOperation, listJournalPending, prepareJournalRecovery,
-  recoverJournalOperation, compactJournal, countJournalPending }
-  from './core/journal.mjs';
-import { createCaptureStore } from './core/captures.mjs';
-import { openInitSession, answer as sessionAnswer, status as sessionStatus,
-  discard as discardInitSession }
-  from './core/init-session.mjs';
-import {
-  applyBackup, applyRestore, applyUninstall, applyUpdate,
-  prepareAdopt, prepareBackup, prepareRestore, prepareUninstall, prepareUpdate,
-} from './core/lifecycle.mjs';
-import {
-  buildResearchRecord, investigateProject, suggestAnswers,
-} from './discovery/semantic.mjs';
-import { applyActivation, prepareActivation } from './hosts/activation.mjs';
-import { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool,
-  defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary,
-  getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig,
-  syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBProbe,
-  vantaDBReinforce, vantaDBStatus, vantaDBSyncWorklogs }
-  from './integrations/vantadb-runtime.mjs';
-import {
-  proposeFromInitAnswers, proposeFromJournal, reviewProposal,
-} from './core/capture-proposals.mjs';
-import {
-  applyAddCommand, applyApproveCommand,
-  applyApproveDiscoveredCommands, applyImportCommands,
-  listVerifyCommands, prepareAddCommand, prepareApproveCommand,
-  prepareApproveDiscoveredCommands, prepareImportCommands,
-  runVerifyCommand,
-} from './core/verify-commands.mjs';
-import { createApiServer } from './api/server.mjs';
 
 const PATH_LABELS = {
   plans: 'Ruta de planes',
@@ -613,6 +539,8 @@ function validateEvidenceArg(raw) {
 // an interrupted run resumes at the first unanswered question.
 async function askInteractive(io, projectRoot, configFlag, existing,
     session = null) {
+  const { answer: sessionAnswer, status: sessionStatus } = await import('./core/init-session.mjs');
+  const { investigateProject, suggestAnswers } = await import('./discovery/semantic.mjs');
   const st = session === null ? null : sessionStatus(session);
   const answered = new Set(st === null ? [] : st.answered);
   const leaf = (id) => id.split('.').reduce((o, k) => o?.[k], st.answers);
@@ -725,7 +653,8 @@ function appliedInitResult(result, extra = {}) {
 // otherwise the semantic investigation suggests values and the wizard's
 // own defaults fill what detection left unanswered (empty host signals
 // fall back to the full host list, exactly like the interactive default).
-function defaultAnswers(projectRoot, configRel) {
+async function defaultAnswers(projectRoot, configRel) {
+  const { investigateProject, suggestAnswers } = await import('./discovery/semantic.mjs');
   let existing = null;
   try {
     existing = loadConfig(projectRoot, configRel).config;
@@ -756,6 +685,8 @@ function defaultAnswers(projectRoot, configRel) {
 }
 
 async function cmdInit(flags, io) {
+  const { prepareInit, applyPlan } = await import('./core/bootstrap.mjs');
+  const { openInitSession, status: sessionStatus, discard: discardInitSession } = await import('./core/init-session.mjs');
   const projectRoot = resolveProjectRoot(requireFlag(flags, '--project'));
   if (flags['--answers'] && flags['--defaults']) {
     throw err('INVALID_ARGS',
@@ -810,7 +741,7 @@ async function cmdInit(flags, io) {
     answers = got.answers;
     configRel = got.configRel;
   } else if (flags['--defaults']) {
-    answers = defaultAnswers(projectRoot, configRel);
+    answers = await defaultAnswers(projectRoot, configRel);
   } else {
     answers = readInputFile(flags['--answers'], 'answers file');
   }
@@ -839,6 +770,10 @@ async function cmdInit(flags, io) {
 }
 
 async function cmdTask(sub, positional, flags, io) {
+  const { createTask, getTask, listTasks, prepareTask } = await import('./core/tasks.mjs');
+  const { transitionTask, updateTaskMeta, checkAction } = await import('./core/transition.mjs');
+  const { appendWorklog } = await import('./core/worklog.mjs');
+  const { writeTaskDoc } = await import('./core/taskdoc.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'),
     config: flags['--config'],
@@ -853,7 +788,7 @@ async function cmdTask(sub, positional, flags, io) {
       }
       const input = readInputFile(requireFlag(flags, '--input'), 'task input');
       const prepared = prepareTask(ctx, input);
-      return finishCreation(ctx, 'task', prepared.task, prepared.file, flags);
+      return await finishCreation(ctx, 'task', prepared.task, prepared.file, flags);
     }
     if (flags['--apply']) {
       throw err('INVALID_ARGS',
@@ -1011,7 +946,8 @@ function decimalInt(value, label) {
   return Number(value);
 }
 
-function cmdCatalog(sub, positional, flags) {
+async function cmdCatalog(sub, positional, flags) {
+  const { checkCatalog, getResource, legacyGet, legacyList, loadCatalog, loadWorkspaceCatalog } = await import('./core/catalog.mjs');
   if (flags['--config'] && !flags['--project']) {
     throw err('INVALID_ARGS', '--config requires --project');
   }
@@ -1076,7 +1012,8 @@ function cmdCatalog(sub, positional, flags) {
   throw err('INVALID_ARGS', `unknown catalog subcommand '${sub}'`);
 }
 
-function cmdResource(sub, rest, flags) {
+async function cmdResource(sub, rest, flags) {
+  const { applyResourceRestore, diagnoseResource, findResources, prepareResourceRestore } = await import('./core/resource-recovery.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1102,7 +1039,8 @@ function cmdResource(sub, rest, flags) {
   throw err('INVALID_ARGS', `unknown resource subcommand '${sub}'`);
 }
 
-function cmdWorkflow(command, flags) {
+async function cmdWorkflow(command, flags) {
+  const { buildWorkflowPacket } = await import('./core/workflows.mjs');
   return buildWorkflowPacket(resolveContext({
     project: requireFlag(flags, '--project'),
     config: flags['--config'],
@@ -1116,7 +1054,9 @@ function cmdWorkflow(command, flags) {
   });
 }
 
-function cmdPlan(sub, positional, flags) {
+async function cmdPlan(sub, positional, flags) {
+  const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
+  const { getPlan, listPlans, nextPlanTasks, planWaves, preparePlan } = await import('./core/plans.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'),
     config: flags['--config'],
@@ -1141,7 +1081,9 @@ function cmdPlan(sub, positional, flags) {
   throw err('INVALID_ARGS', `unknown plan subcommand '${sub}'`);
 }
 
-function cmdArtifact(sub, positional, flags) {
+async function cmdArtifact(sub, positional, flags) {
+  const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
+  const { getArtifact, listArtifacts, prepareArtifact } = await import('./core/artifacts.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'),
     config: flags['--config'],
@@ -1168,7 +1110,8 @@ function cmdArtifact(sub, positional, flags) {
 
 // Create-only records use exclusive bootstrap writes. Mutable approval
 // answers deliberately do NOT go through this helper.
-function finishCreation(ctx, key, record, file, flags) {
+async function finishCreation(ctx, key, record, file, flags) {
+  const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
   const planned = preflightPlan(ctx.projectRoot, [file]);
   if (!flags['--apply']) {
     return {
@@ -1185,7 +1128,12 @@ function finishCreation(ctx, key, record, file, flags) {
 // workspace identity, task distribution, ready work, recent progress,
 // open goals, pending journal events and the latest session record.
 // Read-only; the host reads, Scopegrain never injects or executes.
-function cmdContext(flags) {
+async function cmdContext(flags) {
+  const { listTasks } = await import('./core/tasks.mjs');
+  const { readWorklog, listGoals } = await import('./core/worklog.mjs');
+  const { getSession, sessionsDirAbs } = await import('./core/sessions.mjs');
+  const { bindWorkspace, getWorkspace } = await import('./core/workspaces.mjs');
+  const { countJournalPending } = await import('./core/journal.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1274,7 +1222,8 @@ function cmdContext(flags) {
   };
 }
 
-function cmdWorkspace(sub, flags) {
+async function cmdWorkspace(sub, flags) {
+  const { getWorkspace, prepareWorkspace } = await import('./core/workspaces.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1282,13 +1231,15 @@ function cmdWorkspace(sub, flags) {
   const input = Object.hasOwn(flags, '--input')
     ? readInputFile(flags['--input'], 'workspace input') : {};
   const prepared = prepareWorkspace(ctx, input);
-  return finishCreation(ctx, 'workspace', prepared.workspace, prepared.file, flags);
+  return await finishCreation(ctx, 'workspace', prepared.workspace, prepared.file, flags);
 }
 
-function cmdCapture(sub, positional, flags) {
+async function cmdCapture(sub, positional, flags) {
+  const { getWorkspace } = await import('./core/workspaces.mjs');
+  const { createCaptureStore } = await import('./core/captures.mjs');
   const project = requireFlag(flags, '--project');
-  if (sub === 'proposals') return cmdCaptureProposals(project, flags);
-  if (sub === 'review') return cmdCaptureReview(project, flags);
+  if (sub === 'proposals') return await cmdCaptureProposals(project, flags);
+  if (sub === 'review') return await cmdCaptureReview(project, flags);
   // The bounded input is read before context/workspace resolution so a
   // malformed payload is reported as itself, never masked or trusted.
   const input = sub === 'create'
@@ -1305,7 +1256,9 @@ function cmdCapture(sub, positional, flags) {
 // Review material, not an audit trail: committed journal operations plus
 // the persisted init answers, bound to every enrolled area like the other
 // capture CLI paths.
-function cmdCaptureProposals(project, flags) {
+async function cmdCaptureProposals(project, flags) {
+  const { getWorkspace } = await import('./core/workspaces.mjs');
+  const { proposeFromInitAnswers, proposeFromJournal } = await import('./core/capture-proposals.mjs');
   const options = {};
   if (Object.hasOwn(flags, '--since-sequence')) {
     options.sinceSequence = decimalInt(
@@ -1334,7 +1287,8 @@ function cmdCaptureProposals(project, flags) {
 // under paths.reports (create-only timestamped file); `report list`
 // enumerates them newest-first. The avance/reports store the legacy
 // system kept under docs/dev/reports.
-function cmdReport(sub, flags) {
+async function cmdReport(sub, flags) {
+  const { runDoctor } = await import('./core/doctor.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'),
     config: flags['--config'],
@@ -1367,7 +1321,8 @@ function cmdReport(sub, flags) {
 
 // Append-only operational memory: lessons, skill outcomes and the
 // progress archive live as bounded JSONL under paths.memory.
-function cmdMemory(sub, flags) {
+async function cmdMemory(sub, flags) {
+  const { appendWorklog, readWorklog } = await import('./core/worklog.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'),
     config: flags['--config'],
@@ -1389,7 +1344,8 @@ function cmdMemory(sub, flags) {
 // (direct commits, ad-hoc edits) are recorded as a task plus a progress
 // entry. --input carries the activity payload; without --apply it is a
 // dry-run echoing the normalized input.
-function cmdActivity(sub, flags) {
+async function cmdActivity(sub, flags) {
+  const { normalizeActivityInput, recordActivity } = await import('./core/activity.mjs');
   if (sub !== 'record') {
     throw err('INVALID_ARGS', `unknown activity subcommand '${sub}'`);
   }
@@ -1408,7 +1364,8 @@ function cmdActivity(sub, flags) {
 // Git hook management: `hooks install` appends a managed post-commit
 // block that auto-registers every commit via `activity record`; the
 // preview reports create/append/already-installed and writes nothing.
-function cmdHooks(sub, flags) {
+async function cmdHooks(sub, flags) {
+  const { installHooks, planHooks, uninstallHooks } = await import('./core/hooks.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'),
     config: flags['--config'],
@@ -1435,7 +1392,8 @@ function cmdHooks(sub, flags) {
 
 // Goals are the meta/objective layer: append-only entries in goals.jsonl,
 // latest per id wins; tasks link via task.goalIds.
-function cmdGoal(sub, positional, flags) {
+async function cmdGoal(sub, positional, flags) {
+  const { listGoals, createGoal, transitionGoal } = await import('./core/worklog.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'),
     config: flags['--config'],
@@ -1453,7 +1411,10 @@ function cmdGoal(sub, positional, flags) {
 
 // Pure review gate: the resolved decision is returned as-is; only an
 // approved decision with --apply feeds the flattened DTO to the store.
-function cmdCaptureReview(project, flags) {
+async function cmdCaptureReview(project, flags) {
+  const { getWorkspace } = await import('./core/workspaces.mjs');
+  const { createCaptureStore } = await import('./core/captures.mjs');
+  const { reviewProposal } = await import('./core/capture-proposals.mjs');
   const input = readInputFile(
     requireFlag(flags, '--input'), 'capture review input');
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
@@ -1484,7 +1445,9 @@ function cmdCaptureReview(project, flags) {
   return { ...created, review: { status: review.status } };
 }
 
-function cmdJournal(sub, positional, flags) {
+async function cmdJournal(sub, positional, flags) {
+  const { bindWorkspace, getWorkspace } = await import('./core/workspaces.mjs');
+  const { getJournalOperation, listJournalPending, prepareJournalRecovery, recoverJournalOperation, compactJournal } = await import('./core/journal.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1512,6 +1475,8 @@ const RECALL_SCOPES = ['session', 'agent', 'team'];
 const SEARCH_MODES = ['keyword', 'vector', 'hybrid'];
 
 async function cmdVantaDB(sub, positional, flags) {
+  const { bindWorkspace, getWorkspace } = await import('./core/workspaces.mjs');
+  const { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool, defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary, getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBProbe, vantaDBReinforce, vantaDBStatus, vantaDBSyncWorklogs } = await import('./integrations/vantadb-runtime.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1658,7 +1623,9 @@ async function cmdVantaDB(sub, positional, flags) {
   return syncVantaDB({ ctx, bound, cfg, limit, timeoutMs });
 }
 
-function cmdOwnedSpecification(sub, positional, flags) {
+async function cmdOwnedSpecification(sub, positional, flags) {
+  const { createOwnedSpecificationStore } = await import('./core/owned-specifications.mjs');
+  const { getWorkspace } = await import('./core/workspaces.mjs');
   const project = requireFlag(flags, '--project');
   const input = sub === 'create'
     ? readInputFile(requireFlag(flags, '--input'), 'owned specification input')
@@ -1672,7 +1639,10 @@ function cmdOwnedSpecification(sub, positional, flags) {
   return flags['--apply'] ? store.create(input) : store.prepare(input);
 }
 
-function cmdOwnedFormalArtifact(family, sub, positional, flags) {
+async function cmdOwnedFormalArtifact(family, sub, positional, flags) {
+  const { createOwnedDesignStore } = await import('./core/owned-designs.mjs');
+  const { createOwnedOutcomeStore } = await import('./core/owned-outcomes.mjs');
+  const { getWorkspace } = await import('./core/workspaces.mjs');
   if (!flags['--owned']) {
     throw err('INVALID_ARGS',
       `${family} show requires --owned; use artifact show for structural reads`);
@@ -1692,7 +1662,9 @@ function cmdOwnedFormalArtifact(family, sub, positional, flags) {
   return flags['--apply'] ? store.create(input) : store.prepare(input);
 }
 
-function cmdTypedArtifact(family, sub, positional, flags) {
+async function cmdTypedArtifact(family, sub, positional, flags) {
+  const { getSpecification, prepareDesign, prepareSpecification } = await import('./core/specifications.mjs');
+  const { prepareOutcomeEvidence } = await import('./core/outcomes.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1706,10 +1678,11 @@ function cmdTypedArtifact(family, sub, positional, flags) {
     outcome: prepareOutcomeEvidence,
   }[family];
   const prepared = prepare(ctx, input);
-  return finishCreation(ctx, 'artifact', prepared.artifact, prepared.file, flags);
+  return await finishCreation(ctx, 'artifact', prepared.artifact, prepared.file, flags);
 }
 
-function cmdApproval(sub, positional, flags) {
+async function cmdApproval(sub, positional, flags) {
+  const { answerApproval, describeApprovalTarget, getApproval, prepareApproval, prepareApprovalAnswer } = await import('./core/approvals.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1718,7 +1691,7 @@ function cmdApproval(sub, positional, flags) {
   if (sub === 'target') return describeApprovalTarget(ctx, input);
   if (sub === 'create') {
     const prepared = prepareApproval(ctx, input);
-    return finishCreation(ctx, 'approval', prepared.approval, prepared.file, flags);
+    return await finishCreation(ctx, 'approval', prepared.approval, prepared.file, flags);
   }
   if (sub === 'answer') {
     if (flags['--apply']) {
@@ -1736,7 +1709,8 @@ function cmdApproval(sub, positional, flags) {
   throw err('INVALID_ARGS', `unknown approval subcommand '${sub}'`);
 }
 
-function cmdMethodology(positional, flags) {
+async function cmdMethodology(positional, flags) {
+  const { checkMethodology } = await import('./core/methodology.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1748,7 +1722,9 @@ function cmdMethodology(positional, flags) {
   });
 }
 
-function cmdSession(sub, positional, flags) {
+async function cmdSession(sub, positional, flags) {
+  const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
+  const { ensureSessionsDir, getSession, prepareSession, prepareSessionRecord, recordSession, resumeSession } = await import('./core/sessions.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'),
     config: flags['--config'],
@@ -1809,7 +1785,10 @@ function cmdSession(sub, positional, flags) {
 // Each verb previews read-only by default; --apply is create-only and every
 // apply re-runs its prepare internally. Nothing is overwritten or merged.
 
-function cmdAdopt(flags) {
+async function cmdAdopt(flags) {
+  const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
+  const { prepareWorkspace } = await import('./core/workspaces.mjs');
+  const { prepareAdopt } = await import('./core/lifecycle.mjs');
   const project = requireFlag(flags, '--project');
   const report = prepareAdopt(project, { config: flags['--config'] });
   if (!flags['--apply']) return report;
@@ -1835,7 +1814,8 @@ function lifecycleCtx(flags) {
   });
 }
 
-function cmdUpdate(flags) {
+async function cmdUpdate(flags) {
+  const { applyUpdate, prepareUpdate } = await import('./core/lifecycle.mjs');
   const ctx = lifecycleCtx(flags);
   const options = {};
   if (flags['--reconcile']) options.reconcile = true;
@@ -1843,21 +1823,24 @@ function cmdUpdate(flags) {
     ? applyUpdate(ctx, options) : prepareUpdate(ctx, options);
 }
 
-function cmdBackup(flags) {
+async function cmdBackup(flags) {
+  const { applyBackup, prepareBackup } = await import('./core/lifecycle.mjs');
   const destination = requireFlag(flags, '--to');
   const ctx = lifecycleCtx(flags);
   return flags['--apply']
     ? applyBackup(ctx, { destination }) : prepareBackup(ctx, { destination });
 }
 
-function cmdRestore(flags) {
+async function cmdRestore(flags) {
+  const { applyRestore, prepareRestore } = await import('./core/lifecycle.mjs');
   const bundleRel = requireFlag(flags, '--from');
   const projectRoot = resolveProjectRoot(requireFlag(flags, '--project'));
   return flags['--apply']
     ? applyRestore(projectRoot, bundleRel) : prepareRestore(projectRoot, bundleRel);
 }
 
-function cmdUninstall(flags) {
+async function cmdUninstall(flags) {
+  const { applyUninstall, prepareUninstall } = await import('./core/lifecycle.mjs');
   const ctx = lifecycleCtx(flags);
   return flags['--apply'] ? applyUninstall(ctx) : prepareUninstall(ctx);
 }
@@ -1866,7 +1849,9 @@ function cmdUninstall(flags) {
 // resolved opportunistically: an explicit --config reports its own error,
 // while a project with no config still investigates (and --save then emits
 // the record instead of writing it).
-function cmdInvestigate(flags) {
+async function cmdInvestigate(flags) {
+  const { applyPlan } = await import('./core/bootstrap.mjs');
+  const { buildResearchRecord, investigateProject, suggestAnswers } = await import('./discovery/semantic.mjs');
   const project = requireFlag(flags, '--project');
   let ctx = null;
   try {
@@ -1898,7 +1883,8 @@ function cmdInvestigate(flags) {
 // Opt-in host activation: previews/applies generated proposals into
 // project-local destinations only; global and merge-required entries are
 // reported as skipped, never written.
-function cmdHost(flags) {
+async function cmdHost(flags) {
+  const { applyActivation, prepareActivation } = await import('./hosts/activation.mjs');
   const options = { host: requireFlag(flags, '--host') };
   if (Object.hasOwn(flags, '--surface')) options.surface = flags['--surface'];
   const ctx = lifecycleCtx(flags);
@@ -1912,6 +1898,8 @@ function cmdHost(flags) {
 // only executor and requires an explicitly approved record — the
 // harness still never executes project commands on its own initiative.
 async function cmdVerify(sub, positional, flags, io) {
+  const { investigateProject } = await import('./discovery/semantic.mjs');
+  const { applyAddCommand, applyApproveCommand, applyApproveDiscoveredCommands, applyImportCommands, listVerifyCommands, prepareAddCommand, prepareApproveCommand, prepareApproveDiscoveredCommands, prepareImportCommands, runVerifyCommand } = await import('./core/verify-commands.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1979,6 +1967,11 @@ async function cmdVerify(sub, positional, flags, io) {
 // process alive; the operator stops it with Ctrl+C. The live handle is
 // exposed on io.viewServer so embedders/tests can close it explicitly.
 async function cmdView(flags, io) {
+  const { runDoctor } = await import('./core/doctor.mjs');
+  const { inspectProject } = await import('./discovery/inspect.mjs');
+  const { taskMetrics } = await import('./core/worklog.mjs');
+  const { loadCatalog, loadWorkspaceCatalog } = await import('./core/catalog.mjs');
+  const { createApiServer } = await import('./api/server.mjs');
   const options = {
     project: requireFlag(flags, '--project'), config: flags['--config'],
   };
@@ -2018,6 +2011,8 @@ export async function run(argv, io) {
       // Aliases derive from canonical catalog command ids; catalog is only
       // loaded on this path so inspect/init stay independent of it. With
       // --project the alias set comes from the workspace snapshot.
+      const { loadCatalog, loadWorkspaceCatalog } =
+        await import('./core/catalog.mjs');
       const cat = flags['--project']
         ? loadWorkspaceCatalog(resolveContext({
           project: flags['--project'], config: flags['--config'] }))
@@ -2051,11 +2046,12 @@ export async function run(argv, io) {
     }
     let result;
     if (cmdKey === 'inspect') {
-      result = inspectProject(requireFlag(flags, '--project'));
+      result = (await import('./discovery/inspect.mjs'))
+        .inspectProject(requireFlag(flags, '--project'));
     } else if (cmdKey === 'init') {
       result = await cmdInit(flags, io);
     } else if (cmdKey === 'doctor') {
-      result = runDoctor(resolveContext({
+      result = (await import('./core/doctor.mjs')).runDoctor(resolveContext({
         project: requireFlag(flags, '--project'),
         config: flags['--config'],
       }));
@@ -2067,75 +2063,75 @@ export async function run(argv, io) {
       });
       return 0;
     } else if (isAlias) {
-      result = cmdWorkflow(aliasCommand, flags);
+      result = await cmdWorkflow(aliasCommand, flags);
     } else if (cmdKey === 'workflow') {
-      result = cmdWorkflow(rest[0], flags);
+      result = await cmdWorkflow(rest[0], flags);
     } else if (cmdKey === 'context') {
-      result = cmdContext(flags);
+      result = await cmdContext(flags);
     } else if (cmdKey.startsWith('task ')) {
       result = await cmdTask(cmdKey.slice(5), rest, flags, io);
     } else if (cmdKey.startsWith('workspace ')) {
-      result = cmdWorkspace(cmdKey.slice(10), flags);
+      result = await cmdWorkspace(cmdKey.slice(10), flags);
     } else if (cmdKey.startsWith('journal ')) {
-      result = cmdJournal(cmdKey.slice(8), rest, flags);
+      result = await cmdJournal(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('vantadb ')) {
       result = await cmdVantaDB(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('capture ')) {
-      result = cmdCapture(cmdKey.slice(8), rest, flags);
+      result = await cmdCapture(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('catalog ')) {
-      result = cmdCatalog(cmdKey.slice(8), rest, flags);
+      result = await cmdCatalog(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('resource ')) {
-      result = cmdResource(cmdKey.slice(9), rest, flags);
+      result = await cmdResource(cmdKey.slice(9), rest, flags);
     } else if (cmdKey.startsWith('plan ')) {
-      result = cmdPlan(cmdKey.slice(5), rest, flags);
+      result = await cmdPlan(cmdKey.slice(5), rest, flags);
     } else if (cmdKey.startsWith('artifact ')) {
-      result = cmdArtifact(cmdKey.slice(9), rest, flags);
+      result = await cmdArtifact(cmdKey.slice(9), rest, flags);
     } else if (positional[0] === 'specification' && flags['--owned']) {
-      result = cmdOwnedSpecification(positional[1], rest, flags);
+      result = await cmdOwnedSpecification(positional[1], rest, flags);
     } else if (['design', 'outcome'].includes(positional[0])
         && (flags['--owned'] || positional[1] === 'show')) {
-      result = cmdOwnedFormalArtifact(positional[0], positional[1], rest, flags);
+      result = await cmdOwnedFormalArtifact(positional[0], positional[1], rest, flags);
     } else if (['specification', 'design', 'outcome'].includes(positional[0])) {
-      result = cmdTypedArtifact(positional[0], positional[1], rest, flags);
+      result = await cmdTypedArtifact(positional[0], positional[1], rest, flags);
     } else if (cmdKey.startsWith('approval ')) {
-      result = cmdApproval(cmdKey.slice(9), rest, flags);
+      result = await cmdApproval(cmdKey.slice(9), rest, flags);
     } else if (cmdKey === 'methodology check') {
-      result = cmdMethodology(rest, flags);
+      result = await cmdMethodology(rest, flags);
     } else if (cmdKey === 'adopt') {
-      result = cmdAdopt(flags);
+      result = await cmdAdopt(flags);
     } else if (cmdKey === 'update') {
-      result = cmdUpdate(flags);
+      result = await cmdUpdate(flags);
     } else if (cmdKey === 'backup') {
-      result = cmdBackup(flags);
+      result = await cmdBackup(flags);
     } else if (cmdKey === 'restore') {
-      result = cmdRestore(flags);
+      result = await cmdRestore(flags);
     } else if (cmdKey === 'uninstall') {
-      result = cmdUninstall(flags);
+      result = await cmdUninstall(flags);
     } else if (cmdKey === 'investigate') {
-      result = cmdInvestigate(flags);
+      result = await cmdInvestigate(flags);
     } else if (cmdKey === 'view') {
       result = await cmdView(flags, io);
     } else if (cmdKey.startsWith('verify ')) {
       result = await cmdVerify(cmdKey.slice(7), rest, flags, io);
     } else if (cmdKey.startsWith('memory ')) {
-      result = cmdMemory(cmdKey.slice(7), flags);
+      result = await cmdMemory(cmdKey.slice(7), flags);
     } else if (cmdKey.startsWith('goal ')) {
-      result = cmdGoal(cmdKey.slice(5), rest, flags);
+      result = await cmdGoal(cmdKey.slice(5), rest, flags);
     } else if (cmdKey === 'metrics') {
-      result = taskMetrics(resolveContext({
+      result = (await import('./core/worklog.mjs')).taskMetrics(resolveContext({
         project: requireFlag(flags, '--project'),
         config: flags['--config'],
       }));
     } else if (cmdKey.startsWith('report ')) {
-      result = cmdReport(cmdKey.slice(7), flags);
+      result = await cmdReport(cmdKey.slice(7), flags);
     } else if (cmdKey.startsWith('activity ')) {
-      result = cmdActivity(cmdKey.slice(9), flags);
+      result = await cmdActivity(cmdKey.slice(9), flags);
     } else if (cmdKey.startsWith('hooks ')) {
-      result = cmdHooks(cmdKey.slice(6), flags);
+      result = await cmdHooks(cmdKey.slice(6), flags);
     } else if (cmdKey.startsWith('host ')) {
-      result = cmdHost(flags);
+      result = await cmdHost(flags);
     } else {
-      result = cmdSession(cmdKey.slice(8), rest, flags);
+      result = await cmdSession(cmdKey.slice(8), rest, flags);
     }
     io.stdout(JSON.stringify(result, null, 2));
     // Commands may request a specific success-path exit code through

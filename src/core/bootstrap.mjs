@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { err } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited, removeIfExists } from './fsx.mjs';
 import {
-  isSameOrAncestor, portableKey, resolveInside,
+  portableKey, resolveInside, toCanonicalRelative,
 } from './paths.mjs';
 import {
   assertAnswersMatchConfig,
@@ -190,16 +190,22 @@ export function buildInitPlan({
 //   different (conflict).
 export function preflightPlan(projectRoot, files) {
   const conflicts = [];
-  for (let i = 0; i < files.length; i++) {
-    for (let j = i + 1; j < files.length; j++) {
-      const a = files[i].rel;
-      const b = files[j].rel;
-      if (isSameOrAncestor(a, b) || isSameOrAncestor(b, a)) {
-        conflicts.push({
-          path: b,
-          reason: `planned destination collides with ${a}`,
-        });
-      }
+  // O(n log n) collision check: canonical keys sort all descendants of a
+  // prefix into a contiguous run right after it ('a' < 'a/*' < 'a0'), so
+  // any ancestor/equal pair is detectable as an adjacent pair — no need
+  // to compare every ordered pair.
+  const keyed = files.map((f) => ({
+    rel: f.rel,
+    key: portableKey(toCanonicalRelative(f.rel, `plan destination ${f.rel}`)),
+  })).sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0));
+  for (let i = 1; i < keyed.length; i++) {
+    const a = keyed[i - 1];
+    const b = keyed[i];
+    if (b.key === a.key || b.key.startsWith(`${a.key}/`)) {
+      conflicts.push({
+        path: b.rel,
+        reason: `planned destination collides with ${a.rel}`,
+      });
     }
   }
   const planned = files.map((f) => {

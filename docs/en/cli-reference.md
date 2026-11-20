@@ -198,6 +198,13 @@ progress `{taskId,title,result,...}`) and appends it; `list` returns the
 latest `tail` entries (default 50, max 1000) plus malformed lines. The
 `goals` log is read-only here: goals enter through `goal *`.
 
+Logs larger than the configured document cap are read as a bounded tail
+window, so an oversized log never breaks session start; the result marks
+`truncated: true`. On append, an active segment that already exceeds the
+cap rotates whole into `paths.memory/archive/` — immutable and never
+deleted — so a single log file does not grow without bound. Rotation is
+best-effort: a busy file defers it and the append still succeeds.
+
 ### goal create / goal list / goal transition
 
 ```text

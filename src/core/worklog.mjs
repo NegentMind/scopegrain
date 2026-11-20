@@ -129,8 +129,29 @@ export function appendWorklog(ctx, name, fields) {
   }
   const file = logPath(ctx, name);
   mkdirpSync(path.dirname(file));
+  rotateIfOversized(ctx, file, name);
   fs.appendFileSync(file, line, 'utf8');
   return record;
+}
+
+// The active segment is rotated, whole and immutable, into
+// <memory>/archive/ once it exceeds the document cap, so one log file
+// never grows without bound. Archived segments are evidence and are
+// never deleted; the bounded tail reader covers whatever the active
+// segment still holds. Rotation is best-effort: another process holding
+// the file open (Windows rename semantics) defers it rather than
+// failing the append.
+function rotateIfOversized(ctx, file, name) {
+  const st = lstatOrNull(file);
+  if (!st || !st.isFile() || st.size <= loadLimits().maxDocumentBytes) return;
+  const archiveDir = path.join(memoryDirAbs(ctx), 'archive');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const dest = path.join(archiveDir,
+    `${name}-${stamp}-${crypto.randomBytes(3).toString('hex')}.jsonl`);
+  try {
+    mkdirpSync(archiveDir);
+    fs.renameSync(file, dest);
+  } catch { /* deferred — the append below still succeeds */ }
 }
 
 // Append-only logs outgrow the document cap eventually; session start

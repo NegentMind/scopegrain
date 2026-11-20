@@ -12,6 +12,17 @@ const POLICY_DIR = fileURLToPath(new URL('../../policy/', import.meta.url));
 const POLICY_PATH = fileURLToPath(
   new URL('../../policy/workflow.json', import.meta.url));
 
+// Policy objects are immutable declared facts: deep-freeze before caching
+// so a caller can never tune them, and only cache on success so a failed
+// load never poisons subsequent reads.
+function deepFreeze(value) {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const item of Object.values(value)) deepFreeze(item);
+    Object.freeze(value);
+  }
+  return value;
+}
+
 let cached = null;
 
 export function loadPolicy() {
@@ -32,7 +43,7 @@ export function loadPolicy() {
       throw err('POLICY_INVALID', `policy state '${state}' lacks transitions or actions`);
     }
   }
-  cached = policy;
+  cached = deepFreeze(policy);
   return cached;
 }
 
@@ -85,9 +96,14 @@ function loadPolicyFile(name, label, dir = POLICY_DIR) {
 
 // Authored operation limits (policy/operation-limits.json): document size
 // bounds, plan/session caps and capability flags.
+// Cached per policyDir: production code always reads the canonical dir,
+// while tests injecting fixtures keep isolated caches per temp root.
+const limitsCache = new Map();
 export function loadLimits(opts = {}) {
-  const d = loadPolicyFile('operation-limits.json', 'operation limits',
-    opts.policyDir ?? POLICY_DIR);
+  const key = path.resolve(opts.policyDir ?? POLICY_DIR);
+  const hit = limitsCache.get(key);
+  if (hit) return hit;
+  const d = loadPolicyFile('operation-limits.json', 'operation limits', key);
   for (const key of ['maxDocumentBytes', 'maxPlanTasks', 'maxSessionEvents']) {
     if (!Number.isInteger(d[key]) || d[key] <= 0) {
       throw err('POLICY_MALFORMED', `operation-limits.${key} must be a positive integer`);
@@ -99,10 +115,14 @@ export function loadLimits(opts = {}) {
       throw err('POLICY_MALFORMED', `operation-limits.${key} must be boolean`);
     }
   }
-  return d;
+  const frozen = deepFreeze(d);
+  limitsCache.set(key, frozen);
+  return frozen;
 }
 
+let cachedJournalPolicy = null;
 export function loadJournalPolicy() {
+  if (cachedJournalPolicy) return cachedJournalPolicy;
   const d = loadPolicyFile('journal.json', 'journal policy');
   const keys = ['schemaVersion', 'maxOperationEvents', 'maxPendingOperations',
     'defaultPageSize', 'maxPageSize'];
@@ -118,7 +138,8 @@ export function loadJournalPolicy() {
   if (d.defaultPageSize > d.maxPageSize) {
     throw err('POLICY_MALFORMED', 'journal.defaultPageSize exceeds maxPageSize');
   }
-  return d;
+  cachedJournalPolicy = deepFreeze(d);
+  return cachedJournalPolicy;
 }
 
 // Authored methodology policy (policy/methodology.json): modes, defaults,
@@ -214,12 +235,26 @@ export function loadMethodologyPolicy() {
 
 // Authored onboarding defaults (policy/onboarding-defaults.json): workspace,
 // default artifact paths, versioning flags and review subdirectory.
+let cachedOnboarding = null;
 export function loadOnboardingDefaults() {
+  if (cachedOnboarding) return cachedOnboarding;
   const d = loadPolicyFile('onboarding-defaults.json', 'onboarding defaults');
   if (typeof d.workspace !== 'string' || d.workspace === '') {
     throw err('POLICY_MALFORMED', 'onboarding-defaults.workspace must be a string');
   }
-  return d;
+  cachedOnboarding = deepFreeze(d);
+  return cachedOnboarding;
+}
+
+// Test seam: drops every cached policy so a fixture can re-author one.
+// Production callers must not rely on this — a reset only releases the
+// frozen references; already-returned objects stay immutable either way.
+export function resetPolicyCaches() {
+  cached = null;
+  cachedJournalPolicy = null;
+  cachedMethodology = null;
+  cachedOnboarding = null;
+  limitsCache.clear();
 }
 
 export function actionsFor(state) {

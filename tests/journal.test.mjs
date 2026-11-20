@@ -7,7 +7,8 @@ import { applyPlan } from '../src/core/bootstrap.mjs';
 import { createConfig } from '../src/core/config.mjs';
 import { resolveContext } from '../src/core/context.mjs';
 import { canonicalDigest } from '../src/core/digests.mjs';
-import { loadJournalPolicy, loadLimits } from '../src/core/policy.mjs';
+import { loadJournalPolicy, loadLimits, resetPolicyCaches }
+  from '../src/core/policy.mjs';
 import { bindWorkspace, prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
   ackJournalEvent, applyJournaledCreation, applyJournaledRecordCreation,
@@ -93,11 +94,15 @@ function afterOutboxPersisted(callback) {
   return () => { fs.openSync = open; fs.closeSync = close; };
 }
 
-test('policy exposes authored bounds and returns independent values', () => {
+test('policy exposes authored bounds and returns frozen cached values', () => {
   const policy = loadJournalPolicy();
   assert.deepEqual(policy, { schemaVersion: 1, maxOperationEvents: 101,
     maxPendingOperations: 10000, defaultPageSize: 50, maxPageSize: 100 });
-  assert.notEqual(loadJournalPolicy(), policy);
+  // Cached and frozen: one immutable object serves every caller, so a
+  // mutation attempt (strict mode) throws instead of silently diverging.
+  assert.equal(loadJournalPolicy(), policy);
+  assert.ok(Object.isFrozen(policy));
+  assert.throws(() => { policy.maxPendingOperations = 0; }, TypeError);
 });
 
 test('read-only queries and all-noop apply do not create journal state', () => {
@@ -541,6 +546,8 @@ test('a saturated outbox stays listable and drainable while writes fail closed',
         String(file).endsWith(`${path.sep}journal.json`) ? shrunk : file,
         flags, ...args);
     };
+    // Drop the frozen policy so the shrunk fixture is actually read.
+    resetPolicyCaches();
     // Three indexes over the bound: the listing returns the bounded
     // window instead of deadlocking on JOURNAL_CAPACITY.
     const listed = listJournalPending(f.bound);
@@ -586,7 +593,12 @@ test('a saturated outbox stays listable and drainable while writes fail closed',
     assert.ok(created.operationId);
     assert.equal(fs.readFileSync(path.join(f.dir, 'records/fourth'), 'utf8'),
       'content');
-  } finally { fs.openSync = open; cleanup(f.dir); }
+  } finally {
+    fs.openSync = open;
+    // The shrunk policy must not leak into later tests.
+    resetPolicyCaches();
+    cleanup(f.dir);
+  }
 });
 
 test('head pointer cleanup failure keeps committed marker and blocks later writes', () => {

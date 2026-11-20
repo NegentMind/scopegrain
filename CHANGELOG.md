@@ -50,6 +50,30 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   decode) and reported as `{ truncated: true, entries }`; unreadable
   logs and goals degrade to an error marker inside the packet rather
   than aborting session start.
+- **Worklog rotation** — on append, an active segment already over the
+  document cap rotates whole into `paths.memory/archive/` (immutable,
+  never deleted), so a single log file no longer grows without bound.
+  Rotation is best-effort: a file held open elsewhere defers it and the
+  append still succeeds.
+- **Lazy CLI imports** — `src/cli.mjs` defers every subsystem import to
+  `await import()` inside each command body (plus dispatch-local loads
+  for alias catalog, `inspect`, `doctor` and `metrics`), so startup no
+  longer pays for modules the invoked command never uses. All command
+  names, flags, help text and output contracts are unchanged.
+- **Policy caching** — `loadPolicy`, `loadJournalPolicy`,
+  `loadMethodologyPolicy`, `loadOnboardingDefaults` and `loadLimits`
+  return deep-frozen cached objects (`loadLimits` keyed per `policyDir`
+  so test fixtures stay isolated); a failed load never poisons the
+  cache. `resetPolicyCaches()` exists for test fixtures only.
+- **`preflightPlan` collision check is O(n log n)** — canonical sort +
+  adjacent-pair prefix detection instead of comparing every ordered
+  pair, canonicalizing once per destination.
+- **Backup/restore stream one document at a time** — `applyBackup`
+  classifies, re-reads, hash-verifies and writes each entry before
+  loading the next source; `applyRestore` classifies all entries first,
+  then re-reads and re-hashes each payload at write time (TOCTOU).
+  Peak memory is one document instead of the whole bundle; files
+  created by a failed apply are still rolled back.
 - **Terminal `ABANDON` state** — reachable from every non-terminal state
   except `CLOSE`, requires no evidence or methodology gate, and is the
   only legal destination for tasks whose `disposition` is

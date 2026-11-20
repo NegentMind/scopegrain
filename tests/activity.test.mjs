@@ -15,7 +15,7 @@ import {
   gitHooksDir, installHooks, uninstallHooks, planHooks,
 } from '../src/core/hooks.mjs';
 import { resolveContext } from '../src/core/context.mjs';
-import { readWorklog } from '../src/core/worklog.mjs';
+import { appendWorklog, readWorklog } from '../src/core/worklog.mjs';
 import { getTask } from '../src/core/tasks.mjs';
 
 function fixture(methodology = 'manual') {
@@ -169,5 +169,61 @@ test('CLI: activity record dry-run writes nothing, --apply persists', async () =
     assert.equal(await run(
       ['hooks', 'install', '--project', dir], io3), 0);
     assert.equal(JSON.parse(io3.out.stdout.at(-1)).mode, 'dry-run');
+  } finally { cleanup(dir); }
+});
+
+test('oversized worklog rotates the segment into memory/archive, append survives', () => {
+  const { dir, ctx } = fixture();
+  try {
+    const memoryDir = path.join(dir, '.tasksystem', 'memory');
+    fs.mkdirSync(memoryDir, { recursive: true });
+    const logFile = path.join(memoryDir, 'progress.jsonl');
+    const taskId = '123e4567-e89b-42d3-a456-426614174000';
+    // >1 MiB of valid JSONL lines.
+    const pad = 'x'.repeat(1024);
+    const lines = [];
+    while (lines.join('').length < 1050 * 1024) {
+      lines.push(JSON.stringify(
+        { at: '2026-01-01T00:00:00Z', taskId, title: pad }) + '\n');
+    }
+    fs.writeFileSync(logFile, lines.join(''));
+    const original = fs.readFileSync(logFile);
+    const rec = appendWorklog(ctx, 'progress',
+      { taskId, title: 'after-rotate' });
+    // The whole original segment moved to an immutable archive file.
+    const archived = fs.readdirSync(path.join(memoryDir, 'archive'))
+      .filter((f) => f.startsWith('progress-') && f.endsWith('.jsonl'));
+    assert.equal(archived.length, 1);
+    assert.ok(fs.readFileSync(
+      path.join(memoryDir, 'archive', archived[0])).equals(original));
+    // The active segment holds only the new entry; no truncation marker.
+    const { entries, truncated } = readWorklog(ctx, 'progress');
+    assert.equal(truncated, false);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].title, 'after-rotate');
+    assert.equal(entries[0].taskId, rec.taskId);
+  } finally { cleanup(dir); }
+});
+
+test('oversized worklog reads a bounded tail of newest entries only', () => {
+  const { dir, ctx } = fixture();
+  try {
+    const memoryDir = path.join(dir, '.tasksystem', 'memory');
+    fs.mkdirSync(memoryDir, { recursive: true });
+    const logFile = path.join(memoryDir, 'lessons.jsonl');
+    const pad = 'y'.repeat(1024);
+    const lines = [];
+    while (lines.join('').length < 1050 * 1024) {
+      lines.push(JSON.stringify(
+        { at: '2026-01-01T00:00:00Z', topic: 't', text: pad }) + '\n');
+    }
+    lines.push(JSON.stringify(
+      { at: '2026-01-02T00:00:00Z', topic: 'newest', text: 'tail' }) + '\n');
+    fs.writeFileSync(logFile, lines.join(''));
+    const { entries, malformed, truncated } = readWorklog(ctx, 'lessons');
+    assert.equal(truncated, true);
+    assert.equal(malformed.length, 0);
+    assert.ok(entries.length <= 50);
+    assert.equal(entries.at(-1).topic, 'newest');
   } finally { cleanup(dir); }
 });
