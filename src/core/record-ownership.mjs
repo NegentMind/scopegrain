@@ -14,6 +14,7 @@ import { authorizeScope, resolveWorkspaceState } from './workspaces.mjs';
 import { getJournalOperation, readJournalSnapshot } from './journal.mjs';
 import { cloneRecordJSON, validateRecordOwnership }
   from './record-ownership-data.mjs';
+import { sameRecordLocator } from './owned-chain.mjs';
 
 function strictUtf8(bytes, code, label) {
   const text = bytes.toString('utf8');
@@ -74,7 +75,8 @@ export function readOwnedCreation(bound, descriptor, inspectSource) {
     code: codes.malformed, label: `${label} ownership`,
     scopeLabel: `${label} scope`,
   });
-  if (owned.recordId !== recordId || owned.sourceRel !== sourceRel) {
+  if (owned.recordId !== recordId
+      || !sameRecordLocator(owned.sourceRel, sourceRel)) {
     throw err(codes.malformed, `${label} ownership does not name this record`);
   }
   // Grants are validated before any record content is produced.
@@ -95,7 +97,8 @@ export function readOwnedCreation(bound, descriptor, inspectSource) {
       || source.recordId !== recordId || sidecar.recordId !== recordId
       || source.sourceRevision !== 0 || sidecar.sourceRevision !== 0
       || source.operation !== 'create' || sidecar.operation !== 'create'
-      || source.sourceRel !== sourceRel || sidecar.sourceRel !== ownershipRel
+      || !sameRecordLocator(source.sourceRel, sourceRel)
+      || !sameRecordLocator(sidecar.sourceRel, ownershipRel)
       || source.createdAt !== owned.createdAt
       || sidecar.createdAt !== owned.createdAt
       || loaded.intent.createdAt !== owned.createdAt

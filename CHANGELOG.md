@@ -7,6 +7,14 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **State root migration `.tasksystem` → `.scopegrain`** — this project
+  now uses the canonical default state paths (`.scopegrain/*`); all state
+  was relocated. Journal/ownership validation is relocation-safe:
+  `snapshotRef` and `sourceRel` anchors compare the record-identity tail
+  (`snapshots/<hash>.blob`, `<kind>/<id>.json`) and the content digest,
+  never a specific historical state root — committed events keep their
+  original `.tasksystem` locators as immutable history.
+
 - **Viewer: operational surfaces + visualizations** — new read-only API
   routes (`/api/sessions`, `/api/approvals`, `/api/catalog`,
   `/api/verify`, `/api/vantadb`, `/api/workflow`) expose session records,

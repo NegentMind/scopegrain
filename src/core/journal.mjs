@@ -279,6 +279,18 @@ function hasEntry(loc, rel) {
   try { return dir.readSync() !== null; } finally { dir.closeSync(); }
 }
 
+// State roots are relocatable (paths.state is owner-configured), so a
+// committed event's snapshotRef keeps the state prefix it was written
+// under. Validation anchors on sourceHash (the content digest that names
+// the blob) and only requires the canonical snapshots suffix — never a
+// specific historical state root.
+function validSnapshotRef(ref, sourceHash) {
+  if (typeof ref !== 'string'
+      || !ref.endsWith(`/journal/snapshots/${sourceHash}.blob`)) return false;
+  try { assertDestination(ref, 'snapshot ref'); } catch { return false; }
+  return true;
+}
+
 function validRel(rel, loc, code) {
   let canonical;
   try {
@@ -320,7 +332,7 @@ function validateIntent(intent, operationId, loc, policy) {
         || (event.sourceRevision !== null
           && (!Number.isSafeInteger(event.sourceRevision) || event.sourceRevision < 0))
         || !hash(event.sourceHash)
-        || event.snapshotRef !== sub(loc, `snapshots/${event.sourceHash}.blob`)
+        || !validSnapshotRef(event.snapshotRef, event.sourceHash)
         || !isJournalOperation(event.operation)
         || (event.operation === 'create' && event.previousHash !== null)
         || (event.operation === 'update'

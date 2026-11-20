@@ -240,8 +240,8 @@ export function findOwnedPair(loaded, spec) {
   if (!source || !sidecar
       || source.recordId !== spec.recordId
       || sidecar.recordId !== spec.recordId
-      || source.sourceRel !== spec.sourceRel
-      || sidecar.sourceRel !== spec.sidecarRel
+      || !sameRecordLocator(source.sourceRel, spec.sourceRel)
+      || !sameRecordLocator(sidecar.sourceRel, spec.sidecarRel)
       || (spec.checkTimes !== false
         && (source.createdAt !== loaded.intent.createdAt
           || sidecar.createdAt !== loaded.intent.createdAt))
@@ -251,6 +251,15 @@ export function findOwnedPair(loaded, spec) {
     throw err(spec.code, `${spec.label} operation does not prove this record`);
   }
   return { source, sidecar };
+}
+
+// State/memory roots are owner-configured and relocatable, so a committed
+// event's sourceRel keeps the prefix it was written under. Record
+// identity is carried by the trailing <kind-dir>/<recordId> segments; the
+// content anchor is the journal snapshot digest, not the prefix.
+export function sameRecordLocator(recorded, expected) {
+  const tail = (p) => (typeof p === 'string' ? p.split('/').slice(-2).join('/') : '');
+  return tail(recorded) !== '' && tail(recorded) === tail(expected);
 }
 
 // The first chain entry must be a clean two-create rev0 pair: no prior
@@ -350,7 +359,7 @@ export function* walkOwnedLinked(bound, tip, tipBytes, options) {
       if (sidecar.sourceKind !== options.sidecarKind
           || sidecar.operation !== 'create'
           || sidecar.recordId !== options.recordId
-          || sidecar.sourceRel !== options.sidecarRel) {
+          || !sameRecordLocator(sidecar.sourceRel, options.sidecarRel)) {
         throw err(code, `${label} operation does not prove this record`);
       }
     } else {
