@@ -44,7 +44,11 @@ export function validateVerification(verification) {
   if (!Array.isArray(checks) || checks.length === 0) {
     throw err('INVALID_EVIDENCE', 'verification.checks must be a non-empty array');
   }
-  const accepted = acceptance.verificationStatuses;
+  // Recordable ≠ acceptable: a failed check must be recordable honestly
+  // (forcing 'pass' would push agents toward false attestations), while
+  // acceptance keeps requiring verificationStatuses.
+  const recordable = acceptance.recordableVerificationStatuses
+    ?? acceptance.verificationStatuses;
   const out = {
     checks: Array.from(checks, (c, i) => {
       checkKeys(c, CHECK_KEYS, `verification.checks[${i}]`);
@@ -56,9 +60,9 @@ export function validateVerification(verification) {
       }
       nonEmpty(c.command, `checks[${i}].command`);
       nonEmpty(c.evidence, `checks[${i}].evidence`);
-      if (!accepted.includes(c.status)) {
+      if (!recordable.includes(c.status)) {
         throw err('INVALID_EVIDENCE',
-          `checks[${i}].status must be one of: ${accepted.join(', ')}`);
+          `checks[${i}].status must be one of: ${recordable.join(', ')}`);
       }
       // A working directory of '.' means the project root.
       const cwd = c.cwd === '.' ? '.' : toCanonicalRelative(c.cwd, `checks[${i}].cwd`);
@@ -127,9 +131,11 @@ export function validateVerification(verification) {
 export function validateReview(review, task) {
   const acceptance = loadPolicy().acceptance;
   checkKeys(review, REVIEW_KEYS, 'review');
-  if (review.verdict !== acceptance.reviewVerdict) {
+  const verdicts = acceptance.recordableReviewVerdicts
+    ?? [acceptance.reviewVerdict];
+  if (!verdicts.includes(review.verdict)) {
     throw err('INVALID_EVIDENCE',
-      `review.verdict must be '${acceptance.reviewVerdict}'`);
+      `review.verdict must be one of: ${verdicts.join(', ')}`);
   }
   if (review.mode === 'fresh') {
     for (const key of ['reviewer', 'authorContext', 'reviewerContext']) {

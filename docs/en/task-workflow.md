@@ -27,17 +27,27 @@ a task that was already in ACT.
 The canonical state machine is in `policy/workflow.json`:
 
 ```text
-PLAN -> ACT | RESEARCH | STALL
-ACT -> VERIFY | STALL
-VERIFY -> COLLATERAL | EVALUATE | ACT | STALL
-COLLATERAL -> RESEARCH | ACT | EVALUATE | STALL
-RESEARCH -> PLAN | ACT | STALL
-EVALUATE -> REVIEW | ACT | STALL
-REVIEW -> ACCEPT | ACT | STALL
-ACCEPT -> CLOSE | ACT | STALL
-STALL -> PLAN
+PLAN -> ACT | RESEARCH | STALL | ABANDON
+ACT -> VERIFY | STALL | ABANDON
+VERIFY -> COLLATERAL | EVALUATE | ACT | STALL | ABANDON
+COLLATERAL -> RESEARCH | ACT | EVALUATE | STALL | ABANDON
+RESEARCH -> PLAN | ACT | STALL | ABANDON
+EVALUATE -> REVIEW | ACT | STALL | ABANDON
+REVIEW -> ACCEPT | ACT | STALL | ABANDON
+ACCEPT -> CLOSE | ACT | STALL | ABANDON
+STALL -> PLAN | ABANDON
 CLOSE -> (terminal)
+ABANDON -> (terminal)
 ```
+
+`ABANDON` is the terminal abandonment state: it requires neither
+evidence nor the methodology gate. A task whose `disposition` is
+`discarded`/`cancelled` may only transition to `ABANDON` (the
+disposition is effective, not decorative); resuming requires clearing
+the disposition first. Verification checks admit `status`
+`pass`/`fail`/`error` as honest records; acceptance still requires
+`pass`. Review verdicts admit `approve`/`reject`/`changes-requested`;
+acceptance still requires `approve`.
 
 There is one exception that is not a policy edge: `REVIEW -> REVIEW`
 is admitted in code exclusively as an evidence attachment. It allows

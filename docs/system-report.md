@@ -169,7 +169,8 @@ La progresion habitual es:
 PLAN -> ACT -> VERIFY -> [COLLATERAL] -> EVALUATE -> REVIEW -> ACCEPT -> CLOSE
 ```
 
-`RESEARCH` y `STALL` son desvios previstos, no atajos arbitrarios. Las
+`RESEARCH` y `STALL` son desvios previstos, no atajos arbitrarios, y
+`ABANDON` es la salida terminal sin evidencia. Las
 aristas exactas y retornos permitidos estan en
 [flujo de tareas](task-workflow.md) y `policy/workflow.json`. Para el avance
 formal, las dependencias transitivas deben estar en `CLOSE`.

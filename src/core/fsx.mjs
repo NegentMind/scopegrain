@@ -118,6 +118,10 @@ export function writeFileExclusive(file, content) {
       }
       off += n;
     }
+    // The journal marks creations `committed` durably; the source file
+    // must reach stable storage before close, or a crash leaves a
+    // committed operation whose source never existed.
+    fs.fsyncSync(fd);
     fs.closeSync(fd);
   } catch (e) {
     try { fs.closeSync(fd); } catch { /* already closed */ }

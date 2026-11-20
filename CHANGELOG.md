@@ -27,8 +27,34 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (project names containing `"` can no longer inject shell). Hook
   writes use a random exclusive temp name.
 
+### Changed
+
+- **Terminal `ABANDON` state** — reachable from every non-terminal state
+  except `CLOSE`, requires no evidence or methodology gate, and is the
+  only legal destination for tasks whose `disposition` is
+  `discarded`/`cancelled` (`DISPOSITION_BLOCKS` otherwise). Soft
+  dispositions (`deferred`/`icebox`/`future`) remain advisory.
+- **Honest evidence** — verification checks may now record
+  `status: pass|fail|error` and reviews `approve|reject|changes-requested`
+  (`recordableVerificationStatuses`/`recordableReviewVerdicts` in
+  `policy/workflow.json`); `ACCEPT` still requires every check `pass`
+  and verdict `approve`, now enforced explicitly.
+- **`task meta` no longer rewrites `title`/`contract`** — approved
+  content bound into the acceptance digest is immutable outside the
+  lifecycle again.
+- **Source writes are durable** — `writeFileExclusive` and `applyPlan`
+  `fsync` before close, matching the journal's committed marker.
+- **Private package posture** — `files`/`bin` removed from the manifest
+  until a release direction is decided.
+
 ### Fixed
 
+- **Plan V3 `update` emitted an invalid document** — the re-emission now
+  preserves `specId`/`designId` (schemaVersion >= 2) and all
+  `PLAN_V3_KEYS` (schemaVersion 3), and revalidates the emitted shape
+  before the CAS write so an update can never persist an unreadable tip.
+- `sessions.mjs` passed positional args to `readOwnedCurrent`'s options
+  object, degrading failures to `undefined:`.
 - `docs/security.md` (ES/EN) no longer claims the core never uses
   `child_process` or opens sockets; the bounded exceptions
   (`verify run`, loopback viewer, VantaDB downloader) are documented.

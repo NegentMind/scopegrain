@@ -23,16 +23,26 @@ una transicion ni herramientas nativas. Revocar consentimiento puede quitar
 La maquina de estados canonica esta en `policy/workflow.json`:
 
 ```text
-PLAN -> ACT | RESEARCH | STALL
-ACT -> VERIFY | STALL
-VERIFY -> COLLATERAL | EVALUATE | ACT | STALL
-COLLATERAL -> RESEARCH | ACT | EVALUATE | STALL
-RESEARCH -> PLAN | ACT | STALL
-EVALUATE -> REVIEW | ACT | STALL
-REVIEW -> ACCEPT | ACT | STALL
-ACCEPT -> CLOSE | ACT | STALL
-STALL -> PLAN
+PLAN -> ACT | RESEARCH | STALL | ABANDON
+ACT -> VERIFY | STALL | ABANDON
+VERIFY -> COLLATERAL | EVALUATE | ACT | STALL | ABANDON
+COLLATERAL -> RESEARCH | ACT | EVALUATE | STALL | ABANDON
+RESEARCH -> PLAN | ACT | STALL | ABANDON
+EVALUATE -> REVIEW | ACT | STALL | ABANDON
+REVIEW -> ACCEPT | ACT | STALL | ABANDON
+ACCEPT -> CLOSE | ACT | STALL | ABANDON
+STALL -> PLAN | ABANDON
 CLOSE -> (terminal)
+ABANDON -> (terminal)
+
+`ABANDON` es el estado terminal de abandono: no exige evidencia ni gate
+metodologico. Una tarea con `disposition` `discarded`/`cancelled` solo
+puede transitar a `ABANDON` (la disposicion es efectiva, no decorativa);
+reanudarla exige limpiar primero la disposicion. Las comprobaciones de
+verificacion admiten `status` `pass`/`fail`/`error` como registro
+honesto; la aceptacion sigue exigiendo `pass`. Los veredictos de
+revision admiten `approve`/`reject`/`changes-requested`; la aceptacion
+sigue exigiendo `approve`.
 ```
 
 Existe una excepcion que no es arista de la politica: `REVIEW -> REVIEW`

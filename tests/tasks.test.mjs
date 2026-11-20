@@ -134,9 +134,14 @@ test('malformed history, scope and stored evidence are rejected', () => {
     fs.writeFileSync(file, JSON.stringify(d2));
     assert.throws(() => getTask(ctx, task.id), (e) => e.code === 'TASK_MALFORMED');
     const d3 = JSON.parse(bytes.toString('utf8'));
-    d3.verification = { checks: [{ command: 'x', cwd: '.', status: 'fail', evidence: 'e' }] };
+    d3.verification = { checks: [{ command: 'x', cwd: '.', status: 'bogus', evidence: 'e' }] };
     fs.writeFileSync(file, JSON.stringify(d3));
     assert.throws(() => getTask(ctx, task.id), (e) => e.code === 'TASK_MALFORMED');
+    // 'fail'/'error' are honest recordable statuses, not malformed data.
+    const d4 = JSON.parse(bytes.toString('utf8'));
+    d4.verification = { checks: [{ command: 'x', cwd: '.', status: 'fail', evidence: 'e' }] };
+    fs.writeFileSync(file, JSON.stringify(d4));
+    assert.equal(getTask(ctx, task.id).verification.checks[0].status, 'fail');
     fs.writeFileSync(file, bytes); // restore valid bytes
     assert.equal(getTask(ctx, task.id).state, 'PLAN');
   } finally { cleanup(dir); }

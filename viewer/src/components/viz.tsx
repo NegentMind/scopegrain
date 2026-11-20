@@ -7,7 +7,7 @@ import type { WorkflowPolicy } from '@/lib/api';
 export const PIPELINE_ORDER = [
   'PLAN', 'ACT', 'VERIFY', 'COLLATERAL', 'EVALUATE', 'REVIEW', 'ACCEPT', 'CLOSE',
 ];
-const SIDE_STATES = ['RESEARCH', 'STALL'];
+const SIDE_STATES = ['RESEARCH', 'STALL', 'ABANDON'];
 
 export function usePoll(fn: () => void, ms = 10000) {
   const ref = useRef(fn);

@@ -873,15 +873,24 @@ export function createOwnedPlanStore(ctx, options) {
     }
     // Re-emit in the canonical stored field order (same shape the create
     // serializer produces) so byte identity is stable across updates.
-    return {
+    // V3 documents keep their plan-level keys — dropping them would emit
+    // a document every subsequent reader rejects as malformed.
+    const next = {
       schemaVersion: doc.schemaVersion, key: doc.key, title: doc.title,
       authorContext: doc.authorContext, inputDigest: doc.inputDigest,
       tasks: doc.tasks.map((t) => ({ key: t.key, id: t.id,
         dependsOn: [...t.dependsOn] })),
       createdAt: doc.createdAt,
-      ...(doc.schemaVersion === 2
+      ...(doc.schemaVersion >= 2
         ? { specId: doc.specId, designId: doc.designId } : {}),
+      ...(doc.schemaVersion === 3
+        ? Object.fromEntries([...PLAN_V3_KEYS].map((k) => [k, doc[k]]))
+        : {}),
     };
+    // Revalidate the emitted shape before the CAS write: a malformed
+    // re-emission must fail the update, never persist an unreadable tip.
+    validatePlanShape(next, `update ${doc.key}`);
+    return next;
   }
 
   function prepare(input) {

@@ -773,8 +773,11 @@ export function createOwnedSessionStore(ctx, options) {
         || sessionRecord.createdAt !== tip.createdAt) {
       ownedMalformed('proven session does not match its ownership');
     }
-    const current = readOwnedCurrent(bound, sourceRel,
-      OWNED_CODES.missing, OWNED_CODES.sourceChanged, 'session source');
+    const current = readOwnedCurrent(bound, sourceRel, {
+      missingCode: OWNED_CODES.missing,
+      nonRegularCode: OWNED_CODES.sourceChanged,
+      label: 'session source',
+    });
     if (!current.equals(sourceSnapshot)) {
       throw err(OWNED_CODES.sourceChanged,
         'current session source differs from its snapshot');

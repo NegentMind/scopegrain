@@ -157,6 +157,37 @@ test('disposition set/clear, notes and step status', () => {
   } finally { cleanup(dir); }
 });
 
+test('terminal dispositions block non-ABANDON transitions; ABANDON is terminal', () => {
+  const { dir, ctx } = setup();
+  try {
+    const task = createTask(ctx, BASE);
+    const d1 = updateTaskMeta(ctx, {
+      id: task.id, expectedRevision: task.revision,
+      disposition: { kind: 'discarded', reason: 'superseded', by: 'owner' },
+    });
+    assert.throws(() => transitionTask(ctx, {
+      id: task.id, to: 'ACT', expectedRevision: d1.revision,
+    }), (e) => e.code === 'DISPOSITION_BLOCKS');
+    const abandoned = transitionTask(ctx, {
+      id: task.id, to: 'ABANDON', expectedRevision: d1.revision,
+    });
+    assert.equal(abandoned.state, 'ABANDON');
+    assert.throws(() => transitionTask(ctx, {
+      id: task.id, to: 'PLAN', expectedRevision: abandoned.revision,
+    }), (e) => e.code === 'INVALID_TRANSITION');
+    // A soft disposition (deferred) does not block forward transitions.
+    const soft = createTask(ctx, { ...BASE, title: 'T2' });
+    const d2 = updateTaskMeta(ctx, {
+      id: soft.id, expectedRevision: soft.revision,
+      disposition: { kind: 'deferred', reason: 'waiting', by: 'owner' },
+    });
+    const act = transitionTask(ctx, {
+      id: soft.id, to: 'STALL', expectedRevision: d2.revision,
+    });
+    assert.equal(act.state, 'STALL');
+  } finally { cleanup(dir); }
+});
+
 // ---------------- operational memory + goals + metrics ----------------
 
 test('worklog append/read: lessons, outcomes, progress', () => {

@@ -17,7 +17,7 @@ import {
   mkdirpSync, removeIfExists, writeFileExclusive,
 } from './fsx.mjs';
 import {
-  isTransitionAllowed, knownActions, knownStates, loadLimits,
+  isTransitionAllowed, knownActions, knownStates, loadLimits, loadPolicy,
 } from './policy.mjs';
 import {
   assertDestination, resolveInside,
@@ -120,6 +120,15 @@ export function evaluateTaskTransition(ctx, task, input,
     throw err('INVALID_TRANSITION',
       `transition ${task.state} -> ${to} is not allowed by workflow policy`);
   }
+  // A terminal disposition is effective, not decorative: a task marked
+  // discarded/cancelled may only move to ABANDON. Resuming requires an
+  // explicit disposition clear first — otherwise the triage record lies.
+  const dispKind = task.disposition?.kind;
+  if ((dispKind === 'discarded' || dispKind === 'cancelled')
+      && to !== 'ABANDON') {
+    throw err('DISPOSITION_BLOCKS',
+      `task is ${dispKind}; transition to ABANDON or clear disposition first`);
+  }
 
   let verification = task.verification;
   let review = task.review;
@@ -144,9 +153,21 @@ export function evaluateTaskTransition(ctx, task, input,
         'ACCEPT requires a fresh review or an explicit owner waiver');
     }
     // Always re-validate the effective payloads, including ones that were
-    // stored by an earlier transition.
+    // stored by an earlier transition. Validation admits recordable
+    // statuses (fail/error are honest records); ACCEPT separately
+    // requires every check to pass and the verdict to be approval.
     verification = validateVerification(verification);
     review = validateReview(review, task);
+    const acceptance = loadPolicy().acceptance;
+    if (!verification.checks.every(
+        (c) => acceptance.verificationStatuses.includes(c.status))) {
+      throw err('ACCEPT_REQUIRES_EVIDENCE',
+        'ACCEPT requires every verification check to pass');
+    }
+    if (review.verdict !== acceptance.reviewVerdict) {
+      throw err('ACCEPT_REQUIRES_REVIEW',
+        `ACCEPT requires verdict '${acceptance.reviewVerdict}'`);
+    }
   }
 
   const next = {
@@ -238,10 +259,10 @@ const META_SETTABLE = new Set([
   'relations', 'dependsOn', 'goalIds', 'analysis', 'steps', 'notes',
   'skills', 'uncertainty',
 ]);
-// Content fields editable through `set` alongside the V3 semantic keys:
-// title/contract are not lifecycle state, so a meta update may rewrite
-// them under the same CAS revision + history discipline.
-const META_CONTENT_SETTABLE = new Set(['title', 'contract']);
+// Content fields are NOT meta-settable: the contract is bound into the
+// approval digest and verification attestation, so post-approval edits
+// must go through the lifecycle, not a silent rewrite.
+const META_CONTENT_SETTABLE = new Set();
 const DISPOSITION_KINDS = new Set([
   'deferred', 'icebox', 'future', 'discarded', 'cancelled',
 ]);

@@ -5,27 +5,10 @@
   "type": "module",
   "packageManager": "npm@11.6.0",
   "description": "Project-neutral engineering harness for coding agents",
-  "files": [
-    "bin",
-    "src",
-    "policy",
-    "resources",
-    "schemas",
-    "templates",
-    "docs",
-    "examples",
-    "viewer/dist",
-    "README*.md",
-    "LICENSE*"
-  ],
   "engines": {
     "node": ">=22"
   },
   "license": "UNLICENSED",
-  "bin": {
-    "scopegrain": "./bin/scopegrain.mjs",
-    "tasksystem": "./bin/tasksystem.mjs"
-  },
   "scripts": {
     "test": "node --test --test-concurrency=1 tests/*.test.mjs"
   },

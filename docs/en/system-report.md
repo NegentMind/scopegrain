@@ -176,7 +176,8 @@ The usual progression is:
 PLAN -> ACT -> VERIFY -> [COLLATERAL] -> EVALUATE -> REVIEW -> ACCEPT -> CLOSE
 ```
 
-`RESEARCH` and `STALL` are foreseen detours, not arbitrary shortcuts.
+`RESEARCH` and `STALL` are foreseen detours, not arbitrary shortcuts,
+and `ABANDON` is the terminal exit without evidence.
 The exact edges and allowed returns are in
 [task workflow](task-workflow.md) and `policy/workflow.json`. For formal
 advancement, transitive dependencies must be in `CLOSE`.

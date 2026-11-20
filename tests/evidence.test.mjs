@@ -33,7 +33,9 @@ const invalidCases = [
   ['checks hole', (v) => { delete v.checks[0]; }, 'checks'],
   ['checks unknown key', (v) => { v.checks[0].extra = true; }, 'checks'],
   ['checks missing command', (v) => { delete v.checks[0].command; }, 'checks'],
-  ['checks failed status', (v) => { v.checks[0].status = 'fail'; }, 'status'],
+  // 'fail'/'error' are recordable now (honest evidence); only unknown
+  // statuses are rejected. Acceptance still requires 'pass'.
+  ['checks bogus status', (v) => { v.checks[0].status = 'bogus'; }, 'status'],
   ['coverage root type', (v) => { v.coverage = {}; }, 'coverage'],
   ['coverage hole', (v) => { delete v.coverage[0]; }, 'coverage'],
   ['coverage unknown key', (v) => { v.coverage[0].extra = true; }, 'coverage'],
@@ -63,6 +65,22 @@ for (const [label, mutate, field] of invalidCases) {
       e.code === 'INVALID_EVIDENCE' && e.message.includes(field));
   });
 }
+
+test('failed and errored checks are recordable evidence', () => {
+  const input = verification();
+  input.checks[0].status = 'fail';
+  assert.deepEqual(validateVerification(input), input);
+  input.checks[0].status = 'error';
+  assert.deepEqual(validateVerification(input), input);
+});
+
+test('non-approve review verdicts are recordable evidence', () => {
+  const task = { authorContext: 'author' };
+  const review = { mode: 'fresh', reviewer: 'reviewer',
+    authorContext: 'author', reviewerContext: 'separate',
+    verdict: 'changes-requested' };
+  assert.deepEqual(validateReview(review, task), review);
+});
 
 test('review validation retains existing declared-context rules', () => {
   const task = { authorContext: 'author' };

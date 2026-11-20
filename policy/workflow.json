@@ -2,16 +2,17 @@
   "schemaVersion": 1,
   "initial": "PLAN",
   "transitions": {
-    "PLAN": ["ACT", "RESEARCH", "STALL"],
-    "ACT": ["VERIFY", "STALL"],
-    "VERIFY": ["COLLATERAL", "EVALUATE", "ACT", "STALL"],
-    "COLLATERAL": ["RESEARCH", "ACT", "EVALUATE", "STALL"],
-    "RESEARCH": ["PLAN", "ACT", "STALL"],
-    "EVALUATE": ["REVIEW", "ACT", "STALL"],
-    "REVIEW": ["ACCEPT", "ACT", "STALL"],
-    "ACCEPT": ["CLOSE", "ACT", "STALL"],
+    "PLAN": ["ACT", "RESEARCH", "STALL", "ABANDON"],
+    "ACT": ["VERIFY", "STALL", "ABANDON"],
+    "VERIFY": ["COLLATERAL", "EVALUATE", "ACT", "STALL", "ABANDON"],
+    "COLLATERAL": ["RESEARCH", "ACT", "EVALUATE", "STALL", "ABANDON"],
+    "RESEARCH": ["PLAN", "ACT", "STALL", "ABANDON"],
+    "EVALUATE": ["REVIEW", "ACT", "STALL", "ABANDON"],
+    "REVIEW": ["ACCEPT", "ACT", "STALL", "ABANDON"],
+    "ACCEPT": ["CLOSE", "ACT", "STALL", "ABANDON"],
     "CLOSE": [],
-    "STALL": ["PLAN"]
+    "STALL": ["PLAN", "ABANDON"],
+    "ABANDON": []
   },
   "actions": {
     "PLAN": ["read", "research", "propose"],
@@ -23,11 +24,14 @@
     "REVIEW": ["read", "review"],
     "ACCEPT": ["read"],
     "CLOSE": ["read"],
-    "STALL": ["read"]
+    "STALL": ["read"],
+    "ABANDON": ["read"]
   },
   "acceptance": {
     "verificationRequired": true,
     "verificationStatuses": ["pass"],
+    "recordableVerificationStatuses": ["pass", "fail", "error"],
+    "recordableReviewVerdicts": ["approve", "reject", "changes-requested"],
     "reviewVerdict": "approve",
     "freshContextsMustDiffer": true,
     "waiverRequiredFields": ["owner", "reference", "reason"]

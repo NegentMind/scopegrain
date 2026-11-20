@@ -286,6 +286,8 @@ export function applyPlan(projectRoot, files) {
           }
           written += n;
         }
+        // Durability parity with the journal's committed marker.
+        fs.fsyncSync(fd);
       } finally {
         fs.closeSync(fd);
       }
