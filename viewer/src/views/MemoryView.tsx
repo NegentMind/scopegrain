@@ -15,7 +15,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from '@/components/ui/toggle-group';
 import { api, type MemoryLogName } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useT } from '@/lib/i18n';
@@ -57,18 +60,21 @@ export function MemoryView() {
               {entries.length} {t('memory.entries')}
             </CardDescription>
           </div>
-          <div className="flex gap-1" role="group" aria-label={t('memory.log')}>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            spacing={0}
+            size="sm"
+            value={log}
+            onValueChange={(v) => v && setLog(v as MemoryLogName)}
+            aria-label={t('memory.log')}
+          >
             {LOGS.map((l) => (
-              <Button
-                key={l}
-                size="sm"
-                variant={log === l ? 'default' : 'outline'}
-                onClick={() => setLog(l)}
-              >
+              <ToggleGroupItem key={l} value={l}>
                 {l}
-              </Button>
+              </ToggleGroupItem>
             ))}
-          </div>
+          </ToggleGroup>
         </div>
       </CardHeader>
       <CardContent>

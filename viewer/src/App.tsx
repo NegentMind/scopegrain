@@ -23,6 +23,8 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { api } from '@/lib/api';
 import { adoptProjectLocale, setLocale, useLocale, useT } from '@/lib/i18n';
 import { ApprovalsView } from '@/views/ApprovalsView';
@@ -95,6 +97,7 @@ export default function App() {
   }, []);
 
   return (
+    <TooltipProvider>
     <div className="dark min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
@@ -112,7 +115,8 @@ export default function App() {
             >
               {locale === 'en' ? 'EN' : 'ES'}
             </Button>
-            <span
+            <Badge
+              variant="outline"
               role="status"
               aria-label={healthy === null
                 ? t('app.api.aria.unknown')
@@ -120,7 +124,7 @@ export default function App() {
                   ? t('app.api.aria.ok')
                   : t('app.api.aria.down')}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs',
+                'gap-1.5',
                 healthy === null && 'text-muted-foreground',
                 healthy === true &&
                   'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
@@ -141,7 +145,7 @@ export default function App() {
                 : healthy
                   ? t('app.api.ok')
                   : t('app.api.down')}
-            </span>
+            </Badge>
           </div>
         </div>
       </header>
@@ -204,5 +208,6 @@ export default function App() {
         </Tabs>
       </main>
     </div>
+    </TooltipProvider>
   );
 }

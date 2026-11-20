@@ -15,6 +15,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { api, type TaskDetail, type TaskSummary } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import {
@@ -36,23 +45,28 @@ const DISPOSITION_TONE: Record<string, string> = {
   cancelled: 'border-destructive/40 text-destructive',
 };
 
+const ALL_VALUE = '__all__';
+
 function FilterSelect({
   label, value, options, onChange,
 }: {
   label: string; value: string; options: string[]; onChange: (v: string) => void;
 }) {
   return (
-    <select
-      aria-label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-md border bg-background px-2 py-1 text-xs"
+    <Select
+      value={value === '' ? ALL_VALUE : value}
+      onValueChange={(v) => onChange(v === ALL_VALUE ? '' : v)}
     >
-      <option value="">{label}</option>
-      {options.map((o) => (
-        <option key={o} value={o}>{o}</option>
-      ))}
-    </select>
+      <SelectTrigger size="sm" className="w-auto min-w-24" aria-label={label}>
+        <SelectValue placeholder={label} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_VALUE}>{label}</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o} value={o}>{o}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -78,7 +92,11 @@ export function TasksView() {
       [...new Set(all.map((x) => x[k]).filter((v): v is string => typeof v === 'string'))].sort();
     return {
       state: uniq('state'), backlog: uniq('backlog'), priority: uniq('priority'),
-      type: uniq('type'), disposition: uniq('disposition'),
+      type: uniq('type'),
+      disposition: [...new Set(
+        all.map((x) => x.disposition?.kind)
+          .filter((v): v is string => typeof v === 'string'),
+      )].sort(),
     };
   }, [all]);
 
@@ -89,7 +107,7 @@ export function TasksView() {
       && (!fBacklog || x.backlog === fBacklog)
       && (!fPriority || x.priority === fPriority)
       && (!fType || x.type === fType)
-      && (!fDisposition || x.disposition === fDisposition)
+      && (!fDisposition || x.disposition?.kind === fDisposition)
       && (!needle || x.title.toLowerCase().includes(needle)
         || x.id.toLowerCase().includes(needle)));
   }, [all, fState, fBacklog, fPriority, fType, fDisposition, q]);
@@ -108,11 +126,12 @@ export function TasksView() {
             {list.data?.truncated ? t('common.truncatedByApi') : ''}
           </CardDescription>
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <input
+            <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={t('tasks.filter')}
-              className="w-40 rounded-md border bg-background px-2 py-1 text-xs"
+              className="w-44"
+              aria-label={t('tasks.filter')}
             />
             <FilterSelect label={t('common.state')} value={fState}
               options={opts.state} onChange={setFState} />
@@ -176,8 +195,8 @@ export function TasksView() {
                         )}
                         {task.disposition && (
                           <Badge variant="outline"
-                            className={cn(DISPOSITION_TONE[task.disposition] ?? '')}>
-                            {task.disposition}
+                            className={cn(DISPOSITION_TONE[task.disposition.kind] ?? '')}>
+                            {task.disposition.kind}
                           </Badge>
                         )}
                         {task.backlog && (
@@ -270,8 +289,8 @@ function TaskDetailPanel({
           {task.effort && <Badge variant="outline">{task.effort}</Badge>}
           {task.disposition && (
             <Badge variant="outline"
-              className={cn(DISPOSITION_TONE[task.disposition] ?? '')}>
-              {task.disposition}
+              className={cn(DISPOSITION_TONE[task.disposition.kind] ?? '')}>
+              {task.disposition.kind}
             </Badge>
           )}
           {task.backlog && <Badge variant="secondary" className="font-mono">{task.backlog}</Badge>}
@@ -282,6 +301,18 @@ function TaskDetailPanel({
           )}
         </div>
       </div>
+
+      {task.disposition && (
+        <Field label={t('tasks.disposition')}>
+          <p className="text-xs text-muted-foreground">
+            {task.disposition.reason ?? ''}
+            {task.disposition.by ? ` · ${task.disposition.by}` : ''}
+            {task.disposition.at
+              ? ` · ${task.disposition.at.slice(0, 10)}`
+              : ''}
+          </p>
+        </Field>
+      )}
 
       <Field label={t('tasks.contract')}>
         <p className="whitespace-pre-wrap break-words">{task.contract}</p>
@@ -294,10 +325,11 @@ function TaskDetailPanel({
         <Field label={t('tasks.dependsOn')}>
           <div className="flex flex-wrap gap-1">
             {task.dependsOn!.map((id) => (
-              <button key={id} onClick={() => onSelect(id)}
-                className="rounded border px-1.5 py-0.5 font-mono text-xs hover:bg-accent">
+              <Button key={id} variant="outline" size="sm"
+                className="h-6 px-1.5 font-mono text-xs"
+                onClick={() => onSelect(id)}>
                 {id.slice(0, 8)}
-              </button>
+              </Button>
             ))}
           </div>
         </Field>
@@ -310,10 +342,11 @@ function TaskDetailPanel({
               <div key={kind} className="flex flex-wrap items-center gap-1">
                 <Badge variant="secondary" className="font-mono text-[10px]">{kind}</Badge>
                 {ids.map((id) => (
-                  <button key={id} onClick={() => onSelect(id)}
-                    className="rounded border px-1.5 py-0.5 font-mono text-xs hover:bg-accent">
+                  <Button key={id} variant="outline" size="sm"
+                    className="h-6 px-1.5 font-mono text-xs"
+                    onClick={() => onSelect(id)}>
                     {id.slice(0, 8)}
-                  </button>
+                  </Button>
                 ))}
               </div>
             ))}
@@ -383,13 +416,22 @@ function TaskDetailPanel({
       {(task.notes?.length ?? 0) > 0 && (
         <Field label={t('tasks.notes')}>
           <ul className="space-y-0.5 text-xs">
-            {task.notes!.map((n, i) => (
-              <li key={i}>
-                {n.at && <span className="font-mono text-muted-foreground">{n.at.slice(0, 10)} </span>}
-                {n.by && <span className="text-muted-foreground">[{n.by}] </span>}
-                {n.text}
-              </li>
-            ))}
+            {task.notes!.map((n, i) => {
+              const note = typeof n === 'string' ? { text: n } : n;
+              return (
+                <li key={i}>
+                  {typeof note.at === 'string' && (
+                    <span className="font-mono text-muted-foreground">
+                      {note.at.slice(0, 10)}{' '}
+                    </span>
+                  )}
+                  {typeof note.by === 'string' && (
+                    <span className="text-muted-foreground">[{note.by}] </span>
+                  )}
+                  {note.text}
+                </li>
+              );
+            })}
           </ul>
         </Field>
       )}

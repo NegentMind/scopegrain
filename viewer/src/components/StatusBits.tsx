@@ -1,7 +1,23 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+} from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { CaptureStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
@@ -90,38 +106,39 @@ export function ErrorBox({
 }) {
   const t = useT();
   return (
-    <div
-      role="alert"
-      className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm"
-    >
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-      <div className="min-w-0 flex-1">
-        <p className="font-medium text-destructive">
-          {error.code ? `${error.code}` : t('common.requestFailed')}
-          {error.status ? ` (HTTP ${error.status})` : ''}
-        </p>
-        <p className="mt-1 break-words text-muted-foreground">{error.message}</p>
-      </div>
+    <Alert variant="destructive">
+      <AlertTriangle />
+      <AlertTitle>
+        {error.code ? `${error.code}` : t('common.requestFailed')}
+        {error.status ? ` (HTTP ${error.status})` : ''}
+      </AlertTitle>
+      <AlertDescription className="break-words">
+        {error.message}
+      </AlertDescription>
       {onRetry ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onRetry}
-          aria-label={t('error.retryAria')}
-        >
-          <RefreshCw className="mr-1 h-3.5 w-3.5" />
-          {t('common.retry')}
-        </Button>
+        <AlertAction>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRetry}
+            aria-label={t('error.retryAria')}
+          >
+            <RefreshCw />
+            {t('common.retry')}
+          </Button>
+        </AlertAction>
       ) : null}
-    </div>
+    </Alert>
   );
 }
 
 export function EmptyBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-      {children}
-    </div>
+    <Empty>
+      <EmptyHeader>
+        <EmptyDescription>{children}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }
 
@@ -137,8 +154,13 @@ export function ListSkeleton({ rows = 5 }: { rows?: number }) {
 
 export function ShortId({ id }: { id: string }) {
   return (
-    <span className="font-mono text-xs text-muted-foreground" title={id}>
-      {id.slice(0, 8)}
-    </span>
+    <Tooltip>
+      <TooltipTrigger
+        className="cursor-default font-mono text-xs text-muted-foreground"
+      >
+        {id.slice(0, 8)}
+      </TooltipTrigger>
+      <TooltipContent className="font-mono">{id}</TooltipContent>
+    </Tooltip>
   );
 }

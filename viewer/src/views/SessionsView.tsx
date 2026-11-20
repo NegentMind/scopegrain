@@ -92,7 +92,14 @@ export function SessionsView() {
               </TableHeader>
               <TableBody>
                 {sessions.map((s) => (
-                  <TableRow key={s.id} className="cursor-pointer"
+                  <TableRow key={s.id} className="cursor-pointer focus-visible:outline-ring"
+                    tabIndex={0}
+                    aria-expanded={openId === s.id}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setOpenId(openId === s.id ? null : s.id);
+                      }
+                    }}
                     onClick={() => setOpenId(openId === s.id ? null : s.id)}>
                     <TableCell className="font-mono text-xs">{s.id.slice(0, 8)}</TableCell>
                     <TableCell className="font-mono text-xs">{s.taskId.slice(0, 8)}</TableCell>

@@ -56,6 +56,13 @@ export interface WorkspaceSummary {
   };
 }
 
+export interface TaskDisposition {
+  kind: string;
+  reason?: string | null;
+  at?: string | null;
+  by?: string | null;
+}
+
 export interface MalformedEntry {
   file: string;
   error: { code: string; message: string };
@@ -79,7 +86,7 @@ export interface TaskSummary {
   createdAt: string;
   updatedAt: string;
   backlog: string | null;
-  disposition: string | null;
+  disposition: TaskDisposition | null;
   priority: string | null;
   type: string | null;
   effort: string | null;
@@ -123,7 +130,7 @@ export interface TaskDetail {
   planKey?: string | null;
   scenarioRefs?: { requirementId: string; scenarioId: string }[];
   backlog?: string | null;
-  disposition?: string | null;
+  disposition?: TaskDisposition | null;
   priority?: string | null;
   severity?: string | null;
   type?: string | null;
@@ -139,7 +146,7 @@ export interface TaskDetail {
     performance?: string; [k: string]: unknown;
   } | null;
   steps?: { text: string; status: string }[];
-  notes?: { text: string; at?: string; by?: string }[];
+  notes?: ({ text: string; at?: string; by?: string } | string)[];
   skills?: string[];
   uncertainty?: string | null;
 }

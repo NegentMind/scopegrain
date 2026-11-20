@@ -110,7 +110,14 @@ export function ApprovalsView() {
               </TableHeader>
               <TableBody>
                 {approvals.map((a) => (
-                  <TableRow key={a.id} className="cursor-pointer"
+                  <TableRow key={a.id} className="cursor-pointer focus-visible:outline-ring"
+                    tabIndex={0}
+                    aria-expanded={openId === a.id}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setOpenId(openId === a.id ? null : a.id);
+                      }
+                    }}
                     onClick={() => setOpenId(openId === a.id ? null : a.id)}>
                     <TableCell>
                       <Badge variant="outline" className={cn(TONE[a.status] ?? '')}>

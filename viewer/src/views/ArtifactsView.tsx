@@ -16,11 +16,9 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
+  ToggleGroup,
+  ToggleGroupItem,
+} from '@/components/ui/toggle-group';
 import {
   api,
   type ArtifactKind,
@@ -61,24 +59,26 @@ export function ArtifactsView() {
 
   return (
     <div className="space-y-4">
-      <Tabs
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        spacing={2}
         value={kind}
         onValueChange={(v) => {
-          setKind(v as ArtifactKind);
-          setSelected(null);
+          if (v) {
+            setKind(v as ArtifactKind);
+            setSelected(null);
+          }
         }}
+        aria-label={t('artifacts.kind')}
+        className="flex-wrap justify-start"
       >
-        <TabsList className="flex h-auto flex-wrap justify-start">
-          {ALL_KINDS.map((k) => (
-            <TabsTrigger key={k} value={k} className="font-mono">
-              {k}
-            </TabsTrigger>
-          ))}
-        </TabsList>
         {ALL_KINDS.map((k) => (
-          <TabsContent key={k} value={k} className="mt-4" />
+          <ToggleGroupItem key={k} value={k} className="font-mono">
+            {k}
+          </ToggleGroupItem>
         ))}
-      </Tabs>
+      </ToggleGroup>
 
       {list.loading ? (
         <ListSkeleton />

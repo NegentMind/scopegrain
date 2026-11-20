@@ -6,6 +6,11 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from '@/components/ui/toggle-group';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useT } from '@/lib/i18n';
@@ -41,26 +46,31 @@ export function CatalogView() {
         <CardDescription>{t('catalog.desc')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-1.5">
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          spacing={2}
+          size="sm"
+          value={kind}
+          onValueChange={(v) => v && setKind(v)}
+          aria-label={t('catalog.kindLabel')}
+          className="flex-wrap justify-start"
+        >
           {KIND_ORDER.filter((k) => counts[k] !== undefined).map((k) => (
-            <button
-              key={k}
-              onClick={() => setKind(k)}
-              className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                kind === k
-                  ? 'border-primary bg-primary/10 text-foreground'
-                  : 'border-border text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t(`catalog.kind.${k}`)} <b>{counts[k]}</b>
-            </button>
+            <ToggleGroupItem key={k} value={k}>
+              {t(`catalog.kind.${k}`)}
+              <Badge variant="secondary" className="ml-1.5 font-mono">
+                {counts[k]}
+              </Badge>
+            </ToggleGroupItem>
           ))}
-        </div>
-        <input
+        </ToggleGroup>
+        <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={t('catalog.filter')}
-          className="w-full max-w-sm rounded-md border bg-background px-3 py-1.5 text-sm"
+          className="w-full max-w-sm"
+          aria-label={t('catalog.filter')}
         />
         {entries.length === 0 ? (
           <EmptyBox>{t('catalog.empty')}</EmptyBox>
