@@ -49,6 +49,10 @@ test('gitignore covers only unversioned in-workspace categories', () => {
   assert.ok(gi.content.includes('/research/'));
   assert.ok(!gi.content.includes('/tasks/'), 'versioned tasks not ignored');
   assert.ok(!gi.content.includes('/reports/'), 'versioned reports not ignored');
+  // vantadb.json selects which binary runs and carries machine paths —
+  // it must never be versioned even when artifact categories are.
+  assert.ok(gi.content.includes('/vantadb.json'));
+  assert.ok(gi.content.includes('/context.md'));
   const prop = files.find((f) => f.rel.includes('gitignore-proposal'));
   assert.ok(prop);
   assert.ok(prop.content.includes('never edits the project root'));

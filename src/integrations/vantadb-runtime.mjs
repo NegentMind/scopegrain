@@ -20,6 +20,8 @@ export const VANTADB_BACKEND_ID = 'vantadb';
 
 const CONFIG_REL = 'vantadb.json';
 const CONFIG_KEYS = ['schemaVersion', 'backendId', 'version', 'binaryPath', 'storagePath'];
+const CONFIG_KEYS_ALLOWED = [...CONFIG_KEYS, 'binarySha256'];
+const BINARY_NAMES = new Set(['vantadb-server', 'vantadb-server.exe']);
 const RELEASE_BASE = `https://github.com/${VANTADB_REPO}/releases/download`;
 const ASSET_LIMIT = 128 * 1024 * 1024;
 const STDOUT_BUF_LIMIT = 8 * 1024 * 1024;
@@ -83,17 +85,52 @@ export function vantaDBConfigAbs(ctx) {
   return resolveInside(ctx.projectRoot, `${ctx.configDir}/${CONFIG_REL}`, 'vantadb config');
 }
 
+// vantadb.json lives inside the (possibly versioned) config dir, so a
+// hostile repository could ship a config pointing at its own payload;
+// memory verbs would then execute those bytes with the user's
+// privileges. The enrolled binary must therefore (a) be named like the
+// official server and (b) resolve outside the project root. A pinned
+// binarySha256 — recorded at enrollment — is verified before spawn.
+export function assertBinaryTrust(ctx, abs) {
+  if (!BINARY_NAMES.has(path.basename(abs).toLowerCase())) {
+    throw err('VANTADB_BINARY_UNTRUSTED',
+      `binaryPath must name vantadb-server(.exe): ${abs}`);
+  }
+  const root = path.resolve(ctx.projectRoot);
+  const real = path.resolve(abs);
+  if (real === root || real.startsWith(root + path.sep)) {
+    throw err('VANTADB_BINARY_UNTRUSTED',
+      'binaryPath must resolve outside the project root');
+  }
+}
+
+function verifyBinaryDigest(abs, expected) {
+  const actual = crypto.createHash('sha256')
+    .update(fs.readFileSync(abs)).digest('hex');
+  if (actual !== String(expected).toLowerCase()) {
+    throw err('VANTADB_HASH_MISMATCH',
+      'enrolled binary digest changed; re-run vantadb setup --apply');
+  }
+}
+
 export function loadVantaDBConfig(ctx) {
   const abs = vantaDBConfigAbs(ctx);
   if (!fs.existsSync(abs)) return null;
   const value = readJsonFile(abs, 'vantadb config', 65536);
-  closed(value, CONFIG_KEYS, CONFIG_KEYS, 'VANTADB_CONFIG_MALFORMED', 'vantadb config');
+  closed(value, CONFIG_KEYS_ALLOWED, CONFIG_KEYS, 'VANTADB_CONFIG_MALFORMED', 'vantadb config');
   if (value.schemaVersion !== 1 || value.backendId !== VANTADB_BACKEND_ID
       || typeof value.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(value.version)
       || typeof value.binaryPath !== 'string' || !path.isAbsolute(value.binaryPath)
       || typeof value.storagePath !== 'string' || !path.isAbsolute(value.storagePath)) {
     throw err('VANTADB_CONFIG_MALFORMED', 'vantadb config fields are invalid');
   }
+  if (value.binarySha256 !== undefined
+      && (typeof value.binarySha256 !== 'string'
+          || !/^[0-9a-fA-F]{64}$/.test(value.binarySha256))) {
+    throw err('VANTADB_CONFIG_MALFORMED',
+      'binarySha256 must be a 64-hex digest when present');
+  }
+  assertBinaryTrust(ctx, value.binaryPath);
   return Object.freeze({ ...value });
 }
 
@@ -109,12 +146,19 @@ function writeJsonAtomic(abs, value) {
 }
 
 export function saveVantaDBConfig(ctx, cfg) {
-  closed(cfg, CONFIG_KEYS, CONFIG_KEYS, 'VANTADB_CONFIG_MALFORMED', 'vantadb config');
+  closed(cfg, CONFIG_KEYS_ALLOWED, CONFIG_KEYS, 'VANTADB_CONFIG_MALFORMED', 'vantadb config');
   if (cfg.schemaVersion !== 1 || cfg.backendId !== VANTADB_BACKEND_ID
       || !/^\d+\.\d+\.\d+$/.test(cfg.version)
       || !path.isAbsolute(cfg.binaryPath) || !path.isAbsolute(cfg.storagePath)) {
     throw err('VANTADB_CONFIG_MALFORMED', 'vantadb config fields are invalid');
   }
+  if (cfg.binarySha256 !== undefined
+      && (typeof cfg.binarySha256 !== 'string'
+          || !/^[0-9a-fA-F]{64}$/.test(cfg.binarySha256))) {
+    throw err('VANTADB_CONFIG_MALFORMED',
+      'binarySha256 must be a 64-hex digest when present');
+  }
+  assertBinaryTrust(ctx, cfg.binaryPath);
   const abs = vantaDBConfigAbs(ctx);
   mkdirpSync(path.dirname(abs));
   writeJsonAtomic(abs, { ...cfg });
@@ -254,11 +298,19 @@ export function createStdioMcpClient({
   binaryPath, storagePath, timeoutMs = DEFAULT_TIMEOUT_MS, spawnImpl, env,
 }) {
   const spawnFn = spawnImpl ?? spawn;
-  const child = spawnFn(binaryPath, ['--mcp'], {
-    env: env ?? controlledEnv(storagePath),
-    stdio: ['pipe', 'pipe', 'pipe'],
-    windowsHide: true,
-  });
+  let child;
+  try {
+    child = spawnFn(binaryPath, ['--mcp'], {
+      env: env ?? controlledEnv(storagePath),
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+  } catch (e) {
+    // spawn can throw synchronously (EINVAL/ENOEXEC on a file that is
+    // not executable) — surface it under the same code as async errors.
+    throw err('VANTADB_SPAWN_FAILED',
+      `cannot start vantadb-server: ${String(e.message || e)}`);
+  }
   const pending = new Map();
   const stderrTail = [];
   let nextId = 1;
@@ -392,6 +444,7 @@ async function withMcpClient(cfg, timeoutMs, spawnImpl, fn) {
     throw err('VANTADB_BINARY_MISSING',
       `vantadb-server not found at ${cfg.binaryPath}; re-run vantadb setup --apply`);
   }
+  if (cfg.binarySha256) verifyBinaryDigest(cfg.binaryPath, cfg.binarySha256);
   const client = createStdioMcpClient({
     binaryPath: cfg.binaryPath, storagePath: cfg.storagePath,
     timeoutMs, spawnImpl,

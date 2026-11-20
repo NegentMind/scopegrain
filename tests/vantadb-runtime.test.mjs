@@ -35,11 +35,17 @@ function fixture() {
   return { dir, ctx, a, b, bound: bindWorkspace(ctx, { areaIds: [a, b] }) };
 }
 
+// Enrolled binaries must resolve OUTSIDE the project root (a versioned
+// config must never select in-repo bytes to execute). Fixtures put the
+// fake server in a sibling temp dir, mirroring the real installRoot
+// under ~/.scopegrain/vantadb.
 function cfg(dir, storagePath) {
+  const binDir = path.join(path.dirname(dir), `bin-${path.basename(dir)}`);
+  fs.mkdirSync(binDir, { recursive: true });
   return {
     schemaVersion: 1, backendId: VANTADB_BACKEND_ID,
     version: DEFAULT_VANTADB_VERSION,
-    binaryPath: path.join(dir, 'vantadb-server'),
+    binaryPath: path.join(binDir, 'vantadb-server'),
     storagePath: storagePath ?? path.join(dir, 'vanta-data'),
   };
 }
@@ -161,6 +167,24 @@ test('config save/load round-trip; absent, malformed and invalid fail closed', (
     assert.throws(() => loadVantaDBConfig(f.ctx),
       (e) => e.code === 'VANTADB_CONFIG_MALFORMED');
     assert.throws(() => saveVantaDBConfig(f.ctx, { ...c, version: 'latest' }),
+      (e) => e.code === 'VANTADB_CONFIG_MALFORMED');
+
+    // Binary trust: a versioned config must never select in-repo bytes
+    // to execute, nor an arbitrarily named executable.
+    writeJson(f.dir, '.tasksystem/vantadb.json',
+      { ...c, binaryPath: path.join(f.dir, 'payload', 'vantadb-server') });
+    assert.throws(() => loadVantaDBConfig(f.ctx),
+      (e) => e.code === 'VANTADB_BINARY_UNTRUSTED');
+    writeJson(f.dir, '.tasksystem/vantadb.json',
+      { ...c, binaryPath: path.join(path.dirname(f.dir), 'evil.exe') });
+    assert.throws(() => loadVantaDBConfig(f.ctx),
+      (e) => e.code === 'VANTADB_BINARY_UNTRUSTED');
+    assert.throws(() => saveVantaDBConfig(f.ctx,
+      { ...c, binaryPath: path.join(f.dir, 'vantadb-server') }),
+      (e) => e.code === 'VANTADB_BINARY_UNTRUSTED');
+    writeJson(f.dir, '.tasksystem/vantadb.json',
+      { ...c, binarySha256: 'not-hex' });
+    assert.throws(() => loadVantaDBConfig(f.ctx),
       (e) => e.code === 'VANTADB_CONFIG_MALFORMED');
   } finally {
     cleanup(f.dir);

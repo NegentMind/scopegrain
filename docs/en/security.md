@@ -9,10 +9,18 @@ The following controls are implemented in the code; their proven scope
 and limitations are recorded in [verification](verification.md). They do
 not amount to a security certification.
 
-- **No execution:** the core does not use `child_process`; the scanner
-  neither executes nor expands discovered commands. Proposals arrive
-  with `approved:false`.
-- **No network:** no module opens sockets; the MCP server uses stdio.
+- **Bounded execution:** the core neither executes nor expands commands
+  discovered in manifests; proposals arrive with `approved:false`. The
+  only `child_process` path is `verify run`, which requires explicit
+  approval, rebuilds and revalidates the literal argv, runs with
+  `shell:false`, and bounds timeout and output. The optional VantaDB
+  integration spawns an enrolled binary whose name and location are
+  verified, with a pinned digest when recorded in the config.
+- **Bounded network:** the core opens no public-network sockets. The two
+  declared exceptions are the viewer server (loopback-only bind, with
+  `Host`/`Origin` validation against DNS rebinding) and the VantaDB
+  downloader (HTTPS to GitHub releases with a sha256 digest). The MCP
+  server uses stdio.
 - **Contained paths:** artifact paths are relative to the project, with
   no `..`, NUL, colons (drives/ADS), POSIX or win32 absolute paths, UNC
   or empty/`.` segments. The prefixes `.git`, `node_modules`, `legacy`

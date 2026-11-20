@@ -5,6 +5,36 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+
+- **Viewer API hardened against DNS rebinding** — every request must be
+  addressed to the loopback socket (`Host` hostname must be a loopback
+  literal or `localhost`; a non-loopback `Origin` is rejected with
+  `421 MISDIRECTED_REQUEST`). Responses now carry `Content-Security-Policy`,
+  `Cross-Origin-Resource-Policy: same-origin`, `X-Frame-Options: DENY`
+  and `Referrer-Policy`. `NOT_FOUND` now maps to HTTP 404.
+- **VantaDB binary trust** — the enrolled `binaryPath` must name
+  `vantadb-server(.exe)` and resolve outside the project root, so a
+  versioned `vantadb.json` can never select in-repo bytes to execute.
+  Enrollment pins `binarySha256` and every spawn verifies the digest
+  when present; synchronous `spawn` failures now surface as
+  `VANTADB_SPAWN_FAILED` instead of `INTERNAL`. The generated
+  `.scopegrain/.gitignore` now ignores `/vantadb.json` and
+  `/context.md`.
+- **Hook installation containment** — a crafted `.git` `gitdir:` pointer
+  can no longer redirect hook writes outside the project root, and
+  interpolated paths in the managed hook block are single-quoted
+  (project names containing `"` can no longer inject shell). Hook
+  writes use a random exclusive temp name.
+
+### Fixed
+
+- `docs/security.md` (ES/EN) no longer claims the core never uses
+  `child_process` or opens sockets; the bounded exceptions
+  (`verify run`, loopback viewer, VantaDB downloader) are documented.
+- `.agents/mcp_config.json` and `.devin/mcp_config.json` use
+  project-relative paths instead of committed absolute machine paths.
+
 ### Added
 
 - **Session-start context packet + persistent user knowledge** — new

@@ -79,6 +79,13 @@ function sendStatic(res, segments) {
     'Cache-Control': path.basename(file) === 'index.html'
       ? 'no-store' : 'public, max-age=31536000, immutable',
     'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy':
+      "default-src 'self'; img-src 'self' data:; "
+      + "style-src 'self' 'unsafe-inline'; script-src 'self'; "
+      + "frame-ancestors 'none'; base-uri 'none'",
   });
   res.end(body);
 }
@@ -168,7 +175,7 @@ function matchRoute(segments) {
 // Conservative TaskError -> HTTP status mapping for a read API.
 function statusFor(code) {
   if (typeof code !== 'string') return 500;
-  if (code.endsWith('_NOT_FOUND')) return 404;
+  if (code === 'NOT_FOUND' || code.endsWith('_NOT_FOUND')) return 404;
   if (code === 'SCOPE_DENIED') return 403;
   if (code === 'WORKSPACE_STALE' || code.endsWith('_CONFLICT')) return 409;
   if (code.startsWith('INVALID') || code.startsWith('UNKNOWN_')
@@ -192,8 +199,55 @@ function sendJson(res, status, payload) {
     // Loopback-only service; no ambient CORS grant. The viewer reaches this
     // API through the dev-server proxy or a same-origin static mount.
     'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    // Blocks cross-origin no-cors reads (images, embeds, opaque fetches)
+    // in browsers that do not enforce the private-network-access rules.
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
   });
   res.end(body);
+}
+
+// DNS-rebinding guard. Binding to loopback only stops off-host traffic;
+// it does NOT stop a hostile web page whose domain resolves to
+// 127.0.0.1 from issuing same-origin requests in browsers without
+// private-network-access enforcement (Firefox, Safari). Every request
+// must therefore be addressed to the loopback socket itself: the Host
+// hostname must be a loopback literal (or 'localhost'), and when a
+// browser Origin header rides along it must be loopback as well.
+// 'localhost' in Host is safe here because the connection already
+// arrived at this bound socket — DNS is not re-consulted.
+const TRUSTED_HOSTNAMES = new Set([...LOOPBACK_HOSTS, 'localhost']);
+
+function isTrustedHostname(name) {
+  return TRUSTED_HOSTNAMES.has(String(name).toLowerCase());
+}
+
+function requestOriginAllowed(req) {
+  const host = req.headers.host;
+  if (typeof host !== 'string' || host === '') return false;
+  let parsed;
+  try {
+    parsed = new URL(`http://${host}`);
+  } catch {
+    return false;
+  }
+  if (!isTrustedHostname(parsed.hostname)) return false;
+  // No port check: the Vite dev proxy forwards with its own Host port.
+  // The request already arrived at this bound socket; the loopback
+  // hostname is the invariant that defeats DNS rebinding.
+  const origin = req.headers.origin;
+  if (origin !== undefined) {
+    let o;
+    try {
+      o = new URL(origin);
+    } catch {
+      return false;
+    }
+    if (!isTrustedHostname(o.hostname)) return false;
+  }
+  return true;
 }
 
 function sendError(res, status, code, message) {
@@ -209,6 +263,11 @@ export function createApiHandler(options) {
     // a client pipelined so the connection state stays sane.
     req.resume();
     try {
+      if (!requestOriginAllowed(req)) {
+        sendError(res, 421, 'MISDIRECTED_REQUEST',
+          'this API only answers requests addressed to its loopback socket');
+        return;
+      }
       if (req.method !== 'GET') {
         res.setHeader('Allow', 'GET');
         sendError(res, 405, 'METHOD_NOT_ALLOWED',

@@ -70,6 +70,12 @@ export function buildVersioningFiles({ configDir, paths, versioning }) {
         '',
         ...ignoreLines,
         '',
+        '# Security: never version files that decide WHICH BINARY RUNS',
+        '# (vantadb.json carries an absolute binaryPath) or per-user',
+        '# session knowledge (context.md).',
+        '/vantadb.json',
+        '/context.md',
+        '',
       ].join('\n'),
     });
   }

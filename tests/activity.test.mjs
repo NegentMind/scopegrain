@@ -26,6 +26,31 @@ function fixture(methodology = 'manual') {
   return { dir, ctx: resolveContext({ project: dir }) };
 }
 
+test('hooks install refuses a .git gitdir pointer escaping the project', () => {
+  const dir = makeTempDir('activity-gitdir');
+  writeJson(dir, '.tasksystem/config.json',
+    createConfig(dir, { ...VALID_ANSWERS }, {}));
+  // A crafted pointer must not redirect hook writes outside the root.
+  fs.writeFileSync(path.join(dir, '.git'), 'gitdir: ../../elsewhere\n');
+  const ctx = resolveContext({ project: dir });
+  try {
+    assert.throws(() => gitHooksDir(ctx), (e) => e.code === 'INVALID_PATH');
+    assert.throws(() => installHooks(ctx, { binAbs: '/x/bin.mjs' }),
+      (e) => e.code === 'INVALID_PATH');
+  } finally { cleanup(dir); }
+});
+
+test('hook block single-quotes interpolated paths (shell injection guard)', () => {
+  const { dir, ctx } = fixture();
+  try {
+    const plan = planHooks(ctx, { binAbs: '/x/scopegrain.mjs' });
+    // Paths appear inside single quotes; a hostile project name cannot
+    // reach the shell through double-quote interpolation.
+    assert.ok(plan.nextContent.includes(`--project '${dir.replace(/\\/g, '/')}'`));
+    assert.ok(!plan.nextContent.includes('--project "'));
+  } finally { cleanup(dir); }
+});
+
 test('recordActivity creates an ops task and a progress entry', () => {
   const { dir, ctx } = fixture();
   try {

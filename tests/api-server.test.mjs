@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { applyPlan } from '../src/core/bootstrap.mjs';
 import { createConfig } from '../src/core/config.mjs';
@@ -126,6 +127,41 @@ test('rejects non-loopback hosts and non-GET methods', async () => {
       await srv.close();
     }
   } finally {
+    cleanup(f.dir);
+  }
+});
+
+test('rejects non-loopback Host and Origin (DNS-rebinding guard)', async () => {
+  const f = enrolledFixture();
+  const srv = await serve(f);
+  try {
+    const url = new URL(`${srv.base}/api/health`);
+    const rawGet = (headers) => new Promise((resolve, reject) => {
+      const req = http.request({
+        hostname: url.hostname, port: url.port, path: url.pathname,
+        method: 'GET', headers,
+      }, (res) => {
+        res.resume();
+        res.on('end', () => resolve(res));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    const evil = await rawGet({ Host: 'evil.example:7731' });
+    assert.equal(evil.statusCode, 421);
+    const evilOrigin = await rawGet({
+      Host: url.host, Origin: 'http://evil.example',
+    });
+    assert.equal(evilOrigin.statusCode, 421);
+    const good = await rawGet({ Host: url.host });
+    assert.equal(good.statusCode, 200);
+    assert.equal(good.headers['cross-origin-resource-policy'], 'same-origin');
+    assert.ok(String(good.headers['content-security-policy'])
+      .includes("default-src 'none'"));
+    const local = await rawGet({ Host: 'localhost:7731' });
+    assert.equal(local.statusCode, 200);
+  } finally {
+    await srv.close();
     cleanup(f.dir);
   }
 });

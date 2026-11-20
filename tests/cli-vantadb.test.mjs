@@ -80,7 +80,9 @@ test('setup preview is read-only: no config, no storage dir, no writes', async (
 test('setup --apply with explicit --binary enrolls config; status reflects it', async () => {
   const f = fixture();
   try {
-    const binary = path.join(f.dir, 'bin', 'vantadb-server.exe');
+    // Enrolled binaries must live outside the project root — a versioned
+    // config must never select in-repo bytes to execute.
+    const binary = path.join(path.dirname(f.dir), 'bin', 'vantadb-server.exe');
     fs.mkdirSync(path.dirname(binary), { recursive: true });
     fs.writeFileSync(binary, 'placeholder');
     const storage = path.join(f.dir, 'store');
@@ -153,10 +155,13 @@ test('sync and get without enrollment fail closed VANTADB_NOT_CONFIGURED', async
 test('unreachable enrolled binary surfaces as structured spawn/exit error', async () => {
   const f = fixture();
   try {
-    // process.execPath is a real binary but not an MCP server: node dies on
-    // the unknown '--mcp' flag -> VANTADB_PROCESS_EXIT, never a crash.
+    // A file named like the server outside the project root is not an
+    // MCP server: spawn fails -> structured error, never a crash.
+    const bogus = path.join(path.dirname(f.dir), 'bin', 'vantadb-server');
+    fs.mkdirSync(path.dirname(bogus), { recursive: true });
+    fs.writeFileSync(bogus, 'not-a-real-server');
     const applied = await call(['vantadb', 'setup', '--project', f.dir,
-      '--config', f.configRel, '--binary', process.execPath,
+      '--config', f.configRel, '--binary', bogus,
       '--storage', path.join(f.dir, 'store'), '--apply']);
     assert.equal(applied.code, 0);
     const get = await call(['vantadb', 'get', '--project', f.dir,

@@ -3,9 +3,9 @@
     "scopegrain": {
       "command": "node",
       "args": [
-        "C:\\Users\\Eros\\VantaDB Proyect\\TaskSystem\\src\\mcp\\server.mjs",
+        "src/mcp/server.mjs",
         "--project",
-        "C:\\Users\\Eros\\VantaDB Proyect\\TaskSystem",
+        ".",
         "--config",
         ".scopegrain/config.json"
       ]

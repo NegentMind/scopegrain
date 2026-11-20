@@ -1,5 +1,6 @@
 // CLI command surface. All results go to stdout as JSON; failures go to
 // stderr as {error:{code,message}} with a non-zero exit code.
+import crypto from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { err, toErrorPayload } from './core/errors.mjs';
@@ -1522,10 +1523,17 @@ async function cmdVantaDB(sub, positional, flags) {
       downloaded = ensured.downloaded;
       sha256 = ensured.sha256;
     }
+    // Pin the binary digest at enrollment: when the config already
+    // exists on disk (e.g. a cache hit during ensure) or --binary is
+    // used, digest the resolved file now so later spawns detect swaps.
+    if (sha256 === null) {
+      sha256 = crypto.createHash('sha256')
+        .update(fs.readFileSync(binaryPath)).digest('hex');
+    }
     fs.mkdirSync(storagePath, { recursive: true });
     const cfg = {
       schemaVersion: 1, backendId: VANTADB_BACKEND_ID, version,
-      binaryPath, storagePath,
+      binaryPath, storagePath, binarySha256: sha256,
     };
     const configAbs = saveVantaDBConfig(ctx, cfg);
     return { applied: true, config: cfg, configPath: configAbs, downloaded, sha256 };

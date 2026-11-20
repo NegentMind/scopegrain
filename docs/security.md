@@ -6,10 +6,18 @@ Los siguientes controles estan implementados en el codigo; su
 alcance probado y las limitaciones se registran en
 [verificacion](verification.md). No equivalen a certificacion de seguridad.
 
-- **Sin ejecucion:** el nucleo no usa `child_process`; el scanner no ejecuta
-  ni expande comandos descubiertos. Las propuestas llegan con
-  `approved:false`.
-- **Sin red:** ningun modulo abre sockets; el servidor MCP usa stdio.
+- **Ejecucion acotada:** el nucleo no ejecuta ni expande comandos
+  descubiertos en manifests; las propuestas llegan con `approved:false`.
+  La unica via de `child_process` es `verify run`, que exige aprobacion
+  explicita, reconstruye y revalida el argv literal, corre con
+  `shell:false` y acota timeout y salida. La integracion VantaDB
+  (opcional) lanza un binario enrolado con nombre y ubicacion
+  verificados y digest fijado cuando consta en la config.
+- **Red acotada:** el nucleo no abre sockets de red publica. Las dos
+  excepciones declaradas son el servidor del visor (bind solo a
+  loopback, con validacion de `Host`/`Origin` contra DNS rebinding) y el
+  downloader de VantaDB (HTTPS a releases de GitHub con digest sha256).
+  El servidor MCP usa stdio.
 - **Rutas contenidas:** las rutas de artefactos son relativas al proyecto, sin
   `..`, NUL, dos puntos (unidades/ADS), absolutas POSIX ni win32, UNC ni
   segmentos vacios o `.`. Los prefijos `.git`, `node_modules`, `legacy` y
