@@ -68,6 +68,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`preflightPlan` collision check is O(n log n)** — canonical sort +
   adjacent-pair prefix detection instead of comparing every ordered
   pair, canonicalizing once per destination.
+- **Owned stores factored onto one creation protocol** — the four
+  immutable stores (specifications, designs, outcomes, captures) now
+  delegate the closed-input/scope/serialization/ownership-proof protocol
+  to `createOwnedRecordStore` in `owned-store.mjs`; each store declares
+  only its domain rules (−~370 duplicated lines). Public store APIs and
+  error codes are unchanged.
 - **Backup/restore stream one document at a time** — `applyBackup`
   classifies, re-reads, hash-verifies and writes each entry before
   loading the next source; `applyRestore` classifies all entries first,
