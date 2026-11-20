@@ -133,19 +133,52 @@ export function appendWorklog(ctx, name, fields) {
   return record;
 }
 
+// Append-only logs outgrow the document cap eventually; session start
+// must never break on them. Oversized logs are read from the tail: the
+// newest bounded window is what callers consume anyway.
+function readTailWindow(file, capBytes, label) {
+  const fd = fs.openSync(file, 'r');
+  try {
+    const st = fs.fstatSync(fd);
+    const size = Number(st.size);
+    const take = Math.min(size, capBytes);
+    const buf = Buffer.alloc(take);
+    let off = 0;
+    while (off < take) {
+      const n = fs.readSync(fd, buf, off, take - off, size - take + off);
+      if (n <= 0) break;
+      off += n;
+    }
+    let start = 0;
+    if (size > take) {
+      // Drop the leading partial line at the BYTE level — its head lives
+      // before the window and may cut a multi-byte UTF-8 sequence.
+      const nl = buf.indexOf(0x0a);
+      start = nl === -1 ? off : nl + 1;
+    }
+    return decodeUtf8Strict(buf.subarray(start, off), label);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 export function readWorklog(ctx, name, { tail = 50 } = {}) {
   const file = logPath(ctx, name);
   const st = lstatOrNull(file);
-  const out = { entries: [], malformed: [] };
+  const out = { entries: [], malformed: [], truncated: false };
   if (!st) return out;
   if (st.isSymbolicLink() || !st.isFile()) {
     throw err('INVALID_PATH', `${name} log is not a real file`);
   }
-  const limited = readFileLimited(file, loadLimits().maxDocumentBytes);
+  const cap = loadLimits().maxDocumentBytes;
+  const limited = readFileLimited(file, cap);
+  let text;
   if (limited.exceeded) {
-    throw err('DOCUMENT_TOO_LARGE', `${name} log exceeds document limit`);
+    text = readTailWindow(file, cap, `${name} log`);
+    out.truncated = true;
+  } else {
+    text = decodeUtf8Strict(limited.content, `${name} log`);
   }
-  const text = decodeUtf8Strict(limited.content, `${name} log`);
   const lines = text.split('\n').filter((l) => l.trim() !== '');
   const take = Math.min(Math.max(0, tail), MAX_TAIL);
   const slice = take === 0 ? [] : lines.slice(-take);

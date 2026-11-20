@@ -55,7 +55,7 @@ import {
 } from './core/sessions.mjs';
 import { bindWorkspace, getWorkspace, prepareWorkspace } from './core/workspaces.mjs';
 import { getJournalOperation, listJournalPending, prepareJournalRecovery,
-  recoverJournalOperation }
+  recoverJournalOperation, compactJournal, countJournalPending }
   from './core/journal.mjs';
 import { createCaptureStore } from './core/captures.mjs';
 import { openInitSession, answer as sessionAnswer, status as sessionStatus,
@@ -151,6 +151,10 @@ const COMMANDS = {
   'journal recover': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 1,
     usage: 'journal recover OPERATION --project PATH [--config REL] --input FILE [--apply]',
+  },
+  'journal compact': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'journal compact --project PATH [--config REL]',
   },
   'vantadb setup': {
     flags: ['--project', '--config', '--version', '--storage', '--binary',
@@ -1196,8 +1200,7 @@ function cmdContext(flags) {
   try {
     const bound = bindWorkspace(ctx,
       { areaIds: workspace.areas.map((a) => a.id) });
-    pendingJournal = listJournalPending(bound, { afterSequence: 0, limit: 50 })
-      .items.length;
+    pendingJournal = countJournalPending(bound);
   } catch { /* journal absent or unreadable — surface as 0 */ }
   // User-owned session-start knowledge: .scopegrain/context.md, bounded.
   const CONTEXT_MD_MAX = 32 * 1024;
@@ -1245,10 +1248,29 @@ function cmdContext(flags) {
         .map((t) => ({ id: t.id, title: t.title,
           priority: t.priority ?? null, backlog: t.backlog ?? null })),
     },
-    progress: readWorklog(ctx, 'progress', { tail }).entries,
-    goals: listGoals(ctx).goals.filter((g) => g.status === 'open')
-      .map((g) => ({ id: g.id, title: g.title })),
-    pendingJournalEvents: pendingJournal,
+    // Session start must survive an unreadable or oversized log: read
+    // bounded, degrade to an error marker, never throw the packet.
+    progress: (() => {
+      try {
+        const log = readWorklog(ctx, 'progress', { tail });
+        return log.truncated
+          ? { truncated: true, entries: log.entries }
+          : { truncated: false, entries: log.entries };
+      } catch (e) {
+        return { truncated: false, entries: [],
+          error: { code: e.code ?? 'INTERNAL',
+            message: String(e.message ?? e) } };
+      }
+    })(),
+    goals: (() => {
+      try {
+        return listGoals(ctx).goals.filter((g) => g.status === 'open')
+          .map((g) => ({ id: g.id, title: g.title }));
+      } catch {
+        return [];
+      }
+    })(),
+    pendingJournalOperations: pendingJournal,
   };
 }
 
@@ -1479,6 +1501,7 @@ function cmdJournal(sub, positional, flags) {
     return listJournalPending(bound, options);
   }
   if (sub === 'show') return getJournalOperation(bound, positional[0]);
+  if (sub === 'compact') return compactJournal(bound);
   const input = readInputFile(requireFlag(flags, '--input'), 'journal recovery input');
   return flags['--apply']
     ? recoverJournalOperation(bound, positional[0], input)

@@ -82,12 +82,48 @@ index and does not verify the number against historic operations; chain
 coherence (resulting revision = expected + 1, `previousHash` equal to
 the prior `sourceHash`) is a read-model check, not a write gate.
 
-Incomplete or corrupt histories, invalid snapshots and orphan locks
-fail closed; they are not rebuilt and locks are not stolen
-automatically. The lock compares `dev`/`ino` identity and token before
-releasing, but it is cooperative: those checks are not an atomic OS
-unlink, so external coordination remains the operator's
-responsibility.
+Incomplete or corrupt histories and invalid snapshots fail closed;
+they are not rebuilt automatically.
+
+## Stale lock recovery
+
+Lock files carry a JSON payload `{t, pid, at}` holding the token, the
+writer's pid and a timestamp. The recovery guarantee is:
+
+- **Dead pid**: the lock is reclaimed on the next acquire. A process
+  that no longer exists can never finish its section, so keeping its
+  lock would block the journal forever.
+- **Live pid**: the lock is never broken, regardless of age. A
+  suspended writer is still a real writer; breaking its lock would
+  admit a second writer into the same section.
+- **No metadata** (legacy bare tokens, zero-byte sentinels): the lock
+  is reclaimed only after `mtime` ages past a one-hour TTL.
+- **Replacement race**: reclaim re-verifies `dev`/`ino` identity
+  between inspect and unlink; a concurrent delete+recreate preserves
+  the successor's lock.
+
+The lock remains cooperative: it compares `dev`/`ino` and token before
+releasing, but those checks are not an atomic OS unlink; external
+coordination (never running two writers on the same state) remains the
+operator's responsibility.
+
+## Compaction with full archival
+
+Terminal operations — `committed` with every event acknowledged, or
+`abandoned` after recovery — are archived intact, never deleted:
+
+```text
+scopegrain journal compact --project PATH [--config REL]
+```
+
+The command moves `operations/<id>` to `archive/operations/<id>` under
+the journal lock. Pending, active, `prepared` and unacknowledged
+operations are kept. Snapshots are content-addressed and shared, so
+they stay in place; provenance is preserved byte for byte and readers
+(`journal show`, acked listings) resolve both locations. `head.json`
+maintains `pendingOperations`, the counter session start reads instead
+of scanning the journal.
+
 An active reservation without an index is detected when listing
 pending operations. If the active pointer is null, the bounded listing
 cannot detect a missing historic index: an empty page does not prove

@@ -80,12 +80,48 @@ de cadena (revision resultante = esperada + 1, `previousHash` igual al
 `sourceHash` previo) es una comprobacion del modelo de lectura, no un gate
 de escritura.
 
-Los historiales incompletos o corruptos, snapshots invalidos y locks huerfanos
-fallan de forma cerrada; no se reconstruyen ni se roban locks automaticamente.
-El lock compara identidad `dev`/`ino` y token antes de liberarse, pero es
-cooperativo: esas comprobaciones no son un unlink atomico del sistema
-operativo, por lo que la coordinacion externa sigue siendo responsabilidad
-del operador.
+Los historiales incompletos o corruptos y los snapshots invalidos fallan de
+forma cerrada; no se reconstruyen automaticamente.
+
+## Recuperacion de locks obsoletos
+
+Los locks llevan una carga JSON `{t, pid, at}` con el token, el pid del
+escritor y la marca temporal. La garantia de recuperacion es:
+
+- **Pid muerto**: el lock se reclama en el siguiente `acquire`. Un proceso
+  que ya no existe no puede terminar su seccion, asi que retener su lock
+  bloquearia el journal para siempre.
+- **Pid vivo**: el lock nunca se rompe, por antiguo que sea. Un escritor
+  suspendido sigue siendo un escritor real; romper su lock permitiria un
+  segundo escritor en la misma seccion.
+- **Sin metadatos** (tokens planos heredados, archivos de cero bytes): el
+  lock se reclama solo tras superar una antiguedad de una hora en `mtime`.
+- **Carrera de reemplazo**: la reclamacion verifica de nuevo la identidad
+  `dev`/`ino` entre la inspeccion y el unlink; un delete+recreate concurrente
+  preserva el lock del sucesor.
+
+El lock sigue siendo cooperativo: compara `dev`/`ino` y token antes de
+liberarse, pero esas comprobaciones no son un unlink atomico del sistema
+operativo; la coordinacion externa (no lanzar dos agentes escribiendo sobre
+el mismo estado) sigue siendo responsabilidad del operador.
+
+## Compactacion con archivado total
+
+Las operaciones terminales — `committed` con todos sus eventos reconocidos,
+o `abandoned` tras recuperacion — se archivan intactas, nunca se borran:
+
+```text
+scopegrain journal compact --project PATH [--config REL]
+```
+
+El comando mueve `operations/<id>` a `archive/operations/<id>` bajo el lock
+del journal. Las operaciones pendientes, activas, `prepared` o con eventos
+sin reconocer se conservan. Los snapshots son direccionados por contenido y
+compartidos, por lo que permanecen donde estan; la procedencia se preserva
+byte a byte y las lecturas (`journal show`, listados acked) resuelven ambas
+ubicaciones. `head.json` mantiene `pendingOperations`, el contador que el
+arranque de sesion consulta en lugar de escanear el journal.
+
 Una reserva activa sin indice se detecta al listar pendientes. Si el puntero
 activo es nulo, el listado acotado no puede detectar un indice historico
 ausente: una pagina vacia no demuestra sincronizacion global. La recuperacion

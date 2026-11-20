@@ -21,13 +21,54 @@ test('acquire+release roundtrip; legacy zero-byte lock still conflicts', () => {
   try {
     const p = path.join(dir, 'a.json.lock');
     const lock = acquire(p);
-    assert.equal(fs.readFileSync(p, 'utf8'), lock.token);
+    const payload = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.deepEqual([payload.t, payload.pid], [lock.token, process.pid]);
+    assert.equal(typeof payload.at, 'number');
     releaseVerifiedLock(lock);
     assert.equal(fs.existsSync(p), false);
     // A pre-existing zero-byte sentinel stays a conflict, never recovered.
     fs.writeFileSync(p, '', { flag: 'wx' });
     assert.throws(() => acquire(p), (e) => e.code === 'TEST_LOCKED');
     assert.equal(fs.readFileSync(p, 'utf8'), '');
+  } finally { cleanup(dir); }
+});
+
+test('a dead-pid lock is reclaimed; a live-pid lock never breaks', () => {
+  const dir = makeTempDir('locks');
+  try {
+    const p = path.join(dir, 'a.json.lock');
+    // Dead pid: a crashed writer cannot finish, so the lock is broken.
+    fs.writeFileSync(p, JSON.stringify({ t: 'x', pid: 0x7fffffff - 1,
+      at: Date.now() }));
+    const lock = acquire(p);
+    assert.equal(JSON.parse(fs.readFileSync(p, 'utf8')).t, lock.token);
+    releaseVerifiedLock(lock);
+    // Live pid (ours): never reclaimed, no matter how it ages.
+    fs.writeFileSync(p, JSON.stringify({ t: 'held', pid: process.pid,
+      at: 1 }));
+    fs.utimesSync(p, new Date(0), new Date(0)); // ancient mtime
+    assert.throws(() => acquire(p), (e) => e.code === 'TEST_LOCKED');
+    assert.equal(JSON.parse(fs.readFileSync(p, 'utf8')).t, 'held');
+    fs.rmSync(p);
+  } finally { cleanup(dir); }
+});
+
+test('legacy locks reclaim only past TTL and re-verify dev/ino', () => {
+  const dir = makeTempDir('locks');
+  try {
+    const p = path.join(dir, 'a.json.lock');
+    const opts = { staleMs: 50 };
+    const acquireStale = () =>
+      acquireVerifiedLock(p, 'TEST_LOCKED', 'held', opts);
+    // Fresh legacy token: inside TTL, still a conflict.
+    fs.writeFileSync(p, 'bare-token', { flag: 'wx' });
+    assert.throws(acquireStale, (e) => e.code === 'TEST_LOCKED');
+    // Aged past TTL: reclaimed and replaced by our lock.
+    fs.utimesSync(p, new Date(Date.now() - 60_000),
+      new Date(Date.now() - 60_000));
+    const lock = acquireStale();
+    assert.equal(JSON.parse(fs.readFileSync(p, 'utf8')).t, lock.token);
+    releaseVerifiedLock(lock);
   } finally { cleanup(dir); }
 });
 
@@ -42,7 +83,7 @@ test('release after delete+recreate never unlinks the new owner', () => {
     const successor = acquire(p);
     assert.throws(() => releaseVerifiedLock(stale),
       (e) => e.code === 'TEST_LOCKED');
-    assert.equal(fs.readFileSync(p, 'utf8'), successor.token);
+    assert.equal(JSON.parse(fs.readFileSync(p, 'utf8')).t, successor.token);
     // The live owner still releases cleanly.
     releaseVerifiedLock(successor);
     assert.equal(fs.existsSync(p), false);

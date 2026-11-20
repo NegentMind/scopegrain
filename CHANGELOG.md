@@ -29,6 +29,27 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Stale lock recovery** — lock payloads are now JSON `{t, pid, at}`.
+  A lock whose writer pid is provably dead is reclaimed on the next
+  acquire; a live pid is never broken; metadata-less locks (legacy bare
+  tokens, zero-byte sentinels) reclaim only past a one-hour `mtime` TTL.
+  Reclaim re-verifies `dev`/`ino` so a delete+recreate race preserves
+  the successor's lock. The journal's `.lock` uses the same path, so a
+  crashed writer no longer wedges every journaled write. The guarantee
+  is documented in `docs/journal-recovery.md`.
+- **`journal compact`** — new verb archiving terminal operations
+  (committed + fully acknowledged, or abandoned after recovery) intact
+  to `archive/operations/`; pending, active and unacked operations are
+  kept. Provenance is preserved byte for byte and readers resolve both
+  locations. `head.json` now maintains `pendingOperations`, and session
+  start reads `pendingJournalOperations` from it instead of scanning
+  intents (the context packet field was renamed accordingly).
+- **Oversized worklogs no longer break `context`** — logs beyond the
+  document cap are read from a bounded tail window (partial first line
+  dropped at the byte level, so split UTF-8 sequences cannot fault the
+  decode) and reported as `{ truncated: true, entries }`; unreadable
+  logs and goals degrade to an error marker inside the packet rather
+  than aborting session start.
 - **Terminal `ABANDON` state** — reachable from every non-terminal state
   except `CLOSE`, requires no evidence or methodology gate, and is the
   only legal destination for tasks whose `disposition` is

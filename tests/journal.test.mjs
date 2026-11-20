@@ -11,8 +11,9 @@ import { loadJournalPolicy, loadLimits } from '../src/core/policy.mjs';
 import { bindWorkspace, prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
   ackJournalEvent, applyJournaledCreation, applyJournaledRecordCreation,
-  getJournalEvent, getJournalOperation, listJournalPending, readJournalSnapshot,
-  prepareJournalRecovery, recoverJournalOperation,
+  getJournalEvent, getJournalOperation, listJournalPending, listJournalAcked,
+  readJournalSnapshot, prepareJournalRecovery, recoverJournalOperation,
+  compactJournal, countJournalPending,
 } from '../src/core/journal.mjs';
 import { VALID_ANSWERS, cleanup, makeTempDir, trySymlink, writeFile, writeJson }
   from './helpers.mjs';
@@ -1169,4 +1170,55 @@ test('missing intent recovery still fails closed on conflicts and artifacts', ()
       assert.deepEqual(tree(f.dir), before, variant);
     } finally { cleanup(f.dir); }
   }
+});
+
+test('compact archives terminal ops, keeps pending, head counter tracks outbox', () => {
+  const f = fixture();
+  try {
+    const opsDir = path.join(f.journal, 'operations');
+    const archiveDir = path.join(f.journal, 'archive', 'operations');
+    // Two committed ops: first will be fully acked, second stays pending.
+    const done = applyJournaledCreation(f.bound,
+      [change([f.a], 'records/archived', 'x', 'archived')]);
+    const live = applyJournaledCreation(f.bound,
+      [change([f.a], 'records/live', 'y', 'live')]);
+    assert.equal(countJournalPending(f.bound), 2);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(f.journal, 'head.json')))
+      .pendingOperations, 2);
+    const doneEvent = getJournalEvent(f.bound, done.operationId,
+      done.eventIds[0]).event;
+    ackJournalEvent(f.bound, done.operationId, doneEvent.eventId,
+      evidence(doneEvent));
+    assert.equal(countJournalPending(f.bound), 0 + 1);
+    const before = tree(f.dir);
+    const result = compactJournal(f.bound);
+    assert.deepEqual(result.archived, [done.operationId]);
+    assert.deepEqual(result.kept, [live.operationId]);
+    assert.equal(fs.existsSync(path.join(opsDir, done.operationId)), false);
+    assert.equal(fs.existsSync(path.join(archiveDir, done.operationId)), true);
+    assert.equal(fs.existsSync(path.join(opsDir, live.operationId)), true);
+    // Provenance intact: the archived op still resolves and acked listing
+    // still reports it with its original evidence.
+    const loaded = getJournalOperation(f.bound, done.operationId);
+    assert.equal(loaded.state, 'committed');
+    const acked = listJournalAcked(f.bound, { afterSequence: 0, limit: 10 });
+    assert.equal(acked.items.length, 1);
+    assert.equal(acked.items[0].operationId, done.operationId);
+    assert.deepEqual(acked.items[0].evidence, evidence(doneEvent));
+    // Archive is byte-identical to what lived under operations/.
+    const after = tree(f.dir);
+    for (const [rel, bytes] of Object.entries(before)) {
+      if (rel.includes(`/journal/operations/${done.operationId}/`)) {
+        const moved = rel.replace('/journal/operations/',
+          '/journal/archive/operations/');
+        assert.deepEqual(after[moved], bytes, moved);
+      }
+    }
+    // Head counter reflects only the live pending op; compact is idempotent.
+    assert.equal(JSON.parse(fs.readFileSync(path.join(f.journal, 'head.json')))
+      .pendingOperations, 1);
+    assert.deepEqual(compactJournal(f.bound).archived, []);
+    assert.equal(countJournalPending(f.bound), 1);
+    assert.equal(listJournalPending(f.bound).items.length, 1);
+  } finally { cleanup(f.dir); }
 });

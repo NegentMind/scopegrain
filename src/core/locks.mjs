@@ -2,9 +2,16 @@
 // discipline generalized for the *.lock callers. acquire writes a random
 // token under 'wx' and records the created file's {dev, ino}; release
 // re-proves the SAME file still carries that token before unlinking, so
-// a stale finally can never delete a successor's lock. A pre-existing
-// file — including a legacy zero-byte lock — still counts as held:
-// there is no stale-lock recovery.
+// a stale finally can never delete a successor's lock.
+//
+// Stale-lock recovery (posture changed 2026-11-20, owner decision):
+// lock payloads are JSON {t, pid, at}. A lock whose recorded pid is
+// provably DEAD (ESRCH) is broken and reclaimed — the process can never
+// finish its write. A lock whose pid is alive is never broken,
+// regardless of age. Locks without pid metadata (legacy bare tokens,
+// zero-byte sentinels) are reclaimed only after staleMs of mtime age,
+// and the reclaim re-verifies {dev, ino} so a delete+recreate race
+// cannot make us delete a successor's lock.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
@@ -58,19 +65,85 @@ function removeOwnedLock(lockPath, owner, bytes) {
   } catch { /* preserve anything not provably ours */ }
 }
 
+// Default staleness for metadata-less locks (legacy tokens, sentinels):
+// one hour. Locks carrying a live pid are never reclaimed — a suspended
+// writer is still a real writer and breaking its lock permits a second
+// writer into the same section.
+const DEFAULT_STALE_MS = 60 * 60 * 1000;
+
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true; // exists (ESRCH would throw; EPERM also means exists)
+  } catch (e) {
+    return e && e.code === 'EPERM'; // exists but owned by another user
+  }
+}
+
+// Decide whether an existing lock file is reclaimable, then break it.
+// Re-verifies {dev, ino} between inspect and unlink: if the file was
+// deleted and recreated meanwhile, we preserve the successor's lock.
+function tryReclaimStaleLock(lockPath, staleMs) {
+  let stat;
+  try {
+    stat = fs.lstatSync(lockPath, { bigint: true });
+  } catch {
+    return; // vanished under us — nothing to reclaim
+  }
+  if (!stat.isFile()) return;
+  const raw = readLockPrefix(lockPath, 4096);
+  const text = raw === null ? '' : raw.toString('utf8');
+  let pid = null;
+  try {
+    const parsed = JSON.parse(text);
+    if (Number.isSafeInteger(parsed?.pid) && parsed.pid > 0) {
+      pid = parsed.pid;
+    }
+  } catch { /* legacy bare token or empty sentinel */ }
+  const reclaimable = pid !== null
+    ? !pidAlive(pid) // dead writer: always reclaimable
+    : Date.now() - Number(stat.mtimeMs) > staleMs;
+  if (!reclaimable) return;
+  let before;
+  try {
+    before = fs.lstatSync(lockPath, { bigint: true });
+  } catch {
+    return;
+  }
+  if (before.dev !== stat.dev || before.ino !== stat.ino) return;
+  try {
+    fs.unlinkSync(lockPath);
+  } catch { /* someone else reclaimed it — the 'wx' retry decides */ }
+}
+
 // 'wx' create + token write + fsync; EEXIST maps to the caller's lock
 // code, every other open/write failure propagates raw (callers may map
 // e.g. ENOENT). The returned handle binds the path, token, inode
 // identity and the caller's error code for the matching release.
-export function acquireVerifiedLock(lockPath, code, existsMessage) {
+export function acquireVerifiedLock(lockPath, code, existsMessage, options) {
+  const staleMs = Number.isSafeInteger(options?.staleMs)
+    ? options.staleMs : DEFAULT_STALE_MS;
   const token = crypto.randomUUID();
-  const bytes = Buffer.from(token);
+  // Lock payload: JSON {t,pid,at} so stale recovery can distinguish a
+  // crashed writer (dead pid, reclaim) from a live one (never reclaim).
+  const bytes = Buffer.from(
+    `${JSON.stringify({ t: token, pid: process.pid,
+      at: Date.now() })}\n`);
   let fd;
   try {
     fd = fs.openSync(lockPath, 'wx');
   } catch (e) {
-    if (e && e.code === 'EEXIST') throw err(code, existsMessage);
-    throw e;
+    if (e && e.code === 'EEXIST') {
+      tryReclaimStaleLock(lockPath, staleMs);
+      try {
+        fd = fs.openSync(lockPath, 'wx');
+      } catch (e2) {
+        if (e2 && e2.code === 'EEXIST') throw err(code, existsMessage);
+        throw e2;
+      }
+    } else {
+      throw e;
+    }
   }
   let closed = false;
   let owner = null;
@@ -125,14 +198,27 @@ export function releaseVerifiedLock(lock) {
   checkOwner();
   let limited;
   try {
-    limited = readFileLimited(lockPath, tokenBytes.length);
+    // 4 KiB bound: the JSON payload {t,pid,at} is ~90 bytes but a forged
+    // file could be anything; the cap only exists to bound the read.
+    limited = readFileLimited(lockPath, 4096);
   } catch (e) {
     if (e && e.code === 'ENOENT') {
       throw err(code, `lock file was removed: ${lockPath}`);
     }
     throw e;
   }
-  if (limited.exceeded || !limited.content.equals(tokenBytes)) {
+  // Accept both payloads: JSON {t,pid,at} (current) and the legacy bare
+  // token, so a lock written by an older binary still releases cleanly.
+  let held = false;
+  if (!limited.exceeded) {
+    const text = limited.content.toString('utf8');
+    try {
+      held = JSON.parse(text)?.t === token;
+    } catch {
+      held = limited.content.equals(tokenBytes);
+    }
+  }
+  if (!held) {
     throw err(code, `lock token was replaced: ${lockPath}`);
   }
   checkOwner();

@@ -6,6 +6,7 @@ import { canonicalDigest } from './digests.mjs';
 import { err, toErrorPayload } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited,
   removeIfExists } from './fsx.mjs';
+import { acquireVerifiedLock, releaseVerifiedLock } from './locks.mjs';
 import { assertDestination, isSameOrAncestor, resolveInside } from './paths.mjs';
 import { loadJournalPolicy, loadLimits } from './policy.mjs';
 import { isJournalOperation, validateUpdateChange } from './record-history.mjs';
@@ -189,42 +190,18 @@ function atomicHead(loc, head) {
   }
 }
 
+// The journal lock delegates to the verified-lock layer: payload carries
+// {t,pid,at}, so a crashed writer (dead pid) is reclaimed on the next
+// acquire while a live one is never broken. Legacy bare-token and
+// zero-byte locks reclaim only past the staleness TTL.
 function acquire(loc) {
-  const rel = sub(loc, '.lock');
-  const token = crypto.randomUUID();
-  let owner;
-  try {
-    const stats = writeNew(loc, rel, Buffer.from(token));
-    owner = { dev: stats.dev, ino: stats.ino };
-  } catch (e) {
-    if (e.code === 'EEXIST') throw err('JOURNAL_LOCKED', 'journal lock already exists');
-    throw e;
-  }
-  return { token, owner };
+  const abs = absolute(loc, sub(loc, '.lock'));
+  fs.mkdirSync(path.dirname(abs), { recursive: true }); // journal base may not exist yet
+  return acquireVerifiedLock(abs, 'JOURNAL_LOCKED', 'journal lock already exists');
 }
 
 function release(loc, lock) {
-  const rel = sub(loc, '.lock');
-  const abs = absolute(loc, rel);
-  function checkOwner() {
-    let current;
-    try {
-      current = fs.lstatSync(abs, { bigint: true });
-    } catch (e) {
-      if (e.code === 'ENOENT') throw err('JOURNAL_LOCKED', 'journal lock was removed');
-      throw e;
-    }
-    if (!current.isFile() || current.dev !== lock.owner.dev || current.ino !== lock.owner.ino) {
-      throw err('JOURNAL_LOCKED', 'journal lock was replaced');
-    }
-  }
-  checkOwner();
-  const bytes = readBytes(loc, rel);
-  if (!bytes.equals(Buffer.from(lock.token))) {
-    throw err('JOURNAL_LOCKED', 'journal lock token was replaced');
-  }
-  checkOwner();
-  fs.unlinkSync(abs);
+  releaseVerifiedLock(lock);
 }
 
 // Bounded listing with a capacity gate producers can keep strict. With
@@ -245,10 +222,14 @@ function directory(loc, rel, limit, { failAtCapacity = true } = {}) {
 
 function validateHead(value) {
   const code = 'JOURNAL_MALFORMED';
-  plain(value, ['schemaVersion', 'lastSequence', 'activeOperation'],
+  plain(value, ['schemaVersion', 'lastSequence', 'activeOperation', 'pendingOperations'],
     ['schemaVersion', 'lastSequence', 'activeOperation'], code, 'journal head');
   if (value.schemaVersion !== 1 || !Number.isSafeInteger(value.lastSequence)
       || value.lastSequence < 0) throw err(code, 'journal head has invalid fields');
+  if (value.pendingOperations !== undefined
+      && (!Number.isSafeInteger(value.pendingOperations) || value.pendingOperations < 0)) {
+    throw err(code, 'journal head has invalid pending count');
+  }
   if (value.activeOperation !== null) {
     plain(value.activeOperation, ['operationId', 'intentDigest'],
       ['operationId', 'intentDigest'], code, 'active operation');
@@ -386,9 +367,24 @@ function validateRecovery(value, operationId, intentDigest, state) {
   }
 }
 
+// An operation lives under operations/ until compaction moves it to
+// archive/operations/ — reads resolve either location so archiving never
+// erases provenance or breaks journal show/event reads.
+function operationBase(loc, operationId) {
+  const live = `operations/${operationId}`;
+  const stat = lstatOrNull(absolute(loc, sub(loc, live)));
+  if (stat) {
+    if (!stat.isDirectory()) {
+      throw err('JOURNAL_MALFORMED', 'journal operation is not a directory');
+    }
+    return live;
+  }
+  return `archive/operations/${operationId}`;
+}
+
 function operation(loc, operationId, policy) {
   if (!uuid(operationId)) throw err('INVALID_JOURNAL_INPUT', 'operationId must be a UUID');
-  const base = sub(loc, `operations/${operationId}`);
+  const base = sub(loc, operationBase(loc, operationId));
   const intent = validateIntent(readJson(loc, `${base}/intent.json`), operationId, loc, policy);
   const intentDigest = canonicalDigest(intent);
   const commitRel = `${base}/commit.json`;
@@ -444,7 +440,7 @@ function validateEvidence(value, event, code, match = true) {
 }
 
 function ackRel(loc, operationId, eventId) {
-  return sub(loc, `operations/${operationId}/acks/${eventId}.json`);
+  return sub(loc, `${operationBase(loc, operationId)}/acks/${eventId}.json`);
 }
 
 function readAck(loc, operationId, event) {
@@ -591,13 +587,15 @@ export function listJournalAcked(bound, options = {}) {
       || !Number.isSafeInteger(limit) || limit <= 0 || limit > policy.maxPageSize) {
     throw err('INVALID_JOURNAL_INPUT', 'invalid acked cursor or limit');
   }
-  const ids = [];
-  for (const entry of directory(loc, sub(loc, 'operations'), policy.maxPendingOperations)) {
-    if (entry.isDirectory() && uuid(entry.name)) ids.push(entry.name);
+  const ids = new Set();
+  for (const baseRel of ['operations', 'archive/operations']) {
+    for (const entry of directory(loc, sub(loc, baseRel), policy.maxPendingOperations)) {
+      if (entry.isDirectory() && uuid(entry.name)) ids.add(entry.name);
+    }
   }
-  ids.sort();
+  const sorted = [...ids].sort();
   const next = [];
-  for (const operationId of ids) {
+  for (const operationId of sorted) {
     const loaded = operation(loc, operationId, policy);
     if (loaded.state !== 'committed') continue;
     for (const event of loaded.intent.events) {
@@ -616,6 +614,66 @@ export function listJournalAcked(bound, options = {}) {
   const hasMore = next.length > limit;
   const items = next.slice(0, limit);
   return { items, nextAfterSequence: hasMore ? items.at(-1).event.journalSequence : null };
+}
+
+// Cheap pending count for session start: head.pendingOperations is
+// maintained by every writer under the journal lock; legacy heads
+// without the field fall back to a bounded outbox directory count —
+// never a full intent scan.
+export function countJournalPending(bound) {
+  const loc = location(bound);
+  const head = readHead(loc);
+  if (Number.isSafeInteger(head.pendingOperations)) {
+    return head.pendingOperations;
+  }
+  return outbox(loc, loadJournalPolicy(), { failAtCapacity: false }).length;
+}
+
+// Compaction with full archival (owner decision 2026-11-20): terminal
+// operations — committed with every event acked, or abandoned after
+// recovery — move intact to archive/operations/ so operations/ stays
+// bounded and provenance is never deleted. Pending, active, prepared
+// and unacked operations are kept. Atomic rename keeps the move inside
+// the same volume; snapshots stay shared and content-addressed.
+export function compactJournal(bound) {
+  const loc = location(bound);
+  const policy = loadJournalPolicy();
+  resolveWorkspaceState(bound);
+  const lock = acquire(loc);
+  try {
+    resolveWorkspaceState(bound);
+    const head = readHead(loc);
+    const pending = new Set(outbox(loc, policy, { failAtCapacity: false }));
+    const archived = [];
+    const kept = [];
+    for (const entry of directory(loc, sub(loc, 'operations'),
+      policy.maxPendingOperations, { failAtCapacity: false })) {
+      if (!entry.isDirectory() || !uuid(entry.name)) continue;
+      const operationId = entry.name;
+      const active = head.activeOperation?.operationId === operationId;
+      if (active || pending.has(operationId)) { kept.push(operationId); continue; }
+      const loaded = operation(loc, operationId, policy);
+      const fullyAcked = loaded.state === 'committed'
+        && loaded.intent.events.every((event) => readAck(loc, operationId, event));
+      if (loaded.state === 'prepared'
+          || (loaded.state === 'committed' && !fullyAcked)) {
+        kept.push(operationId);
+        continue;
+      }
+      ensureDir(loc, sub(loc, 'archive/operations'));
+      fs.renameSync(absolute(loc, sub(loc, `operations/${operationId}`)),
+        absolute(loc, sub(loc, `archive/operations/${operationId}`)));
+      archived.push(operationId);
+    }
+    // Self-heals any counter drift; the pending set itself is unchanged.
+    const current = readHead(loc);
+    atomicHead(loc, { schemaVersion: 1, lastSequence: current.lastSequence,
+      activeOperation: current.activeOperation,
+      pendingOperations: outbox(loc, policy, { failAtCapacity: false }).length });
+    return { archived, kept, archivedCount: archived.length };
+  } finally {
+    release(loc, lock);
+  }
 }
 
 export function ackJournalEvent(bound, operationId, eventId, evidence) {
@@ -652,6 +710,11 @@ export function ackJournalEvent(bound, operationId, eventId, evidence) {
       if (lstatOrNull(absolute(loc, indexRel))) {
         indexedOperation(loc, operationId, policy);
         fs.unlinkSync(absolute(loc, indexRel));
+        const current = readHead(loc);
+        atomicHead(loc, { schemaVersion: 1, lastSequence: current.lastSequence,
+          activeOperation: current.activeOperation,
+          pendingOperations: outbox(loc, policy,
+            { failAtCapacity: false }).length });
       }
     }
   } finally {
@@ -786,12 +849,15 @@ function writableJournal(loc, policy) {
 // is JOURNAL_MALFORMED). The remaining crash window - head reserved,
 // intent absent - is resolved by missingIntentOperation on the
 // 'abandon-prepared' recovery path, not by reordering.
-function persistIntent(loc, intent, candidates, head, extraBlobs = []) {
+function persistIntent(loc, intent, candidates, head, pendingBase, extraBlobs = []) {
   const intentBytes = jsonBytes(intent);
   const intentDigest = canonicalDigest(intent);
   const activeOperation = { operationId: intent.operationId, intentDigest };
   const reserved = { schemaVersion: 1,
-    lastSequence: head.lastSequence + candidates.length, activeOperation };
+    lastSequence: head.lastSequence + candidates.length, activeOperation,
+    // The outbox index for this operation is written below; the counter
+    // anticipates it so a crash mid-window only ever overcounts.
+    pendingOperations: pendingBase + 1 };
   atomicHead(loc, reserved);
   for (let i = 0; i < candidates.length; i += 1) {
     saveSnapshot(loc, intent.events[i], candidates[i].file.content);
@@ -825,7 +891,9 @@ function finalizeOperation(loc, intent, intentDigest, reserved, result) {
       throw err('JOURNAL_RECOVERY_REQUIRED', 'journal active pointer changed');
     }
     atomicHead(loc, { schemaVersion: 1, lastSequence: current.lastSequence,
-      activeOperation: null });
+      activeOperation: null,
+      pendingOperations: outbox(loc, loadJournalPolicy(),
+        { failAtCapacity: false }).length });
   } catch {
     result.warnings.push(toErrorPayload(err('JOURNAL_RECOVERY_REQUIRED',
       'committed operation requires journal head recovery')));
@@ -850,7 +918,8 @@ function lockedCreation(bound, changes, loc, policy, identity = null) {
   }
   const intent = prepareIntent(bound, loc, candidates, head, identity);
   validateIntent(intent, intent.operationId, loc, policy);
-  const { intentDigest, reserved } = persistIntent(loc, intent, candidates, head);
+  const { intentDigest, reserved } = persistIntent(loc, intent, candidates, head,
+    pending.length);
   resolveWorkspaceState(bound);
   let applied;
   try {
@@ -1060,7 +1129,7 @@ function lockedUpdate(bound, changes, loc, policy, identity) {
   const intent = prepareIntent(bound, loc, changes, head, identity);
   validateIntent(intent, intent.operationId, loc, policy);
   const { intentDigest, reserved } = persistIntent(loc, intent, changes, head,
-    changes.map((change, index) => ({
+    pending.length, changes.map((change, index) => ({
       hash: change.previousHash, bytes: preimages[index],
     })));
   resolveWorkspaceState(bound);
@@ -1307,7 +1376,9 @@ export function recoverJournalOperation(bound, operationId, options) {
     if (data.head.activeOperation) {
       resolveWorkspaceState(bound);
       atomicHead(data.loc, { schemaVersion: 1, lastSequence: data.head.lastSequence,
-        activeOperation: null });
+        activeOperation: null,
+        pendingOperations: outbox(data.loc, data.policy,
+          { failAtCapacity: false }).length });
     }
     if (data.hasIndex && (input.action === 'abandon-prepared' || !data.pendingEventIds.length)) {
       resolveWorkspaceState(bound);
@@ -1315,6 +1386,10 @@ export function recoverJournalOperation(bound, operationId, options) {
       // validated that index against the head reservation instead.
       if (data.loaded.intent) indexedOperation(data.loc, operationId, data.policy);
       fs.unlinkSync(absolute(data.loc, data.indexRel));
+      atomicHead(data.loc, { schemaVersion: 1, lastSequence: data.head.lastSequence,
+        activeOperation: null,
+        pendingOperations: outbox(data.loc, data.policy,
+          { failAtCapacity: false }).length });
     }
     result = recoveryResult(operationId, input, data, 'applied', receipt);
   } catch (e) {
