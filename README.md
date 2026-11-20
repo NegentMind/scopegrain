@@ -185,9 +185,10 @@ considered equivalent to Local/CLI. See
 - There is no model executor and no automatic execution of agents or
   host SDKs. The instructions are not a sandbox and do not intercept
   every native tool.
-- The optional MCP offers read-only queries; it does not execute shell
-  or modify tasks. Budgets count registered operations, not every host
-  call, tokens or spend.
+- The optional MCP is read-mostly: queries plus a small set of bounded
+  journaled mutations (memory/goal/disposition writes and task claiming).
+  It does not execute shell. Budgets count registered operations, not
+  every host call, tokens or spend.
 - Hashes bind records and declared evidence; they do not prove actual
   execution, actor or reviewer identity, or the full content of the
   worktree. An independent review or waiver is a process declaration.

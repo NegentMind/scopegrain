@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { api } from '@/lib/api';
 import {
   adoptProjectLocale,
@@ -170,6 +171,7 @@ function HealthBadge({ healthy }: { healthy: boolean | null }) {
 export default function App() {
   const [view, setView] = useState<NavValue>('workspace');
   const healthy = useHealthPoll();
+  const locale = useLocale();
   const t = useT();
 
   // Adopt the project-configured locale once, unless the user already chose.
@@ -283,6 +285,11 @@ export default function App() {
               </div>
             </div>
 
+            <ErrorBoundary
+              key={view}
+              region={t(current.labelKey)}
+              locale={locale}
+            >
             <TabsContent value="workspace">
               <WorkspaceView />
             </TabsContent>
@@ -328,6 +335,7 @@ export default function App() {
             <TabsContent value="system">
               <SystemView />
             </TabsContent>
+            </ErrorBoundary>
           </main>
         </Tabs>
       </div>

@@ -78,7 +78,7 @@ export function GraphView() {
             <EmptyBox>{t('graph.empty')}</EmptyBox>
           ) : (
             <TaskDag nodes={graph.nodes} edges={graph.edges}
-              labels={{ empty: t('graph.empty') }} />
+              labels={{ empty: t('graph.empty'), dag: t('graph.dag') }} />
           )}
         </CardContent>
       </Card>

@@ -3,7 +3,7 @@
   "id": "scopegrain",
   "transport": "stdio",
   "commandTemplate": ["node", "{installRoot}/src/mcp/server.mjs", "--project", "{projectRoot}", "--config", "{configRel}"],
-  "toolExecution": "read-only-harness-queries",
+  "toolExecution": "read-mostly-harness-queries-with-bounded-journaled-mutations",
   "activation": "manual-review-only",
   "requiresExternalActivation": true,
   "credentials": "none-generated",

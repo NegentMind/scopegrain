@@ -1,7 +1,7 @@
 // MCP input hardening: tool arguments are bounded in BOTH layers. The zod
 // inputSchema carries per-field maxLength (advertised in tools/list), and
 // strictify rejects oversized serialized args for direct handler calls,
-// which bypass zod. Skipped with reason without the optional deps.
+// which bypass zod. SDK/zod are hard dependencies.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createConfig } from '../src/core/config.mjs';
@@ -12,21 +12,7 @@ import {
 const MAX_ARGS_BYTES = 65536;
 const MAX_ARG_CHARS = 4096;
 
-async function depsAvailable() {
-  try {
-    await import('@modelcontextprotocol/sdk/server/mcp.js');
-    await import('zod');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 test('oversized serialized tool arguments are rejected INVALID_ARGS', async (t) => {
-  if (!(await depsAvailable())) {
-    t.skip('optional MCP dependencies are not installed');
-    return;
-  }
   const { z } = await import('zod');
   const { createMCPTools } = await import('../src/mcp/server.mjs');
   const { dir, ctx } = bootstrappedCtx();
@@ -57,10 +43,6 @@ test('oversized serialized tool arguments are rejected INVALID_ARGS', async (t) 
 });
 
 test('advertised input schemas bound every string argument', async (t) => {
-  if (!(await depsAvailable())) {
-    t.skip('optional MCP dependencies are not installed');
-    return;
-  }
   const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { createMCPServer } = await import('../src/mcp/server.mjs');

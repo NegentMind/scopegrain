@@ -66,6 +66,15 @@ jobs:
       - name: Install viewer dependencies without lifecycle scripts
         working-directory: viewer
         run: npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+      - name: Lint viewer
+        working-directory: viewer
+        run: npm run lint
+      - name: Typecheck viewer (app + tests)
+        working-directory: viewer
+        run: npm run typecheck
+      - name: Test viewer
+        working-directory: viewer
+        run: npm run test
       - name: Typecheck and build viewer
         working-directory: viewer
         run: npm run build

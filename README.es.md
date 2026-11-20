@@ -184,9 +184,10 @@ comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver
 - No hay ejecutor de modelos ni ejecucion automatica de agentes o SDK de
   anfitriones. Las instrucciones no son un sandbox ni interceptan todas las
   herramientas nativas.
-- El MCP opcional ofrece consultas de solo lectura; no ejecuta shell ni
-  modifica tareas. Los presupuestos cuentan operaciones registradas, no
-  todas las llamadas del anfitrion, tokens ni gasto.
+- El MCP opcional es mayoritariamente de lectura: consultas mas un conjunto
+  acotado de mutaciones journaled (escrituras de memoria/metas/disposicion y
+  claim de tareas). No ejecuta shell. Los presupuestos cuentan operaciones
+  registradas, no todas las llamadas del anfitrion, tokens ni gasto.
 - Los hashes vinculan registros y evidencia declarada; no prueban ejecucion
   real, identidad de actores o revisores, ni el contenido completo del
   worktree. Una review independiente o waiver es una declaracion del proceso.

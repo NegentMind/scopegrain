@@ -105,7 +105,7 @@ access, no local writes.
 
 ## `scopegrain_memory_*` MCP tools
 
-The MCP server exposes four additional read-only tools:
+The MCP server exposes additional `memory_*` tools. Five are read-only:
 
 | Tool | Equivalent |
 |---|---|
@@ -117,6 +117,14 @@ The MCP server exposes four additional read-only tools:
 
 Without enrollment they return `VANTADB_NOT_CONFIGURED` as a structured
 error; arguments are validated against the bound ctx with no path redirect.
+
+Two additional `memory_*` tools operate on the local operational worklog
+(not on VantaDB; no enrollment required):
+
+| Tool | Equivalent | Annotation |
+|---|---|---|
+| `scopegrain_memory_add` | `worklog append` (`log` = lessons\|outcomes\|progress) | mutating |
+| `scopegrain_memory_read` | `worklog read --tail N` | read-only |
 
 ## Errors and bounds
 

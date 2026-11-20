@@ -111,9 +111,33 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`verify run`, loopback viewer, VantaDB downloader) are documented.
 - `.agents/mcp_config.json` and `.devin/mcp_config.json` use
   project-relative paths instead of committed absolute machine paths.
+- **MCP docs no longer claim read-only** — the server has carried six
+  locally-mutating tools for a while (`memory_add`, `goal_create`,
+  `goal_transition`, `task_disposition`, `next_task --claimBy`);
+  `architecture.md`, `vantadb.md`, `README*.md`,
+  `resources/mcps/scopegrain.json` and
+  `resources/references/mcp-tools.md` now describe the real boundary.
+  Historical session counts in `native-hosts.md`/`verification.md` keep
+  their point-in-time numbers.
 
 ### Added
 
+- **Viewer `ErrorBoundary`** — a render crash in one view now swaps to
+  an accessible fallback (`role="alert"`, details, Retry, i18n) instead
+  of unmounting the whole shell; the boundary is keyed by the active
+  view so navigation auto-recovers. `TaskDag`'s SVG label is localized.
+- **Viewer test/lint tooling** — Vitest + Testing Library + jsdom and
+  a flat ESLint config (typescript-eslint + react-hooks) with `npm run
+  test`/`npm run lint` scripts, wired into the viewer CI lane. Covers
+  the i18n fallback, the cross-view navigation queue, the API error
+  contract and the ErrorBoundary.
+- **`owned-chain` unit coverage** — `tests/owned-chain.test.mjs`
+  exercises the shared proof primitives (hash/bounds/parsing, scope
+  validation, genesis/update pairing, binding, chain walk) against a
+  real journaled fixture.
+- **MCP contract tests always execute** — SDK/zod are hard
+  dependencies, so the three MCP suites no longer skip when imports
+  fail; a broken install now fails loudly.
 - **Session-start context packet + persistent user knowledge** — new
   read-only `context` verb returns a bounded JSON packet
   (`schemaVersion: 1`): instructions/config paths, task counts and the

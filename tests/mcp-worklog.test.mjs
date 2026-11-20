@@ -1,6 +1,6 @@
 // MCP wave-2 tools: next_task selection/claim, meta patches, dispositions,
 // worklog add/read, goals and metrics through the real handlers.
-// Skipped with reason without the optional SDK/zod dependencies.
+// SDK/zod are hard dependencies.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createConfig } from '../src/core/config.mjs';
@@ -9,16 +9,6 @@ import { updateTaskMeta } from '../src/core/transition.mjs';
 import {
   VALID_ANSWERS, cleanup, makeTempDir, writeJson,
 } from './helpers.mjs';
-
-async function depsAvailable() {
-  try {
-    await import('@modelcontextprotocol/sdk/server/mcp.js');
-    await import('zod');
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 async function setup() {
   const { createMCPTools } = await import('../src/mcp/server.mjs');
@@ -45,10 +35,6 @@ const BASE = {
 };
 
 test('next_task selects by priority, skips claimed/iced/met-deps', async (t) => {
-  if (!(await depsAvailable())) {
-    t.skip('optional MCP dependencies are not installed');
-    return;
-  }
   const { dir, ctx, tools } = await setup();
   try {
     const low = createTask(ctx, { ...BASE, priority: 'p3' });
@@ -79,10 +65,6 @@ test('next_task selects by priority, skips claimed/iced/met-deps', async (t) => 
 });
 
 test('task_meta, disposition and memory/goal/metrics via handlers', async (t) => {
-  if (!(await depsAvailable())) {
-    t.skip('optional MCP dependencies are not installed');
-    return;
-  }
   const { dir, ctx, tools } = await setup();
   try {
     const task = createTask(ctx, {

@@ -1,5 +1,5 @@
 // MCP cases: importing never connects; descriptors are read-only and share
-// the same bound context as the CLI. Skipped with reason without the SDK.
+// the same bound context as the CLI. SDK/zod are hard dependencies.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createConfig } from '../src/core/config.mjs';
@@ -29,16 +29,6 @@ const EXPECTED_TOOLS = [
   'scopegrain_metrics',
 ];
 
-async function depsAvailable() {
-  try {
-    await import('@modelcontextprotocol/sdk/server/mcp.js');
-    await import('zod');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 test('importing server.mjs does not start a server or require deps', async () => {
   const mod = await import('../src/mcp/server.mjs');
   assert.equal(typeof mod.startMCPServer, 'function');
@@ -47,10 +37,6 @@ test('importing server.mjs does not start a server or require deps', async () =>
 });
 
 test('descriptors are exactly 32 tools bound to ctx', async (t) => {
-  if (!(await depsAvailable())) {
-    t.skip('optional MCP dependencies are not installed');
-    return;
-  }
   const { z } = await import('zod');
   const { createMCPTools } = await import('../src/mcp/server.mjs');
   const { resolveContext } = await import('../src/core/context.mjs');
@@ -83,10 +69,6 @@ test('descriptors are exactly 32 tools bound to ctx', async (t) => {
 });
 
 test('in-memory transport round-trip lists and calls tools', async (t) => {
-  if (!(await depsAvailable())) {
-    t.skip('optional MCP dependencies are not installed');
-    return;
-  }
   const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { createMCPServer } = await import('../src/mcp/server.mjs');
@@ -122,10 +104,6 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
 });
 
 test('createMCPServer registers all tools without connecting', async (t) => {
-  if (!(await depsAvailable())) {
-    t.skip('optional MCP dependencies are not installed');
-    return;
-  }
   const { createMCPServer } = await import('../src/mcp/server.mjs');
   const dir = makeTempDir('mcp-server');
   let server;
@@ -143,10 +121,6 @@ test('createMCPServer registers all tools without connecting', async (t) => {
 });
 
 test('memory tools: status reports unenrolled; get/search/recall fail closed without config', async (t) => {
-  if (!(await depsAvailable())) {
-    t.skip('optional MCP dependencies are not installed');
-    return;
-  }
   const { z } = await import('zod');
   const { resolveContext } = await import('../src/core/context.mjs');
   const { prepareWorkspace } = await import('../src/core/workspaces.mjs');

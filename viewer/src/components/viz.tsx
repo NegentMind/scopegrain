@@ -101,7 +101,7 @@ export function TaskDag({
 }: {
   nodes: { id: string; label: string; state?: string }[];
   edges: { from: string; to: string; kind: string }[];
-  labels: { empty: string };
+  labels: { empty: string; dag: string };
 }) {
   if (nodes.length === 0) {
     return <div className="text-sm text-muted-foreground">{labels.empty}</div>;
@@ -145,7 +145,7 @@ export function TaskDag({
   const svgW = (maxLayer + 1) * (W + GX) + 10;
   return (
     <div className="overflow-x-auto">
-      <svg width={svgW} height={svgH} role="img" aria-label="task dependency graph">
+      <svg width={svgW} height={svgH} role="img" aria-label={labels.dag}>
         <defs>
           <marker id="darrow" viewBox="0 0 10 10" refX="9" refY="5"
             markerWidth="7" markerHeight="7" orient="auto-start-reverse">

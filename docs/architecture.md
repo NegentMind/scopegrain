@@ -61,7 +61,7 @@ src/hosts/render.mjs      Fragmentos de integracion por anfitrion
 src/hosts/native.mjs      Propuestas nativas versionadas para seis hosts (Hermes provisional)
 src/hosts/activation.mjs  Activacion opt-in create-only de propuestas locales al proyecto
 src/adapters/            Entradas compatibles hacia src/hosts
-src/mcp/server.mjs        Servidor MCP stdio de solo lectura
+src/mcp/server.mjs        Servidor MCP stdio: lectura + mutaciones journaled acotadas
 src/api/server.mjs        API JSON local read-only: loopback unico, solo GET
 src/api/queries.mjs       Fachada de consulta con cotas duras para la API local
 viewer/                   Visor local read-only (Vite/React/TS/Tailwind/shadcn), paquete aparte

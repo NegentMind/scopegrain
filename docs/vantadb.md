@@ -105,7 +105,8 @@ argumentos antes de tocar config, sin escrituras locales.
 
 ## Tools MCP `scopegrain_memory_*`
 
-El servidor MCP expone cuatro herramientas read-only adicionales:
+El servidor MCP expone herramientas `memory_*` adicionales. Cinco son de
+solo lectura:
 
 | Tool | Equivale a |
 |---|---|
@@ -117,6 +118,14 @@ El servidor MCP expone cuatro herramientas read-only adicionales:
 
 Sin enrolamiento devuelven `VANTADB_NOT_CONFIGURED` como error estructurado;
 los argumentos se validan por el bound del ctx, sin redireccion a otras rutas.
+
+Dos tools `memory_*` adicionales operan sobre el worklog operativo local
+(no sobre VantaDB; no requieren enrolamiento):
+
+| Tool | Equivale a | Anotacion |
+|---|---|---|
+| `scopegrain_memory_add` | `worklog append` (`log` = lessons\|outcomes\|progress) | mutante |
+| `scopegrain_memory_read` | `worklog read --tail N` | read-only |
 
 ## Errores y limites
 
