@@ -114,7 +114,34 @@ node .\bin\tasksystem.mjs task step --project P <UUID> --revision 4 --index 0 --
 
 # List a named backlog (no filter = all)
 node .\bin\tasksystem.mjs task list --project P --backlog future
+
+# Human-readable task document (Markdown rendered from the record)
+node .\bin\tasksystem.mjs task doc --project P <UUID>
 ```
+
+`task doc` writes `.scopegrain/tasks/<uuid>.md` (or the destination
+configured under `paths.tasks`): front matter with id, state, revision and
+timestamps, plus sections for contract, scope, methodology, dependencies,
+steps, verification, review, notes and history. It is idempotent — a
+second run with no changes reports `changed: false` and does not rewrite
+the file.
+
+## Session context
+
+```powershell
+# Session-start packet (read-only)
+node .\bin\tasksystem.mjs context --project P [--tail N]
+```
+
+`context` returns a bounded JSON packet (`schemaVersion: 1`) with the
+instructions and config paths, the user knowledge file
+`.scopegrain/context.md` (when present; read, never written — content
+capped at 32 KiB), a task summary (totals, open by state and the `ready`
+list: PLAN tasks with no disposition), open goals, the latest `progress`
+entries, up to 3 resumable sessions and the pending journal event count.
+Hosts invoke it at session start per the generated instruction in
+AGENTS.md/CLAUDE.md and `.scopegrain/instructions.md`; it never executes
+commands or mutates state.
 
 ## Operational memory, goals and metrics
 

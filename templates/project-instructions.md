@@ -63,6 +63,19 @@ Use current records for dependency readiness. Save actual continuation and
 runtime state; do not restart live work or recompute frozen results needlessly.
 Session operation budgets do not measure native calls, tokens or money.
 
+## Session start and user knowledge
+
+At the start of every session, load the session-start packet with
+`scopegrain context --project .` before the first task action. The packet is
+read-only: instructions, user knowledge, task counts and ready tasks, open
+goals, recent progress entries, resumable sessions and pending journal events.
+
+`{{configPath}}`'s directory may hold `context.md`, the owner's persistent
+session knowledge (facts, preferences, standing decisions). Read it every
+session. It is user-owned: never rewrite, truncate or relocate it; propose
+edits instead. Task state, journal and worklogs remain authoritative for
+operational facts.
+
 ## Safety and closure
 
 Ask before network access, publication, push, destructive effects or elevated

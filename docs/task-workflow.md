@@ -108,7 +108,33 @@ node .\bin\tasksystem.mjs task step --project P <UUID> --revision 4 --index 0 --
 
 # Listar por backlog nombrado (sin filtro = todos)
 node .\bin\tasksystem.mjs task list --project P --backlog futuro
+
+# Documento legible de la tarea (Markdown renderizado desde el registro)
+node .\bin\tasksystem.mjs task doc --project P <UUID>
 ```
+
+`task doc` escribe `.scopegrain/tasks/<uuid>.md` (o el destino configurado
+en `paths.tasks`): front matter con id, estado, revision y timestamps, y
+secciones para contrato, scope, metodologia, dependencias, pasos,
+verificacion, revision, notas e historia. Es idempotente — una segunda
+ejecucion sin cambios reporta `changed: false` y no reescribe el archivo.
+
+## Contexto de sesion
+
+```powershell
+# Paquete de arranque de sesion (solo lectura)
+node .\bin\tasksystem.mjs context --project P [--tail N]
+```
+
+`context` devuelve un paquete JSON acotado (`schemaVersion: 1`) con las
+rutas de instrucciones y config, el archivo de conocimiento del usuario
+`.scopegrain/context.md` (si existe; leido, nunca escrito — contenido
+limitado a 32 KiB), resumen de tareas (totales, abiertas por estado y la
+lista `ready`: tareas en PLAN sin disposicion), metas abiertas, ultimas
+entradas de `progress`, hasta 3 sesiones reanudables y el conteo de
+eventos pendientes del journal. Los hosts lo invocan al inicio de sesion
+segun la instruccion generada en AGENTS.md/CLAUDE.md y
+`.scopegrain/instructions.md`; nunca ejecuta comandos ni modifica estado.
 
 ## Memoria operativa, metas y metricas
 

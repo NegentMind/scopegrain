@@ -5,6 +5,16 @@ Project configuration: `.scopegrain/config.json`.
 Existing higher-priority instructions and explicit user decisions still apply.
 Scopegrain provides a workflow, not a sandbox for native agent tools.
 
+## Session start
+
+At the start of every session, before the first task action, load the
+session-start packet: run `node bin/scopegrain.mjs context --project .`.
+It is read-only and returns project instructions, the user-owned knowledge
+file, task state, recent worklog, open goals and pending journal events.
+
+`.scopegrain/context.md` is the user's persistent session knowledge: read it
+every session, do not edit it without asking the owner.
+
 # Scopegrain - Repository Instructions
 
 This repository develops a project-neutral engineering harness.

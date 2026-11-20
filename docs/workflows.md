@@ -63,6 +63,15 @@ declararse terminada en una conversacion. Los estados ready, active,
 blocked y closed no sustituyen la maquina de estados de cada tarea.
 La ejecucion utiliza [transiciones y evidencias](task-workflow.md).
 
+`plan run entrega` calcula la agenda de ejecucion completa como olas
+(waves) derivadas del DAG: cada ola agrupa las tareas cuyas dependencias
+pendientes ya quedaron en olas anteriores y marca `parallel: true` cuando
+pueden ejecutarse a la vez. Las tareas con triage `defer|skip|blocked`
+quedan fuera en `triaged`; las activas o cerradas no se reprograman.
+El verbo es de solo lectura: devuelve `{plan, waves, triaged,
+unscheduled}` — el host/agente ejecuta el trabajo de cada tarea y registra
+transiciones y evidencia por su cuenta; Scopegrain ordena, no ejecuta.
+
 ## Artefactos inmutables
 
 ```powershell

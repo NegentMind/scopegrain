@@ -30,8 +30,9 @@ import { checkCatalog, getResource, legacyGet, legacyList, loadCatalog, loadWork
 import { applyResourceRestore, diagnoseResource, findResources, prepareResourceRestore } from './core/resource-recovery.mjs';
 import { buildWorkflowPacket } from './core/workflows.mjs';
 import {
-  getPlan, listPlans, nextPlanTasks, preparePlan,
+  getPlan, listPlans, nextPlanTasks, planWaves, preparePlan,
 } from './core/plans.mjs';
+import { writeTaskDoc } from './core/taskdoc.mjs';
 import {
   getArtifact, listArtifacts, prepareArtifact,
 } from './core/artifacts.mjs';
@@ -49,7 +50,7 @@ import {
 import { checkMethodology } from './core/methodology.mjs';
 import {
   ensureSessionsDir, getSession, prepareSession, prepareSessionRecord,
-  recordSession, resumeSession,
+  recordSession, resumeSession, sessionsDirAbs,
 } from './core/sessions.mjs';
 import { bindWorkspace, getWorkspace, prepareWorkspace } from './core/workspaces.mjs';
 import { getJournalOperation, listJournalPending, prepareJournalRecovery,
@@ -241,6 +242,18 @@ const COMMANDS = {
   'task transition': {
     flags: ['--project', '--config', '--revision', '--evidence'], pos: 2,
     usage: 'task transition --project PATH ID STATE --revision N [--evidence FILE]',
+  },
+  'task doc': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'task doc --project PATH ID',
+  },
+  'plan run': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'plan run --project PATH KEY',
+  },
+  'context': {
+    flags: ['--project', '--config', '--tail'], pos: 0,
+    usage: 'context --project PATH [--tail N]',
   },
   'task check-action': {
     flags: ['--project', '--config'], pos: 2,
@@ -937,6 +950,12 @@ async function cmdTask(sub, positional, flags, io) {
     }
     return getTask(ctx, positional[0]);
   }
+  if (sub === 'doc') {
+    if (positional.length !== 1) {
+      throw err('INVALID_ARGS', 'task doc requires exactly one ID');
+    }
+    return writeTaskDoc(ctx, positional[0]);
+  }
   if (sub === 'transition') {
     if (positional.length !== 2) {
       throw err('INVALID_ARGS', 'task transition requires ID and STATE');
@@ -1113,6 +1132,7 @@ function cmdPlan(sub, positional, flags) {
   if (sub === 'list') return listPlans(ctx);
   if (sub === 'show') return getPlan(ctx, positional[0]);
   if (sub === 'next') return { tasks: nextPlanTasks(ctx, positional[0]) };
+  if (sub === 'run') return planWaves(ctx, positional[0]);
   throw err('INVALID_ARGS', `unknown plan subcommand '${sub}'`);
 }
 
@@ -1153,6 +1173,82 @@ function finishCreation(ctx, key, record, file, flags) {
   }
   const result = applyPlan(ctx.projectRoot, planned);
   return { mode: 'applied', applied: true, [key]: record, ...result };
+}
+
+// Session-start context packet: one bounded read assembling everything a
+// host needs at the top of a new session — project instructions pointer,
+// workspace identity, task distribution, ready work, recent progress,
+// open goals, pending journal events and the latest session record.
+// Read-only; the host reads, Scopegrain never injects or executes.
+function cmdContext(flags) {
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'), config: flags['--config'],
+  });
+  const workspace = getWorkspace(ctx);
+  const { tasks } = listTasks(ctx);
+  const byState = {};
+  for (const t of tasks) byState[t.state] = (byState[t.state] ?? 0) + 1;
+  const open = tasks.filter((t) => t.state !== 'CLOSE');
+  const tail = flags['--tail'] !== undefined
+    ? decimalInt(flags['--tail'], '--tail') : 5;
+  let pendingJournal = 0;
+  try {
+    const bound = bindWorkspace(ctx,
+      { areaIds: workspace.areas.map((a) => a.id) });
+    pendingJournal = listJournalPending(bound, { afterSequence: 0, limit: 50 })
+      .items.length;
+  } catch { /* journal absent or unreadable — surface as 0 */ }
+  // User-owned session-start knowledge: .scopegrain/context.md, bounded.
+  const CONTEXT_MD_MAX = 32 * 1024;
+  const contextMdPath = `${ctx.configDir}/context.md`;
+  let userContext = null;
+  try {
+    const raw = fs.readFileSync(
+      resolveInside(ctx.projectRoot, contextMdPath, 'context.md'), 'utf8');
+    userContext = {
+      path: contextMdPath, bytes: Buffer.byteLength(raw, 'utf8'),
+      truncated: raw.length > CONTEXT_MD_MAX,
+      content: raw.length > CONTEXT_MD_MAX
+        ? raw.slice(0, CONTEXT_MD_MAX) : raw,
+    };
+  } catch { /* absent or unreadable — packet carries null */ }
+  let sessions = [];
+  try {
+    const dir = sessionsDirAbs(ctx);
+    sessions = fs.readdirSync(dir)
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => {
+        try { return getSession(ctx, f.slice(0, -5)); } catch { return null; }
+      })
+      .filter(Boolean)
+      .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
+      .slice(0, 3)
+      .map((s) => ({ id: s.id, taskId: s.taskId, used: s.used,
+        limit: s.limit, revision: s.revision, updatedAt: s.updatedAt }));
+  } catch { /* sessions dir absent — empty list */ }
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    instructions: `${ctx.configDir}/instructions.md`,
+    config: `${ctx.configDir}/config.json`,
+    userContext, sessions,
+    project: { name: ctx.projectName ?? null, root: ctx.projectRoot },
+    workspace: {
+      revision: workspace.revision, areas: workspace.areas.length,
+      areaKeys: workspace.areas.map((a) => a.key),
+    },
+    tasks: {
+      total: tasks.length, open: open.length, byState,
+      ready: open.filter(
+        (t) => t.state === 'PLAN' && t.disposition === null)
+        .map((t) => ({ id: t.id, title: t.title,
+          priority: t.priority ?? null, backlog: t.backlog ?? null })),
+    },
+    progress: readWorklog(ctx, 'progress', { tail }).entries,
+    goals: listGoals(ctx).goals.filter((g) => g.status === 'open')
+      .map((g) => ({ id: g.id, title: g.title })),
+    pendingJournalEvents: pendingJournal,
+  };
 }
 
 function cmdWorkspace(sub, flags) {
@@ -1943,6 +2039,8 @@ export async function run(argv, io) {
       result = cmdWorkflow(aliasCommand, flags);
     } else if (cmdKey === 'workflow') {
       result = cmdWorkflow(rest[0], flags);
+    } else if (cmdKey === 'context') {
+      result = cmdContext(flags);
     } else if (cmdKey.startsWith('task ')) {
       result = await cmdTask(cmdKey.slice(5), rest, flags, io);
     } else if (cmdKey.startsWith('workspace ')) {

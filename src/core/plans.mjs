@@ -1047,3 +1047,50 @@ export function createOwnedPlanStore(ctx, options) {
 
   return Object.freeze({ prepare, create, get, update });
 }
+
+// Execution schedule: groups a plan's open, non-triaged tasks into waves
+// by dependency depth. A task enters wave W once every unfinished
+// dependency sits in an earlier wave; closed deps are already satisfied.
+// Tasks in the same wave are dependency-free among themselves and safe
+// to run in parallel — the host executes; the harness only schedules.
+export function planWaves(ctx, key) {
+  const plan = getPlan(ctx, key);
+  const statuses = new Map(nextPlanTasks(ctx, key).map((t) => [t.key, t]));
+  const depth = new Map();
+  const waves = [];
+  const depsOf = new Map(plan.tasks.map((t) => [t.key, t.dependsOn ?? []]));
+  const pending = new Set([...statuses.entries()]
+    .filter(([, t]) => t.status === 'ready' || t.status === 'blocked'
+      || t.status === 'active')
+    .map(([k]) => k));
+  let safety = pending.size + 1;
+  while (pending.size > 0 && safety-- > 0) {
+    const wave = [];
+    for (const k of pending) {
+      const unsatisfied = (depsOf.get(k) ?? [])
+        .filter((d) => pending.has(d));
+      if (unsatisfied.length === 0) wave.push(k);
+    }
+    if (wave.length === 0) break; // cyclic/unsatisfiable remainder
+    for (const k of wave) {
+      pending.delete(k);
+      depth.set(k, waves.length);
+    }
+    waves.push(wave.map((k) => {
+      const t = statuses.get(k);
+      return { key: k, id: t.id, state: t.state, status: t.status,
+        ...(t.triage !== undefined ? { triage: t.triage } : {}) };
+    }));
+  }
+  return {
+    plan: { key: plan.key, title: plan.title },
+    waves: waves.map((tasks, i) => ({ wave: i, parallel: tasks.length > 1,
+      tasks })),
+    unscheduled: [...pending].map((k) => ({ key: k,
+      ...(statuses.get(k) ?? {}) })),
+    closed: [...statuses.values()].filter((t) => t.status === 'closed')
+      .map((t) => t.key),
+    triaged: [...statuses.values()].filter((t) => t.status === 'triaged')
+      .map((t) => ({ key: t.key, triage: t.triage, reason: t.triageReason })),
+  };
+}

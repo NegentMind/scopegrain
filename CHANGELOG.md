@@ -7,6 +7,30 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Session-start context packet + persistent user knowledge** — new
+  read-only `context` verb returns a bounded JSON packet
+  (`schemaVersion: 1`): instructions/config paths, task counts and the
+  `ready` list (PLAN tasks without disposition), open goals, recent
+  `progress` entries, up to 3 resumable sessions and pending journal
+  events. `.scopegrain/context.md` is the owner's persistent session
+  knowledge file: read into the packet (capped at 32 KiB), never written
+  by the harness. Session-start instructions were added to the generated
+  entrypoints (AGENTS.md/CLAUDE.md template) and to
+  `templates/project-instructions.md`.
+
+- **Human-readable task documents** — `task doc --project P <UUID>`
+  renders a task record to `<paths.tasks>/<uuid>.md`: front matter plus
+  contract, scope, methodology, dependencies, steps, verification,
+  review, notes and history sections. Idempotent: an unchanged record
+  reports `changed: false` without rewriting.
+
+- **Plan execution agenda** — `plan run <KEY>` derives the full
+  dependency-respecting wave schedule from the validated DAG: parallel
+  waves of tasks whose pending dependencies all landed in earlier waves,
+  with triaged (`defer|skip|blocked`) tasks reported separately. The verb
+  is read-only (`{plan, waves, triaged, unscheduled}`); the host/agent
+  executes the actual task work — Scopegrain orders, it does not execute.
+
 - **State root migration `.tasksystem` → `.scopegrain`** — this project
   now uses the canonical default state paths (`.scopegrain/*`); all state
   was relocated. Journal/ownership validation is relocation-safe:

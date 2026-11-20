@@ -67,6 +67,15 @@ when it is declared finished in a conversation. The ready, active,
 blocked and closed states do not replace each task's state machine.
 Execution uses [transitions and evidence](task-workflow.md).
 
+`plan run entrega` computes the full execution agenda as waves derived
+from the DAG: each wave groups tasks whose pending dependencies were all
+scheduled in earlier waves and marks `parallel: true` when they can run
+concurrently. Tasks triaged `defer|skip|blocked` are reported under
+`triaged`; active or closed tasks are not rescheduled. The verb is
+read-only: it returns `{plan, waves, triaged, unscheduled}` — the
+host/agent performs each task's work and records transitions and
+evidence itself; Scopegrain orders, it does not execute.
+
 ## Immutable artifacts
 
 ```powershell
