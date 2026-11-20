@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -43,6 +43,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import { usePoll } from '@/components/viz';
+import { consumeTaskRequest } from '@/lib/nav';
+import { Markdown } from '@/components/Markdown';
 
 const DISPOSITION_TONE: Record<string, string> = {
   deferred: 'border-amber-500/40 text-amber-600 dark:text-amber-400',
@@ -93,6 +95,12 @@ export function TasksView() {
   const [fType, setFType] = useState('');
   const [fDisposition, setFDisposition] = useState('');
   const [q, setQ] = useState('');
+
+  // Cross-view intent (goals/plans link straight into a task detail).
+  useEffect(() => {
+    const requested = consumeTaskRequest();
+    if (requested) setSelected(requested);
+  }, []);
   const list = useApi(() => api.tasks(500));
   usePoll(list.reload);
   const detail = useApi<TaskDetail | null>(
@@ -339,9 +347,9 @@ function TaskDocSection({ id }: { id: string }) {
         {doc.data.docTruncated ? ` ${t('common.truncatedByApi')}` : ''}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <pre className="mt-2 max-h-72 overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words">
-          {doc.data.doc}
-        </pre>
+        <div className="mt-2 max-h-96 overflow-auto rounded-md border bg-muted/40 p-3">
+          <Markdown>{doc.data.doc}</Markdown>
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );

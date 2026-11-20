@@ -16,7 +16,11 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { api } from '@/lib/api';
+import {
+  api,
+  type PlanStatus,
+  type PlanSummary,
+} from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import {
   EmptyBox,
@@ -27,6 +31,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import { usePoll } from '@/components/viz';
+import { openTask } from '@/lib/nav';
+import { Markdown } from '@/components/Markdown';
 
 const READINESS_TONE: Record<string, string> = {
   ready:
@@ -38,10 +44,34 @@ const READINESS_TONE: Record<string, string> = {
   closed: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
 };
 
+const STATUS_TONE: Record<PlanStatus, string> = {
+  completed:
+    'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+  in_progress:
+    'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30',
+  pending:
+    'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+  empty: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
+};
+
 type Selection =
   | { kind: 'plan'; key: string }
   | { kind: 'doc'; name: string }
   | null;
+
+function ProgressBar({ pct, done }: { pct: number | null; done?: boolean }) {
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+      <div
+        className={cn(
+          'h-full rounded-full transition-all',
+          done || pct === 100 ? 'bg-emerald-500' : 'bg-primary',
+        )}
+        style={{ width: `${pct ?? 0}%` }}
+      />
+    </div>
+  );
+}
 
 export function PlansView() {
   const t = useT();
@@ -74,24 +104,12 @@ export function PlansView() {
             ) : (
               <ul className="space-y-1.5">
                 {semantic.map((p) => (
-                  <li key={p.key}>
-                    <button
-                      type="button"
-                      onClick={() => setSel({ kind: 'plan', key: p.key })}
-                      className={cn(
-                        'flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-ring',
-                        sel?.kind === 'plan' && sel.key === p.key && 'bg-accent',
-                      )}
-                    >
-                      <span className="font-mono font-medium">{p.key}</span>
-                      <span className="truncate text-muted-foreground">
-                        {p.title}
-                      </span>
-                      <Badge variant="secondary" className="ml-auto">
-                        {p.taskCount} {t('plans.tasks')}
-                      </Badge>
-                    </button>
-                  </li>
+                  <PlanRow
+                    key={p.key}
+                    plan={p}
+                    active={sel?.kind === 'plan' && sel.key === p.key}
+                    onSelect={() => setSel({ kind: 'plan', key: p.key })}
+                  />
                 ))}
               </ul>
             )}
@@ -119,11 +137,21 @@ export function PlansView() {
                           sel?.kind === 'doc' && sel.name === d.name && 'bg-accent',
                         )}
                       >
-                        <span className="truncate font-mono text-xs">
-                          {d.name}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">
+                            {d.title ?? d.name}
+                          </span>
+                          <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                            {d.name}
+                          </span>
                         </span>
-                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                          {d.bytes} B · {d.updatedAt.slice(0, 10)}
+                        {d.status ? (
+                          <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+                            {d.status}
+                          </Badge>
+                        ) : null}
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {d.date ?? d.updatedAt.slice(0, 10)}
                         </span>
                       </button>
                     </li>
@@ -160,6 +188,48 @@ export function PlansView() {
   );
 }
 
+function PlanRow({
+  plan: p,
+  active,
+  onSelect,
+}: {
+  plan: PlanSummary;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const t = useT();
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onSelect}
+        className={cn(
+          'w-full space-y-1.5 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-ring',
+          active && 'bg-accent',
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-mono font-medium">{p.key}</span>
+          <Badge variant="outline" className={STATUS_TONE[p.status]}>
+            {t(`plans.statuses.${p.status}`)}
+          </Badge>
+          <span className="ml-auto text-xs text-muted-foreground">
+            {p.createdAt.slice(0, 16).replace('T', ' ')}
+          </span>
+        </div>
+        <p className="truncate text-muted-foreground">{p.title}</p>
+        <div className="flex items-center gap-3">
+          <ProgressBar pct={p.progress} />
+          <span className="shrink-0 font-mono text-xs text-muted-foreground">
+            {p.done}/{p.total}
+            {p.progress !== null ? ` · ${p.progress}%` : ''}
+          </span>
+        </div>
+      </button>
+    </li>
+  );
+}
+
 function PlanDetail({ planKey }: { planKey: string }) {
   const t = useT();
   const detail = useApi(() => api.plan(planKey), [planKey]);
@@ -168,37 +238,63 @@ function PlanDetail({ planKey }: { planKey: string }) {
     return <ErrorBox error={detail.error} onRetry={detail.reload} />;
   }
   if (!detail.data) return null;
-  const { plan, readiness } = detail.data;
+  const { plan, readiness, waves } = detail.data;
   const byId = new Map(readiness.map((r) => [r.id, r]));
+  const members = detail.data.tasks;
   return (
     <div className="space-y-4 text-sm">
       <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className={STATUS_TONE[detail.data.status]}>
+          {t(`plans.statuses.${detail.data.status}`)}
+        </Badge>
         <Badge variant="secondary">v{plan.schemaVersion}</Badge>
-        <Badge variant="secondary">{plan.tasks.length} {t('plans.tasks')}</Badge>
+        <Badge variant="secondary">
+          {detail.data.done}/{detail.data.total} {t('plans.tasks')}
+        </Badge>
+        {detail.data.progress !== null ? (
+          <Badge variant="secondary" className="font-mono">
+            {detail.data.progress}%
+          </Badge>
+        ) : null}
         {plan.specId ? <Badge variant="outline">spec {plan.specId.slice(0, 8)}</Badge> : null}
         {plan.designId ? <Badge variant="outline">design {plan.designId.slice(0, 8)}</Badge> : null}
+        <span className="text-xs text-muted-foreground">
+          {plan.createdAt.slice(0, 16).replace('T', ' ')}
+        </span>
       </div>
+      <ProgressBar pct={detail.data.progress} />
+
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>{t('common.key')}</TableHead>
-            <TableHead className="w-24">{t('common.id')}</TableHead>
+            <TableHead>{t('common.title')}</TableHead>
             <TableHead>{t('common.state')}</TableHead>
             <TableHead>{t('plans.blockedBy')}</TableHead>
             <TableHead>{t('tasks.dependsOn')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {plan.tasks.map((task) => {
+          {members.map((task) => {
             const r = byId.get(task.id);
             return (
               <TableRow key={task.id}>
                 <TableCell className="font-mono">{task.key}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {task.id.slice(0, 8)}
+                <TableCell>
+                  {task.id ? (
+                    <button
+                      type="button"
+                      onClick={() => openTask(task.id)}
+                      className="max-w-64 truncate text-left font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      {task.title ?? task.id.slice(0, 8)}
+                    </button>
+                  ) : (
+                    task.title ?? t('common.none')
+                  )}
                 </TableCell>
                 <TableCell>
-                  {r ? <StateBadge state={r.state} /> : t('common.none')}
+                  {task.state ? <StateBadge state={task.state} /> : t('common.none')}
                 </TableCell>
                 <TableCell>
                   {r ? (
@@ -207,6 +303,10 @@ function PlanDetail({ planKey }: { planKey: string }) {
                       className={READINESS_TONE[r.status]}
                     >
                       {t(`plans.${r.status}`)}
+                    </Badge>
+                  ) : task.triage ? (
+                    <Badge variant="outline" className="font-mono">
+                      {task.triage}
                     </Badge>
                   ) : t('common.none')}
                   {r && r.blockedBy.length > 0 ? (
@@ -217,7 +317,7 @@ function PlanDetail({ planKey }: { planKey: string }) {
                 </TableCell>
                 <TableCell className="font-mono text-xs">
                   {task.dependsOn.length > 0
-                    ? task.dependsOn.map((d) => d.slice(0, 8)).join(', ')
+                    ? task.dependsOn.join(', ')
                     : t('common.none')}
                 </TableCell>
               </TableRow>
@@ -225,6 +325,28 @@ function PlanDetail({ planKey }: { planKey: string }) {
           })}
         </TableBody>
       </Table>
+
+      {waves && waves.waves.length > 0 ? (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">
+            {t('plans.waves')}
+          </p>
+          {waves.waves.map((w, i) => (
+            <div
+              key={i}
+              className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-1.5 text-xs"
+            >
+              <Badge variant="secondary" className="font-mono">
+                {t('plans.wave')} {i}
+                {w.parallel ? ` · ${t('plans.parallel')}` : ''}
+              </Badge>
+              <span className="font-mono text-muted-foreground">
+                {w.tasks.join(', ')}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -243,10 +365,8 @@ function PlanDocDetail({ name }: { name: string }) {
         {detail.data.bytes} B · {detail.data.updatedAt.slice(0, 10)}
         {detail.data.docTruncated ? ` ${t('plans.docTruncated')}` : ''}
       </p>
-      <ScrollArea className="max-h-[32rem] rounded-md border bg-muted/40">
-        <pre className="p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words">
-          {detail.data.doc}
-        </pre>
+      <ScrollArea className="max-h-[36rem] rounded-md border bg-muted/40 p-4">
+        <Markdown>{detail.data.doc}</Markdown>
       </ScrollArea>
     </div>
   );

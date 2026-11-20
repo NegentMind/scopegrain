@@ -45,6 +45,21 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   records can be rewritten (used to translate the whole backlog to
   Spanish via `scripts/translate-tasks.mjs`).
 
+- **Viewer: markdown rendering, plan/goal progress and artifact docs** —
+  `react-markdown` + `remark-gfm` render task docs, plan files, artifact
+  bodies and loose documents (no `dangerouslySetInnerHTML`, GFM tables).
+  `/api/plans` and `/api/plans/:key` now join member tasks with their
+  live records: per-plan `status` (pending/in_progress/completed), done/
+  total counts, `progress` % and execution `waves`. `/api/goals` joins
+  tasks by `goalIds` (tasks, taskCount, tasksDone, progress). New
+  `/api/artifact-docs?kind=` and `/api/artifact-docs/:kind/:name`
+  surface loose `.md` documents (canonical dirs plus legacy
+  `.scopegrain/<kind>/` flats) with parsed frontmatter. Memory view
+  renders per-log columns (topic/text/ref, task/outcome/skills) and the
+  Goals view shows progress bars plus linked-task rows that navigate
+  into the task detail. `/api/plan-docs` entries carry title, status,
+  kind and date parsed from frontmatter/filename.
+
 - **State root migration `.tasksystem` → `.scopegrain`** — this project
   now uses the canonical default state paths (`.scopegrain/*`); all state
   was relocated. Journal/ownership validation is relocation-safe:

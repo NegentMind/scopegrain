@@ -79,6 +79,8 @@ any path return 405; unknown paths 404; unknown query parameters 400.
 | `GET /api/plan-docs` | plan file listing (`<paths.plans>/*.md`: name, bytes, updatedAt) |
 | `GET /api/plan-docs/:name` | plan file contents (`*.md` slug resolved inside the plans dir) |
 | `GET /api/plans/:key` | plan document + readiness |
+| `GET /api/artifact-docs?kind=` | loose `.md` documents per kind (canonical + legacy `.scopegrain/<kind>/` dirs): name, title, status, date, bytes |
+| `GET /api/artifact-docs/:kind/:name` | artifact document contents (`*.md` slug bounded to the kind's dirs) |
 | `GET /api/artifacts?kind=&limit=&offset=` | `kind` required, one of `spec design report research decision lesson handoff review` |
 | `GET /api/artifacts/:kind/:id` | artifact document (`body` capped) |
 | `GET /api/journal/operations?limit=&offset=` | operation summaries: `state`, `eventCount`, `sourceKinds`, `recordIds` |

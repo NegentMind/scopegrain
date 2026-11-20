@@ -165,12 +165,36 @@ export interface TaskDoc {
 
 export interface PlanDocSummary {
   name: string;
+  title?: string;
+  status?: string | null;
+  kind?: string | null;
+  date?: string | null;
   bytes: number;
   updatedAt: string;
 }
 
 export interface PlanDoc {
   name: string;
+  doc: string;
+  docTruncated?: boolean | null;
+  bytes: number;
+  updatedAt: string;
+}
+
+export interface ArtifactDocSummary {
+  name: string;
+  dir: string;
+  title: string;
+  status?: string | null;
+  date?: string | null;
+  bytes: number;
+  updatedAt: string;
+}
+
+export interface ArtifactDoc {
+  kind: ArtifactKind;
+  name: string;
+  dir: string;
   doc: string;
   docTruncated?: boolean | null;
   bytes: number;
@@ -191,7 +215,37 @@ export interface PlanReadiness {
   blockedBy: string[];
 }
 
-export interface PlanSummary {
+export interface PlanMemberTask {
+  key: string;
+  id: string;
+  dependsOn: string[];
+  title: string | null;
+  state: string | null;
+  disposition: TaskDisposition | null;
+  triage: string | null;
+  triageReason: string | null;
+  error?: { code: string; message: string } | null;
+}
+
+export type PlanStatus = 'empty' | 'pending' | 'in_progress' | 'completed';
+
+export interface PlanBreakdown {
+  tasks: PlanMemberTask[];
+  done: number;
+  total: number;
+  active: number;
+  progress: number | null;
+  status: PlanStatus;
+}
+
+export interface PlanWaves {
+  plan: string;
+  waves: { parallel: boolean; tasks: string[] }[];
+  triaged?: { key: string; triage: string }[];
+  unscheduled?: string[];
+}
+
+export interface PlanSummary extends PlanBreakdown {
   key: string;
   schemaVersion: number;
   title: string;
@@ -210,7 +264,7 @@ export interface PlanList {
   malformed: MalformedEntry[];
 }
 
-export interface PlanDetail {
+export interface PlanDetail extends PlanBreakdown {
   plan: {
     schemaVersion: number;
     key: string;
@@ -223,6 +277,8 @@ export interface PlanDetail {
     designId?: string;
   };
   readiness: PlanReadiness[];
+  waves: PlanWaves | null;
+  wavesError: { code: string; message: string } | null;
 }
 
 export type ArtifactKind =
@@ -342,6 +398,15 @@ export interface MemoryLogResult {
   malformed: { line: string }[];
 }
 
+export interface GoalLinkedTask {
+  id: string;
+  title: string;
+  state: string;
+  disposition: TaskDisposition | null;
+  priority: string | null;
+  type: string | null;
+}
+
 export interface Goal {
   id: string;
   title: string;
@@ -349,6 +414,10 @@ export interface Goal {
   status: 'open' | 'achieved' | 'dropped';
   horizon: string | null;
   metrics: string | null;
+  tasks: GoalLinkedTask[];
+  taskCount: number;
+  tasksDone: number;
+  progress: number | null;
   [key: string]: unknown;
 }
 
@@ -434,6 +503,12 @@ export const api = {
     request<PlanDoc>(`/api/plan-docs/${encodeURIComponent(name)}`),
   plan: (key: string) =>
     request<PlanDetail>(`/api/plans/${encodeURIComponent(key)}`),
+  artifactDocs: (kind: ArtifactKind) =>
+    request<{ kind: ArtifactKind; docs: ArtifactDocSummary[] }>(
+      `/api/artifact-docs?kind=${encodeURIComponent(kind)}`),
+  artifactDoc: (kind: ArtifactKind, name: string) =>
+    request<ArtifactDoc>(
+      `/api/artifact-docs/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`),
   artifacts: (kind: ArtifactKind, limit = 200) =>
     request<ArtifactList>(
       `/api/artifacts?kind=${encodeURIComponent(kind)}&limit=${encodeURIComponent(limit)}`),

@@ -3,6 +3,7 @@
 // per-item error surfacing and string-field truncation. No writes, no
 // dynamic filesystem access outside the configured Scopegrain stores.
 import fs from 'node:fs';
+import path from 'node:path';
 import { err, toErrorPayload } from '../core/errors.mjs';
 import {
   decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited,
@@ -13,7 +14,7 @@ import {
 } from '../core/worklog.mjs';
 import { resolveInside } from '../core/paths.mjs';
 import { getTask, listTasks } from '../core/tasks.mjs';
-import { getPlan, listPlans, nextPlanTasks } from '../core/plans.mjs';
+import { getPlan, listPlans, nextPlanTasks, planWaves } from '../core/plans.mjs';
 import { artifactDirRel, getArtifact, listArtifacts } from '../core/artifacts.mjs';
 import { getJournalOperation } from '../core/journal.mjs';
 import { bindWorkspace, getWorkspace } from '../core/workspaces.mjs';
@@ -454,14 +455,118 @@ export function createApiQueries(ctx) {
       const file = resolveInside(dir, name, 'plan doc');
       const fst = lstatOrNull(file);
       if (!fst || fst.isSymbolicLink() || !fst.isFile()) continue;
+      const fm = frontmatterSummary(file);
       out.docs.push({
         name,
+        title: fm.title ?? name.replace(/\.md$/, ''),
+        status: fm.status ?? null,
+        kind: fm.kind ?? null,
+        date: fm.date ?? (/^(\d{4}-\d{2}-\d{2})/.exec(name)?.[1] ?? null),
         bytes: fst.size,
         updatedAt: fst.mtime.toISOString(),
       });
     }
     out.truncated = names.length > LIMITS.dirScanCap || null;
     return out;
+  }
+
+  // Minimal scalar frontmatter peek (bounded head of file): only flat
+  // `key: value` lines, never full YAML. Used for listing metadata.
+  function frontmatterSummary(file) {
+    const limited = readFileLimited(file, 8192);
+    let text;
+    try {
+      text = decodeUtf8Strict(limited.content, 'frontmatter');
+    } catch {
+      return {};
+    }
+    const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+    if (!m) return {};
+    const out = {};
+    for (const line of m[1].split(/\r?\n/)) {
+      const kv = /^([A-Za-z][A-Za-z0-9_]*)\s*:\s*(.*)$/.exec(line);
+      if (!kv) continue;
+      const v = kv[2].trim().replace(/^["']|["']$/g, '');
+      if (v !== '') out[kv[1]] = v.slice(0, 300);
+    }
+    return out;
+  }
+
+  // Loose artifact documents (*.md) inside the canonical artifact dir and
+  // legacy flat dirs (`.scopegrain/<kind>/`, `.scopegrain/<kind>s/`) that
+  // predate the formal UUID-keyed artifact store. Listing is read-only;
+  // registered artifacts still come from `artifacts()`/`artifact()`.
+  const DOC_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.(md|markdown)$/;
+
+  function artifactDocDirs(kind) {
+    if (!ARTIFACT_KINDS.includes(kind)) {
+      throw err('INVALID_KIND', `unknown artifact kind '${kind}'`);
+    }
+    const dirs = [artifactDirRel(ctx, kind)];
+    const stateRoot = path.posix.dirname(
+      ctx.config.paths.decisions.replaceAll('\\', '/'));
+    for (const flat of [`${stateRoot}/${kind}`, `${stateRoot}/${kind}s`]) {
+      if (!dirs.includes(flat)) dirs.push(flat);
+    }
+    return dirs;
+  }
+
+  function artifactDocs(kind) {
+    const out = { kind, docs: [] };
+    for (const dirRel of artifactDocDirs(kind)) {
+      const dir = resolveInside(ctx.projectRoot, dirRel, 'artifact doc dir');
+      const st = lstatOrNull(dir);
+      if (!st) continue;
+      if (st.isSymbolicLink() || !st.isDirectory()) {
+        throw err('INVALID_PATH', `${dirRel} is not a real directory`);
+      }
+      const names = fs.readdirSync(dir).sort()
+        .filter((n) => DOC_RE.test(n));
+      for (const name of names.slice(0, LIMITS.dirScanCap)) {
+        const file = resolveInside(dir, name, 'artifact doc');
+        const fst = lstatOrNull(file);
+        if (!fst || fst.isSymbolicLink() || !fst.isFile()) continue;
+        const fm = frontmatterSummary(file);
+        out.docs.push({
+          name,
+          dir: dirRel,
+          title: fm.title ?? name.replace(/\.(md|markdown)$/, ''),
+          status: fm.status ?? null,
+          date: fm.date
+            ?? (/^(\d{4}-\d{2}-\d{2})/.exec(name)?.[1] ?? null),
+          bytes: fst.size,
+          updatedAt: fst.mtime.toISOString(),
+        });
+      }
+    }
+    return out;
+  }
+
+  function artifactDoc(kind, name) {
+    if (typeof name !== 'string' || !DOC_RE.test(name)) {
+      throw err('INVALID_VALUE',
+        'artifact doc name must be a markdown filename slug');
+    }
+    for (const dirRel of artifactDocDirs(kind)) {
+      const dir = resolveInside(ctx.projectRoot, dirRel, 'artifact doc dir');
+      const file = resolveInside(dir, name, 'artifact doc');
+      const st = lstatOrNull(file);
+      if (!st) continue;
+      if (st.isSymbolicLink() || !st.isFile()) {
+        throw err('SYMLINK_REJECTED', `artifact doc may not be a link: ${name}`);
+      }
+      const limited = readFileLimited(file, loadLimits().maxDocumentBytes);
+      const text = decodeUtf8Strict(limited.content, 'artifact doc');
+      const cut = truncateString(text, LIMITS.maxBodyChars);
+      return {
+        kind, name, dir: dirRel,
+        doc: cut.value,
+        docTruncated: cut.truncated || limited.exceeded || null,
+        bytes: st.size,
+        updatedAt: st.mtime.toISOString(),
+      };
+    }
+    throw err('ARTIFACT_DOC_NOT_FOUND', `artifact doc not found: ${name}`);
   }
 
   function planDoc(name) {
@@ -491,6 +596,45 @@ export function createApiQueries(ctx) {
     };
   }
 
+  // Member tasks of a plan joined with their live records: state,
+  // disposition and title per entry, plus derived done/open counts,
+  // progress ratio and a coarse status for the whole plan.
+  const PLAN_DONE = new Set(['CLOSE']);
+  const PLAN_DROPPED = new Set(
+    ['discarded', 'cancelled', 'icebox', 'future', 'deferred']);
+  const PLAN_ACTIVE = new Set(
+    ['ACT', 'VERIFY', 'COLLATERAL', 'EVALUATE', 'REVIEW', 'ACCEPT']);
+
+  function planTaskBreakdown(p) {
+    const tasks = p.tasks.map((t) => {
+      let rec = null;
+      let error = null;
+      try { rec = getTask(ctx, t.id); } catch (e) {
+        error = toErrorPayload(e);
+      }
+      return {
+        key: t.key, id: t.id, dependsOn: t.dependsOn,
+        title: rec?.title ?? null, state: rec?.state ?? null,
+        disposition: rec?.disposition ?? null,
+        triage: t.triage ?? null, triageReason: t.triageReason ?? null,
+        error,
+      };
+    });
+    const done = tasks.filter((t) => PLAN_DONE.has(t.state)
+      || PLAN_DROPPED.has(t.disposition?.kind)).length;
+    const active = tasks.filter((t) => PLAN_ACTIVE.has(t.state)).length;
+    const status = tasks.length === 0 ? 'empty'
+      : done === tasks.length ? 'completed'
+      : active > 0 ? 'in_progress'
+      : 'pending';
+    return {
+      tasks, done, total: tasks.length, active,
+      progress: tasks.length === 0 ? null
+        : Math.round((done / tasks.length) * 100),
+      status,
+    };
+  }
+
   function plans() {
     const { plans: found, malformed } = listPlans(ctx);
     return {
@@ -514,6 +658,7 @@ export function createApiQueries(ctx) {
           taskCount: p.tasks.length,
           readiness,
           readinessError,
+          ...planTaskBreakdown(p),
         };
       }),
       malformed,
@@ -525,7 +670,17 @@ export function createApiQueries(ctx) {
       throw err('INVALID_VALUE', 'plan key must be a slug');
     }
     const p = getPlan(ctx, key);
-    return { plan: p, readiness: nextPlanTasks(ctx, key) };
+    let waves = null;
+    let wavesError = null;
+    try { waves = planWaves(ctx, key); } catch (e) {
+      wavesError = toErrorPayload(e);
+    }
+    return {
+      plan: p,
+      readiness: nextPlanTasks(ctx, key),
+      waves, wavesError,
+      ...planTaskBreakdown(p),
+    };
   }
 
   function artifacts(url, { limit, offset }) {
@@ -628,8 +783,50 @@ export function createApiQueries(ctx) {
     return { log, entries, malformed };
   }
 
+  // Goals enriched with their linked tasks (task.goalIds -> goal.id)
+  // and derived progress: total/done counts and a completion ratio.
   function goals() {
-    return listGoals(ctx);
+    const base = listGoals(ctx);
+    const taskDir = resolveInside(ctx.projectRoot,
+      ctx.config.paths.tasks, 'paths.tasks');
+    const linked = new Map();
+    const st = lstatOrNull(taskDir);
+    if (st && !st.isSymbolicLink() && st.isDirectory()) {
+      for (const name of fs.readdirSync(taskDir).sort()) {
+        if (!name.endsWith('.json')) continue;
+        const id = name.slice(0, -'.json'.length);
+        if (!UUID_RE.test(id)) continue;
+        let rec;
+        try { rec = getTask(ctx, id); } catch { continue; }
+        for (const gid of rec.goalIds ?? []) {
+          if (typeof gid !== 'string') continue;
+          if (!linked.has(gid)) linked.set(gid, []);
+          linked.get(gid).push({
+            id: rec.id, title: rec.title, state: rec.state,
+            disposition: rec.disposition ?? null,
+            priority: rec.priority ?? null, type: rec.type ?? null,
+          });
+        }
+      }
+    }
+    const DONE = new Set(['CLOSE']);
+    const DROPPED = new Set(
+      ['discarded', 'cancelled', 'icebox', 'future', 'deferred']);
+    base.goals = base.goals.map((g) => {
+      const tasks = linked.get(g.id) ?? [];
+      const done = tasks.filter(
+        (tk) => DONE.has(tk.state)
+          || DROPPED.has(tk.disposition?.kind)).length;
+      return {
+        ...g,
+        tasks,
+        taskCount: tasks.length,
+        tasksDone: done,
+        progress: tasks.length === 0 ? null
+          : Math.round((done / tasks.length) * 100),
+      };
+    });
+    return base;
   }
 
   function metrics() {
@@ -770,7 +967,7 @@ export function createApiQueries(ctx) {
 
   return Object.freeze({
     health, workspace, tasks, task, taskDoc, plans, plan,
-    planDocs, planDoc,
+    planDocs, planDoc, artifactDocs, artifactDoc,
     artifacts, artifact, journalOperations, journalOperation, captures,
     memory, goals, metrics, reports, report,
     sessions, session, approvals, approval, catalog, verifyCommands,

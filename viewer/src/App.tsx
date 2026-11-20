@@ -58,6 +58,7 @@ import { SystemView } from '@/views/SystemView';
 import { TasksView } from '@/views/TasksView';
 import { WorkspaceView } from '@/views/WorkspaceView';
 import { cn } from '@/lib/utils';
+import { registerNavigate } from '@/lib/nav';
 
 const NAV = [
   { value: 'workspace', labelKey: 'nav.workspace', descKey: 'nav.workspace.desc', icon: LayoutDashboard },
@@ -177,6 +178,11 @@ export default function App() {
       .workspace()
       .then((ws) => adoptProjectLocale(ws.project.locale))
       .catch(() => undefined);
+  }, []);
+
+  // Cross-view navigation (goal/plan links open a task detail).
+  useEffect(() => {
+    registerNavigate((v) => setView(v as NavValue));
   }, []);
 
   const current = NAV.find((n) => n.value === view) ?? NAV[0];

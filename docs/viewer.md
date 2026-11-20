@@ -86,6 +86,8 @@ parametros de query desconocidos 400.
 | `GET /api/plan-docs` | listado de archivos de plan (`<paths.plans>/*.md`: nombre, bytes, updatedAt) |
 | `GET /api/plan-docs/:name` | contenido de un archivo de plan (slug `*.md` acotado al dir de planes) |
 | `GET /api/plans/:key` | documento de plan + readiness |
+| `GET /api/artifact-docs?kind=` | documentos `.md` sueltos por tipo (dirs canónicos + legacy `.scopegrain/<kind>/`): nombre, título, status, fecha, bytes |
+| `GET /api/artifact-docs/:kind/:name` | contenido de un documento de artefacto (slug `*.md` acotado a los dirs del tipo) |
 | `GET /api/artifacts?kind=&limit=&offset=` | `kind` requerido, uno de `spec design report research decision lesson handoff review` |
 | `GET /api/artifacts/:kind/:id` | documento de artefacto (`body` truncado) |
 | `GET /api/journal/operations?limit=&offset=` | resumenes de operaciones: `state`, `eventCount`, `sourceKinds`, `recordIds` |
