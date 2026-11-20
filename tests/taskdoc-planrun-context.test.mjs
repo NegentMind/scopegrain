@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // task doc rendering, plan run wave scheduling, session-start context.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -91,7 +92,8 @@ test('context assembles the session-start packet read-only', async () => {
     assert.equal(out.tasks.total, 4);
     assert.equal(out.tasks.open, 4);
     assert.ok(Array.isArray(out.tasks.ready));
-    assert.ok(Array.isArray(out.progress));
+    assert.equal(typeof out.progress.truncated, 'boolean');
+    assert.ok(Array.isArray(out.progress.entries));
     assert.ok(Array.isArray(out.goals));
   } finally { cleanup(dir); }
 });

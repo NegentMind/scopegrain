@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Final review batch: prospective chronology, temp-file ownership,
 // COMMANDS prototype keys, catalog guard fixtures, legacy single-load spy.
 import test from 'node:test';
@@ -96,7 +97,10 @@ test('B: EEXIST on tmp path must not delete foreign sentinel bytes', () => {
     } finally {
       fs.openSync = origOpen;
     }
-    for (const p of sentinels) {
+    // The acquire path may open 'wx' more than once per path (reclaim
+    // check + retry), so dedupe: what matters is that every intercepted
+    // open left the foreign bytes untouched.
+    for (const p of new Set(sentinels)) {
       assert.equal(fs.readFileSync(p, 'utf8'), 'SENTINEL');
       fs.rmSync(p); // TEST-created sentinel only
     }

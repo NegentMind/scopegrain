@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -268,11 +269,12 @@ test('discovery excludes both operational directories', () => {
 
 test('both entrypoints delegate to the shared CLI and preserve package metadata', async () => {
   const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url)));
-  assert.equal(pkg.bin.scopegrain, './bin/scopegrain.mjs');
-  assert.equal(pkg.bin.tasksystem, './bin/tasksystem.mjs');
+  // bin/files stay out of the manifest until the release direction is
+  // decided; the entrypoints themselves keep their committed paths.
+  assert.equal(pkg.bin, undefined);
   assert.equal(pkg.private, true);
-  assert.equal(pkg.license, 'UNLICENSED');
-  for (const entry of Object.values(pkg.bin)) {
+  assert.equal(pkg.license, 'Apache-2.0');
+  for (const entry of ['./bin/scopegrain.mjs', './bin/tasksystem.mjs']) {
     const content = fs.readFileSync(new URL(`../${entry}`, import.meta.url), 'utf8');
     assert.match(content, /import \{ run, defaultIO \} from '\.\.\/src\/cli\.mjs'/);
     assert.match(content, /process\.exitCode = await run\(process\.argv\.slice\(2\), defaultIO\(\)\)/);
