@@ -31,6 +31,20 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   is read-only (`{plan, waves, triaged, unscheduled}`); the host/agent
   executes the actual task work — Scopegrain orders, it does not execute.
 
+- **Viewer: full task metadata, task/plan files and localized states** —
+  the Tasks view now renders every V3 field (methodology, estimate,
+  source, scenarioRefs, relations, goals, verification, review, files,
+  rendered task doc) and an 11-column table (priority, type, effort,
+  backlog, disposition, deps, steps). New endpoints
+  `/api/tasks/:id/doc`, `/api/plan-docs` and `/api/plan-docs/:name`
+  expose the rendered task document and the human-readable plan files;
+  a new Plans view lists both semantic plans and `.md` plan docs.
+  `StateBadge` shows localized labels (`PLAN` → "Por hacer"/"To do")
+  with the raw state code in the tooltip, and the top nav moved into a
+  responsive sidebar. `task meta` now accepts `title`/`contract` so
+  records can be rewritten (used to translate the whole backlog to
+  Spanish via `scripts/translate-tasks.mjs`).
+
 - **State root migration `.tasksystem` → `.scopegrain`** — this project
   now uses the canonical default state paths (`.scopegrain/*`); all state
   was relocated. Journal/ownership validation is relocation-safe:
@@ -164,3 +178,6 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   D-02 (accepted-keys hint in `capture review` errors), D-03
   (`journal list` surface gap).
 - Stale `verify.yml` header claiming no remote execution evidence.
+- `task doc` rendering crashed with `n.at.slice is not a function` on
+  records whose `notes` are plain strings (the field accepts strings and
+  `{at,by,text}` objects); notes are now normalized before rendering.

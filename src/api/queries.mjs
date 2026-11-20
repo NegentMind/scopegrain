@@ -408,6 +408,89 @@ export function createApiQueries(ctx) {
     return { task: taskDetail(getTask(ctx, requireUuid(id, 'task id'))) };
   }
 
+  // Rendered task document (<tasksDir>/<uuid>.md) produced by `task doc`.
+  // Read-only bounded file fetch - null doc when the task file does not
+  // exist yet (the JSON record stays authoritative).
+  function taskDoc(id) {
+    const uuid = requireUuid(id, 'task id');
+    getTask(ctx, uuid); // 404s on missing/malformed records first
+    const dir = resolveInside(ctx.projectRoot,
+      ctx.config.paths.tasks, 'paths.tasks');
+    const file = resolveInside(dir, `${uuid}.md`, 'task doc');
+    const st = lstatOrNull(file);
+    if (!st) return { id: uuid, doc: null };
+    if (st.isSymbolicLink() || !st.isFile()) {
+      throw err('SYMLINK_REJECTED', `task doc may not be a link: ${uuid}`);
+    }
+    const limited = readFileLimited(file, loadLimits().maxDocumentBytes);
+    const text = decodeUtf8Strict(limited.content, 'task doc');
+    const cut = truncateString(text, LIMITS.maxBodyChars);
+    return {
+      id: uuid,
+      doc: cut.value,
+      docTruncated: cut.truncated || limited.exceeded || null,
+      bytes: st.size,
+      updatedAt: st.mtime.toISOString(),
+    };
+  }
+
+  // Plan documents (<plansDir>/*.md): human-readable plan files, listed
+  // alongside the semantic plan records. Names are filename slugs only -
+  // resolved inside the plans dir, never arbitrary paths.
+  const PLAN_DOC_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.md$/;
+
+  function planDocs() {
+    const dir = resolveInside(ctx.projectRoot,
+      ctx.config.paths.plans, 'paths.plans');
+    const st = lstatOrNull(dir);
+    const out = { docs: [] };
+    if (!st) return out;
+    if (st.isSymbolicLink() || !st.isDirectory()) {
+      throw err('INVALID_PATH', 'plans path is not a real directory');
+    }
+    const names = fs.readdirSync(dir).sort()
+      .filter((n) => PLAN_DOC_RE.test(n));
+    for (const name of names.slice(0, LIMITS.dirScanCap)) {
+      const file = resolveInside(dir, name, 'plan doc');
+      const fst = lstatOrNull(file);
+      if (!fst || fst.isSymbolicLink() || !fst.isFile()) continue;
+      out.docs.push({
+        name,
+        bytes: fst.size,
+        updatedAt: fst.mtime.toISOString(),
+      });
+    }
+    out.truncated = names.length > LIMITS.dirScanCap || null;
+    return out;
+  }
+
+  function planDoc(name) {
+    if (typeof name !== 'string' || !PLAN_DOC_RE.test(name)) {
+      throw err('INVALID_VALUE',
+        'plan doc name must be a markdown filename slug');
+    }
+    const dir = resolveInside(ctx.projectRoot,
+      ctx.config.paths.plans, 'paths.plans');
+    const file = resolveInside(dir, name, 'plan doc');
+    const st = lstatOrNull(file);
+    if (!st) {
+      throw err('PLAN_DOC_NOT_FOUND', `plan doc not found: ${name}`);
+    }
+    if (st.isSymbolicLink() || !st.isFile()) {
+      throw err('SYMLINK_REJECTED', `plan doc may not be a link: ${name}`);
+    }
+    const limited = readFileLimited(file, loadLimits().maxDocumentBytes);
+    const text = decodeUtf8Strict(limited.content, 'plan doc');
+    const cut = truncateString(text, LIMITS.maxBodyChars);
+    return {
+      name,
+      doc: cut.value,
+      docTruncated: cut.truncated || limited.exceeded || null,
+      bytes: st.size,
+      updatedAt: st.mtime.toISOString(),
+    };
+  }
+
   function plans() {
     const { plans: found, malformed } = listPlans(ctx);
     return {
@@ -686,7 +769,8 @@ export function createApiQueries(ctx) {
   }
 
   return Object.freeze({
-    health, workspace, tasks, task, plans, plan,
+    health, workspace, tasks, task, taskDoc, plans, plan,
+    planDocs, planDoc,
     artifacts, artifact, journalOperations, journalOperation, captures,
     memory, goals, metrics, reports, report,
     sessions, session, approvals, approval, catalog, verifyCommands,

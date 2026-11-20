@@ -145,10 +145,36 @@ export interface TaskDetail {
     debt?: string; debugEvidence?: string; security?: string;
     performance?: string; [k: string]: unknown;
   } | null;
-  steps?: { text: string; status: string }[];
+  steps?: {
+    name?: string; text?: string; status: string;
+    verify?: string; files?: string[]; action?: string;
+  }[];
   notes?: ({ text: string; at?: string; by?: string } | string)[];
   skills?: string[];
-  uncertainty?: string | null;
+  uncertainty?: { uphill?: number; downhill?: number } | string | null;
+  methodologyRoute?: string | null;
+}
+
+export interface TaskDoc {
+  id: string;
+  doc: string | null;
+  docTruncated?: boolean | null;
+  bytes?: number;
+  updatedAt?: string;
+}
+
+export interface PlanDocSummary {
+  name: string;
+  bytes: number;
+  updatedAt: string;
+}
+
+export interface PlanDoc {
+  name: string;
+  doc: string;
+  docTruncated?: boolean | null;
+  bytes: number;
+  updatedAt: string;
 }
 
 export interface TaskList {
@@ -398,7 +424,14 @@ export const api = {
     request<TaskList>(`/api/tasks?limit=${encodeURIComponent(limit)}`),
   task: (id: string) =>
     request<{ task: TaskDetail }>(`/api/tasks/${encodeURIComponent(id)}`),
+  taskDoc: (id: string) =>
+    request<TaskDoc>(`/api/tasks/${encodeURIComponent(id)}/doc`),
   plans: () => request<PlanList>('/api/plans'),
+  planDocs: () =>
+    request<{ docs: PlanDocSummary[]; truncated?: boolean | null }>(
+      '/api/plan-docs'),
+  planDoc: (name: string) =>
+    request<PlanDoc>(`/api/plan-docs/${encodeURIComponent(name)}`),
   plan: (key: string) =>
     request<PlanDetail>(`/api/plans/${encodeURIComponent(key)}`),
   artifacts: (kind: ArtifactKind, limit = 200) =>

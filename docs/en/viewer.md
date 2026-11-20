@@ -74,7 +74,10 @@ any path return 405; unknown paths 404; unknown query parameters 400.
 | `GET /api/workspace` | project summary, workspace descriptor (or `null` when not enrolled), store counts, areas |
 | `GET /api/tasks?limit=&offset=` | task summaries + `malformed[]` + `truncated` |
 | `GET /api/tasks/:id` | full task record (`contract`/`authorContext` capped) |
+| `GET /api/tasks/:id/doc` | rendered task document (`<paths.tasks>/<uuid>.md` via `task doc`) or `doc: null` |
 | `GET /api/plans` | plans + per-task readiness (or `readinessError`) + `malformed[]` |
+| `GET /api/plan-docs` | plan file listing (`<paths.plans>/*.md`: name, bytes, updatedAt) |
+| `GET /api/plan-docs/:name` | plan file contents (`*.md` slug resolved inside the plans dir) |
 | `GET /api/plans/:key` | plan document + readiness |
 | `GET /api/artifacts?kind=&limit=&offset=` | `kind` required, one of `spec design report research decision lesson handoff review` |
 | `GET /api/artifacts/:kind/:id` | artifact document (`body` capped) |

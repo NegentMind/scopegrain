@@ -15,6 +15,7 @@ import {
   ScrollText,
   Share2,
   Timer,
+  Workflow,
   Brain,
 } from 'lucide-react';
 import {
@@ -50,6 +51,7 @@ import { GraphView } from '@/views/GraphView';
 import { JournalView } from '@/views/JournalView';
 import { MemoryView } from '@/views/MemoryView';
 import { MetricsView } from '@/views/MetricsView';
+import { PlansView } from '@/views/PlansView';
 import { ReportsView } from '@/views/ReportsView';
 import { SessionsView } from '@/views/SessionsView';
 import { SystemView } from '@/views/SystemView';
@@ -60,6 +62,7 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { value: 'workspace', labelKey: 'nav.workspace', descKey: 'nav.workspace.desc', icon: LayoutDashboard },
   { value: 'tasks', labelKey: 'nav.tasks', descKey: 'nav.tasks.desc', icon: ListTodo },
+  { value: 'plans', labelKey: 'nav.plans', descKey: 'nav.plans.desc', icon: Workflow },
   { value: 'graph', labelKey: 'nav.graph', descKey: 'nav.graph.desc', icon: Share2 },
   { value: 'journal', labelKey: 'nav.journal', descKey: 'nav.journal.desc', icon: ScrollText },
   { value: 'artifacts', labelKey: 'nav.artifacts', descKey: 'nav.artifacts.desc', icon: FileText },
@@ -182,75 +185,78 @@ export default function App() {
   return (
     <TooltipProvider>
       <div className="dark min-h-screen bg-background text-foreground">
+        <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
+          <div className="mx-auto flex max-w-[88rem] items-center gap-3 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <div
+                className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-sm"
+                aria-hidden
+              >
+                <Activity className="size-4.5" />
+              </div>
+              <h1 className="text-lg font-semibold tracking-tight">
+                {t('app.title')}
+              </h1>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <LocaleSelect />
+              <Separator orientation="vertical" className="h-5" />
+              <HealthBadge healthy={healthy} />
+            </div>
+          </div>
+        </header>
+
         <Tabs
+          orientation="vertical"
           value={view}
           onValueChange={(v) => setView(v as NavValue)}
-          className="gap-0"
+          className="mx-auto max-w-[88rem] gap-0"
         >
-          <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
-            <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 pb-2 pt-3">
-              <div className="flex items-center gap-2.5">
-                <div
-                  className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-sm"
-                  aria-hidden
-                >
-                  <Activity className="size-4.5" />
-                </div>
-                <h1 className="text-lg font-semibold tracking-tight">
-                  {t('app.title')}
-                </h1>
-              </div>
-              <div className="ml-auto flex items-center gap-2">
-                <LocaleSelect />
-                <Separator orientation="vertical" className="h-5" />
-                <HealthBadge healthy={healthy} />
-              </div>
-            </div>
+          <aside className="hidden w-52 shrink-0 border-r md:block">
             <nav
-              className="mx-auto max-w-6xl px-2 sm:px-4"
+              className="sticky top-[57px] max-h-[calc(100vh-57px)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               aria-label={t('nav.views')}
             >
-              <div className="hidden overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:block">
-                <TabsList
-                  variant="line"
-                  className="h-11 w-full justify-start gap-1 rounded-none"
-                >
-                  {NAV.map(({ value, labelKey, icon: Icon }) => (
-                    <TabsTrigger
-                      key={value}
-                      value={value}
-                      className="gap-1.5 px-2.5 transition-colors duration-200 data-active:text-primary data-active:after:bg-primary"
-                    >
-                      <Icon className="h-4 w-4" aria-hidden />
-                      {t(labelKey)}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </div>
-              <div className="pb-2 md:hidden">
-                <Select
-                  value={view}
-                  onValueChange={(v) => setView(v as NavValue)}
-                >
-                  <SelectTrigger
-                    className="w-full"
-                    aria-label={t('nav.views')}
+              <TabsList
+                variant="line"
+                className="h-auto w-full flex-col items-stretch gap-0.5 rounded-none p-2"
+              >
+                {NAV.map(({ value, labelKey, icon: Icon }) => (
+                  <TabsTrigger
+                    key={value}
+                    value={value}
+                    className="justify-start gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors duration-200 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:bg-primary"
                   >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {NAV.map(({ value, labelKey }) => (
-                      <SelectItem key={value} value={value}>
-                        {t(labelKey)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    <Icon className="h-4 w-4" aria-hidden />
+                    {t(labelKey)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
             </nav>
-          </header>
+          </aside>
 
-          <main className="mx-auto max-w-6xl px-4 py-6">
+          <main className="min-w-0 flex-1 px-4 py-6">
+            <div className="mb-4 md:hidden">
+              <Select
+                value={view}
+                onValueChange={(v) => setView(v as NavValue)}
+              >
+                <SelectTrigger
+                  className="w-full"
+                  aria-label={t('nav.views')}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {NAV.map(({ value, labelKey }) => (
+                    <SelectItem key={value} value={value}>
+                      {t(labelKey)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div
               key={view}
               className="mb-5 flex items-start gap-3 animate-in fade-in-50 slide-in-from-top-1 duration-300"
@@ -276,6 +282,9 @@ export default function App() {
             </TabsContent>
             <TabsContent value="tasks">
               <TasksView />
+            </TabsContent>
+            <TabsContent value="plans">
+              <PlansView />
             </TabsContent>
             <TabsContent value="graph">
               <GraphView />

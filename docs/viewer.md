@@ -81,7 +81,10 @@ parametros de query desconocidos 400.
 | `GET /api/workspace` | resumen del proyecto, descriptor de workspace (o `null` cuando no esta enrolado), conteos de stores, areas |
 | `GET /api/tasks?limit=&offset=` | resumenes de tareas + `malformed[]` + `truncated` |
 | `GET /api/tasks/:id` | registro de tarea completo (`contract`/`authorContext` truncados) |
+| `GET /api/tasks/:id/doc` | documento de tarea renderizado (`<paths.tasks>/<uuid>.md` via `task doc`) o `doc: null` |
 | `GET /api/plans` | planes + readiness por tarea (o `readinessError`) + `malformed[]` |
+| `GET /api/plan-docs` | listado de archivos de plan (`<paths.plans>/*.md`: nombre, bytes, updatedAt) |
+| `GET /api/plan-docs/:name` | contenido de un archivo de plan (slug `*.md` acotado al dir de planes) |
 | `GET /api/plans/:key` | documento de plan + readiness |
 | `GET /api/artifacts?kind=&limit=&offset=` | `kind` requerido, uno de `spec design report research decision lesson handoff review` |
 | `GET /api/artifacts/:kind/:id` | documento de artefacto (`body` truncado) |

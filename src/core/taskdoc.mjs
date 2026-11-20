@@ -96,8 +96,12 @@ export function renderTaskDoc(task) {
   if (task.notes?.length) {
     L.push('## Notes');
     L.push('');
-    list(L, task.notes, (n) =>
-      `${n.at ? `\`${n.at.slice(0, 10)}\` ` : ''}${n.by ? `**${n.by}** ` : ''}${n.text}`);
+    list(L, task.notes, (n) => {
+      if (typeof n === 'string') return n;
+      const at = typeof n?.at === 'string' ? `\`${n.at.slice(0, 10)}\` ` : '';
+      const by = typeof n?.by === 'string' ? `**${n.by}** ` : '';
+      return `${at}${by}${n?.text ?? ''}`;
+    });
     L.push('');
   }
   L.push('## History');

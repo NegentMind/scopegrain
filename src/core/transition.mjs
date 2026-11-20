@@ -238,6 +238,10 @@ const META_SETTABLE = new Set([
   'relations', 'dependsOn', 'goalIds', 'analysis', 'steps', 'notes',
   'skills', 'uncertainty',
 ]);
+// Content fields editable through `set` alongside the V3 semantic keys:
+// title/contract are not lifecycle state, so a meta update may rewrite
+// them under the same CAS revision + history discipline.
+const META_CONTENT_SETTABLE = new Set(['title', 'contract']);
 const DISPOSITION_KINDS = new Set([
   'deferred', 'icebox', 'future', 'discarded', 'cancelled',
 ]);
@@ -269,9 +273,17 @@ export function validateMetaUpdateInput(input) {
       throw err('INVALID_VALUE', 'set must be an object of task meta keys');
     }
     for (const k of Object.keys(input.set)) {
-      if (!META_SETTABLE.has(k)) {
+      if (!META_SETTABLE.has(k) && !META_CONTENT_SETTABLE.has(k)) {
         throw err('UNKNOWN_KEY',
           `set received non-settable key '${k}'`);
+      }
+    }
+    for (const k of META_CONTENT_SETTABLE) {
+      if (input.set[k] !== undefined
+          && (typeof input.set[k] !== 'string'
+            || input.set[k].trim() === '')) {
+        throw err('INVALID_VALUE',
+          `set.${k} must be a non-empty string`);
       }
     }
   }
@@ -326,12 +338,18 @@ export function evaluateTaskMeta(ctx, task, input,
     fields.push('schemaVersion');
   }
   if (input.set !== undefined) {
-    const patch = normalizeV3Input(input.set);
-    if (patch === null) {
+    const content = {};
+    for (const k of META_CONTENT_SETTABLE) {
+      if (input.set[k] !== undefined) content[k] = input.set[k].trim();
+    }
+    const rest = { ...input.set };
+    for (const k of META_CONTENT_SETTABLE) delete rest[k];
+    const patch = Object.keys(rest).length ? normalizeV3Input(rest) : null;
+    if (patch === null && Object.keys(content).length === 0) {
       throw err('INVALID_VALUE', 'set produced no normalized fields');
     }
-    next = { ...next, ...patch };
-    fields.push(...Object.keys(patch));
+    next = { ...next, ...content, ...(patch ?? {}) };
+    fields.push(...Object.keys(content), ...Object.keys(patch ?? {}));
   }
   if (input.disposition !== undefined) {
     next = {

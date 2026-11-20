@@ -43,9 +43,14 @@ const STATE_TONE: Record<string, string> = {
 };
 
 export function StateBadge({ state }: { state: string }) {
+  const t = useT();
   return (
-    <Badge variant="outline" className={cn('font-mono', STATE_TONE[state])}>
-      {state}
+    <Badge
+      variant="outline"
+      title={state}
+      className={cn('font-mono', STATE_TONE[state])}
+    >
+      {t(`state.${state}`) === `state.${state}` ? state : t(`state.${state}`)}
     </Badge>
   );
 }
