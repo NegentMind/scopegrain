@@ -108,7 +108,7 @@ export function TasksView() {
     [selected],
   );
 
-  const all = list.data?.tasks ?? [];
+  const all = useMemo(() => list.data?.tasks ?? [], [list.data?.tasks]);
   const opts = useMemo(() => {
     const uniq = (k: keyof TaskSummary) =>
       [...new Set(all.map((x) => x[k]).filter((v): v is string => typeof v === 'string'))].sort();
