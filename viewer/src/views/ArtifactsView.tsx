@@ -103,7 +103,7 @@ export function ArtifactsView() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-20">Id</TableHead>
+                      <TableHead className="w-20">{t('common.id')}</TableHead>
                       <TableHead>{t('common.title')}</TableHead>
                       <TableHead>{t('artifacts.view')}</TableHead>
                       <TableHead className="hidden md:table-cell">{t('artifacts.created')}</TableHead>

@@ -277,6 +277,37 @@ const DICT: Record<Locale, Record<string, string>> = {
     'graph.dag': 'Dependency graph',
     'graph.dagDesc': 'dependsOn and typed relations between recorded tasks.',
     'graph.empty': 'No dependencies or relations recorded yet.',
+    'nav.workspace.desc':
+      'Enrolled project descriptor: identity, configured paths, areas and store counts.',
+    'nav.tasks.desc':
+      'Work contracts with C0 lifecycle, semantic metadata and history.',
+    'nav.graph.desc':
+      'Lifecycle funnel and dependency graph between recorded tasks.',
+    'nav.journal.desc':
+      'Hash-chained journal: prepared and committed operations with their events.',
+    'nav.artifacts.desc':
+      'Formal artifacts by kind: specs, designs, reports, decisions and more.',
+    'nav.captures.desc':
+      'Typed notes with journal-verified provenance and drift detection.',
+    'nav.memory.desc':
+      'Operational worklogs: lessons, outcomes, progress and goals.',
+    'nav.goals.desc': 'Recorded project goals and their linked tasks.',
+    'nav.sessions.desc':
+      'Bounded agent sessions with resumable handoff context.',
+    'nav.approvals.desc':
+      'HITL approval queue with digest-scoped answers.',
+    'nav.catalog.desc':
+      'Integrity-checked inventory of harness resources by kind.',
+    'nav.metrics.desc':
+      'Read-time derived metrics: states, verification, durations and skills.',
+    'nav.reports.desc': 'Persisted doctor/status reports with their detail.',
+    'nav.system.desc':
+      'Lifecycle policy, verified commands and the optional VantaDB backend.',
+    'common.areas': 'Areas',
+    'common.captured': 'Captured',
+    'common.op': 'Op',
+    'common.kinds': 'Kinds',
+    'common.created': 'Created',
   },
   es: {
     'app.title': 'Visor de Scopegrain',
@@ -497,6 +528,37 @@ const DICT: Record<Locale, Record<string, string>> = {
     'graph.dag': 'Grafo de dependencias',
     'graph.dagDesc': 'dependsOn y relaciones tipadas entre tareas registradas.',
     'graph.empty': 'Sin dependencias ni relaciones registradas aún.',
+    'nav.workspace.desc':
+      'Descriptor del proyecto inscrito: identidad, rutas configuradas, áreas y conteos de almacenes.',
+    'nav.tasks.desc':
+      'Contratos de trabajo con ciclo de vida C0, metadatos semánticos e historial.',
+    'nav.graph.desc':
+      'Embudo del ciclo de vida y grafo de dependencias entre tareas registradas.',
+    'nav.journal.desc':
+      'Diario con cadena hash: operaciones prepared y committed con sus eventos.',
+    'nav.artifacts.desc':
+      'Artefactos formales por tipo: specs, diseños, informes, decisiones y más.',
+    'nav.captures.desc':
+      'Notas tipadas con provenance verificada contra el diario y detección de drift.',
+    'nav.memory.desc':
+      'Worklogs operativos: lecciones, resultados, progreso y metas.',
+    'nav.goals.desc': 'Metas registradas del proyecto y sus tareas enlazadas.',
+    'nav.sessions.desc':
+      'Sesiones de agente acotadas con contexto de handoff reanudable.',
+    'nav.approvals.desc':
+      'Cola de aprobaciones HITL con respuestas acotadas por digest.',
+    'nav.catalog.desc':
+      'Inventario verificado de recursos del harness por tipo.',
+    'nav.metrics.desc':
+      'Métricas derivadas al leer: estados, verificación, duraciones y skills.',
+    'nav.reports.desc': 'Informes persistidos de doctor/status con su detalle.',
+    'nav.system.desc':
+      'Política de ciclo de vida, comandos verificados y el backend opcional VantaDB.',
+    'common.areas': 'Áreas',
+    'common.captured': 'Capturado',
+    'common.op': 'Op',
+    'common.kinds': 'Tipos',
+    'common.created': 'Creado',
   },
 };
 

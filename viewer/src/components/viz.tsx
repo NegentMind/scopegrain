@@ -13,8 +13,19 @@ export function usePoll(fn: () => void, ms = 10000) {
   const ref = useRef(fn);
   ref.current = fn;
   useEffect(() => {
-    const t = setInterval(() => ref.current(), ms);
-    return () => clearInterval(t);
+    const t = setInterval(() => {
+      if (!document.hidden) ref.current();
+    }, ms);
+    const onWake = () => {
+      if (!document.hidden) ref.current();
+    };
+    window.addEventListener('focus', onWake);
+    document.addEventListener('visibilitychange', onWake);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', onWake);
+      document.removeEventListener('visibilitychange', onWake);
+    };
   }, [ms]);
 }
 

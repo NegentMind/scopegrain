@@ -152,7 +152,7 @@ export function TasksView() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-20">Id</TableHead>
+                  <TableHead className="w-20">{t('common.id')}</TableHead>
                   <TableHead>{t('common.title')}</TableHead>
                   <TableHead>{t('common.state')}</TableHead>
                   <TableHead className="hidden lg:table-cell">{t('tasks.badges')}</TableHead>

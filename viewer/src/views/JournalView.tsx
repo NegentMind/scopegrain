@@ -60,11 +60,11 @@ export function JournalView() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-20">Op</TableHead>
+                  <TableHead className="w-20">{t('common.op')}</TableHead>
                   <TableHead>{t('common.state')}</TableHead>
                   <TableHead>{t('journal.events')}</TableHead>
-                  <TableHead className="hidden md:table-cell">Kinds</TableHead>
-                  <TableHead className="hidden md:table-cell">Created</TableHead>
+                  <TableHead className="hidden md:table-cell">{t('common.kinds')}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t('common.created')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

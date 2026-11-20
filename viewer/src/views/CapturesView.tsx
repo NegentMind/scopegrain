@@ -47,12 +47,12 @@ export function CapturesView() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-20">Id</TableHead>
+                <TableHead className="w-20">{t('common.id')}</TableHead>
                 <TableHead>{t('captures.proof')}</TableHead>
                 <TableHead>{t('captures.category')}</TableHead>
                 <TableHead>{t('common.title')}</TableHead>
-                <TableHead className="hidden md:table-cell">Areas</TableHead>
-                <TableHead className="hidden md:table-cell">Captured</TableHead>
+                <TableHead className="hidden md:table-cell">{t('common.areas')}</TableHead>
+                <TableHead className="hidden md:table-cell">{t('common.captured')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
