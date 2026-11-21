@@ -73,11 +73,11 @@ test('help lists the new wave-2 commands with exact usages', async () => {
   const usages = result.output.commands.map((command) => command.command);
   for (const usage of [
     'adopt --project PATH [--config REL] [--apply]',
-    'update --project PATH [--config REL] [--reconcile] [--apply]',
+    'update --project PATH [--config REL] [--reconcile] [--diff] [--apply]',
     'backup --project PATH --to REL [--config REL] [--apply]',
     'restore --project PATH --from REL [--apply]',
     'uninstall --project PATH [--config REL] [--apply]',
-    'investigate --project PATH [--config REL] [--save]',
+    'investigate --project PATH [--config REL] [--save] [--diff]',
     'host activate --project PATH --host NAME [--surface X] [--apply]',
     'capture proposals --project PATH [--config REL] [--since-sequence N]',
     'capture review --project PATH --input FILE [--apply]',
