@@ -33,7 +33,7 @@ const VALUE_FLAGS = new Set([
   '--command', '--timeout', '--version', '--storage', '--binary',
   '--install-dir', '--namespace', '--key', '--top-k', '--record-id',
   '--reason', '--by', '--log', '--tail', '--backlog', '--status', '--index',
-  '--text', '--outcome', '--cursor',
+  '--text', '--outcome', '--cursor', '--arguments', '--script',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -375,9 +375,12 @@ const COMMANDS = {
     usage: 'catalog legacy-show KIND ID',
   },
   workflow: {
-    flags: ['--project', '--config', '--mode', '--task', '--host', '--profile', '--interaction'],
+    flags: ['--project', '--config', '--mode', '--task', '--host',
+      '--profile', '--interaction', '--arguments', '--script'],
     pos: 1,
-    usage: 'workflow COMMAND [--mode M] [--task UUID] [--host H] [--profile ID] [--interaction direct|guided]',
+    usage: 'workflow COMMAND [--mode M] [--task UUID] [--host H] '
+      + '[--profile ID] [--interaction direct|guided] '
+      + '[--arguments TEXT] [--script PATH]',
   },
   'plan create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
@@ -443,6 +446,18 @@ const COMMANDS = {
   'host activate': {
     flags: ['--project', '--config', '--host', '--surface', '--apply'], pos: 0,
     usage: 'host activate --project PATH --host NAME [--surface X] [--apply]',
+  },
+  'host manifest': {
+    flags: ['--project', '--config', '--host'], pos: 0,
+    usage: 'host manifest --project PATH --host NAME',
+  },
+  'helper install': {
+    flags: ['--project', '--config', '--input'], pos: 0,
+    usage: 'helper install --project PATH --input FILE',
+  },
+  'helper list': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'helper list --project PATH',
   },
   'capture proposals': {
     flags: ['--project', '--config', '--since-sequence'], pos: 0,
@@ -1194,6 +1209,9 @@ async function cmdWorkflow(command, flags) {
     host: flags['--host'],
     profile: flags['--profile'],
     interaction: flags['--interaction'],
+    ...(flags['--arguments'] !== undefined
+      ? { arguments: flags['--arguments'] } : {}),
+    ...(flags['--script'] !== undefined ? { script: flags['--script'] } : {}),
   });
 }
 
@@ -2156,7 +2174,24 @@ async function cmdInvestigate(flags) {
 // Opt-in host activation: previews/applies generated proposals into
 // project-local destinations only; global and merge-required entries are
 // reported as skipped, never written.
-async function cmdHost(flags) {
+async function cmdHelper(sub, flags) {
+  const { installHelper, listHelpers } = await import('./core/helpers.mjs');
+  const ctx = lifecycleCtx(flags);
+  if (sub === 'list') return { helpers: listHelpers(ctx) };
+  if (sub === 'install') {
+    const input = readInputFile(
+      requireFlag(flags, '--input'), 'helper input');
+    return installHelper(ctx, input);
+  }
+  throw err('INVALID_ARGS', `unknown helper subcommand '${sub}'`);
+}
+
+async function cmdHost(sub, flags) {
+  if (sub === 'manifest') {
+    const { hostManifest } = await import('./hosts/host-manifest.mjs');
+    const ctx = lifecycleCtx(flags);
+    return hostManifest(ctx, { host: requireFlag(flags, '--host') });
+  }
   const { applyActivation, prepareActivation } = await import('./hosts/activation.mjs');
   const options = { host: requireFlag(flags, '--host') };
   if (Object.hasOwn(flags, '--surface')) options.surface = flags['--surface'];
@@ -2270,6 +2305,7 @@ export async function run(argv, io) {
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
       'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb',
+      'helper',
       'memory', 'goal', 'report', 'activity', 'hooks', 'structure',
       'constitution']);
     let cmdKey;
@@ -2407,7 +2443,9 @@ export async function run(argv, io) {
     } else if (cmdKey.startsWith('hooks ')) {
       result = await cmdHooks(cmdKey.slice(6), flags);
     } else if (cmdKey.startsWith('host ')) {
-      result = await cmdHost(flags);
+      result = await cmdHost(cmdKey.slice(5), flags);
+    } else if (cmdKey.startsWith('helper ')) {
+      result = await cmdHelper(cmdKey.slice(7), flags);
     } else {
       result = await cmdSession(cmdKey.slice(8), rest, flags);
     }

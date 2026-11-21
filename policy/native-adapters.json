@@ -93,6 +93,20 @@
         "https://antigravity.google/docs/subagents",
         "https://antigravity.google/docs/mcp"
       ]
+    },
+    "generic": {
+      "skillRoot": ".agent/skills",
+      "commandFormat": "skill",
+      "agentRoot": ".agent/agents",
+      "agentFormat": "markdown",
+      "commandFrontmatter": "",
+      "agentFrontmatter": "",
+      "readOnlyAgentFrontmatter": "",
+      "invocation": "workflow NAME",
+      "permissionScope": "Generic host conventions (.agent/ roots, plain markdown). Not certified against any specific product; a scaffold for hosts without a dedicated adapter.",
+      "sources": [
+        "https://github.com/github/spec-kit"
+      ]
     }
   }
 }

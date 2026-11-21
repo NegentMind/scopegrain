@@ -116,8 +116,26 @@ function renderHermes(serverPath, projectRoot, configRel) {
   }, null, 2) + '\n';
 }
 
+// Generic host: the most common JSON stdio MCP shape plus a note that the
+// descriptor is a scaffold, not a certified format (generic adapter).
+function renderGeneric(serverPath, projectRoot, configRel) {
+  return JSON.stringify({
+    note: 'generic host scaffold: merge mcpServers.scopegrain into the '
+      + 'host MCP configuration manually after review',
+    mcpServers: {
+      scopegrain: {
+        type: 'stdio',
+        command: 'node',
+        args: stdioArgs(serverPath, projectRoot, configRel),
+        disabled: true,
+      },
+    },
+  }, null, 2) + '\n';
+}
+
 const RENDERERS = {
   claude: { file: 'claude-mcp.json', format: 'json', render: renderClaude },
+  generic: { file: 'generic-mcp.json', format: 'json', render: renderGeneric },
   codex: { file: 'codex-mcp.toml', format: 'toml', render: renderCodex },
   opencode: { file: 'opencode-mcp.json', format: 'json', render: renderOpencode },
   devin: { file: 'devin-mcp.json', format: 'json', render: renderDevin },

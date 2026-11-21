@@ -92,7 +92,7 @@ function previewActions(projectRoot, files) {
 // Shared pipeline for prepare/apply: validates context and selectors,
 // re-renders proposals and classifies every activation-plan entry into
 // applyable (project-local whole file) or skipped (manual-only).
-function buildActivation(ctx, { host, surface, installRoot } = {}) {
+export function buildActivation(ctx, { host, surface, installRoot } = {}) {
   const { projectRoot, configRel, config } = assertCtx(ctx);
   if (typeof host !== 'string' || !KNOWN_HOSTS.includes(host)) {
     throw err('UNKNOWN_HOST', `unknown host '${host}'`);

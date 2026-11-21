@@ -13,9 +13,12 @@ import { loadLimits, loadPolicy } from './policy.mjs';
 import { getTask } from './tasks.mjs';
 import { KNOWN_HOSTS, validateMethodologyMode } from './config.mjs';
 import { evaluateTaskActions } from './methodology.mjs';
+import { findPlaceholders, renderPlaceholders } from './placeholders.mjs';
+import { hooksFor } from './hooks-policy.mjs';
 
 const ALLOWED = new Set([
   'command', 'mode', 'taskId', 'host', 'profile', 'interaction',
+  'arguments', 'script',
 ]);
 const INTERACTIONS = new Set(['direct', 'guided']);
 
@@ -131,9 +134,26 @@ export function buildWorkflowPacket(ctx, opts = {}) {
       path: catalogDestRel(command),
       content: decodeUtf8Strict(command.content,
         'CATALOG_MALFORMED', `catalog resource command/${command.id}`),
+      // Placeholder rendering is optional: callers pass --arguments /
+      // --script; unresolved tokens fail closed, never silently strip.
+      rendered: (() => {
+        const body = decodeUtf8Strict(command.content,
+          'CATALOG_MALFORMED', `catalog resource command/${command.id}`);
+        const inv = findPlaceholders(body);
+        if (!inv.arguments && !inv.script && inv.handoffs.length === 0) {
+          return body;
+        }
+        return renderPlaceholders(body, {
+          arguments: opts.arguments ?? '',
+          script: opts.script,
+        });
+      })(),
     },
     interaction,
     host: opts.host ?? null,
+    // Declarative before_/after_ hooks from policy/hooks.json — advisory
+    // data projected to hosts; the harness never executes them.
+    hooks: hooksFor(inv.canonicalId),
     locale: ctx.config.locale,
     profile: {
       id: profile.id,
