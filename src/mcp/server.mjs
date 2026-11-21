@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Optional MCP server (stdio). Bound to one project root and one config at
 // startup; tools never accept paths. Mutations are bounded CAS/append
 // writes under the same locks and validators the CLI path enforces.

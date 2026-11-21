@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Model-facing renderer authored by the lead; input is validated before use.
 export function renderSpecification(title, data) {
   return [

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Pure validators for structured specification V2 data and design V2
 // bindings. No storage, no IO beyond canonical path checks — see
 // schemas/specification-data.schema.json and design-data.schema.json.

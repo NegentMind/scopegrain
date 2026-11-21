@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Semantic investigation layer: bounded read-only probes on top of
 // inspectProject, init-answer suggestions, stale-decision diff and the
 // typed research record contract.

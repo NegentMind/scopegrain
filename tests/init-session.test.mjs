@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Resumable init wizard sessions: persistence, atomicity, validation and
 // schema-fingerprint staleness (debt E8). Pure data layer; no CLI/IO here.
 import test from 'node:test';

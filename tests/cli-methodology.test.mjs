@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // C2-E adapter contracts. Fixture checks/reviewers below are DECLARATIONS,
 // not proof of command execution or authenticated identity.
 import test from 'node:test';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Journaled mutable-record updates: CAS on previousHash + expected
 // sourceRevision, temp+rename apply inside the journal lock, identical
 // prepared/committed recovery semantics. Create-path behavior unchanged.

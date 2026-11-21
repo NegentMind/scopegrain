@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Workflow packet cases: resolution, modes, hosts, profiles, read-only.
 import test from 'node:test';
 import assert from 'node:assert/strict';

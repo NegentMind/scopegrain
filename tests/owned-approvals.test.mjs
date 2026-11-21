@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Owned approval store: journal-backed mutable ownership for the
 // content-addressed approval ledger. Question create = strict 2-event
 // create op + rev0 sidecar; answers = CAS update ops (previousHash +

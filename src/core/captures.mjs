@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Bound capture store: typed, scoped, immutable capture notes plus their
 // ownership companion, created in one recoverable journal operation.
 // A note is a supplied assertion — not proof of activity, an authenticated

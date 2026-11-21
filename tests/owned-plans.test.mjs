@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Owned plans: opt-in journal-backed mutable plan documents. 2-event
 // create op (plan + plan-ownership rev0), CAS update ops for membership/
 // state, chain proof on read. Legacy path must stay byte-identical.

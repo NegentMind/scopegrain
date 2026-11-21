@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Plan V3: semantic layer (triage, appetite, cynefin, risk register,
 // premortem, stop conditions, budget), forwarded task semantics and
 // triage-aware readiness.

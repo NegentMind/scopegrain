@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Catalog loader cases: integrity, duplicates, traversal, deps, projection.
 import test from 'node:test';
 import assert from 'node:assert/strict';

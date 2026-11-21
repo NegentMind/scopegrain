@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Human-readable task documents: renders the authoritative task JSON
 // record into a Markdown file the owner can read/diff. The JSON stays
 // the truth; the .md is a derived artifact regenerated on demand.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Read-only query facade for the local JSON API. Wraps the core getters and
 // store locations with hard response bounds: capped directory listings,
 // per-item error surfacing and string-field truncation. No writes, no

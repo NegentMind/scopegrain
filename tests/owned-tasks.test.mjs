@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Bound owned-task store: mutable task documents with journal-backed
 // ownership. Creates write a task plus a record-ownership companion in
 // one recoverable two-event operation; transitions write one two-event

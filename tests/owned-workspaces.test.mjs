@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Journal-backed owned workspace updates: opt-in store that mutates the
 // workspace identity descriptor through applyJournaledRecordUpdate CAS.
 // The descriptor is the authority behind every scope proof, so identity

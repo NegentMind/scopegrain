@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: Apache-2.0
 // Entry point: delegates to src/cli.mjs so tests can call run() in-process.
 import { run, defaultIO } from '../src/cli.mjs';
 

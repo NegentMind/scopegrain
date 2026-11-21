@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Git post-commit hook installation: a managed, idempotent block inside
 // <gitdir>/hooks/post-commit that invokes `activity record` so every
 // commit outside the task loop is registered retroactively. The block is

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Git transport contract: .gitattributes coverage, root skip, root CRLF
 // tolerance for AGENTS/CLAUDE only, payload CRLF still mismatched.
 import test from 'node:test';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Second-landing review corrections: stored-record mutations, actual CLOSE
 // unblocking, session tampering/chronology/oversize, artifact ref safety,
 // write bounds, legacy classification join, catalog check CLI, cfg prefix.

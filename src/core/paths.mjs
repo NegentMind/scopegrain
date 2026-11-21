@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Path safety: canonical relative paths, containment and link rejection.
 // Stored paths are project-relative POSIX strings.
 //

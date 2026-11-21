@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Shared proof primitives for the opt-in journal-backed owned stores
 // (transition, approvals, sessions, plans, workspaces). The five stores
 // were built in parallel and duplicated the same read machinery: a

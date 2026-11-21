@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Operational memory: bounded JSONL stores under paths.memory.
 // Lessons, skill outcomes, progress archive and goals reproduce the
 // legacy lessons.md / skill-outcomes.json / avance / strategy loops as

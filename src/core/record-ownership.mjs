@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Shared read-only ownership proof for typed stores. A current record is
 // proven by its canonical sidecar, an authorized scope, a committed
 // two-event create operation and immutable journal snapshots that match

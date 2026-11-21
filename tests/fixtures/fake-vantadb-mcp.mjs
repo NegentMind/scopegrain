@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Fake vantadb-mcp stdio server for tests: NDJSON JSON-RPC over stdin/stdout.
 // Persists to VANTADB_STORAGE_PATH/fake-store.json so records survive across
 // spawns, like the real server does with its storage path.

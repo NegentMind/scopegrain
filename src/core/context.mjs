@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Runtime context: binds an explicit project root and config location.
 // No path is ever derived by ascending from the Scopegrain installation.
 import { configDirOf, loadConfig } from './config.mjs';

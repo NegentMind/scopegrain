@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Closed data contracts for selective capture notes: input normalization,
 // store options and stored note/ownership validators. Pure checks only.
 import test from 'node:test';

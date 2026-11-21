@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // CLI surface for catalog/workflow/plan/artifact/session groups, the 13
 // workflow aliases, session record validation and versioning prompts.
 import test from 'node:test';

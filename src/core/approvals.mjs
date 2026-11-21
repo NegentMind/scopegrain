@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Content-bound approval ledger: immutable append of answers against a
 // digest-pinned target. Records intent only — actors and comments are
 // declared, never authenticated. Effects are limited to the next gate.

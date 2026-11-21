@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Task lifecycle cases (contract cases 11-12 plus stored-data gates).
 import test from 'node:test';
 import assert from 'node:assert/strict';

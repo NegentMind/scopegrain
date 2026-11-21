@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // docs-cli-drift: verb-table extraction, doc scanning and doctor wiring.
 import test from 'node:test';
 import assert from 'node:assert/strict';

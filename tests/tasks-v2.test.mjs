@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Task V2: methodology fields, formal refs, scope subset, stored strictness.
 // ctx.config.methodology is set in memory until C2-C config support.
 import test from 'node:test';

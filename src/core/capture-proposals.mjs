@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Selective capture producers: pure, deterministic mapping from recorded
 // harness activity (committed journal operations, explicit init answers)
 // to capture PROPOSALS for opt-in review - never captures themselves.

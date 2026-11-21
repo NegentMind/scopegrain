@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Pure methodology data: assessment validation/normalization and the
 // deterministic work classifier. No storage, gates or transition imports -
 // this module computes facts from declared facts only (operator-attributed,

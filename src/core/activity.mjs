@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Retroactive activity registration: actions performed outside the task
 // lifecycle (a direct commit, an ad-hoc edit, a manual fix) get recorded
 // as a task record plus a progress-log entry. Two honest shapes:

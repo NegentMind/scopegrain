@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // CLI wave-2 surface: lifecycle verbs (adopt/update/backup/restore/
 // uninstall), investigate + --save, host activate, capture proposals/
 // review, view server and the readInputFile ENOENT taxonomy fix.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Immutable artifacts: create-only documents (spec, report, research,
 // decision, lesson, handoff, review) stored under configured paths.
 // prepareArtifact is read-only; applyPlan performs the exclusive write.

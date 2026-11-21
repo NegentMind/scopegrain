@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // owned-chain unit coverage: the shared proof primitives behind the five
 // update-chain stores. Pure helpers are tested directly; bound reads and
 // chain walks use a real committed two-event operation.

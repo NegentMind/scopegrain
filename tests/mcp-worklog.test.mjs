@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // MCP wave-2 tools: next_task selection/claim, meta patches, dispositions,
 // worklog add/read, goals and metrics through the real handlers.
 // SDK/zod are hard dependencies.

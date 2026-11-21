@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // report save/list: persisted doctor snapshots under paths.reports.
 import test from 'node:test';
 import assert from 'node:assert/strict';

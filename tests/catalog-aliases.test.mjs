@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Catalog aliases: resolution, defaults, conflicts, snapshot carry-over.
 import test from 'node:test';
 import assert from 'node:assert/strict';

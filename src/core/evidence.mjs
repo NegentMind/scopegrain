@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Evidence payloads are attestations supplied by the operator or agent.
 // They record declared commands, results and reviewer contexts; they are not
 // authenticated identity nor proof that checks actually ran.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Resource recovery: diagnose, restore-plan CAS, apply, conflicts.
 import test from 'node:test';
 import assert from 'node:assert/strict';

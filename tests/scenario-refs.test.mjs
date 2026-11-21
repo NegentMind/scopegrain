@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Scenario-ref helpers: canonical pair resolution, stored strictness,
 // malformed spec guard, no coercion. RED first per lead rework.
 import test from 'node:test';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Lifecycle: backup manifest/apply and restore preview/apply.
 import test from 'node:test';
 import assert from 'node:assert/strict';

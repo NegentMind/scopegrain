@@ -227,23 +227,23 @@ nomenclatura heredada como API publica.
 
 ## 6. Lo que debe resolverse antes de publicar el paquete
 
-1. **Decision de licencia.** No existe `LICENSE`; `package.json` declara
-   `UNLICENSED` + `private: true`. Esa postura es valida para uso
-   privado/source-available y equivale hoy a "no redistribuir". Elegir
-   licencia es decision del propietario; una vez elegida, aplicar
-   cabeceras de licencia por archivo (`needs-license-header` aplica a
-   todo el paquete, no a IDs concretos).
-2. **Atestacion de autoria de los 65 IDs reutilizados.** Evidencia
-   disponible: 0/267 coincidencias de hash, ratio de tamano medio ~10%,
-   cero terminos de dominio heredado, vocabulario de arquitectura
-   posterior al original, historia git limpia y significado declarado
-   `fresh-portable-procedure-not-verbatim-equivalence`. Residuo abierto:
-   derivacion a nivel de parafasis, mecanicamente no excluible. Para
-   cerrarlo: (a) atestacion de autoria del propietario, o (b) revision
-   semantica muestreada contra los cuerpos congelados, que exige levantar
-   la restriccion de no-lectura bajo alcance controlado. Prioridad de
-   muestreo: `python-sdk` (57%), `plan-design-review` (46%),
-   `debugging-and-error-recovery` (41%), `task-system` (37%).
+1. **Decision de licencia.** Resuelta el 2026-11-20: el propietario
+   eligio Apache License 2.0. `LICENSE`, `NOTICE` y `AUTHORS` existen en
+   raiz; `package.json` declara `Apache-2.0`; los headers SPDX se
+   aplicaron a todos los `.mjs` rastreados y a `verify.yml`; los `.md` y
+   `.json` quedan cubiertos por `LICENSE` + `NOTICE` (los frontmatter y
+   parsers JSON impiden cabeceras por archivo). `private: true` se
+   conserva; la publicacion sigue siendo una decision separada.
+2. **Atestacion de autoria de los 65 IDs reutilizados.** Cerrada el
+   2026-11-20 por atestacion explicita del propietario (opcion a): los
+   cuerpos son redaccion propia, no parafrasis del material archivado.
+   Evidencia mecanica conservada: 0/267 coincidencias de hash, ratio de
+   tamano medio ~10%, cero terminos de dominio heredado, vocabulario de
+   arquitectura posterior al original, historia git limpia y significado
+   declarado `fresh-portable-procedure-not-verbatim-equivalence`. La
+   revision semantica muestreada (opcion b; prioridad `python-sdk` 57%,
+   `plan-design-review` 46%, `debugging-and-error-recovery` 41%,
+   `task-system` 37%) queda disponible si un tercero la requiere.
 3. **Material de terceros dentro de `legacy/opencode/` nunca auditado.**
    IDs como `gsap-*`, `figma-*`, `a11y-*`, `awesome-claude-design`
    sugieren skills de terceros sin licencia registrada. No bloquea el

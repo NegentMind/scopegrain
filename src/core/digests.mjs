@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Canonical JSON algorithm authored by the lead for src/core/digests.mjs.
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // CLI surface cases: JSON to stdout, errors to stderr, exit codes,
 // no implicit writes without --apply or an interactive 'yes'.
 import test from 'node:test';

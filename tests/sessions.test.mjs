@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Session cases: opt-in writes, budget, CAS, policy gating, resume.
 import test from 'node:test';
 import assert from 'node:assert/strict';

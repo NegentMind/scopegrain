@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Host variants: opencode V2, antigravity app-cli/ide, emitAgents,
 // selectionRequired metadata, no host-root writes, alias bridges.
 import test from 'node:test';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Read-only project discovery. No writes, no shell, no network.
 // Only allowlisted manifests are opened, with size, depth and entry bounds.
 import path from 'node:path';

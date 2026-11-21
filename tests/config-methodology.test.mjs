@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Methodology mode contract: validator, answers/config round-trip through
 // DISK + context, no-op byte preservation, conflict, interactive seams,
 // policy copy, doctor templates, bounded template reads.

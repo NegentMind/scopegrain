@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Discovery cases (implementation contract cases 1-5 plus bounds rework).
 import test from 'node:test';
 import assert from 'node:assert/strict';

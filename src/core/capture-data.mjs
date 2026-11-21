@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Pure closed data contracts for selective capture notes. No filesystem,
 // policy loads or remote calls: these validators shape data and return
 // independent JSON-safe clones only. Shared record-ownership primitives

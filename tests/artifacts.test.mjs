@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Artifact cases: kinds/destinations, create-only, read validation.
 import test from 'node:test';
 import assert from 'node:assert/strict';

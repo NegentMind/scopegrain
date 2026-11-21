@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // D2 fixtures use real factories/approval APIs. Seeded task states are
 // explicitly SYNTHETIC attestations, not evidence of execution or identity.
 import fs from 'node:fs';

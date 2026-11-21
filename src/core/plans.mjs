@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Plan records: atomic creation of a dependency DAG plus its task files.
 // preparePlan is read-only; applyPlan (bootstrap) performs exclusive writes.
 // Stored plans and tasks are validated on every read; dependency readiness

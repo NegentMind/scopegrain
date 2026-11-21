@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Bound owned-design store: immutable structured V2 design artifacts
 // plus their ownership companion, created in one recoverable journal
 // operation. The foreign spec binding stays a domain rule checked on the

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Opt-in CLI contracts only. Ownership proof remains core-authored;
 // local all-area grants are not authenticated actor authorization.
 import test from 'node:test';

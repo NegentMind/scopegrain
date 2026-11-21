@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // BLOCK0 core hardening: bounded reads, canonical catalog paths, task
 // timestamp invariants, size-shortcircuit preflight/doctor, policy shape.
 import test from 'node:test';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Exact CLI surface for typed captures: capture create/show are thin
 // grouped commands over createCaptureStore; no shortcuts or writers.
 import test from 'node:test';

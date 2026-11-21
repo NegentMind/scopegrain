@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Pure helpers for journaled mutable-record updates. No filesystem,
 // policy loads, bindings or remote calls: these validators shape update
 // changes and verify revision/hash chain coherence for history readers.

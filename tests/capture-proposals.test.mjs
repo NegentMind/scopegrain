@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Selective capture producers: pure proposals from committed journal
 // operations and explicit init answers, plus a pure review gate. Producers
 // never write, never intercept conversations and never promote inference.

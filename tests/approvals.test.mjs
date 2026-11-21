@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Approval ledger contract: digest-bound targets, statuses, scope, history
 // invariants, CAS answers, spec openQuestions, locks, drift.
 import test from 'node:test';

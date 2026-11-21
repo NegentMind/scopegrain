@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // docs <-> CLI surface drift input for doctor (warning-level). Compares
 // the verbs project documentation presents as runnable commands against
 // the real dispatch surface: the COMMANDS table in src/cli.mjs plus the

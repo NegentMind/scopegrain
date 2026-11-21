@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Verified token locks over absolute paths: the journal acquire/release
 // discipline generalized for the *.lock callers. acquire writes a random
 // token under 'wx' and records the created file's {dev, ino}; release

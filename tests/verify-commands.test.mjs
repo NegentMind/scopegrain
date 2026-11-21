@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Supervised verification commands (debt B6): store contract, CLI
 // preview/apply surface and the bounded, approval-gated executor.
 // Nothing is auto-approved and nothing is auto-executed; `verify run`

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Opt-in host activation: previews and applies generated native proposals
 // into project-local host destinations (e.g. .claude/skills/<n>/SKILL.md).
 //

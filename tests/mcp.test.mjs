@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // MCP cases: importing never connects; descriptors are read-only and share
 // the same bound context as the CLI. SDK/zod are hard dependencies.
 import test from 'node:test';

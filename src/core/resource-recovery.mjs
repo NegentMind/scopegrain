@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Resource recovery: read-only diagnosis plus a guarded restore flow that
 // only ever sources bytes from THIS installation at the SHA the project
 // snapshot expects. Never downloads, never uses legacy/global fallbacks.

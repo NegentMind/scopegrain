@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Configuration contract: validation, creation and loading.
 // The canonical workflow policy lives in policy/workflow.json; this module
 // models project configuration and init answers.

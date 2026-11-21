@@ -1,0 +1,12 @@
+Scopegrain — project-neutral engineering harness for coding agents
+Copyright 2026 The Negent Mind Authors
+
+This product includes software developed by The Negent Mind Authors
+(see AUTHORS).
+
+The Apache License 2.0 applies to all files tracked in this repository.
+The `legacy/` directory is not part of the tracked repository content
+and is neither licensed nor distributed. Files under `resources/`,
+`docs/`, `templates/` and other prose/JSON formats carry no per-file
+license header (frontmatter and JSON parsers constrain them); they are
+covered by this NOTICE and the LICENSE file at the repository root.

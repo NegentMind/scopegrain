@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Resumable init wizard sessions (debt E8): the interactive init flow can
 // stop mid-way and resume later without losing answered questions.
 //

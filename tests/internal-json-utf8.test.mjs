@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Internal JSON readers must reject non-roundtrippable UTF-8. The lossy
 // toString('utf8') decode rewrote invalid sequences to U+FFFD before
 // JSON.parse, so in-string corruption was silently accepted. Source stays

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Product lifecycle: adopt, update, backup, restore and uninstall.
 // Every verb has a read-only prepare (no writes, no directories, no ID
 // reservations) and, where applicable, a create-only apply that re-runs the

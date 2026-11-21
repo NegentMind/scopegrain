@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Shared owned-record store: an immutable source document plus its
 // ownership sidecar, created in one recoverable journal operation.
 // Every kind follows the same protocol — closed options/input, scope

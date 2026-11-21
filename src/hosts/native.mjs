@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Native host adapter PROPOSALS: thin bridge files projected under
 // <configDir>/integrations/native/<host>/... mirroring the intended host
 // target path. Everything here is a reviewable proposal — destination

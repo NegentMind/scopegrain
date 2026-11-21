@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Versioning proposal files: a config-directory .gitignore covering
 // unversioned artifact paths that live inside the config directory, and a
 // root-relative proposal document for paths outside it. The project root

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Pure shared ownership primitives: closed nine-field sidecar shape for
 // capture/spec/design/report revision0 only, canonical clones, no defaults.
 import test from 'node:test';

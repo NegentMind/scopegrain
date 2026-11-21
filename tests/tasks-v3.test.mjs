@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Task V3: semantic layer (backlog/disposition/priority/analysis/steps/...),
 // metadata CAS updates, operational memory logs, goals and metrics.
 import test from 'node:test';

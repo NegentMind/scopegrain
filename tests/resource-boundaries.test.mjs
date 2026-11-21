@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Resource boundary cases: V1 snapshots, aggregate overflow, junction revalidation,
 // default counting, dedupe, recovery negatives, wire-level MCP strictness,
 // variant malformed shapes.

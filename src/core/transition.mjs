@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Locked CAS transitions and action checks over stored task state.
 // The owned-task store adds an opt-in journal-backed writer/reader for
 // the same records: creates pair the task document with an ownership

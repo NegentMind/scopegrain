@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Specification/design V2 contract: closed inputs, verbatim request,
 // uniqueness, renderer coherence, digest binding, drift detection, V2 shape.
 import test from 'node:test';

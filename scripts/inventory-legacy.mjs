@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Mechanical provenance capture, not a semantic, security or license audit.
 // No archived instruction is imported or executed; raw bodies never enter output.
 import fs from 'node:fs';

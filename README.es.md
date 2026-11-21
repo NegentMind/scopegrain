@@ -252,11 +252,12 @@ manualmente; su primera ejecucion remota completo con exito el 2026-11-18.
 
 ## Codigo y licencia
 
-El repositorio puede estar disponible para lectura de su codigo fuente, pero
-esa disponibilidad no concede una licencia de codigo abierto ni de
-redistribucion. `package.json` conserva `private: true` y `UNLICENSED`;
-no se publica un paquete npm. El material heredado permanece fuera del
-circuito activo y sujeto a revision de procedencia y derechos.
+Licenciado bajo Apache License, Version 2.0 — ver [LICENSE](LICENSE),
+[NOTICE](NOTICE) y [AUTHORS](AUTHORS). `package.json` conserva
+`private: true`; no se publica un paquete npm. El material heredado
+bajo `legacy/` no forma parte del repositorio rastreado y permanece
+fuera de la distribucion a la espera de una revision de licencias
+por pieza.
 
 ## Documentacion
 

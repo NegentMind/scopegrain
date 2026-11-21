@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Workspace snapshot: hash verification, tamper detection, V1 warning,
 // installation-independence.
 import test from 'node:test';

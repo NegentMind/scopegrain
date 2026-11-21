@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Triage routes based on identifiers in the frozen capture, not body approval.
 import fs from 'node:fs';
 import crypto from 'node:crypto';

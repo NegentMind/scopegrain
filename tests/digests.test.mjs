@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // canonicalJSON/canonicalDigest contract: deterministic key order, array
 // order sensitive, hostile shapes rejected, lead projection fields.
 import test from 'node:test';

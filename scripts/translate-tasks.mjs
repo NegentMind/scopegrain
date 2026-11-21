@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // One-off: translate task titles/contracts to Spanish via `task meta` (CAS).
 import fs from 'node:fs';
 import path from 'node:path';

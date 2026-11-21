@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Localhost-only read-only JSON API over Scopegrain stores.
 //
 // Contract:

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // activity record + hooks: retroactive registration of out-of-loop work.
 import test from 'node:test';
 import assert from 'node:assert/strict';

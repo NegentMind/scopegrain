@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Host integration proposals. These are reviewable FRAGMENTS, never merged
 // into active host configuration by Scopegrain. serverPath and projectRoot
 // inside are absolute and machine-local: regenerate after moving the

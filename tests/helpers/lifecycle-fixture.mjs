@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Shared lightweight fixtures for the lifecycle test files.
 //
 // The generic bootstrappedCtx() projects the FULL installation catalog

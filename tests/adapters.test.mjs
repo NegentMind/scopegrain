@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Adapter rendering cases: fragments parse, args stay separated, the
 // --config token is the project-relative path resolveContext accepts.
 import test from 'node:test';

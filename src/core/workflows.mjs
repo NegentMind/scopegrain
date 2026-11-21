@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Workflow packets: read-only bundles that hand a command declaration plus
 // its resolved dependencies to a host. Project-bound: content comes from
 // the workspace snapshot, never silently from the installation.

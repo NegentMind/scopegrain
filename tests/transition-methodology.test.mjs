@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // The causal RED regression intentionally imports ONLY existing APIs, not
 // methodology.mjs, so an import failure cannot stand in for the ACT bypass.
 import test from 'node:test';

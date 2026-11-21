@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Task state operations: JSON documents under paths.tasks, guarded by
 // per-task exclusive locks and compare-and-swap on revision.
 import fs from 'node:fs';

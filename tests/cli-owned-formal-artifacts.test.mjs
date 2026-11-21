@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // CLI contracts through real factories/journal. All REVIEW task states and
 // verification results are SYNTHETIC fixture declarations, not execution.
 import test from 'node:test';

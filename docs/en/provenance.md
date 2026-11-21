@@ -225,22 +225,23 @@ public API.
 
 ## 6. What must be resolved before the package can go public
 
-1. **License decision.** There is no `LICENSE`; `package.json` declares
-   `UNLICENSED` + `private: true`. That posture is valid for
-   private/source-available use and today amounts to "do not
-   redistribute." Choosing a license is an owner decision; once chosen,
-   per-file license headers apply (`needs-license-header` applies
-   package-wide, not to specific IDs).
-2. **Authorship attestation for the 65 reused IDs.** Available evidence:
-   0/267 hash matches, ~10% median size ratio, zero legacy domain terms,
-   post-original architecture vocabulary, clean git history and the
-   declared `fresh-portable-procedure-not-verbatim-equivalence` meaning.
-   Open residual: paraphrase-level derivation, mechanically
-   non-excludable. To close it: (a) owner authorship attestation, or
-   (b) sampled semantic review against the frozen bodies, which requires
-   lifting the no-read constraint under controlled scope. Sampling
-   priority: `python-sdk` (57%), `plan-design-review` (46%),
-   `debugging-and-error-recovery` (41%), `task-system` (37%).
+1. **License decision.** Resolved on 2026-11-20: the owner chose the
+   Apache License 2.0. `LICENSE`, `NOTICE` and `AUTHORS` exist at the
+   root; `package.json` declares `Apache-2.0`; SPDX headers were applied
+   to every tracked `.mjs` and to `verify.yml`; `.md` and `.json` files
+   are covered by `LICENSE` + `NOTICE` (frontmatter and JSON parsers
+   preclude per-file headers). `private: true` is retained; publication
+   remains a separate decision.
+2. **Authorship attestation for the 65 reused IDs.** Closed on
+   2026-11-20 by explicit owner attestation (option a): the bodies are
+   the owner's own writing, not paraphrases of archived material.
+   Mechanical evidence preserved: 0/267 hash matches, ~10% median size
+   ratio, zero legacy domain terms, post-original architecture
+   vocabulary, clean git history and the declared
+   `fresh-portable-procedure-not-verbatim-equivalence` meaning. The
+   sampled semantic review (option b; priority `python-sdk` 57%,
+   `plan-design-review` 46%, `debugging-and-error-recovery` 41%,
+   `task-system` 37%) remains available if a third party requires it.
 3. **Third-party material inside `legacy/opencode/` was never audited.**
    IDs such as `gsap-*`, `figma-*`, `a11y-*`, `awesome-claude-design`
    suggest third-party skills with no recorded license. It does not block

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Semantic project investigation: a bounded, read-only layer on top of
 // inspectProject. No writes, no shell, no network. Detection is limited
 // to fixed existence probes (lstat only), one bounded listing of

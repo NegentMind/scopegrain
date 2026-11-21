@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Pure shared primitives for record-ownership sidecars. No filesystem,
 // policy loads or remote calls: these validators shape data and return
 // independent JSON-safe clones only. Capture keeps its domain codes and

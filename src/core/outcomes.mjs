@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Outcome evidence: structured report artifact bound to the CURRENT task,
 // spec, design, plan and verification. Operator body is verbatim; hashes
 // are computed here, never accepted from the caller.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Published contract surface: the JSON Schemas under schemas/ describe the
 // persisted/derived shapes below, and real code output must satisfy them.
 // No ajv dependency — a bounded draft-2020-12 subset checker covers exactly

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Host activation: dry-run preview, create-only apply, noop re-apply,
 // conflict blocking, surface filtering, global/manual-merge/reserved
 // skips, the provisional hermes proposal and per-host structural parse

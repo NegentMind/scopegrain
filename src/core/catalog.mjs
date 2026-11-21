@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Catalog loader: validates catalog/manifest.json and serves model-facing
 // resources verbatim. Content is data, never interpreted or executed.
 import fs from 'node:fs';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // JSON input encoding contracts. Source stays ASCII; Unicode is test data.
 import test from 'node:test';
 import assert from 'node:assert/strict';

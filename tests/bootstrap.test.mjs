@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Init plan cases (implementation contract cases 8-9 plus reworked gates).
 import test from 'node:test';
 import assert from 'node:assert/strict';

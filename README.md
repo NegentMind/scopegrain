@@ -252,11 +252,11 @@ manually only; its first remote run completed successfully on 2026-11-18.
 
 ## Code and license
 
-The repository may be available for source reading, but that
-availability does not grant an open-source or redistribution license.
-`package.json` keeps `private: true` and `UNLICENSED`; no npm package is
-published. The inherited material remains outside the active circuit and
-subject to provenance and rights review.
+Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE),
+[NOTICE](NOTICE) and [AUTHORS](AUTHORS). `package.json` keeps
+`private: true`; no npm package is published. The inherited material
+under `legacy/` is not part of the tracked repository and remains
+outside the distribution pending per-piece license review.
 
 ## Documentation
 

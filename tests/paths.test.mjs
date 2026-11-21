@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Path safety cases (implementation contract case 6 plus Windows aliases).
 import test from 'node:test';
 import assert from 'node:assert/strict';

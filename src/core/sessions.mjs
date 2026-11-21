@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Bounded sessions: an explicit operation budget recorded against a task.
 // One exclusive lock, compare-and-swap revision, atomic temp+rename, no
 // stale-lock recovery. Policy or budget failure leaves bytes unchanged.

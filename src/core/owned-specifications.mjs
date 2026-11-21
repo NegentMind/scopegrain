@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Bound owned-specification store: immutable structured V2 specifications
 // plus their ownership companion, created in one recoverable journal
 // operation. Logical grant areas live in the sidecar and journal events -

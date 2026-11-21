@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Lifecycle: adopt preview, update preview/apply, doctor lifecycle checks.
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';

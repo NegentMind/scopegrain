@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Bound capture store: typed note + ownership companion created through the
 // strict journal seam and proven by a committed two-event operation.
 import test from 'node:test';

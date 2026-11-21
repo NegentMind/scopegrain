@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // MCP input hardening: tool arguments are bounded in BOTH layers. The zod
 // inputSchema carries per-field maxLength (advertised in tools/list), and
 // strictify rejects oversized serialized args for direct handler calls,

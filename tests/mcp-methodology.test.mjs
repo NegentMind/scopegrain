@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // C2-E MCP: direct descriptors and real in-memory protocol transport only.
 // No stdio startup, processes or external services. All fixture execution/
 // identity claims remain synthetic declarations, not verified facts.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Bound owned-specification store: immutable V2 spec + ownership companion
 // created through the strict journal seam and proven by a committed
 // two-event operation. No adoption, listing, history or backend calls.

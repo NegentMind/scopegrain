@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Shared read-only formal binding collector for SDD gates and outcome
 // factories. Foreign read failures become accumulated issues, never raw
 // TypeErrors or invented fallback records.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Structured specification and design documents. V2 artifacts carry typed
 // `data`; the stored body is the deterministic renderer materialization of
 // that data, so digest coherence is checkable on every read.

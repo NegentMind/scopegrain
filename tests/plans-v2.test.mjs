@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Plan V2: formal refs pair, per-task scenarioRefs, union coverage,
 // inherited fields, V1 preservation, DAG unchanged.
 import test from 'node:test';

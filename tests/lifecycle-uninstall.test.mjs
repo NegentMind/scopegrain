@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Lifecycle: uninstall preview/apply -- deletes only provably harness files.
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';

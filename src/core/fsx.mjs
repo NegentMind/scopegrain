@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Small synchronous filesystem helpers shared by core modules.
 import fs from 'node:fs';
 import { err } from './errors.mjs';

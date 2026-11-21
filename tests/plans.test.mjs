@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Plan cases: DAG validation, atomic creation, dependency readiness.
 import test from 'node:test';
 import assert from 'node:assert/strict';

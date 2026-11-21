@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Shared test fixtures. Temporary projects live under tests/.tmp and every
 // test removes only the directories it created.
 import fs from 'node:fs';

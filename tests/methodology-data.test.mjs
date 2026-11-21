@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Pure methodology data: assessment validation + deterministic classifier.
 // All facts are declared/attributed - the classifier never authenticates.
 import test from 'node:test';

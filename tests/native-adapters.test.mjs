@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Native adapter proposals: projection shape, no host writes, policy-exact
 // frontmatter, codex TOML, V2 opencode fragment, activation plan.
 import test, { after } from 'node:test';

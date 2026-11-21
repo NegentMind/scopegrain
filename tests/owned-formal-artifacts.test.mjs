@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Real stores and journal proof. REVIEW states and verification below are
 // explicitly SYNTHETIC declarations, never evidence of executed commands.
 import test from 'node:test';

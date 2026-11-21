@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Verified token locks: the F-01 invariant — a stale release must never
 // unlink a lock a new owner recreated at the same path. Covers the helper
 // directly plus one end-to-end caller path (task transition) proving the

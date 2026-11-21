@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // loadMethodologyPolicy: closed-shape loader, typed validation before any
 // .includes, authored-value enforcement, deep-freeze, no cache poisoning.
 // Each case runs against a fresh module import in a minimal fixture - the

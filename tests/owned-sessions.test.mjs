@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Owned-session store: opt-in journal-backed mutable ownership over the
 // strict create/update seams. Session open = one 2-event create op
 // (session source + session-ownership sidecar at rev0); each registered

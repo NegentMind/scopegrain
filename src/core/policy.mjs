@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Canonical workflow policy loader: policy/workflow.json is the single
 // source of truth for states, transitions, actions and acceptance rules.
 import { fileURLToPath } from 'node:url';

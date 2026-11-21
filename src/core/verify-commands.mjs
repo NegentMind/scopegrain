@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Supervised verification commands (debt B6): literal-argv command
 // records stored per project under <paths.state>/verify-commands.json.
 // Every record — declared or inferred — is born UNAPPROVED; nothing

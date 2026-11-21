@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Init planning and application: renders templates, builds the full file
 // plan, preflights every destination and creates files exclusively.
 import path from 'node:path';

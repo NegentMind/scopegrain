@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Pure validator for outcome report V2 data — bindings computed by the
 // runtime, never free operator parameters. See schemas/outcome-data.schema.json.
 import { err } from './errors.mjs';

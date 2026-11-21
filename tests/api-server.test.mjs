@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Local JSON API (viewer block G): route whitelist, error envelope,
 // bounded lists, localhost binding and read-only coverage of tasks, plans,
 // artifacts, journal operations and owned captures.
