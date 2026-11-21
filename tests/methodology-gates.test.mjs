@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -520,5 +521,41 @@ test('formal current review is required; explicit waiver works without fabricate
     assertAllowed(f, f.acceptOpts);
     // Query replaces locator in a clone, preserving stored checks/review/revision.
     assert.equal(getTask(f.ctx, f.task.id).verification.outcomeEvidenceId, undefined);
+  } finally { cleanup(f.dir); }
+});
+
+test('researchEscalation: 3 VERIFY->ACT reworks block ->ACT until RESEARCH visit', () => {
+  const f = lightFixture({ mode: 'organic-sdd' });
+  try {
+    const t = (from, to, revision) => ({ at: f.task.createdAt,
+      event: 'transition', from, to, revision });
+    const base = { at: f.task.createdAt, event: 'created',
+      state: 'PLAN', revision: 0 };
+    const threeReworks = [
+      base, t('PLAN', 'ACT', 1), t('ACT', 'VERIFY', 2),
+      t('VERIFY', 'ACT', 3), t('ACT', 'VERIFY', 4),
+      t('VERIFY', 'ACT', 5), t('ACT', 'VERIFY', 6),
+      t('VERIFY', 'ACT', 7), t('ACT', 'VERIFY', 8),
+    ];
+    saveTask(f, { ...f.task, state: 'VERIFY',
+      verification: verification(), history: threeReworks });
+    has(query(f, { to: 'ACT' }), 'RESEARCH_ESCALATION_REQUIRED',
+      'rework cycle');
+    // Two reworks stay under the authored threshold.
+    saveTask(f, { ...f.task, history: threeReworks.slice(0, 6) });
+    assertAllowed(f, { to: 'ACT' });
+    // A RESEARCH visit after the last rework clears the escalation.
+    saveTask(f, { ...f.task, history: [...threeReworks,
+      t('VERIFY', 'COLLATERAL', 9), t('COLLATERAL', 'RESEARCH', 10)] });
+    assertAllowed(f, { to: 'ACT' });
+    // A RESEARCH visit BEFORE the last rework does not count.
+    saveTask(f, { ...f.task, history: [
+      base, t('PLAN', 'ACT', 1), t('ACT', 'VERIFY', 2),
+      t('VERIFY', 'ACT', 3), t('ACT', 'VERIFY', 4),
+      t('VERIFY', 'COLLATERAL', 5), t('COLLATERAL', 'RESEARCH', 6),
+      t('RESEARCH', 'ACT', 7), t('ACT', 'VERIFY', 8),
+      t('VERIFY', 'ACT', 9), t('ACT', 'VERIFY', 10),
+      t('VERIFY', 'ACT', 11), t('ACT', 'VERIFY', 12)] });
+    has(query(f, { to: 'ACT' }), 'RESEARCH_ESCALATION_REQUIRED');
   } finally { cleanup(f.dir); }
 });

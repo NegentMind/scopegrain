@@ -21,6 +21,7 @@ import { checkDocsCliDrift } from './docs-cli-drift.mjs';
 import { validateSessionShape } from './sessions.mjs';
 import { validateVerifyStore, verifyStoreRel } from './verify-commands.mjs';
 import { gitHooksDir } from './hooks.mjs';
+import { prepareActivation } from '../hosts/activation.mjs';
 
 const MAX_LIST = 100000;
 const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals'];
@@ -622,6 +623,116 @@ export function runDoctor(ctx, opts = {}) {
           text.includes('scopegrain-activity')
             ? 'managed hook installed'
             : 'post-commit exists without managed block');
+      }
+    }
+  }
+
+  // Stale locks: *.lock files under the state dir are classified with
+  // the same rule the lock layer uses — a {t,pid,at} payload whose pid
+  // is provably dead is reclaimable; a live pid is a real writer, never
+  // broken; metadata-less payloads age out past the default TTL. Stale
+  // findings are warnings: the next acquire reclaims them automatically.
+  {
+    const stateAbs = resolveInside(
+      projectRoot, config.paths.state, 'state');
+    const locks = [];
+    const queue = [{ abs: stateAbs, rel: config.paths.state, depth: 0 }];
+    let entriesSeen = 0;
+    while (queue.length > 0 && entriesSeen < MAX_LIST) {
+      const cur = queue.shift();
+      const st = lstatOrNull(cur.abs);
+      if (!st || !st.isDirectory() || st.isSymbolicLink()) continue;
+      const { entries } = readDirBounded(cur.abs, MAX_LIST);
+      entriesSeen += entries.length;
+      for (const e of entries) {
+        const rel = `${cur.rel}/${e.name}`;
+        const abs = path.join(cur.abs, e.name);
+        if (e.isDirectory() && !e.isSymbolicLink() && cur.depth < 3) {
+          queue.push({ abs, rel, depth: cur.depth + 1 });
+        } else if (e.isFile() && e.name.endsWith('.lock')) {
+          locks.push({ abs, rel });
+        }
+      }
+    }
+    const stale = [];
+    let held = 0;
+    for (const { abs, rel } of locks) {
+      const l = readFileLimited(abs, 4096);
+      const text = l.exceeded ? '' : l.content.toString('utf8');
+      let pid = null;
+      try {
+        const parsed = JSON.parse(text);
+        if (Number.isSafeInteger(parsed?.pid) && parsed.pid > 0) {
+          pid = parsed.pid;
+        }
+      } catch { /* legacy payload */ }
+      if (pid !== null) {
+        try {
+          process.kill(pid, 0);
+          held += 1;
+        } catch (e) {
+          if (e && e.code === 'EPERM') held += 1;
+          else stale.push(`${rel}: dead pid ${pid}`);
+        }
+      } else {
+        const st = lstatOrNull(abs);
+        const age = st ? Date.now() - Number(st.mtimeMs) : 0;
+        if (age > 60 * 60 * 1000) {
+          stale.push(`${rel}: metadata-less, older than TTL`);
+        } else {
+          held += 1;
+        }
+      }
+    }
+    if (stale.length === 0) {
+      push('stale-locks', true,
+        locks.length === 0 ? 'no lock files' : `${held} held, none stale`);
+    } else {
+      push('stale-locks', false,
+        `${stale.length} stale (auto-reclaimed on next acquire): `
+        + `${stale.slice(0, 5).join(', ')}`, { severity: 'warning' });
+    }
+  }
+
+  // Host-fragment drift: re-render the activation proposals for each
+  // configured host and classify destinations. `conflict` means the
+  // installed fragment diverges from what the current catalog+policy
+  // would generate (local edit or tamper) — a failure, mirroring the
+  // generated-files check. `create` entries are proposals never applied.
+  {
+    const hosts = Array.isArray(config.hosts) ? config.hosts : [];
+    if (hosts.length === 0) {
+      push('host-fragments', true, 'no hosts configured');
+    } else {
+      const details = [];
+      const bad = [];
+      try {
+        for (const host of hosts) {
+          try {
+            const plan = prepareActivation(ctx, { host, installRoot });
+            const c = { create: 0, noop: 0, conflict: 0 };
+            const divergent = [];
+            for (const f of plan.files) {
+              c[f.action] = (c[f.action] ?? 0) + 1;
+              if (f.action === 'conflict') divergent.push(f.rel);
+            }
+            details.push(`${host}: ${c.noop} ok, ${c.create} pending`
+              + (c.conflict > 0 ? `, ${c.conflict} divergent` : ''));
+            if (c.conflict > 0) {
+              bad.push(`${host}: ${divergent.slice(0, 5).join(', ')}`);
+            }
+          } catch (e) {
+            bad.push(`${host}: ${e.code ?? e.message}`);
+          }
+        }
+      } catch (e) {
+        bad.push(`cannot evaluate: ${e.code ?? e.message}`);
+      }
+      if (bad.length === 0) {
+        push('host-fragments', true, details.join(' | '));
+      } else {
+        push('host-fragments', false,
+          `${details.join(' | ')} — divergent: ${bad.join(' | ')}`);
       }
     }
   }

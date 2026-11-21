@@ -165,6 +165,39 @@ test('operational checks: absent stores stay green on fresh init', () => {
   } finally { cleanup(dir); }
 });
 
+test('operational checks: stale lock with dead pid warns', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    // 99999999 exceeds the Windows pid space; provably dead on any OS.
+    writeFile(dir, '.tasksystem/state/journal/.lock',
+      '{"t":"x","pid":99999999,"at":0}\n');
+    const report = runDoctor(ctx);
+    const check = report.checks.find((c) => c.name === 'stale-locks');
+    assert.ok(check && !check.ok);
+    assert.equal(check.severity, 'warning'); // auto-reclaimable, not fatal
+    assert.ok(check.detail.includes('dead pid'));
+    // Still a foreign file: doctor never deletes locks.
+    assert.ok(exists(dir, '.tasksystem/state/journal/.lock'));
+  } finally { cleanup(dir); }
+});
+
+test('operational checks: divergent host fragment fails', async () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    const { prepareActivation }
+      = await import('../src/hosts/activation.mjs');
+    const plan = prepareActivation(ctx, { host: 'devin' });
+    const target = plan.files.find((f) => f.action === 'create');
+    assert.ok(target, 'expected at least one applyable devin proposal');
+    writeFile(dir, target.rel, 'tampered fragment\n');
+    const report = runDoctor(ctx);
+    assert.equal(report.status, 'needs-attention');
+    const check = report.checks.find((c) => c.name === 'host-fragments');
+    assert.ok(check && !check.ok);
+    assert.ok(check.detail.includes(target.rel));
+  } finally { cleanup(dir); }
+});
+
 test('missing required template is needs-attention without touching it', () => {
   const { dir, ctx } = bootstrapped();
   try {

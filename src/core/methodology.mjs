@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Read-only gates over current declared facts and content-bound approvals.
 // This is not identity/execution authentication, a cross-file transaction,
 // workflow-edge authorization or interception of native host tools.
@@ -187,6 +188,37 @@ export function evaluateMethodology(ctx, task,
     issues.push(issue('METHODOLOGY_REQUIRED',
       'methodology requires a current assessment or the formal specId+designId pair'));
     return result(route ?? 'blocked');
+  }
+  // researchEscalation enforcement (policy/methodology.json): a VERIFY->ACT
+  // transition is a recorded rework cycle — an attempt that failed
+  // verification and went back to implementation. At the authored attempts
+  // threshold, further ->ACT requires a RESEARCH visit after the last
+  // rework. Only recorded transitions count: the policy's causalGrouping
+  // declares hypothesis-grouped "similar failures" are never inferred
+  // from counts, and failure hypotheses are not yet a record field.
+  if (to === 'ACT') {
+    const esc = loadMethodologyPolicy().researchEscalation;
+    const history = Array.isArray(task.history) ? task.history : [];
+    let reworks = 0;
+    let lastRework = -1;
+    history.forEach((h, i) => {
+      if (h?.event === 'transition' && h.from === 'VERIFY'
+          && h.to === 'ACT') {
+        reworks += 1;
+        lastRework = i;
+      }
+    });
+    const researchedSince = history.slice(lastRework + 1).some(
+      (h) => h?.event === 'transition' && h.to === 'RESEARCH');
+    if (reworks >= esc.revisitDesignAfterAttemptsWithoutProgress
+        && !researchedSince) {
+      issues.push(issue('RESEARCH_ESCALATION_REQUIRED',
+        `${reworks} VERIFY->ACT rework cycle(s) without a RESEARCH visit; `
+        + 'researchEscalation requires investigation'
+        + (formal ? ' and design revisit' : '')
+        + ' before re-implementing (escape: RESEARCH via COLLATERAL, or '
+        + 'STALL -> PLAN -> RESEARCH)'));
+    }
   }
   if (route === 'light') {
     for (const s of task.scope) {

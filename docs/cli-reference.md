@@ -189,7 +189,9 @@ reporta: fingerprint igual/cambiado, manifiestos y lockfiles
 anadidos/eliminados/retenidos, contenido modificado con el mismo conjunto
 de rutas, stacks y comandos nuevos o desaparecidos, nuevas senales de
 host, decisiones obsoletas y notas explicativas. `doctor` incluye este
-diff en su advertencia de fingerprint cuando la evidencia cambio.
+diff en su advertencia de fingerprint cuando la evidencia cambio, y
+`update --diff` lo adjunta como `discoveryDiff` en el resultado antes de
+re-proyectar archivos generados.
 
 ### structure scan / status / show
 

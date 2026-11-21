@@ -190,7 +190,8 @@ reports: fingerprint match/mismatch, added/removed/retained manifests
 and lockfiles, content changed under an unchanged path set, added or
 dropped stacks and commands, new host signals, stale decisions and
 explanatory notes. `doctor` embeds this diff in its fingerprint warning
-when the evidence changed.
+when the evidence changed, and `update --diff` attaches it as
+`discoveryDiff` in the result before re-projecting generated files.
 
 ### structure scan / status / show
 

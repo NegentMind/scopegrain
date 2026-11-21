@@ -372,8 +372,9 @@ const COMMANDS = {
     usage: 'adopt --project PATH [--config REL] [--apply]',
   },
   update: {
-    flags: ['--project', '--config', '--reconcile', '--apply'], pos: 0,
-    usage: 'update --project PATH [--config REL] [--reconcile] [--apply]',
+    flags: ['--project', '--config', '--reconcile', '--apply', '--diff'],
+    pos: 0,
+    usage: 'update --project PATH [--config REL] [--reconcile] [--diff] [--apply]',
   },
   backup: {
     flags: ['--project', '--config', '--to', '--apply'], pos: 0,
@@ -1887,8 +1888,13 @@ async function cmdUpdate(flags) {
   const ctx = lifecycleCtx(flags);
   const options = {};
   if (flags['--reconcile']) options.reconcile = true;
-  return flags['--apply']
+  const result = flags['--apply']
     ? applyUpdate(ctx, options) : prepareUpdate(ctx, options);
+  if (!flags['--diff']) return result;
+  const { diffInvestigation, investigateProject }
+    = await import('./discovery/semantic.mjs');
+  return { ...result, discoveryDiff: diffInvestigation(ctx.config,
+    investigateProject(ctx.projectRoot, { config: ctx.config })) };
 }
 
 async function cmdBackup(flags) {
