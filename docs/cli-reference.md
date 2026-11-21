@@ -193,6 +193,23 @@ diff en su advertencia de fingerprint cuando la evidencia cambio, y
 `update --diff` lo adjunta como `discoveryDiff` en el resultado antes de
 re-proyectar archivos generados.
 
+### assess
+
+`assess --input DIFF_FILE [--assessment FILE]`
+
+Clasificacion de riesgo solo-por-evidencia sobre un unified diff. El core
+no ejecuta git: el operador produce el diff con su propia herramienta
+(p.ej. `git diff > out.patch`) y `assess` deriva senales de rutas, modos
+de archivo y contenido anadido. Salida JSON determinista: `risk`
+(`passive|medium|high`), `reasons[]` con senal+path+detalle,
+`changed_paths`, `changed_lines` y `review_due` (`high_risk` |
+`under_budget` | `passive`). Falla cerrada: contenido binario, diff
+malformado o limites excedidos nunca bajan el tier. Con `--assessment`
+(un assessment de methodology JSON) compara el riesgo declarado contra el
+derivado y reporta `discrepancy` cuando el declarado subestima o
+sobreestima. Es una senal de entrada al assessment — no lo decide ni lo
+reemplaza.
+
 ### structure scan / status / show
 
 ```

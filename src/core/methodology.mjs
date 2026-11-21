@@ -156,7 +156,17 @@ function checkOutcome(ctx, task, b, verification, previousRevision, issues) {
 export function evaluateMethodology(ctx, task,
     { to = 'ACT', previousRevision = task.revision } = {}) {
   const mode = validateMethodologyMode(ctx.config.methodology, 'config.methodology');
-  const enforced = mode !== 'manual' || task.schemaVersion === 2;
+  // V3 records preserve the methodology metadata and formal refs that V2
+  // carries (transition.mjs keeps them through meta updates). A task
+  // "carries" methodology metadata when it is V2, or V3 with an assessment
+  // or the formal specId+designId pair — metadata-less V3 records (e.g.
+  // V1-upgraded) stay on the manual route in manual mode.
+  const carriesMethodology = task.schemaVersion === 2
+    || (task.schemaVersion === 3
+        && (task.methodology !== null
+            || (typeof task.specId === 'string'
+                && typeof task.designId === 'string')));
+  const enforced = mode !== 'manual' || carriesMethodology;
   const issues = [];
   const result = (route) => ({
     mode, enforced, allowed: issues.length === 0, route,
@@ -164,9 +174,12 @@ export function evaluateMethodology(ctx, task,
     authenticatesEvidence: false, interceptsNativeTools: false,
   });
   if (!enforced) return result('manual');
-  if (task.schemaVersion !== 2) {
+  // Range admission is fail-closed: versions below 2 lack the metadata
+  // shape entirely; versions above 3 are unknown and must not be silently
+  // evaluated as if they were V2.
+  if (task.schemaVersion < 2 || task.schemaVersion > 3) {
     issues.push(issue('METHODOLOGY_REQUIRED',
-      'selected methodology mode requires V2 task metadata'));
+      'selected methodology mode requires V2 or V3 task metadata'));
     return result('blocked');
   }
   let classification = null;

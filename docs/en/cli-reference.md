@@ -193,6 +193,23 @@ explanatory notes. `doctor` embeds this diff in its fingerprint warning
 when the evidence changed, and `update --diff` attaches it as
 `discoveryDiff` in the result before re-projecting generated files.
 
+### assess
+
+`assess --input DIFF_FILE [--assessment FILE]`
+
+Evidence-only risk classification over a unified diff. The core never
+runs git: the operator produces the diff with their own tooling (e.g.
+`git diff > out.patch`) and `assess` derives signals from paths, file
+modes and added content. Deterministic JSON output: `risk`
+(`passive|medium|high`), `reasons[]` with signal+path+detail,
+`changed_paths`, `changed_lines` and `review_due` (`high_risk` |
+`under_budget` | `passive`). Fail-closed: binary content, malformed
+diffs or exceeded limits never lower the tier. With `--assessment` (a
+methodology assessment JSON) it compares declared risk against the
+derived tier and reports a `discrepancy` when the declaration under- or
+over-states it. This is an input signal for the assessment — it neither
+decides nor replaces it.
+
 ### structure scan / status / show
 
 ```

@@ -29,6 +29,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.0`, suite `1228/1228` test
 |---|---|
 | `inspect` | Snapshot acotado de manifiestos (8 stacks, lockfiles por presencia, scripts test/lint/build de package.json, AGENTS/CLAUDE/README, fingerprint sha256). Guarda `discovery.json` |
 | `investigate [--save] [--diff]` | Análisis semántico: + dart/flutter/swift/gradle, topología monorepo, plataformas, frameworks de test, CI, hosts, i18n, layout. Sugiere respuestas de init con confianza+evidencia. `--save` persiste un research record. `--diff` compara la evidencia actual contra `discovery.json`+config: fingerprint, manifiestos/lockfiles ±/retenidos, contenido cambiado, stacks/comandos ±, señales de host nuevas, decisiones stale, notas |
+| `assess --input DIFF` | Clasificación de riesgo solo-por-evidencia sobre un unified diff (paths, modos, contenido): tier `passive|medium|high`, razones, `review_due`. Fail-closed, solo lectura, sin git/child_process; `--assessment` reporta discrepancia vs riesgo declarado |
 | `init` | Onboarding: investiga, pregunta nombre/locale/hosts/methodology, **7 rutas** (`plans tasks reports research decisions memory state`), **8 flags de versionado**, propone `.gitignore` acotado y siembra el índice estructural. `--defaults`/`--answers` para no interactivo |
 | `adopt` | Determinista: reporta config, enrollment y journal de un proyecto con restos previos; `--apply` solo crea el enrollment si `adoptable` |
 | `doctor` | ~21 checks: instalación + salud operativa (ver §7) |

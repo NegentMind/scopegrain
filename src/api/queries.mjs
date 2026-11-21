@@ -176,10 +176,10 @@ function listUuidDirs(dirAbs, read, limit, offset) {
   return out;
 }
 
-// V2 formal refs mean the SDD route; a stored assessment classifies on the
-// fly (pure function); V1 manual tasks carry no route signal.
+// V2/V3 formal refs mean the SDD route; a stored assessment classifies on
+// the fly (pure function); V1 manual tasks carry no route signal.
 function taskRoute(task) {
-  if (task.schemaVersion !== 2) return null;
+  if (task.schemaVersion !== 2 && task.schemaVersion !== 3) return null;
   if (task.specId !== null && task.designId !== null) return 'sdd';
   if (task.methodology === null || task.methodology === undefined) return null;
   try {

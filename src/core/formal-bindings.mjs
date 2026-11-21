@@ -57,9 +57,9 @@ function loadMember(ctx, ref, candidate, issues) {
 export function collectFormalBindings(ctx, task) {
   const issues = [];
   if (task === null || typeof task !== 'object' || Array.isArray(task)
-      || task.schemaVersion !== 2) {
+      || (task.schemaVersion !== 2 && task.schemaVersion !== 3)) {
     throw err('METHODOLOGY_REQUIRED',
-      'formal bindings require a V2 task record');
+      'formal bindings require a V2 or V3 task record');
   }
   if (typeof task.specId !== 'string' || !UUID_RE.test(task.specId)
       || typeof task.designId !== 'string' || !UUID_RE.test(task.designId)) {
@@ -116,7 +116,7 @@ export function collectFormalBindings(ctx, task) {
       if (member === null) continue;
       planTasks.push(member);
       const label = `plan member '${ref.key}'`;
-      if (member.schemaVersion !== 2
+      if ((member.schemaVersion !== 2 && member.schemaVersion !== 3)
           || typeof member.specId !== 'string'
           || typeof member.designId !== 'string'
           || member.specId.toLowerCase() !== plan.specId?.toLowerCase()

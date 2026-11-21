@@ -32,6 +32,7 @@ this is its English twin.
 |---|---|
 | `inspect` | Bounded manifest snapshot (8 stacks, lockfiles by presence, package.json test/lint/build scripts, AGENTS/CLAUDE/README, sha256 fingerprint). Stores `discovery.json` |
 | `investigate [--save] [--diff]` | Semantic analysis: + dart/flutter/swift/gradle, monorepo topology, platforms, test frameworks, CI, hosts, i18n, layout. Suggests init answers with confidence+evidence. `--save` persists a research record. `--diff` compares current evidence against `discovery.json`+config: fingerprint, added/removed/retained manifests and lockfiles, changed content, added/dropped stacks and commands, new host signals, stale decisions, notes |
+| `assess --input DIFF` | Evidence-only risk classification over a unified diff (paths, modes, added content): `passive|medium|high` tier, reasons, `review_due`. Fail-closed, read-only, no git/child_process; `--assessment` reports discrepancy vs declared risk |
 | `init` | Onboarding: investigates, asks name/locale/hosts/methodology, **7 paths** (`plans tasks reports research decisions memory state`), **8 versioning flags**, proposes a bounded `.gitignore` and seeds the structural index. `--defaults`/`--answers` for non-interactive |
 | `adopt` | Deterministic: reports config, enrollment and journal of a project with prior remains; `--apply` only creates the enrollment when `adoptable` |
 | `doctor` | ~21 checks: installation + operational health (see §7) |

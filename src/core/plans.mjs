@@ -859,7 +859,7 @@ export function createOwnedPlanStore(ctx, options) {
       const union = new Set();
       for (const t of doc.tasks) {
         const member = getTask(privateCtx, t.id);
-        if (member.schemaVersion !== 2
+        if ((member.schemaVersion !== 2 && member.schemaVersion !== 3)
             || typeof member.specId !== 'string'
             || typeof member.designId !== 'string'
             || member.specId.toLowerCase() !== current.specId.toLowerCase()

@@ -29,9 +29,10 @@ export function prepareOutcomeEvidence(ctx, input) {
     throw err('INVALID_ID', 'taskId must be a UUID');
   }
   const task = getTask(ctx, input.taskId);
-  if (task.schemaVersion !== 2 || task.specId === null
-      || task.designId === null) {
-    throw err('OUTCOME_INVALID', `task ${input.taskId} is not a formal V2 task`);
+  if ((task.schemaVersion !== 2 && task.schemaVersion !== 3)
+      || task.specId === null || task.designId === null) {
+    throw err('OUTCOME_INVALID',
+      `task ${input.taskId} is not a formal V2 or V3 task`);
   }
   if (task.state !== 'REVIEW') {
     throw err('OUTCOME_INVALID',

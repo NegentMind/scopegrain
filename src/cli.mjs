@@ -34,6 +34,7 @@ const VALUE_FLAGS = new Set([
   '--install-dir', '--namespace', '--key', '--top-k', '--record-id',
   '--reason', '--by', '--log', '--tail', '--backlog', '--status', '--index',
   '--text', '--outcome', '--cursor', '--arguments', '--script',
+  '--assessment',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -514,6 +515,11 @@ const COMMANDS = {
   investigate: {
     flags: ['--project', '--config', '--save', '--diff'], pos: 0,
     usage: 'investigate --project PATH [--config REL] [--save] [--diff]',
+  },
+  assess: {
+    flags: ['--input', '--assessment'], pos: 0,
+    usage: 'assess --input DIFF_FILE [--assessment FILE] '
+      + '— evidence-only risk classification of a unified diff',
   },
   'host activate': {
     flags: ['--project', '--config', '--host', '--surface', '--apply'], pos: 0,
@@ -2279,6 +2285,61 @@ async function cmdUninstall(flags) {
   return flags['--apply'] ? applyUninstall(ctx) : prepareUninstall(ctx);
 }
 
+// Read-only diff risk classification. The core spawns no git: the
+// operator supplies unified-diff bytes produced by their own tooling
+// (e.g. `git diff > out.patch`). Optional --assessment compares the
+// derived tier with a declared methodology risk and reports divergence.
+async function cmdAssess(flags) {
+  const { parseUnifiedDiff, classifyRisk } =
+    await import('./discovery/risk-assess.mjs');
+  const file = requireFlag(flags, '--input');
+  const abs = path.resolve(file);
+  let st;
+  try {
+    st = fs.lstatSync(abs);
+  } catch (e) {
+    if (e && e.code === 'ENOENT') {
+      throw err('INPUT_NOT_FOUND', `diff file not found: ${abs}`);
+    }
+    throw e;
+  }
+  if (!st.isFile()) {
+    throw err('INVALID_PATH', `diff path is not a file: ${abs}`);
+  }
+  const limited = readFileLimited(abs, 8 * 1024 * 1024);
+  if (limited.exceeded) {
+    throw err('INPUT_TOO_LARGE',
+      `diff file exceeds 8MiB: ${abs} (${limited.size} bytes)`);
+  }
+  const text = decodeUtf8Strict(
+    limited.content, 'MALFORMED_DIFF', `diff file: ${abs}`);
+  const envelope = classifyRisk(parseUnifiedDiff(text));
+  // The key is always present: null when no declaration was supplied or
+  // when the declaration matches the derived tier.
+  envelope.discrepancy = null;
+  if (flags['--assessment'] !== undefined) {
+    const declared = readInputFile(flags['--assessment'],
+      'assessment file');
+    const dr = typeof declared?.risk === 'string' ? declared.risk
+      : typeof declared?.methodology?.risk === 'string'
+        ? declared.methodology.risk : null;
+    const derived = envelope.risk;
+    const under = dr !== null && dr !== 'unknown'
+      && dr === 'contained' && derived !== 'passive';
+    const over = dr === 'named' && derived === 'passive';
+    if (under || over) {
+      envelope.discrepancy = { declared_risk: dr, derived_tier: derived,
+        direction: under ? 'under-declared' : 'over-declared' };
+    } else if (dr === null || dr === 'unknown') {
+      // No comparable risk claim in the declaration — report it rather
+      // than silently treating it as consistent.
+      envelope.discrepancy = { declared_risk: dr, derived_tier: derived,
+        direction: 'uncomparable' };
+    }
+  }
+  return envelope;
+}
+
 // Read-only semantic investigation plus answer suggestions. A config is
 // resolved opportunistically: an explicit --config reports its own error,
 // while a project with no config still investigates (and --save then emits
@@ -2573,6 +2634,8 @@ export async function run(argv, io) {
       result = await cmdUninstall(flags);
     } else if (cmdKey === 'investigate') {
       result = await cmdInvestigate(flags);
+    } else if (cmdKey === 'assess') {
+      result = await cmdAssess(flags);
     } else if (cmdKey === 'view') {
       result = await cmdView(flags, io);
     } else if (cmdKey.startsWith('verify ')) {
