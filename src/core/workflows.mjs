@@ -126,6 +126,43 @@ export function buildWorkflowPacket(ctx, opts = {}) {
   for (const h of commandHits) {
     presetApplied.push({ resource: `command/${inv.canonicalId}`, ...h });
   }
+  // Active extensions contribute declared resources into extra kind
+  // buckets. Activation already validated ids; resolution re-validates —
+  // catalog drift since activation fails closed at getResource.
+  const extensionApplied = [];
+  const contributedResources = { agents: [], skills: [], rules: [],
+    references: [], prompts: [], mcps: [] };
+  const BUCKET = { agent: 'agents', skill: 'skills', rule: 'rules',
+    reference: 'references', prompt: 'prompts', mcp: 'mcps',
+    command: null, profile: null };
+  for (const ext of listRegistry(ctx, 'extensions')) {
+    if (ext.state !== 'active') continue;
+    for (const c of ext.contributes) {
+      const [kind, cid] = c.split('/');
+      const bucket = BUCKET[kind];
+      if (!bucket) continue;
+      const r = getResource(kind, cid, { catalog });
+      const canon = r.canonicalId ?? r.id;
+      const key = `${kind}/${canon}`.toLowerCase();
+      if (contributedResources[bucket]
+        .some((x) => x._key === key)) continue;
+      const base = decodeUtf8Strict(r.content,
+        'CATALOG_MALFORMED', `catalog resource ${key}`);
+      const { layers, applied: hits } =
+        presetLayers(presets, kind, canon);
+      for (const h of hits) {
+        presetApplied.push({ resource: key, ...h });
+      }
+      contributedResources[bucket].push({ kind, id: canon,
+        description: r.description, path: catalogDestRel(r),
+        content: composeResource(base, layers),
+        extension: ext.id });
+      extensionApplied.push({ extension: ext.id, resource: key });
+    }
+  }
+  for (const list of Object.values(contributedResources)) {
+    for (const x of list) delete x._key;
+  }
   const packet = {
     schemaVersion: 1,
     authority: {
@@ -172,6 +209,9 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     // Installed preset override layers applied to projected resources —
     // declared, never silent.
     presets: { applied: presetApplied },
+    // Active extensions contribute their declared resources to this
+    // packet — same rule: declared, never silent.
+    extensions: { applied: extensionApplied },
     locale: ctx.config.locale,
     profile: {
       id: profile.id,
@@ -197,6 +237,7 @@ export function buildWorkflowPacket(ctx, opts = {}) {
       mcps: resolveResources('mcp', commandDeps.mcps, catalog,
         presets, presetApplied),
     },
+    contributedResources,
     paths: { ...ctx.config.paths },
     resourceRoot: ctx.configDir,
     task,

@@ -414,6 +414,30 @@ const COMMANDS = {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
     usage: 'dist bundle-install --project PATH --input FILE [--apply]',
   },
+  'dist bundle-mount': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'dist bundle-mount --project PATH ID',
+  },
+  'dist bundle-unmount': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'dist bundle-unmount --project PATH ID',
+  },
+  'dist bundle-uninstall': {
+    flags: ['--project', '--config', '--keep-files'], pos: 1,
+    usage: 'dist bundle-uninstall --project PATH ID [--keep-files]',
+  },
+  'dist mounted-list': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'dist mounted-list --project PATH',
+  },
+  'dist extension-remove': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'dist extension-remove --project PATH ID',
+  },
+  'dist preset-remove': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'dist preset-remove --project PATH ID',
+  },
   'dist preset-register': {
     flags: ['--project', '--config', '--input'], pos: 0,
     usage: 'dist preset-register --project PATH --input FILE',
@@ -1291,6 +1315,25 @@ async function cmdDist(sub, rest, flags) {
       requireFlag(flags, '--input'), 'bundle install input');
     return d.installBundle(ctx, input.bundle, input.sources ?? [],
       { apply: flags['--apply'] === true });
+  }
+  if (sub === 'bundle-mount') {
+    return d.mountBundle(ctx, rest[0]);
+  }
+  if (sub === 'bundle-unmount') {
+    return d.unmountBundle(ctx, rest[0]);
+  }
+  if (sub === 'bundle-uninstall') {
+    return d.uninstallBundle(ctx, rest[0],
+      { keepFiles: flags['--keep-files'] === true });
+  }
+  if (sub === 'mounted-list') {
+    return { mounted: d.loadMounted(ctx).entries };
+  }
+  if (sub === 'extension-remove') {
+    return d.removeExtension(ctx, rest[0]);
+  }
+  if (sub === 'preset-remove') {
+    return d.removePreset(ctx, rest[0]);
   }
   if (sub === 'preset-register') {
     const input = readInputFile(requireFlag(flags, '--input'), 'preset input');

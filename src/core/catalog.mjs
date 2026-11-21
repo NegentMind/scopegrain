@@ -549,14 +549,92 @@ export function catalogFiles(
 
 // Workspace-bound catalog: configDir/catalog.json, manifestRel explicit.
 // Missing -> WORKSPACE_CATALOG_MISSING; never falls back to installation.
+const MOUNTED_KEYS = new Set([
+  'kind', 'id', 'path', 'description', 'modes', 'sha256', 'bundle',
+  ...DEP_KEYS,
+]);
+
+// Mounted bundle layer: entries installed by `dist bundle-mount` live in
+// <configDir>/mounted-catalog.json, confined to paths under bundles/ and
+// pinned by sha256 verified against actual bytes. They merge into the
+// workspace catalog AFTER snapshot validation — the snapshot manifest
+// itself is never modified.
+function mergeMounted(cat, configDir, containmentRoot, verify) {
+  const mountedAbs = path.join(configDir, 'mounted-catalog.json');
+  const st = lstatOrNull(mountedAbs);
+  if (!st) { cat.mounted = 0; return cat; }
+  if (st.isSymbolicLink() || !st.isFile()) {
+    throw err('INVALID_PATH', 'mounted-catalog.json is not a regular file');
+  }
+  const l = readFileLimited(mountedAbs, loadLimits().maxDocumentBytes);
+  if (l.exceeded) throw err('DOCUMENT_TOO_LARGE', 'mounted-catalog.json');
+  const doc = JSON.parse(decodeUtf8Strict(
+    l.content, 'CATALOG_MALFORMED', 'mounted-catalog.json'));
+  if (doc === null || typeof doc !== 'object'
+      || !Array.isArray(doc.entries)) {
+    throw err('CATALOG_MALFORMED', 'mounted-catalog.json requires {entries:[]}');
+  }
+  for (const [i, e] of doc.entries.entries()) {
+    if (e === null || typeof e !== 'object' || Array.isArray(e)) {
+      throw err('CATALOG_MALFORMED', `mounted entries[${i}] is not an object`);
+    }
+    for (const key of Object.keys(e)) {
+      if (!MOUNTED_KEYS.has(key)) {
+        throw err('CATALOG_MALFORMED',
+          `mounted entries[${i}] has unknown key '${key}'`);
+      }
+    }
+    if (!KINDS.has(e.kind)) {
+      throw err('CATALOG_UNKNOWN_KIND', `unknown mounted kind '${e.kind}'`);
+    }
+    if (typeof e.id !== 'string' || !ID_RE.test(e.id)) {
+      throw err('CATALOG_MALFORMED', `mounted entries[${i}] has invalid id`);
+    }
+    if (typeof e.sha256 !== 'string' || !SHA_RE.test(e.sha256)) {
+      throw err('CATALOG_MALFORMED',
+        `mounted ${e.kind}/${e.id} requires sha256`);
+    }
+    const rel = toCanonicalRelative(e.path, `mounted ${e.kind}/${e.id}`);
+    if (!rel.startsWith('bundles/')) {
+      throw err('CATALOG_INVALID_FILE',
+        `mounted ${e.kind}/${e.id} path outside bundles/: ${rel}`);
+    }
+    if (e.kind === 'command'
+        && (!Array.isArray(e.modes) || e.modes.length === 0)) {
+      throw err('CATALOG_MALFORMED',
+        `mounted command/${e.id} requires modes`);
+    }
+    const key = `${e.kind}/${e.id}`.toLowerCase();
+    if (cat.byKey.has(key)) {
+      throw err('CATALOG_DUPLICATE',
+        `mounted entry ${key} collides with catalog`);
+    }
+    if (verify) {
+      const bytes = readEntryContent(configDir, rel, containmentRoot);
+      const digest = crypto.createHash('sha256').update(bytes).digest('hex');
+      if (digest !== e.sha256.toLowerCase()) {
+        throw err('RESOURCE_INTEGRITY_MISMATCH',
+          `mounted ${e.kind}/${e.id} content diverges from hash`);
+      }
+    }
+    const canon = { ...e, path: rel,
+      description: e.description ?? `mounted:${e.bundle ?? 'bundle'}` };
+    cat.entries.push(canon);
+    cat.byKey.set(key, canon);
+  }
+  cat.mounted = doc.entries.length;
+  return cat;
+}
+
 export function loadWorkspaceCatalog(ctx, { verifyResources = true } = {}) {
   const configDir = ctx.configDir === '.'
     ? ctx.projectRoot
     : resolveInside(ctx.projectRoot, ctx.configDir, 'config directory');
-  return loadCatalog({
+  const cat = loadCatalog({
     installRoot: configDir, manifestRel: 'catalog.json', verifyResources,
     snapshot: true, containmentRoot: ctx.projectRoot,
   });
+  return mergeMounted(cat, configDir, ctx.projectRoot, verifyResources);
 }
 
 // Alias/mode resolution for a requested command invocation.

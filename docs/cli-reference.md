@@ -392,11 +392,17 @@ scopegrain dist compose --project PATH --input FILE
 scopegrain dist validate --project PATH --input FILE
 scopegrain dist bundle-validate --project PATH --input FILE
 scopegrain dist bundle-install --project PATH --input FILE [--apply]
+scopegrain dist bundle-mount --project PATH ID
+scopegrain dist bundle-unmount --project PATH ID
+scopegrain dist bundle-uninstall --project PATH ID [--keep-files]
+scopegrain dist mounted-list --project PATH
 scopegrain dist extension-register --project PATH --input FILE
 scopegrain dist extension-list --project PATH
 scopegrain dist extension-activate|deactivate --project PATH ID
+scopegrain dist extension-remove --project PATH ID
 scopegrain dist preset-register --project PATH --input FILE
 scopegrain dist preset-list --project PATH
+scopegrain dist preset-remove --project PATH ID
 ```
 
 `run` ejecuta workflows declarativos cuyos pasos solo nombran primitivas
@@ -410,18 +416,38 @@ semver, pinning sha256 obligatorio en fuentes remotas).
 
 `bundle-install` (input `{bundle, sources:[{uri,priority}]}`) copia las
 fuentes `file://` requeridas bajo `<configDir>/bundles/<id>/` — acotado
-(256 archivos / 16 MiB), create-only, re-install idempotente, provenance
-content-addressed en `provenance.json`; sha256 pineado se verifica antes
-de copiar.
+(256 archivos / 16 MiB / 32 niveles de profundidad), create-only,
+re-install idempotente, provenance content-addressed en
+`provenance.json`; sha256 pineado se verifica antes de copiar.
+
+`bundle-mount` registra las entradas tipadas del bundle instalado en
+`<configDir>/mounted-catalog.json`, capa que `loadWorkspaceCatalog`
+fusiona tras la validacion del snapshot: cada entrada confinada a
+`bundles/` y verificada por sha256 en cada carga. Re-mount del mismo
+bundle refresca; colisiones con ids del snapshot o de otros bundles son
+`CONFLICT`. Fuentes tipo directorio montan el archivo convencional del
+kind (`SKILL.md`, `AGENT.md`, ...); entradas sin main file se reportan en
+`unmounted`, nunca se adivinan. `bundle-unmount` quita solo las entradas
+del bundle. `bundle-uninstall` desmonta y borra unicamente los archivos
+que aun coinciden con la provenance — bytes divergentes quedan en
+`leftBehind`; `--keep-files` no borra nada. La provenance alterada para
+apuntar fuera del directorio del bundle falla `MALFORMED`.
 
 Los presets declaran `overrides:[{target, op, content}]` donde `target`
 es `'*'`, `'<kind>/*'` o `'<kind>/<id>'`; se aplican a los recursos
 proyectados en el workflow packet (prioridad ascendente, el ultimo gana)
-y la traza sale declarada en `packet.presets.applied`.
+y la traza sale declarada en `packet.presets.applied`. `preset-remove`
+elimina un preset registrado.
 
 Las extensiones llevan lifecycle `registered -> active <-> disabled`:
 `extension-activate` valida que los `contributes` (`<kind>/<id>`) existen
-en el catalogo del workspace antes de activar.
+en el catalogo del workspace antes de activar; una extension `active`
+aporta sus recursos declarados al workflow packet
+(`packet.contributedResources` + traza en `packet.extensions.applied`).
+`extension-remove` exige estado `disabled` — no hay teardown silencioso.
+Todas las mutaciones de registros (`extensions.json`, `presets.json`,
+`bundles/`, `mounted-catalog.json`) se serializan bajo `dist.lock`
+verificado.
 
 ### policy/hooks.json — ejemplo declarativo
 

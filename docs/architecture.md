@@ -58,9 +58,29 @@ src/core/lifecycle.mjs    adopt/update/backup/restore/uninstall: previews y appl
 src/discovery/inspect.mjs Escaneo acotado de manifiestos
 src/discovery/semantic.mjs Investigacion semantica acotada de solo lectura
 src/hosts/render.mjs      Fragmentos de integracion por anfitrion
-src/hosts/native.mjs      Propuestas nativas versionadas para seis hosts (Hermes provisional)
+src/hosts/native.mjs      Propuestas nativas versionadas para siete hosts (generic = scaffold)
 src/hosts/activation.mjs  Activacion opt-in create-only de propuestas locales al proyecto
+src/hosts/host-manifest.mjs Manifesto por host: sha256 + ownership (whole/partial/shared)
 src/adapters/            Entradas compatibles hacia src/hosts
+src/core/managed-section.mjs Secciones SCOPEGRAIN:BEGIN/END en AGENTS.md/CLAUDE.md
+src/core/host-cli.mjs     Deteccion de CLIs de host por filesystem (sin child_process)
+src/core/mcp-inventory.mjs Inventario MCP auto-descriptivo derivado de los descriptors
+src/core/operations.mjs   Descriptors de operacion compartidos (CLI/MCP parity)
+src/core/active.mjs       Puntero de tarea activa: env SCOPEGRAIN_TASK sobre state
+src/core/converge.mjs     Findings tipados spec/plan/tasks vs codigo + veredicto
+src/core/checklists.mjs   Checklists CHK### reviewer-owned con CAS
+src/core/analyze.mjs      Analisis cross-artifact de cobertura y drift
+src/core/clarify.mjs      Sesiones de aclaracion fechadas create-only
+src/core/constitution.mjs Semver de constitucion + reglas de bump + history
+src/core/story-tasks.mjs  Render tasks.md por user-story (T###, [P], fases USn)
+src/core/placeholders.mjs Tokens {SCRIPT}/$ARGUMENTS/handoffs fail-closed en commands
+src/core/hooks-policy.mjs Carga de policy/hooks.json declarativa (before_/after_)
+src/core/jsonc.mjs        JSONC comment stripping + deep merge recursivo
+src/core/distribution.mjs Catalog stack file://, composicion, bundles, extensiones, presets, mounted layer
+src/core/workflow-runner.mjs Runner declarativo: ops whitelisted, checkpoints atomicos, resume
+src/core/identifiers.mjs  Validador unificado de ids (slugs + reservados Windows)
+src/core/locks.mjs        Locks verificados por token (acquire/release con {dev,ino})
+src/core/helpers.mjs      Instalacion de helper scripts: JSON-stdio, copia acotada, tamper check
 src/mcp/server.mjs        Servidor MCP stdio: lectura + mutaciones journaled acotadas
 src/api/server.mjs        API JSON local read-only: loopback unico, solo GET
 src/api/queries.mjs       Fachada de consulta con cotas duras para la API local

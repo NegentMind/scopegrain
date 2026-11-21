@@ -8,10 +8,13 @@ import { runWorkflow, loadRun } from '../src/core/workflow-runner.mjs';
 import {
   validateSubmission, loadCatalogStack, composeResource,
   validateBundle, registerExtension, registerPreset, listRegistry,
-  setExtensionState, installBundle, presetLayers,
+  setExtensionState, installBundle, presetLayers, mountBundle,
+  unmountBundle, uninstallBundle, removeExtension, removePreset,
+  loadMounted,
 } from '../src/core/distribution.mjs';
 import { createTask } from '../src/core/tasks.mjs';
 import { assertSafeId } from '../src/core/identifiers.mjs';
+import { loadWorkspaceCatalog } from '../src/core/catalog.mjs';
 import {
   bootstrappedCtx, cleanup, writeJson, VALID_ANSWERS,
 } from './helpers.mjs';
@@ -233,5 +236,172 @@ test('bundle install: file:// bounded copy, sha256 pin, provenance', () => {
     // Missing stack entry fails closed.
     assert.throws(() => installBundle(ctx, { ...input.bundle,
       requires: [{ id: 'ghost' }] }, input.sources), /missing entries/);
+  } finally { cleanup(dir); }
+});
+
+test('bundle mount: entries join workspace catalog, sha-verified', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    fs.mkdirSync(path.join(dir, 'pack'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pack/cmd.md'),
+      '---\ndescription: mounted cmd\n---\nbody');
+    const sha = crypto.createHash('sha256')
+      .update('---\ndescription: mounted cmd\n---\nbody').digest('hex');
+    writeJson(dir, 'cats/pack-cat.json', {
+      entries: [{ id: 'entry-c', kind: 'command', modes: ['default'],
+        source: { uri: 'file://pack/cmd.md' } }] });
+    const input = {
+      bundle: { id: 'pkg2', version: '1.0.0',
+        requires: [{ id: 'entry-c', sha256: sha }] },
+      sources: [{ uri: 'file://cats/pack-cat.json' }],
+    };
+    installBundle(ctx, input.bundle, input.sources, { apply: true });
+    const m = mountBundle(ctx, 'pkg2');
+    assert.deepEqual(m.mounted, ['command/entry-c']);
+    // Mounted entry resolves through the workspace catalog like a
+    // snapshot resource — this is the consumer the bundle exists for.
+    const cat = loadWorkspaceCatalog(ctx);
+    assert.ok(cat.byKey.has('command/entry-c'));
+    assert.equal(cat.mounted, 1);
+    // Idempotent re-mount.
+    mountBundle(ctx, 'pkg2');
+    assert.equal(loadMounted(ctx).entries.length, 1);
+    // Diverged bytes fail closed at catalog load — the mounted merge
+    // verifies every entry's sha256 before the mount check even runs.
+    fs.writeFileSync(path.join(dir,
+      '.tasksystem/bundles/pkg2/entry-c'), 'tampered');
+    assert.throws(() => mountBundle(ctx, 'pkg2'),
+      (e) => e.code === 'RESOURCE_INTEGRITY_MISMATCH');
+    fs.writeFileSync(path.join(dir,
+      '.tasksystem/bundles/pkg2/entry-c'),
+      '---\ndescription: mounted cmd\n---\nbody');
+    // A bundle entry id colliding with a snapshot id fails closed.
+    writeJson(dir, 'cats/clash-cat.json', {
+      entries: [{ id: 'plan-work', kind: 'command',
+        source: { uri: 'file://pack/cmd.md' } }] });
+    installBundle(ctx, { id: 'pkg-clash', version: '1.0.0',
+      requires: [{ id: 'plan-work' }] },
+      [{ uri: 'file://cats/clash-cat.json' }], { apply: true });
+    assert.throws(() => mountBundle(ctx, 'pkg-clash'), /collides/);
+  } finally { cleanup(dir); }
+});
+
+test('bundle unmount + uninstall: provenance-confined deletion', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    fs.mkdirSync(path.join(dir, 'pack'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pack/x.md'), 'x');
+    writeJson(dir, 'cats/pack-cat.json', {
+      entries: [{ id: 'entry-x', kind: 'reference',
+        source: { uri: 'file://pack/x.md' } }] });
+    const input = {
+      bundle: { id: 'pkg3', version: '1.0.0',
+        requires: [{ id: 'entry-x' }] },
+      sources: [{ uri: 'file://cats/pack-cat.json' }],
+    };
+    installBundle(ctx, input.bundle, input.sources, { apply: true });
+    mountBundle(ctx, 'pkg3');
+    // Diverged file stays behind — uninstall never clobbers user bytes.
+    fs.writeFileSync(path.join(dir,
+      '.tasksystem/bundles/pkg3/entry-x'), 'user-edited');
+    const res = uninstallBundle(ctx, 'pkg3');
+    assert.equal(res.unmounted, 1);
+    // Only provenance.json itself is deleted — the diverged bundle file
+    // is left behind, never clobbered.
+    assert.deepEqual(res.deleted,
+      ['.tasksystem/bundles/pkg3/provenance.json']);
+    assert.equal(res.leftBehind.length, 1);
+    assert.ok(fs.existsSync(
+      path.join(dir, '.tasksystem/bundles/pkg3/entry-x')));
+    assert.equal(loadMounted(ctx).entries.length, 0);
+    // Tampered provenance pointing outside the bundle dir fails closed.
+    const provAbs = path.join(dir,
+      '.tasksystem/bundles/pkg3/provenance.json');
+    writeJson(dir, '.tasksystem/bundles/pkg3/provenance.json', {
+      schemaVersion: 1, id: 'pkg3', version: '1.0.0', requires: [],
+      contributes: [], entries: [],
+      files: [{ rel: '.tasksystem/config.json', sha256: 'a'.repeat(64) }],
+    });
+    assert.throws(() => uninstallBundle(ctx, 'pkg3'), /outside bundle/);
+    fs.unlinkSync(provAbs);
+    assert.throws(() => uninstallBundle(ctx, 'pkg3'), /not installed/);
+  } finally { cleanup(dir); }
+});
+
+test('bundle install: depth cap and file bound fail closed', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    // 33-level deep tree exceeds MAX_BUNDLE_DEPTH (32).
+    let deep = path.join(dir, 'deep');
+    for (let i = 0; i < 33; i++) deep = path.join(deep, `d${i}`);
+    fs.mkdirSync(deep, { recursive: true });
+    fs.writeFileSync(path.join(deep, 'leaf.txt'), 'x');
+    writeJson(dir, 'cats/deep-cat.json', {
+      entries: [{ id: 'deep-entry',
+        source: { uri: 'file://deep' } }] });
+    assert.throws(() => installBundle(ctx,
+      { id: 'deepb', version: '1.0.0',
+        requires: [{ id: 'deep-entry' }] },
+      [{ uri: 'file://cats/deep-cat.json' }], { apply: true }),
+      (e) => e.code === 'BUNDLE_TOO_LARGE');
+  } finally { cleanup(dir); }
+});
+
+test('dist lock: concurrent registry mutation fails closed', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    // A live-pid lock is never reclaimed: a second mutation must fail.
+    fs.writeFileSync(path.join(dir, '.tasksystem/dist.lock'),
+      JSON.stringify({ t: 'x', pid: process.pid, at: Date.now() }));
+    assert.throws(() => registerExtension(ctx,
+      { id: 'e', version: '1.0.0' }),
+      (e) => e.code === 'DIST_LOCKED');
+    assert.throws(() => registerPreset(ctx, { id: 'p', overrides: [] }),
+      (e) => e.code === 'DIST_LOCKED');
+    fs.unlinkSync(path.join(dir, '.tasksystem/dist.lock'));
+    // Lock released → registry writes work again.
+    registerPreset(ctx, { id: 'p', overrides: [] });
+  } finally { cleanup(dir); }
+});
+
+test('extensions: active contributes resources to workflow packet', async () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    const { buildWorkflowPacket } =
+      await import('../src/core/workflows.mjs');
+    const before = buildWorkflowPacket(ctx, { command: 'plan-work' });
+    assert.equal(before.contributedResources.skills.length, 0);
+    assert.deepEqual(before.extensions.applied, []);
+    registerExtension(ctx, { id: 'contrib-ext', version: '1.0.0',
+      contributes: ['skill/planning-and-task-breakdown'] });
+    setExtensionState(ctx, 'contrib-ext', 'active');
+    const packet = buildWorkflowPacket(ctx, { command: 'plan-work' });
+    assert.equal(packet.contributedResources.skills.length, 1);
+    const contributed = packet.contributedResources.skills[0];
+    assert.equal(contributed.id, 'planning-and-task-breakdown');
+    assert.equal(contributed.extension, 'contrib-ext');
+    assert.deepEqual(packet.extensions.applied,
+      [{ extension: 'contrib-ext',
+        resource: 'skill/planning-and-task-breakdown' }]);
+    // Removal requires disabled state — no silent teardown.
+    assert.throws(() => removeExtension(ctx, 'contrib-ext'), /active/);
+    // Disabled extension contributes nothing and can be removed.
+    setExtensionState(ctx, 'contrib-ext', 'disabled');
+    const after = buildWorkflowPacket(ctx, { command: 'plan-work' });
+    assert.equal(after.contributedResources.skills.length, 0);
+    const gone = removeExtension(ctx, 'contrib-ext');
+    assert.equal(gone.removed, 'contrib-ext');
+  } finally { cleanup(dir); }
+});
+
+test('preset remove: registry shrinks under lock', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    registerPreset(ctx, { id: 'tmp', overrides: [] });
+    assert.equal(listRegistry(ctx, 'presets').length, 1);
+    const r = removePreset(ctx, 'tmp');
+    assert.equal(r.removed, 'tmp');
+    assert.equal(listRegistry(ctx, 'presets').length, 0);
+    assert.throws(() => removePreset(ctx, 'tmp'), /not registered/);
   } finally { cleanup(dir); }
 });
