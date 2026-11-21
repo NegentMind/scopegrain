@@ -156,7 +156,7 @@ test('init --defaults with no signals uses wizard defaults; --answers conflicts'
     assert.equal(await run(['init', '--project', dir, '--defaults'], io), 0);
     const dry = lastJson(io);
     // No host signals -> the full interactive default list.
-    assert.equal(dry.answers.hosts.length, 6);
+    assert.equal(dry.answers.hosts.length, 7);
     assert.ok(dry.files.some((f) => f.path === 'AGENTS.md'));
     assert.ok(dry.files.some((f) => f.path === 'CLAUDE.md'));
 

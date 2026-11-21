@@ -374,6 +374,42 @@ const COMMANDS = {
     flags: [], pos: 2,
     usage: 'catalog legacy-show KIND ID',
   },
+  'dist run': {
+    flags: ['--project', '--config', '--input', '--no-resume'], pos: 0,
+    usage: 'dist run --project PATH --input FILE [--no-resume]',
+  },
+  'dist stack': {
+    flags: ['--project', '--config', '--input'], pos: 0,
+    usage: 'dist stack --project PATH --input FILE  ({sources:[{uri,priority}]})',
+  },
+  'dist compose': {
+    flags: ['--project', '--config', '--input'], pos: 0,
+    usage: 'dist compose --project PATH --input FILE  ({base, layers})',
+  },
+  'dist validate': {
+    flags: ['--project', '--config', '--input'], pos: 0,
+    usage: 'dist validate --project PATH --input FILE  (catalog submission)',
+  },
+  'dist bundle-validate': {
+    flags: ['--project', '--config', '--input'], pos: 0,
+    usage: 'dist bundle-validate --project PATH --input FILE',
+  },
+  'dist extension-register': {
+    flags: ['--project', '--config', '--input'], pos: 0,
+    usage: 'dist extension-register --project PATH --input FILE',
+  },
+  'dist extension-list': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'dist extension-list --project PATH',
+  },
+  'dist preset-register': {
+    flags: ['--project', '--config', '--input'], pos: 0,
+    usage: 'dist preset-register --project PATH --input FILE',
+  },
+  'dist preset-list': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'dist preset-list --project PATH',
+  },
   workflow: {
     flags: ['--project', '--config', '--mode', '--task', '--host',
       '--profile', '--interaction', '--arguments', '--script'],
@@ -1195,6 +1231,53 @@ async function cmdResource(sub, rest, flags) {
     return { mode: 'apply', ...applyResourceRestore(ctx, input) };
   }
   throw err('INVALID_ARGS', `unknown resource subcommand '${sub}'`);
+}
+
+async function cmdDist(sub, flags) {
+  const d = await import('./core/distribution.mjs');
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'), config: flags['--config'],
+  });
+  if (sub === 'run') {
+    const { runWorkflow } = await import('./core/workflow-runner.mjs');
+    const doc = readInputFile(requireFlag(flags, '--input'), 'workflow input');
+    return runWorkflow(ctx, doc,
+      { resume: flags['--no-resume'] !== true });
+  }
+  if (sub === 'stack') {
+    const input = readInputFile(requireFlag(flags, '--input'), 'stack input');
+    return d.loadCatalogStack(ctx, input.sources ?? []);
+  }
+  if (sub === 'compose') {
+    const input = readInputFile(requireFlag(flags, '--input'), 'compose input');
+    return { composed: d.composeResource(input.base ?? '',
+      input.layers ?? []) };
+  }
+  if (sub === 'validate') {
+    const input = readInputFile(
+      requireFlag(flags, '--input'), 'submission input');
+    return { valid: true, submission: d.validateSubmission(input) };
+  }
+  if (sub === 'bundle-validate') {
+    const input = readInputFile(requireFlag(flags, '--input'), 'bundle input');
+    return { valid: true, bundle: d.validateBundle(input) };
+  }
+  if (sub === 'extension-register') {
+    const input = readInputFile(
+      requireFlag(flags, '--input'), 'extension input');
+    return d.registerExtension(ctx, input);
+  }
+  if (sub === 'extension-list') {
+    return { extensions: d.listRegistry(ctx, 'extensions') };
+  }
+  if (sub === 'preset-register') {
+    const input = readInputFile(requireFlag(flags, '--input'), 'preset input');
+    return d.registerPreset(ctx, input);
+  }
+  if (sub === 'preset-list') {
+    return { presets: d.listRegistry(ctx, 'presets') };
+  }
+  throw err('INVALID_ARGS', `unknown dist subcommand '${sub}'`);
 }
 
 async function cmdWorkflow(command, flags) {
@@ -2305,7 +2388,7 @@ export async function run(argv, io) {
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
       'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb',
-      'helper',
+      'helper', 'dist',
       'memory', 'goal', 'report', 'activity', 'hooks', 'structure',
       'constitution']);
     let cmdKey;
@@ -2392,6 +2475,8 @@ export async function run(argv, io) {
       result = await cmdCapture(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('catalog ')) {
       result = await cmdCatalog(cmdKey.slice(8), rest, flags);
+    } else if (cmdKey.startsWith('dist ')) {
+      result = await cmdDist(cmdKey.slice(5), flags);
     } else if (cmdKey.startsWith('resource ')) {
       result = await cmdResource(cmdKey.slice(9), rest, flags);
     } else if (cmdKey.startsWith('plan ')) {

@@ -119,10 +119,11 @@ function read(f, rel) {
   return JSON.parse(fs.readFileSync(path.join(f.dir, rel), 'utf8'));
 }
 
-test('help has exactly the two owned usages, exact note and unchanged capture usages', async () => {
+test('help has exactly the specification usages, exact note and unchanged capture usages', async () => {
   const help = await call(['--help']);
   assert.deepEqual(help.commands.filter((c) => c.command.startsWith('specification '))
     .map((c) => c.command), [
+    'specification clarify --project PATH --input FILE',
     'specification create --project PATH --input FILE [--owned] [--apply]',
     'specification show --project PATH UUID [--owned]',
   ]);

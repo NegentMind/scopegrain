@@ -269,10 +269,17 @@ test('discovery excludes both operational directories', () => {
 
 test('both entrypoints delegate to the shared CLI and preserve package metadata', async () => {
   const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url)));
-  // bin/files stay out of the manifest until the release direction is
-  // decided; the entrypoints themselves keep their committed paths.
-  assert.equal(pkg.bin, undefined);
-  assert.equal(pkg.private, true);
+  // bin points at both committed entrypoints (v0.1.0 packaging); files
+  // stays out of the manifest until the release direction is decided.
+  assert.deepEqual(pkg.bin, {
+    scopegrain: 'bin/scopegrain.mjs',
+    tasksystem: 'bin/tasksystem.mjs',
+  });
+  assert.deepEqual(pkg.files, [
+    'bin', 'src', 'resources', 'policy', 'templates', 'schemas',
+    'provenance', 'docs', 'viewer/dist', 'examples',
+    'CHANGELOG.md', 'AUTHORS', 'NOTICE',
+  ]);
   assert.equal(pkg.license, 'Apache-2.0');
   for (const entry of ['./bin/scopegrain.mjs', './bin/tasksystem.mjs']) {
     const content = fs.readFileSync(new URL(`../${entry}`, import.meta.url), 'utf8');

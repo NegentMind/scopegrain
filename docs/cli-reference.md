@@ -327,3 +327,82 @@ Instala/retira un bloque administrado en `.git/hooks/post-commit` que
 invoca `activity record` tras cada commit (auto-registro de commits
 fuera de tarea). Idempotente, nunca sobreescribe hooks de usuario y
 nunca rompe un commit (exit 0 siempre).
+
+## Ciclo SDD (spec-kit extraction waves)
+
+### task activate / task active / task deactivate
+
+```text
+scopegrain task activate --project PATH ID|SLUG
+scopegrain task active --project PATH
+scopegrain task deactivate --project PATH
+```
+
+Toda tarea lleva un slug `NNN-` monotonico derivado del titulo. El puntero
+de tarea activa se resuelve `SCOPEGRAIN_TASK` (env) antes que el archivo
+`<state>/active-task`; un puntero manipulado falla cerrado.
+
+### task converge / task analyze / task checklist
+
+```text
+scopegrain task converge --project PATH ID|SLUG [--record]
+scopegrain task analyze --project PATH ID|SLUG
+scopegrain task checklist --project PATH [ID] (--input FILE |
+  ID --key CHK### --status S --revision N [--text NOTE])
+```
+
+`converge` compara el estado real contra spec/design/plan/tasks y emite
+findings tipados con veredicto; `--record` persiste un convergence record
+create-only. `analyze` produce el reporte cross-artifact con severidades
+y cobertura. `checklist` gestiona artefactos `CHK###` reviewer-owned
+(create-only, CAS, gated en converge).
+
+### plan stories / specification clarify / constitution
+
+```text
+scopegrain plan stories --project PATH KEY
+scopegrain specification clarify --project PATH --input FILE
+scopegrain constitution show|set --project PATH [--input FILE]
+```
+
+`stories` renderiza `tasks.md` por user-story (`T###`, `[P]`, fases).
+`clarify` registra sesiones de clarificacion fechadas y create-only en la
+spec. `constitution` gestiona la constitucion versionada (semver +
+complexity tracking).
+
+### helper install / helper list
+
+```text
+scopegrain helper install --project PATH --input FILE
+scopegrain helper list --project PATH
+```
+
+Instala helper scripts project-local con manifiesto (contrato declarativo;
+el harness nunca los ejecuta). `list` enumera y valida integridad.
+
+## Distribucion (dist)
+
+Maquinaria declarativa de distribucion: catalogos `file://` solamente —
+una URI remota es `REMOTE_CATALOG_UNSUPPORTED`, nunca una descarga.
+
+```text
+scopegrain dist run --project PATH --input FILE [--no-resume]
+scopegrain dist stack --project PATH --input FILE
+scopegrain dist compose --project PATH --input FILE
+scopegrain dist validate --project PATH --input FILE
+scopegrain dist bundle-validate --project PATH --input FILE
+scopegrain dist extension-register --project PATH --input FILE
+scopegrain dist extension-list --project PATH
+scopegrain dist preset-register --project PATH --input FILE
+scopegrain dist preset-list --project PATH
+```
+
+`run` ejecuta workflows declarativos cuyos pasos solo nombran primitivas
+whitelisted del harness (`task.transition`, `converge.evaluate`,
+`analyze.task`, `checklist.*`, `noop`, ...); nunca shell ni binarios de
+terceros. Checkpoints atomicos bajo `<state>/workflow-runs/` permiten
+reanudar sin re-ejecutar pasos completados. `stack` fusiona catalogos
+locales por prioridad. `compose` aplica capas `replace|prepend|append|
+wrap`. `validate`/`bundle-validate` verifican submissions (id slug,
+semver, pinning sha256 obligatorio en fuentes remotas). Los registros de
+extensiones y presets viven create-only en `<configDir>/`.

@@ -27,7 +27,7 @@ const EXPECTED_TOOLS = [
   'scopegrain_task_disposition', 'scopegrain_memory_add',
   'scopegrain_memory_read', 'scopegrain_goal_create',
   'scopegrain_goal_list', 'scopegrain_goal_transition',
-  'scopegrain_metrics',
+  'scopegrain_metrics', 'scopegrain_mcp_inventory',
 ];
 
 test('importing server.mjs does not start a server or require deps', async () => {
@@ -37,15 +37,15 @@ test('importing server.mjs does not start a server or require deps', async () =>
   assert.equal(typeof mod.createMCPTools, 'function');
 });
 
-test('descriptors are exactly 32 tools bound to ctx', async (t) => {
+test('descriptors are exactly 33 tools bound to ctx', async (t) => {
   const { z } = await import('zod');
   const { createMCPTools } = await import('../src/mcp/server.mjs');
   const { resolveContext } = await import('../src/core/context.mjs');
   const { dir, ctx } = bootstrappedCtx();
   try {
     const tools = createMCPTools(ctx, z);
-    assert.equal(tools.length, 32);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 32);
+    assert.equal(tools.length, 33);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 33);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     for (const tool of tools) {
       assert.equal(tool.config.annotations.destructiveHint, false);
@@ -86,8 +86,8 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
       server.connect(serverT), client.connect(clientT),
     ]);
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 32);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 32);
+    assert.equal(tools.length, 33);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 33);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     assert.ok(tools.every((x) => x.annotations?.destructiveHint === false));
     const res = await client.callTool({

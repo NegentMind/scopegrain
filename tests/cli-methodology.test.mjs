@@ -184,7 +184,8 @@ test('JSON task combinations reject all legacy fields before input file access',
     } finally { mock.mock.restore(); }
     const e = await readonly(f, ['task', 'create', '--apply'], 1);
     assert.deepEqual(e, { code: 'INVALID_ARGS',
-      message: '--apply requires --input for task create; legacy flags create directly' });
+      message: '--apply requires --input for task create; legacy flags create directly',
+      retryable: false });
   } finally { cleanup(f.dir); }
 });
 

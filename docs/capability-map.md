@@ -14,7 +14,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.0`, suite `1228/1228` test
 | Superficie | Inventario | Acceso |
 |---|---|---|
 | CLI `bin/scopegrain.mjs` (alias `bin/tasksystem.mjs`) | ~95 subcomandos, imports perezosos por comando | Humano y agente |
-| MCP `src/mcp/server.mjs` | 32 tools `scopegrain_*`: 26 `READ_ONLY` + 6 `WRITE_LOCAL` | Hosts MCP (stdio) |
+| MCP `src/mcp/server.mjs` | 33 tools `scopegrain_*`: 27 `READ_ONLY` + 6 `WRITE_LOCAL` (incl. `mcp_inventory` auto-descriptivo) | Hosts MCP (stdio) |
 | API local `src/api/server.mjs` | 29 rutas GET `/api/*` | Loopback-only, GET-only |
 | Visor `viewer/` (`scopegrain view`) | 15 vistas React 19 + TS + Vite + Tailwind | Read-only, humano |
 | Catálogo `resources/manifest.json` | 130 entradas + 32 aliases | Proyectable al proyecto |
@@ -55,7 +55,12 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.0`, suite `1228/1228` test
 | `task note` / `task step` | Notas y estado por paso (pending/done/skipped) |
 | `task transition` | CAS + evidencia + gate metodológico + disposiciones terminales |
 | `task doc` | Render del documento de contrato de la tarea |
+| `task activate/active/deactivate` | Puntero de tarea activa (`SCOPEGRAIN_TASK` > `<state>/active-task`); slugs `NNN-` monotónicos por tarea |
+| `task converge` | Compara implementación vs spec/plan/tasks → findings tipados + veredicto; `--record` persiste create-only |
+| `task analyze` | Reporte cross-artifact con severidades y cobertura spec↔plan↔tasks |
+| `task checklist` | Artefactos `CHK###` reviewer-owned (create-only, CAS, gate en converge) |
 | `plan create/list/show/next` | Planes con tasks y dependencias |
+| `plan stories` | Render `tasks.md` por user-story (`T###`, `[P]`, fases) |
 | `plan run` | Scheduling por olas respetando el DAG de dependencias |
 | `session create/show/record/resume` | Sesiones con presupuesto explícito de operaciones (límite `maxSessionEvents`), CAS, lock propio, eventos ACT |
 
@@ -100,8 +105,22 @@ Implementados sobre `owned-store.mjs` (factory) + `owned-chain.mjs` (primitivas)
 | `catalog legacy/legacy-show` | Procedencia congelada de recursos legacy (solo metadata) |
 | `resource search/diagnose` | Recursos instalados vs snapshot; tamper-evidence |
 | `resource restore-plan/restore` | Restore CAS con re-verificación TOCTOU |
-| `host activate` | Fragmentos nativos por host+surface; hosts: claude, codex, opencode, devin, antigravity, hermes. Proponer ≠ activar; solo destinos project-local |
+| `host activate` | Fragmentos nativos por host+surface; hosts: claude, codex, opencode, devin, antigravity, hermes, generic (provisional). Proponer ≠ activar; solo destinos project-local |
 | `hooks install/uninstall` | Bloque administrado en `post-commit`, idempotente, nunca toca hooks del usuario |
+| `helper install/list` | Helper scripts project-local con manifiesto declarativo (el harness nunca los ejecuta) |
+| `specification clarify` | Sesiones de clarificación fechadas, create-only, sobre la spec |
+| `constitution show/set` | Constitución versionada semver + complexity tracking |
+
+### 2.7b Distribución declarativa (familia `dist`)
+
+| Comando | Qué hace |
+|---|---|
+| `dist run` | Runner de workflows declarativos: solo primitivas whitelisted del harness, checkpoints atómicos en `<state>/workflow-runs/`, resume sin re-ejecución |
+| `dist stack` | Fusiona catálogos `file://` por prioridad; URIs remotas = `REMOTE_CATALOG_UNSUPPORTED` (nunca descarga) |
+| `dist compose` | Composición en capas `replace/prepend/append/wrap` de recursos |
+| `dist validate` / `dist bundle-validate` | Validación de submissions: id slug, semver, `source.uri`, sha256 obligatorio en fuentes remotas; bundles con pins + detección de missing |
+| `dist extension-register/list` | Registro create-only de extensiones con lifecycle declarativo |
+| `dist preset-register/list` | Registro create-only de presets (capas de override con prioridad) |
 
 ### 2.8 Verificación acotada
 
