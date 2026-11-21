@@ -15,6 +15,9 @@ import { KNOWN_HOSTS, validateMethodologyMode } from './config.mjs';
 import { evaluateTaskActions } from './methodology.mjs';
 import { findPlaceholders, renderPlaceholders } from './placeholders.mjs';
 import { hooksFor } from './hooks-policy.mjs';
+import {
+  presetLayers, listRegistry, composeResource,
+} from './distribution.mjs';
 
 const ALLOWED = new Set([
   'command', 'mode', 'taskId', 'host', 'profile', 'interaction',
@@ -22,7 +25,7 @@ const ALLOWED = new Set([
 ]);
 const INTERACTIONS = new Set(['direct', 'guided']);
 
-function resolveResources(kind, ids, catalog) {
+function resolveResources(kind, ids, catalog, presets, applied) {
   const out = [];
   const seen = new Set();
   for (const id of ids) {
@@ -31,11 +34,14 @@ function resolveResources(kind, ids, catalog) {
     const k = `${kind}/${canon}`.toLowerCase();
     if (seen.has(k)) continue; // alias+target dedupe post-resolution
     seen.add(k);
+    const base = decodeUtf8Strict(
+      r.content, 'CATALOG_MALFORMED', `catalog resource ${kind}/${canon}`);
+    const { layers, applied: hits } = presetLayers(presets, kind, canon);
+    for (const h of hits) applied.push({ resource: k, ...h });
     out.push({
       kind, id: canon,
       description: r.description, path: catalogDestRel(r),
-      content: decodeUtf8Strict(
-        r.content, 'CATALOG_MALFORMED', `catalog resource ${kind}/${canon}`),
+      content: composeResource(base, layers),
     });
   }
   return out;
@@ -109,6 +115,17 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     (a) => a.kind === 'command'
       && a.id.toLowerCase() === String(opts.command).toLowerCase());
   const limits = loadLimits();
+  const presets = listRegistry(ctx, 'presets');
+  const presetApplied = [];
+  const { layers: commandLayers, applied: commandHits } = presetLayers(
+    presets, 'command', inv.canonicalId);
+  const commandBase = composeResource(
+    decodeUtf8Strict(command.content,
+      'CATALOG_MALFORMED', `catalog resource command/${command.id}`),
+    commandLayers);
+  for (const h of commandHits) {
+    presetApplied.push({ resource: `command/${inv.canonicalId}`, ...h });
+  }
   const packet = {
     schemaVersion: 1,
     authority: {
@@ -132,13 +149,11 @@ export function buildWorkflowPacket(ctx, opts = {}) {
         .filter((a) => a.id === alias.id).map((a) => a.mode))] : command.modes,
       description: command.description,
       path: catalogDestRel(command),
-      content: decodeUtf8Strict(command.content,
-        'CATALOG_MALFORMED', `catalog resource command/${command.id}`),
+      content: commandBase,
       // Placeholder rendering is optional: callers pass --arguments /
       // --script; unresolved tokens fail closed, never silently strip.
       rendered: (() => {
-        const body = decodeUtf8Strict(command.content,
-          'CATALOG_MALFORMED', `catalog resource command/${command.id}`);
+        const body = commandBase;
         const inv = findPlaceholders(body);
         if (!inv.arguments && !inv.script && inv.handoffs.length === 0) {
           return body;
@@ -154,6 +169,9 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     // Declarative before_/after_ hooks from policy/hooks.json — advisory
     // data projected to hosts; the harness never executes them.
     hooks: hooksFor(inv.canonicalId),
+    // Installed preset override layers applied to projected resources —
+    // declared, never silent.
+    presets: { applied: presetApplied },
     locale: ctx.config.locale,
     profile: {
       id: profile.id,
@@ -163,16 +181,21 @@ export function buildWorkflowPacket(ctx, opts = {}) {
       externalServices: profile.externalServices,
     },
     resources: {
-      agents: resolveResources('agent', commandDeps.agents, catalog),
+      agents: resolveResources('agent', commandDeps.agents, catalog,
+        presets, presetApplied),
       skills: resolveResources('skill',
-        [...new Set([...commandDeps.skills, ...merged.skills])], catalog),
+        [...new Set([...commandDeps.skills, ...merged.skills])], catalog,
+        presets, presetApplied),
       rules: resolveResources('rule',
-        [...new Set([...commandDeps.rules, ...merged.rules])], catalog),
+        [...new Set([...commandDeps.rules, ...merged.rules])], catalog,
+        presets, presetApplied),
       references: resolveResources('reference',
         [...new Set([...commandDeps.references, ...merged.references])],
-        catalog),
-      prompts: resolveResources('prompt', commandDeps.prompts, catalog),
-      mcps: resolveResources('mcp', commandDeps.mcps, catalog),
+        catalog, presets, presetApplied),
+      prompts: resolveResources('prompt', commandDeps.prompts, catalog,
+        presets, presetApplied),
+      mcps: resolveResources('mcp', commandDeps.mcps, catalog,
+        presets, presetApplied),
     },
     paths: { ...ctx.config.paths },
     resourceRoot: ctx.configDir,

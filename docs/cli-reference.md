@@ -391,8 +391,10 @@ scopegrain dist stack --project PATH --input FILE
 scopegrain dist compose --project PATH --input FILE
 scopegrain dist validate --project PATH --input FILE
 scopegrain dist bundle-validate --project PATH --input FILE
+scopegrain dist bundle-install --project PATH --input FILE [--apply]
 scopegrain dist extension-register --project PATH --input FILE
 scopegrain dist extension-list --project PATH
+scopegrain dist extension-activate|deactivate --project PATH ID
 scopegrain dist preset-register --project PATH --input FILE
 scopegrain dist preset-list --project PATH
 ```
@@ -404,5 +406,31 @@ terceros. Checkpoints atomicos bajo `<state>/workflow-runs/` permiten
 reanudar sin re-ejecutar pasos completados. `stack` fusiona catalogos
 locales por prioridad. `compose` aplica capas `replace|prepend|append|
 wrap`. `validate`/`bundle-validate` verifican submissions (id slug,
-semver, pinning sha256 obligatorio en fuentes remotas). Los registros de
-extensiones y presets viven create-only en `<configDir>/`.
+semver, pinning sha256 obligatorio en fuentes remotas).
+
+`bundle-install` (input `{bundle, sources:[{uri,priority}]}`) copia las
+fuentes `file://` requeridas bajo `<configDir>/bundles/<id>/` — acotado
+(256 archivos / 16 MiB), create-only, re-install idempotente, provenance
+content-addressed en `provenance.json`; sha256 pineado se verifica antes
+de copiar.
+
+Los presets declaran `overrides:[{target, op, content}]` donde `target`
+es `'*'`, `'<kind>/*'` o `'<kind>/<id>'`; se aplican a los recursos
+proyectados en el workflow packet (prioridad ascendente, el ultimo gana)
+y la traza sale declarada en `packet.presets.applied`.
+
+Las extensiones llevan lifecycle `registered -> active <-> disabled`:
+`extension-activate` valida que los `contributes` (`<kind>/<id>`) existen
+en el catalogo del workspace antes de activar.
+
+### policy/hooks.json — ejemplo declarativo
+
+```json
+{"schemaVersion": 1,
+ "hooks": {"*": {"before_": [{"id": "log", "description": "aviso"}]},
+           "implement-task": {"after_": [{"id": "check",
+             "description": "verificar"}]}}}
+```
+
+Los hooks se proyectan en `packet.hooks` como datos consultivos para el
+host; el harness nunca los ejecuta.

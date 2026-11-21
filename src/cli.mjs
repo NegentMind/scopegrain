@@ -402,6 +402,18 @@ const COMMANDS = {
     flags: ['--project', '--config'], pos: 0,
     usage: 'dist extension-list --project PATH',
   },
+  'dist extension-activate': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'dist extension-activate --project PATH ID',
+  },
+  'dist extension-deactivate': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'dist extension-deactivate --project PATH ID',
+  },
+  'dist bundle-install': {
+    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
+    usage: 'dist bundle-install --project PATH --input FILE [--apply]',
+  },
   'dist preset-register': {
     flags: ['--project', '--config', '--input'], pos: 0,
     usage: 'dist preset-register --project PATH --input FILE',
@@ -1233,7 +1245,7 @@ async function cmdResource(sub, rest, flags) {
   throw err('INVALID_ARGS', `unknown resource subcommand '${sub}'`);
 }
 
-async function cmdDist(sub, flags) {
+async function cmdDist(sub, rest, flags) {
   const d = await import('./core/distribution.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
@@ -1269,6 +1281,16 @@ async function cmdDist(sub, flags) {
   }
   if (sub === 'extension-list') {
     return { extensions: d.listRegistry(ctx, 'extensions') };
+  }
+  if (sub === 'extension-activate' || sub === 'extension-deactivate') {
+    return d.setExtensionState(ctx, rest[0],
+      sub === 'extension-activate' ? 'active' : 'disabled');
+  }
+  if (sub === 'bundle-install') {
+    const input = readInputFile(
+      requireFlag(flags, '--input'), 'bundle install input');
+    return d.installBundle(ctx, input.bundle, input.sources ?? [],
+      { apply: flags['--apply'] === true });
   }
   if (sub === 'preset-register') {
     const input = readInputFile(requireFlag(flags, '--input'), 'preset input');
@@ -2476,7 +2498,7 @@ export async function run(argv, io) {
     } else if (cmdKey.startsWith('catalog ')) {
       result = await cmdCatalog(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('dist ')) {
-      result = await cmdDist(cmdKey.slice(5), flags);
+      result = await cmdDist(cmdKey.slice(5), rest, flags);
     } else if (cmdKey.startsWith('resource ')) {
       result = await cmdResource(cmdKey.slice(9), rest, flags);
     } else if (cmdKey.startsWith('plan ')) {

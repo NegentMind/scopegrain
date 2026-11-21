@@ -119,8 +119,9 @@ Implementados sobre `owned-store.mjs` (factory) + `owned-chain.mjs` (primitivas)
 | `dist stack` | Fusiona catálogos `file://` por prioridad; URIs remotas = `REMOTE_CATALOG_UNSUPPORTED` (nunca descarga) |
 | `dist compose` | Composición en capas `replace/prepend/append/wrap` de recursos |
 | `dist validate` / `dist bundle-validate` | Validación de submissions: id slug, semver, `source.uri`, sha256 obligatorio en fuentes remotas; bundles con pins + detección de missing |
-| `dist extension-register/list` | Registro create-only de extensiones con lifecycle declarativo |
-| `dist preset-register/list` | Registro create-only de presets (capas de override con prioridad) |
+| `dist bundle-install` | Copia fuentes `file://` requeridas bajo `<configDir>/bundles/<id>/` (256 archivos / 16 MiB max, create-only, idempotente, provenance content-addressed) |
+| `dist extension-register/list/activate/deactivate` | Registro create-only + lifecycle `registered→active⇄disabled`; activate valida `contributes` contra el catálogo del workspace |
+| `dist preset-register/list` | Registro create-only de presets; `overrides` con `target` (`*`, `kind/*`, `kind/id`) se consumen en `buildWorkflowPacket` con traza en `packet.presets.applied` |
 
 ### 2.8 Verificación acotada
 

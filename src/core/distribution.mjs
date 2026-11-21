@@ -8,9 +8,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { err } from './errors.mjs';
 import { assertSafeId } from './identifiers.mjs';
 import { resolveInside } from './paths.mjs';
+import { loadWorkspaceCatalog } from './catalog.mjs';
 import {
   lstatOrNull, readFileLimited, decodeUtf8Strict,
 } from './fsx.mjs';
@@ -146,6 +148,51 @@ export function composeResource(base, layers) {
   return text;
 }
 
+// Preset override targets: '*', '<kind>/*' or '<kind>/<id>'.
+const RESOURCE_KINDS = new Set(['agent', 'command', 'mcp', 'profile',
+  'prompt', 'reference', 'rule', 'skill']);
+const TARGET_RE = /^[a-z]+\/[a-z0-9][a-z0-9-]{0,63}$/;
+
+function validateOverrideTarget(t, label) {
+  if (t === '*') return;
+  if (typeof t !== 'string'
+      || !(TARGET_RE.test(t) || /^[a-z]+\/\*$/.test(t))) {
+    throw err('INVALID_VALUE',
+      `${label} must be '*', '<kind>/*' or '<kind>/<id>'`);
+  }
+  const kind = t.split('/', 1)[0];
+  if (!RESOURCE_KINDS.has(kind)) {
+    throw err('INVALID_VALUE', `${label} has unknown kind '${kind}'`);
+  }
+}
+
+// Select the override layers from a preset list matching kind/id, in
+// ascending priority order (higher priority applies last, consistent
+// with the catalog stack). Returns layers plus an audit trail.
+export function presetLayers(presets, kind, id) {
+  const key = `${kind}/${id}`.toLowerCase();
+  const layers = [];
+  const applied = [];
+  for (const p of presets.slice()
+    .sort((a, b) => a.priority - b.priority)) {
+    for (const o of p.overrides) {
+      const t = o.target.toLowerCase();
+      if (t === '*' || t === key
+          || (t.endsWith('/*') && key.startsWith(t.slice(0, -1)))) {
+        layers.push(o);
+        applied.push({ preset: p.id, target: o.target, op: o.op });
+      }
+    }
+  }
+  return { layers, applied };
+}
+
+export function applyPresets(ctx, kind, id, text) {
+  const { layers, applied } =
+    presetLayers(listRegistry(ctx, 'presets'), kind, id);
+  return { text: composeResource(text, layers), applied };
+}
+
 // ---- D4: bundles ----------------------------------------------------------
 // {id, version, requires:[{id, sha256}], contributes:[id]}
 export function validateBundle(doc, catalogIds) {
@@ -220,21 +267,59 @@ export function registerExtension(ctx, input) {
       throw err('UNKNOWN_KEY', `extension.lifecycle unknown key '${k}'`);
     }
   }
+  const contributes = Array.isArray(input.contributes)
+    ? input.contributes : [];
+  for (const [i, c] of contributes.entries()) {
+    if (!TARGET_RE.test(c ?? '')) {
+      throw err('INVALID_VALUE',
+        `extension.contributes[${i}] must be '<kind>/<id>'`);
+    }
+    if (!RESOURCE_KINDS.has(c.split('/', 1)[0])) {
+      throw err('INVALID_VALUE',
+        `extension.contributes[${i}] has unknown kind`);
+    }
+  }
   const reg = loadRegistry(ctx, 'extensions');
   if (reg.extensions.some((e) => e.id === doc.id)) {
     throw err('CONFLICT', `extension '${doc.id}' already registered`);
   }
   reg.extensions.push({
-    ...doc, lifecycle,
-    contributes: Array.isArray(input.contributes) ? input.contributes : [],
+    ...doc, lifecycle, contributes, state: 'registered',
     registeredAt: new Date().toISOString(),
   });
   saveRegistry(ctx, 'extensions', reg);
   return Object.freeze(reg.extensions.at(-1));
 }
 
-// Preset: an installed override layer with priority — applied through
-// composeResource at projection time by consumers.
+// Lifecycle: registered -> active <-> disabled. Activation validates the
+// extension's contributed resource ids against the workspace catalog —
+// an extension cannot go active claiming resources that do not exist.
+export function setExtensionState(ctx, id, state) {
+  if (!['active', 'disabled'].includes(state)) {
+    throw err('INVALID_VALUE', "state must be 'active' or 'disabled'");
+  }
+  assertSafeId(id, 'extension id');
+  const reg = loadRegistry(ctx, 'extensions');
+  const ext = reg.extensions.find((e) => e.id === id);
+  if (!ext) throw err('NOT_FOUND', `extension '${id}' not registered`);
+  if (state === 'active' && ext.contributes.length > 0) {
+    const cat = loadWorkspaceCatalog(ctx);
+    const missing = ext.contributes
+      .filter((c) => !cat.byKey.has(c.toLowerCase()));
+    if (missing.length > 0) {
+      throw err('NOT_FOUND',
+        `extension contributes unknown resources: ${missing.join(', ')}`);
+    }
+  }
+  ext.state = state;
+  ext[`${state === 'active' ? 'activat' : 'deactivat'}edAt`] =
+    new Date().toISOString();
+  saveRegistry(ctx, 'extensions', reg);
+  return Object.freeze(ext);
+}
+
+// Preset: an installed override layer with priority — consumed through
+// applyPresets at resource-projection time (workflow packets).
 export function registerPreset(ctx, input) {
   if (input === null || typeof input !== 'object'
       || !Array.isArray(input.overrides)) {
@@ -246,6 +331,7 @@ export function registerPreset(ctx, input) {
       throw err('INVALID_VALUE',
         `preset.overrides[${i}] requires a valid op`);
     }
+    validateOverrideTarget(o.target, `preset.overrides[${i}].target`);
   }
   const reg = loadRegistry(ctx, 'presets');
   if (reg.presets.some((p) => p.id === input.id)) {
@@ -262,4 +348,136 @@ export function registerPreset(ctx, input) {
 
 export function listRegistry(ctx, kind) {
   return loadRegistry(ctx, kind)[kind];
+}
+
+// ---- bundle install (file:// only, bounded, provenance-recorded) -------
+const MAX_BUNDLE_FILES = 256;
+const MAX_BUNDLE_TOTAL = 16 * 1024 * 1024; // 16 MiB per bundle install
+
+function sha256File(abs) {
+  return crypto.createHash('sha256')
+    .update(fs.readFileSync(abs)).digest('hex');
+}
+
+// Collect the regular files of a file:// source (file or dir), bounded.
+function collectSourceFiles(abs, relBase) {
+  const st = fs.lstatSync(abs);
+  if (st.isSymbolicLink()) {
+    throw err('INVALID_PATH', `bundle source contains a link: ${relBase}`);
+  }
+  if (st.isFile()) return [{ rel: relBase, abs }];
+  if (!st.isDirectory()) {
+    throw err('INVALID_PATH', `bundle source is not file/dir: ${relBase}`);
+  }
+  const out = [];
+  for (const name of fs.readdirSync(abs).sort()) {
+    out.push(...collectSourceFiles(
+      path.join(abs, name), `${relBase}/${name}`));
+  }
+  return out;
+}
+
+// Resolve the bundle's requires against the local stack and produce an
+// install plan: [{id, rel, sha256}]. Dry-run by default; apply copies the
+// files under <configDir>/bundles/<bundle-id>/ and records provenance.
+export function installBundle(ctx, bundleDoc, sources, { apply = false } = {}) {
+  const stack = loadCatalogStack(ctx, sources);
+  const catalogIds = new Set(stack.entries.map((e) => e.id));
+  const bundle = validateBundle(bundleDoc, catalogIds);
+  if (bundle.missing.length > 0) {
+    throw err('NOT_FOUND',
+      `bundle requires missing entries: ${bundle.missing.join(', ')}`);
+  }
+  const limits = loadLimits();
+  const files = [];
+  let totalBytes = 0;
+  for (const req of bundle.requires) {
+    const entry = stack.entries.find((e) => e.id === req.id);
+    const uri = entry?.source?.uri ?? '';
+    if (!uri.startsWith('file://')) {
+      throw err('INVALID_VALUE',
+        `entry '${req.id}' has no installable file:// source`);
+    }
+    const abs = resolveInside(
+      ctx.projectRoot, uri.slice('file://'.length), 'bundle entry');
+    const st = lstatOrNull(abs);
+    if (!st) throw err('NOT_FOUND', `bundle source for '${req.id}' missing`);
+    const collected = collectSourceFiles(abs, req.id);
+    for (const f of collected) {
+      const fSt = fs.lstatSync(f.abs);
+      if (fSt.size > limits.maxDocumentBytes) {
+        throw err('DOCUMENT_TOO_LARGE',
+          `bundle file exceeds limit: ${f.rel}`);
+      }
+      totalBytes += fSt.size;
+      if (files.length >= MAX_BUNDLE_FILES
+          || totalBytes > MAX_BUNDLE_TOTAL) {
+        throw err('BUNDLE_TOO_LARGE',
+          `bundle '${bundle.id}' exceeds install bounds`);
+      }
+      const sha = sha256File(f.abs);
+      if (req.sha256 && f.rel === req.id && sha !== req.sha256) {
+        throw err('HASH_MISMATCH',
+          `bundle entry '${req.id}' sha256 mismatch`);
+      }
+      files.push({ rel: f.rel, abs: f.abs, sha256: sha });
+    }
+  }
+  const destRel = `${ctx.configDir}/bundles/${bundle.id}`;
+  const destAbs = resolveInside(ctx.projectRoot, destRel, 'bundle install');
+  const plan = files.map((f) => ({
+    rel: `${destRel}/${f.rel}`, sha256: f.sha256,
+    exists: fs.existsSync(path.join(destAbs, f.rel)),
+  }));
+  if (!apply) {
+    return Object.freeze({ mode: 'dry-run', applied: false,
+      bundle: { id: bundle.id, version: bundle.version },
+      files: plan });
+  }
+  // Apply: create-only per file — existing bytes are never overwritten.
+  for (const [i, f] of files.entries()) {
+    const dest = path.join(destAbs, f.rel);
+    const st = lstatOrNull(dest);
+    if (st) {
+      if (!st.isFile() || st.isSymbolicLink()
+          || sha256File(dest) !== f.sha256) {
+        throw err('CONFLICT',
+          `bundle install destination diverged: ${plan[i].rel}`);
+      }
+      continue; // identical content already installed — idempotent
+    }
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    const tmp = `${dest}.tmp-${process.pid}`;
+    fs.writeFileSync(tmp, fs.readFileSync(f.abs), { flag: 'wx' });
+    try { fs.renameSync(tmp, dest); }
+    catch (e) {
+      try { fs.unlinkSync(tmp); } catch { /* best effort */ }
+      throw e;
+    }
+  }
+  // Provenance is content-addressed: identical inputs produce identical
+  // bytes, which is what makes re-install a no-op rather than a conflict.
+  const provenance = {
+    schemaVersion: 1, id: bundle.id, version: bundle.version,
+    requires: bundle.requires, contributes: bundle.contributes,
+    files: plan.map((p) => ({ rel: p.rel, sha256: p.sha256 })),
+  };
+  const provAbs = resolveInside(ctx.projectRoot,
+    `${destRel}/provenance.json`, 'bundle provenance');
+  const provBytes = JSON.stringify(provenance, null, 2) + '\n';
+  const provExisting = lstatOrNull(provAbs);
+  if (provExisting) {
+    // Re-install: identical provenance is a no-op; different bytes under
+    // the same bundle id mean divergent content — refuse to clobber.
+    const prev = readFileLimited(provAbs, limits.maxDocumentBytes);
+    if (prev.exceeded || prev.content.toString('utf8') !== provBytes) {
+      throw err('CONFLICT',
+        `bundle '${bundle.id}' provenance diverged; refusing to overwrite`);
+    }
+  } else {
+    fs.writeFileSync(provAbs, provBytes, { flag: 'wx' });
+  }
+  return Object.freeze({ mode: 'applied', applied: true,
+    bundle: { id: bundle.id, version: bundle.version },
+    files: plan, provenance: `${destRel}/provenance.json` });
 }

@@ -353,3 +353,20 @@ un esquema editado con keywords fuera del subconjunto falla en voz alta.
   verifica la revision contra operaciones previas (no hay indice por
   record). Escritores ajenos al journal pueden intercalar y la prueba
   owned falla cerrado ante la deriva, sin prevenirla ni revertirla.
+- Limites TOCTOU declarados: las verificaciones `lstat`/`readFileLimited`
+  y la escritura `temp+rename` estan separadas por una ventana en la que
+  un proceso concurrente con acceso al directorio puede sustituir el
+  destino. El diseno reduce la ventana (re-preflight en apply, create
+  exclusivo `wx`) pero no la elimina: la garantia es deteccion
+  (conflict/drift), no exclusion mutua con actores ajenos al lock.
+  En Windows la comparacion de identidad de rutas sigue la semantica
+  case-insensitive del filesystem; un atacante que pueda alternar el
+  case de un componente dentro de la ventana queda fuera del modelo.
+- Modelo de persistencia de artefactos: flow-forward. Los artefactos
+  formales (specs, designs, outcomes, checklists, clarifications,
+  convergence records) son inmutables una vez creados: una nueva
+  iteracion produce un nuevo record encadenado (o un nuevo archivo
+  create-only), nunca una reescritura in-place del historial. El estado
+  mutable deliberado queda confinado a punteros explicitos
+  (`active-task`, `head` del journal) y a indices derivados, siempre
+  con CAS.

@@ -3,10 +3,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { runWorkflow, loadRun } from '../src/core/workflow-runner.mjs';
 import {
   validateSubmission, loadCatalogStack, composeResource,
   validateBundle, registerExtension, registerPreset, listRegistry,
+  setExtensionState, installBundle, presetLayers,
 } from '../src/core/distribution.mjs';
 import { createTask } from '../src/core/tasks.mjs';
 import { assertSafeId } from '../src/core/identifiers.mjs';
@@ -128,7 +130,7 @@ test('D5/D6 registries: extension lifecycle + preset priority persist', () => {
       lifecycle: { onActivate: 'boot' }, contributes: [] });
     assert.equal(e.lifecycle.onActivate, 'boot');
     const p = registerPreset(ctx, { id: 'p1', priority: 5,
-      overrides: [{ op: 'append', content: 'x' }] });
+      overrides: [{ op: 'append', content: 'x', target: '*' }] });
     assert.equal(p.priority, 5);
     assert.equal(listRegistry(ctx, 'extensions').length, 1);
     assert.equal(listRegistry(ctx, 'presets').length, 1);
@@ -136,5 +138,100 @@ test('D5/D6 registries: extension lifecycle + preset priority persist', () => {
       version: '1.0.0' }), /already/);
     assert.throws(() => registerExtension(ctx, { id: 'e2',
       version: '1.0.0', lifecycle: { onPwned: 'x' } }), /unknown key/);
+    assert.throws(() => registerPreset(ctx, { id: 'p2',
+      overrides: [{ op: 'append', content: 'x' }] }), /target/);
+    assert.throws(() => registerPreset(ctx, { id: 'p2',
+      overrides: [{ op: 'append', content: 'x', target: 'bogus/x' }] }),
+      /unknown kind/);
+  } finally { cleanup(dir); }
+});
+
+test('presets consume: target matching + packet applies overrides', async () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    // Matching semantics: exact, kind/* and * targets all apply,
+    // higher priority last.
+    const presets = [
+      { id: 'low', priority: 1, overrides: [
+        { op: 'append', content: '+L', target: '*' }] },
+      { id: 'high', priority: 9, overrides: [
+        { op: 'append', content: '+H', target: 'rule/*' },
+        { op: 'append', content: '+E', target: 'skill/planning-and-task-breakdown' }] },
+    ];
+    let sel = presetLayers(presets, 'rule', 'workflow');
+    assert.equal(sel.layers.length, 2);
+    assert.equal(composeResource('b', sel.layers), 'b+L+H');
+    sel = presetLayers(presets, 'skill', 'planning-and-task-breakdown');
+    assert.equal(sel.layers.length, 2); // '*' + exact
+    sel = presetLayers(presets, 'prompt', 'task-brief');
+    assert.equal(sel.layers.length, 1); // only '*'
+    // End-to-end: registered preset shapes the workflow packet content.
+    registerPreset(ctx, { id: 'pk', priority: 1, overrides: [
+      { op: 'append', content: '\nPRESET-MARK', target: 'command/*' }] });
+    const { buildWorkflowPacket } =
+      await import('../src/core/workflows.mjs');
+    const packet = buildWorkflowPacket(ctx, { command: 'plan-work' });
+    assert.ok(packet.command.content.endsWith('PRESET-MARK'));
+    assert.deepEqual(packet.presets.applied,
+      [{ resource: 'command/plan-work', preset: 'pk',
+        target: 'command/*', op: 'append' }]);
+  } finally { cleanup(dir); }
+});
+
+test('extension lifecycle: activate validates contributes vs catalog', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    registerExtension(ctx, { id: 'ok-ext', version: '1.0.0',
+      contributes: ['command/plan-work'] });
+    const act = setExtensionState(ctx, 'ok-ext', 'active');
+    assert.equal(act.state, 'active');
+    const dis = setExtensionState(ctx, 'ok-ext', 'disabled');
+    assert.equal(dis.state, 'disabled');
+    registerExtension(ctx, { id: 'bad-ext', version: '1.0.0',
+      contributes: ['command/ghost'] });
+    assert.throws(() => setExtensionState(ctx, 'bad-ext', 'active'),
+      /unknown resources/);
+    assert.throws(() => setExtensionState(ctx, 'nope', 'active'),
+      /not registered/);
+  } finally { cleanup(dir); }
+});
+
+test('bundle install: file:// bounded copy, sha256 pin, provenance', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    fs.mkdirSync(path.join(dir, 'pack'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pack/content.md'), 'hello bundle');
+    const sha = crypto.createHash('sha256')
+      .update('hello bundle').digest('hex');
+    writeJson(dir, 'cats/pack-cat.json', {
+      entries: [{ id: 'entry-a',
+        source: { uri: 'file://pack/content.md' } }] });
+    const input = {
+      bundle: { id: 'pkg', version: '1.0.0',
+        requires: [{ id: 'entry-a', sha256: sha }] },
+      sources: [{ uri: 'file://cats/pack-cat.json' }],
+    };
+    const dry = installBundle(ctx, input.bundle, input.sources);
+    assert.equal(dry.mode, 'dry-run');
+    assert.equal(dry.files.length, 1);
+    const done = installBundle(ctx, input.bundle, input.sources,
+      { apply: true });
+    assert.equal(done.applied, true);
+    assert.ok(fs.existsSync(path.join(dir,
+      '.tasksystem/bundles/pkg/entry-a')));
+    const prov = JSON.parse(fs.readFileSync(path.join(dir,
+      '.tasksystem/bundles/pkg/provenance.json'), 'utf8'));
+    assert.equal(prov.files[0].sha256, sha);
+    // Idempotent re-apply (identical bytes) is a no-op, not a conflict.
+    const again = installBundle(ctx, input.bundle, input.sources,
+      { apply: true });
+    assert.equal(again.applied, true);
+    // Wrong pin fails closed.
+    assert.throws(() => installBundle(ctx, { ...input.bundle,
+      requires: [{ id: 'entry-a', sha256: 'b'.repeat(64) }] },
+      input.sources), (e) => e.code === 'HASH_MISMATCH');
+    // Missing stack entry fails closed.
+    assert.throws(() => installBundle(ctx, { ...input.bundle,
+      requires: [{ id: 'ghost' }] }, input.sources), /missing entries/);
   } finally { cleanup(dir); }
 });
