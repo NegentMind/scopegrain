@@ -671,7 +671,7 @@
    "kind": "skill",
    "id": "unified-review",
    "path": "resources/skills/unified-review/SKILL.md",
-   "description": "Choose quick, certify, review or full inspection with honest evidence."
+   "description": "Use to choose quick verification, certification, focused review or wider inspection proportional to evidenced risk"
   },
   {
    "kind": "skill",
@@ -1128,6 +1128,18 @@
    "id": "organic-driven-development",
    "path": "resources/skills/organic-driven-development/SKILL.md",
    "description": "Select proportionate authorized engineering work with Organic and SDD."
+  },
+  {
+   "kind": "skill",
+   "id": "work-unit-commits",
+   "path": "resources/skills/work-unit-commits/SKILL.md",
+   "description": "Use when splitting authorized implementation into reviewable commits with tests and docs per unit."
+  },
+  {
+   "kind": "skill",
+   "id": "chained-pr",
+   "path": "resources/skills/chained-pr/SKILL.md",
+   "description": "Use when a change forecasts beyond the reviewable-slice budget to select a bounded delivery-slice strategy."
   }
  ],
  "aliases": [
