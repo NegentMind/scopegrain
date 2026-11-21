@@ -19,6 +19,9 @@ import {
   configDirOf, loadConfig, PATH_KEYS, resolveConfigPath,
 } from './config.mjs';
 import { applyPlan, buildInitPlan } from './bootstrap.mjs';
+import {
+  hasManagedSection, managedBody, managedEquals, upsertManaged,
+} from './managed-section.mjs';
 import { inspectProject } from '../discovery/inspect.mjs';
 import { validateWorkspace, workspaceFileRel } from './workspaces.mjs';
 import { catalogDestRel, loadWorkspaceCatalog } from './catalog.mjs';
@@ -110,7 +113,35 @@ function walkTree(root, dirRel, counter, out, issues) {
   }
 }
 
-// preflightPlan's classification, collected instead of thrown.
+// A plan file whose content declares managed markers may refresh the same
+// region in an existing file that carries them; equality is judged on the
+// managed region only, never on user bytes outside it.
+function managedClass(abs, incoming) {
+  let existing;
+  try {
+    const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
+    if (limited.exceeded) return null; // never upsert bytes we cannot see
+    existing = decodeUtf8Strict(limited.content, 'MANAGED_MALFORMED', abs);
+  } catch {
+    return null; // unreadable/binary: plain diverged conflict
+  }
+  let incomingText;
+  try {
+    incomingText = decodeUtf8Strict(incoming, 'MANAGED_MALFORMED', 'plan file');
+  } catch {
+    return null;
+  }
+  if (!hasManagedSection(incomingText) || !hasManagedSection(existing)) {
+    return null;
+  }
+  return managedEquals(existing, managedBody(incomingText))
+    ? { action: 'noop' } : { action: 'managed' };
+}
+
+// preflightPlan's classification, collected instead of thrown. Action
+// 'managed' marks a diverged file whose managed region may be refreshed
+// in place; it only ever applies to destinations the plan itself wraps
+// in markers and the existing file opted into.
 function classifyPlan(projectRoot, files) {
   const collisions = new Set();
   for (let i = 0; i < files.length; i++) {
@@ -148,6 +179,8 @@ function classifyPlan(projectRoot, files) {
       return { rel: f.rel, action: 'conflict', reason: `read failed: ${e.code}` };
     }
     if (limited.exceeded || !limited.content.equals(incoming)) {
+      const managed = managedClass(abs, incoming);
+      if (managed) return { rel: f.rel, ...managed };
       return { rel: f.rel, action: 'conflict',
         reason: DIVERGED_REASON };
     }
@@ -399,18 +432,86 @@ export function prepareUpdate(ctx, options = {}) {
     ...(roots !== null && f.action === 'conflict'
       ? { reconcile: reconcilable(f, roots, ctx.configPath) } : {}),
   }));
-  const counts = { create: 0, noop: 0, conflict: 0 };
+  const counts = { create: 0, noop: 0, conflict: 0, managed: 0 };
   const conflicts = [];
-  for (const f of files) {
+  for (const [i, f] of files.entries()) {
     counts[f.action] += 1;
     if (f.action === 'conflict') {
+      const incoming = plan.files[i].content;
+      const managedEligible = (() => {
+        try {
+          return hasManagedSection(decodeUtf8Strict(
+            Buffer.isBuffer(incoming) ? incoming : Buffer.from(incoming),
+            'MANAGED_MALFORMED', f.rel));
+        } catch { return false; }
+      })();
       conflicts.push({ path: f.rel, reason: f.reason,
-        ...(roots !== null ? { reconcile: f.reconcile } : {}) });
+        ...(roots !== null ? { reconcile: f.reconcile } : {}),
+        // Only marker-eligible destinations get the opt-in hint; other
+        // diverged files still demand a plain manual merge.
+        ...(managedEligible
+          ? { remediation: 'carrying the SCOPEGRAIN markers opts this '
+              + 'file into managed refreshes; otherwise merge manually' }
+          : {}) });
     }
   }
   return Object.freeze({
     mode: 'dry-run', files, counts, conflicts, warnings: [...plan.warnings],
   });
+}
+
+// In-place refresh of a managed region: the only write that is not
+// create-only in the codebase, bounded to the marker-delimited region the
+// file opted into. Re-reads under the same lstat check as classification
+// (TOCTOU), refuses links/non-files, refuses marker removal mid-apply and
+// writes through an exclusive temp + rename so a crash never leaves a
+// truncated file.
+function applyManagedRefresh(projectRoot, rel, incoming) {
+  const abs = resolveInside(projectRoot, rel, `managed target ${rel}`);
+  const st = lstatOrNull(abs);
+  if (!st || !st.isFile() || st.isSymbolicLink()) {
+    return { ok: false, reason: 'destination became a link or non-file during apply' };
+  }
+  const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
+  if (limited.exceeded) {
+    return { ok: false, reason: 'destination exceeded read bound during apply' };
+  }
+  let existing;
+  try {
+    existing = decodeUtf8Strict(limited.content, 'MANAGED_MALFORMED', rel);
+  } catch {
+    return { ok: false, reason: 'destination is not decodable UTF-8' };
+  }
+  const body = managedBody(decodeUtf8Strict(
+    Buffer.isBuffer(incoming) ? incoming : Buffer.from(incoming),
+    'MANAGED_MALFORMED', rel));
+  if (body === null || !hasManagedSection(existing)) {
+    return { ok: false, reason: 'managed markers vanished during apply' };
+  }
+  const next = upsertManaged(existing, body);
+  const tmp = `${abs}.scopegrain-tmp-${process.pid}`;
+  const fd = fs.openSync(tmp, 'wx');
+  try {
+    const buf = Buffer.from(next, 'utf8');
+    let off = 0;
+    while (off < buf.length) {
+      const n = fs.writeSync(fd, buf, off, buf.length - off);
+      if (n <= 0) {
+        throw err('WRITE_FAILED', `write made no progress on ${rel}`);
+      }
+      off += n;
+    }
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  try {
+    fs.renameSync(tmp, abs);
+  } catch (e) {
+    removeIfExists(tmp);
+    throw e;
+  }
+  return { ok: true };
 }
 
 export function applyUpdate(ctx, options = {}) {
@@ -422,8 +523,16 @@ export function applyUpdate(ctx, options = {}) {
     ? generatedRoots(plan.files) : null;
   const creates = [];
   const reconciled = [];
+  const managedRefreshed = [];
   const conflicts = [];
   classified.forEach((f, i) => {
+    if (f.action === 'managed') {
+      const r = applyManagedRefresh(ctx.projectRoot, f.rel,
+        plan.files[i].content);
+      if (r.ok) managedRefreshed.push(f.rel);
+      else conflicts.push({ path: f.rel, reason: r.reason });
+      return;
+    }
     if (f.action === 'conflict') {
       if (roots !== null && reconcilable(f, roots, ctx.configPath)) {
         const abs = resolveInside(
@@ -457,6 +566,7 @@ export function applyUpdate(ctx, options = {}) {
     : { created: 0, files: [] };
   return Object.freeze({
     mode: 'applied', created: applied.created, files: applied.files,
+    managed: managedRefreshed,
     reconciled, conflicts, warnings: [...plan.warnings],
   });
 }

@@ -20,6 +20,7 @@ import { catalogFiles, loadCatalog } from './catalog.mjs';
 import { loadLimits } from './policy.mjs';
 import { buildVersioningFiles } from './versioning.mjs';
 import { renderNativeAdapters } from '../hosts/native.mjs';
+import { wrapManaged } from './managed-section.mjs';
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const INSTALL_ROOT = path.resolve(MODULE_DIR, '..', '..');
@@ -91,11 +92,14 @@ export function buildInitPlan({
       : JSON.stringify(discovery ?? null, null, 2) + '\n'));
 
   // Common entrypoint for codex/opencode/devin; CLAUDE.md for claude.
-  // Distinct filenames: no duplicates inside a single plan.
-  const entry = renderTemplate(readTemplate('entrypoint.md', templatesDir), {
-    instructionsPath: instructionsRel,
-    configPath: cfgRel,
-  });
+  // Distinct filenames: no duplicates inside a single plan. The entrypoint
+  // is wrapped in managed markers: bytes outside the markers belong to the
+  // user, so update can refresh the section without a whole-file conflict.
+  const entry = wrapManaged(renderTemplate(
+    readTemplate('entrypoint.md', templatesDir), {
+      instructionsPath: instructionsRel,
+      configPath: cfgRel,
+    }));
   if (config.hosts.some((h) => AGENTS_HOSTS.has(h))) {
     files.push(planFile(projectRoot, 'AGENTS.md', entry));
   }
