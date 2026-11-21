@@ -21,6 +21,7 @@ import { checkDocsCliDrift } from './docs-cli-drift.mjs';
 import { validateSessionShape } from './sessions.mjs';
 import { validateVerifyStore, verifyStoreRel } from './verify-commands.mjs';
 import { gitHooksDir } from './hooks.mjs';
+import { detectHostClis } from './host-cli.mjs';
 import { prepareActivation } from '../hosts/activation.mjs';
 
 const MAX_LIST = 100000;
@@ -734,6 +735,27 @@ export function runDoctor(ctx, opts = {}) {
         push('host-fragments', false,
           `${details.join(' | ')} — divergent: ${bad.join(' | ')}`);
       }
+    }
+  }
+
+  // Host CLI reachability is informational: probes PATH entries and
+  // well-known install dirs without spawning anything. A missing CLI
+  // never fails doctor — host fragments can be useful regardless — but
+  // the per-host status is structured for consumers.
+  {
+    const hosts = Array.isArray(config.hosts) ? config.hosts : [];
+    if (hosts.length === 0) {
+      push('host-cli', true, 'no hosts configured');
+    } else {
+      const detected = detectHostClis(hosts);
+      const missing = hosts.filter((h) => !detected[h].found);
+      const found = hosts.filter((h) => detected[h].found);
+      push('host-cli', true,
+        missing.length === 0
+          ? `all ${hosts.length} host CLIs on PATH or known locations`
+          : `found: ${found.join(', ') || 'none'}; not found: `
+            + missing.join(', '),
+        { hosts: detected, missing });
     }
   }
 

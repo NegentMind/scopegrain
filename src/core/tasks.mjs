@@ -27,6 +27,7 @@ const TASK_KEYS = new Set([
   'schemaVersion', 'id', 'title', 'contract', 'authorContext', 'scope',
   'state', 'revision', 'verification', 'review', 'createdAt', 'updatedAt',
   'history', 'methodology', 'specId', 'designId', 'planKey', 'scenarioRefs',
+  'slug',
   // V3 semantic extensions (parity with the legacy backlog/task-file model)
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
   'estimate', 'source', 'relations', 'dependsOn', 'goalIds', 'analysis',
@@ -63,6 +64,32 @@ const CREATE_KEYS = new Set([
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
 const PLAN_KEY_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const SLUG_RE = /^[0-9]{3}-[a-z0-9][a-z0-9-]{0,60}$/;
+
+// NNN- slug from a title (spec-kit feature-dir parity). The sequence
+// number is the max existing NNN among stored task slugs + 1, so slugs
+// stay unique and monotonic even when tasks are deleted.
+export function slugifyTitle(title) {
+  const s = String(title).toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
+    .replace(/-+$/g, '');
+  return s === '' ? 'task' : s;
+}
+
+export function nextTaskSlug(ctx, title, reserved = []) {
+  let max = 0;
+  const consider = (s) => {
+    const m = typeof s === 'string' && s.match(/^([0-9]{3})-/);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  };
+  for (const t of listTasks(ctx).tasks) consider(t.slug);
+  for (const s of reserved) consider(s);
+  return `${String(max + 1).padStart(3, '0')}-${slugifyTitle(title)}`;
+}
+
+export function taskBySlug(ctx, slug) {
+  return listTasks(ctx).tasks.find((t) => t.slug === slug) ?? null;
+}
 
 function validateV3Fields(task, label) {
   if (task.backlog !== null && (typeof task.backlog !== 'string'
@@ -255,6 +282,12 @@ export function validateTaskShape(task, label = 'task') {
   }
   if (!isUUID(task.id)) {
     throw err('TASK_MALFORMED', `${label} has a non-UUID id`);
+  }
+  // slug is optional on stored records (legacy tasks predate it); when
+  // present it must be the canonical NNN-slug form.
+  if (task.slug !== undefined && task.slug !== null
+      && (typeof task.slug !== 'string' || !SLUG_RE.test(task.slug))) {
+    throw err('TASK_MALFORMED', `${label}.slug must match NNN-slug form`);
   }
   requireNonEmpty(task.title, `${label}.title`);
   requireNonEmpty(task.contract, `${label}.contract`);
@@ -733,11 +766,12 @@ export const V3_DEFAULTS = {
 
 // Pure task record factory: no I/O, no side effects. V2 records carry the
 // normalized methodology bundle; V1 stays byte-identical to before.
-export function buildTaskRecord(input, { id, at, initial }) {
+export function buildTaskRecord(input, { id, at, initial, slug }) {
   const base = {
     schemaVersion: 1,
     id,
     title: input.title,
+    slug: slug ?? null,
     contract: input.contract,
     authorContext: input.authorContext,
     scope: input.scope,
@@ -788,7 +822,9 @@ export function prepareTask(ctx, input) {
   const policy = loadPolicy();
   const id = crypto.randomUUID();
   const at = nowIso();
-  const task = buildTaskRecord(clean, { id, at, initial: policy.initial });
+  const task = buildTaskRecord(clean, {
+    id, at, initial: policy.initial, slug: nextTaskSlug(ctx, clean.title),
+  });
   validateTaskShape(task, `prepared task`);
   const content = JSON.stringify(task, null, 2) + '\n';
   if (Buffer.byteLength(content, 'utf8') > loadLimits().maxDocumentBytes) {

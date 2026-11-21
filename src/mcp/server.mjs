@@ -32,6 +32,7 @@ import { callVantaDBTool, getVantaDBRecord, requireVantaDBConfig,
   vantaDBContext, vantaDBStatus }
   from '../integrations/vantadb-runtime.mjs';
 import { recordRehydration } from '../integrations/vantadb-rehydrate.mjs';
+import { buildMcpInventory } from '../core/mcp-inventory.mjs';
 
 const PROTOCOL_NOTE = 'stdout is reserved for MCP protocol; logs go to stderr';
 
@@ -115,7 +116,7 @@ function strictify(tools) {
 // Tool descriptors shared by the real server and tests. Every handler closes
 // over the bound ctx; no tool argument can redirect to another path.
 export function createMCPTools(ctx, z) {
-  return strictify([
+  const tools = [
     {
       name: 'scopegrain_inspect',
       config: {
@@ -595,7 +596,23 @@ export function createMCPTools(ctx, z) {
       },
       handler: wrap(async () => taskMetrics(ctx)),
     },
-  ]);
+    // Self-describing contract inventory (spec-kit parity). The handler
+    // closes over the `tools` array itself, so the advertised inventory
+    // can never drift from what the server actually registers.
+    {
+      name: 'scopegrain_mcp_inventory',
+      config: {
+        description: 'Formal MCP tool inventory: every registered tool '
+          + 'with its disposition (read-only | local-write), contract '
+          + 'version, argument capability list and network posture. '
+          + 'Derived from the live descriptors.',
+        inputSchema: {},
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async () => buildMcpInventory(tools)),
+    },
+  ];
+  return strictify(tools);
 }
 
 // Constructs the MCP server and registers all tools WITHOUT connecting a

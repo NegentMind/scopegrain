@@ -13,7 +13,8 @@ import {
 } from './paths.mjs';
 import { loadPolicy, loadLimits } from './policy.mjs';
 import {
-  buildTaskRecord, getTask, normalizeTaskInput, validateTaskShape,
+  buildTaskRecord, getTask, nextTaskSlug, normalizeTaskInput,
+  validateTaskShape,
 } from './tasks.mjs';
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
 import { getArtifact } from './artifacts.mjs';
@@ -387,10 +388,16 @@ export function preparePlan(ctx, input) {
     }
     return content;
   };
+  const plannedSlugs = [];
   for (const t of clean.tasks) {
     const id = crypto.randomUUID();
-    const record = buildTaskRecord(t, { id, at, initial: policy.initial });
+    const slug = nextTaskSlug(ctx, t.title, plannedSlugs);
+    const record = buildTaskRecord(t, {
+      id, at, initial: policy.initial, slug });
     validateTaskShape(record, `plan task '${t.key}'`);
+    // nextTaskSlug scans stored tasks only; in-plan records reserve their
+    // slug so two plan tasks with equal titles never share one.
+    plannedSlugs.push(slug);
     tasks.push({
       key: t.key, id, dependsOn: t.dependsOn,
       ...(clean.v3

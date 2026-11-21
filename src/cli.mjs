@@ -181,7 +181,19 @@ const COMMANDS = {
   },
   'task show': {
     flags: ['--project', '--config'], pos: 1,
-    usage: 'task show --project PATH ID',
+    usage: 'task show --project PATH ID|SLUG',
+  },
+  'task activate': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'task activate --project PATH ID|SLUG',
+  },
+  'task active': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'task active --project PATH',
+  },
+  'task deactivate': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'task deactivate --project PATH',
   },
   'task transition': {
     flags: ['--project', '--config', '--revision', '--evidence'], pos: 2,
@@ -922,7 +934,27 @@ async function cmdTask(sub, positional, flags, io) {
     if (positional.length !== 1) {
       throw err('INVALID_ARGS', 'task show requires exactly one ID');
     }
-    return getTask(ctx, positional[0]);
+    const { resolveTaskRef } = await import('./core/active.mjs');
+    return resolveTaskRef(ctx, positional[0]);
+  }
+  if (sub === 'activate') {
+    if (positional.length !== 1) {
+      throw err('INVALID_ARGS', 'task activate requires exactly one ID|SLUG');
+    }
+    const { setActiveTask } = await import('./core/active.mjs');
+    return setActiveTask(ctx, positional[0]);
+  }
+  if (sub === 'active') {
+    const { getActiveTask } = await import('./core/active.mjs');
+    const { task, source } = getActiveTask(ctx);
+    return task
+      ? { task, source }
+      : { task: null, source: null,
+        note: 'no active task; set via SCOPEGRAIN_TASK or task activate' };
+  }
+  if (sub === 'deactivate') {
+    const { clearActiveTask } = await import('./core/active.mjs');
+    return clearActiveTask(ctx);
   }
   if (sub === 'doc') {
     if (positional.length !== 1) {
@@ -1224,6 +1256,20 @@ async function cmdContext(flags) {
       revision: workspace.revision, areas: workspace.areas.length,
       areaKeys: workspace.areas.map((a) => a.key),
     },
+    // Active-task pointer: env SCOPEGRAIN_TASK overrides the persisted
+    // <configDir>/active-task file. A dangling pointer degrades to a
+    // structured error, never aborts the session-start packet.
+    activeTask: await (async () => {
+      try {
+        const { getActiveTask } = await import('./core/active.mjs');
+        const { task, source } = getActiveTask(ctx);
+        return task ? { id: task.id, slug: task.slug ?? null,
+          title: task.title, state: task.state, source } : null;
+      } catch (e) {
+        return { error: { code: e.code ?? 'INTERNAL',
+          message: String(e.message ?? e) } };
+      }
+    })(),
     tasks: {
       total: tasks.length, open: open.length, byState,
       ready: open.filter(
