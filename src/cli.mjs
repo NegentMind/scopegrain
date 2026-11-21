@@ -38,6 +38,7 @@ const VALUE_FLAGS = new Set([
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
+  '--record',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -203,9 +204,41 @@ const COMMANDS = {
     flags: ['--project', '--config'], pos: 1,
     usage: 'task doc --project PATH ID',
   },
+  'task converge': {
+    flags: ['--project', '--config', '--record'], pos: 1,
+    usage: 'task converge --project PATH ID|SLUG [--record]',
+  },
+  'task analyze': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'task analyze --project PATH ID|SLUG',
+  },
+  'task checklist': {
+    flags: ['--project', '--config', '--input', '--revision',
+      '--status', '--text', '--key'],
+    pos: -1,
+    usage: 'task checklist --project PATH [ID] '
+      + '(--input FILE to create | no ID to list | ID to show | '
+      + 'ID --key CHK### --status S --revision N [--text NOTE] to mark)',
+  },
   'plan run': {
     flags: ['--project', '--config'], pos: 1,
     usage: 'plan run --project PATH KEY',
+  },
+  'plan stories': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'plan stories --project PATH KEY',
+  },
+  'specification clarify': {
+    flags: ['--project', '--config', '--input'], pos: 0,
+    usage: 'specification clarify --project PATH --input FILE',
+  },
+  'constitution show': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'constitution show --project PATH',
+  },
+  'constitution set': {
+    flags: ['--project', '--config', '--input'], pos: 0,
+    usage: 'constitution set --project PATH --input FILE',
   },
   'context': {
     flags: ['--project', '--config', '--tail', '--no-vantadb', '--timeout'],
@@ -956,6 +989,50 @@ async function cmdTask(sub, positional, flags, io) {
     const { clearActiveTask } = await import('./core/active.mjs');
     return clearActiveTask(ctx);
   }
+  if (sub === 'converge') {
+    if (positional.length !== 1) {
+      throw err('INVALID_ARGS', 'task converge requires exactly one ID|SLUG');
+    }
+    const { evaluateConvergence, recordConvergence } =
+      await import('./core/converge.mjs');
+    const { resolveTaskRef } = await import('./core/active.mjs');
+    const task = resolveTaskRef(ctx, positional[0]);
+    return flags['--record']
+      ? recordConvergence(ctx, task.id)
+      : evaluateConvergence(ctx, task);
+  }
+  if (sub === 'analyze') {
+    if (positional.length !== 1) {
+      throw err('INVALID_ARGS', 'task analyze requires exactly one ID|SLUG');
+    }
+    const { analyzeTask } = await import('./core/analyze.mjs');
+    const { resolveTaskRef } = await import('./core/active.mjs');
+    return analyzeTask(ctx, resolveTaskRef(ctx, positional[0]).id);
+  }
+  if (sub === 'checklist') {
+    const cl = await import('./core/checklists.mjs');
+    if (Object.hasOwn(flags, '--input')) {
+      if (positional.length !== 0) {
+        throw err('INVALID_ARGS', 'checklist create takes no positional ID');
+      }
+      const input = readInputFile(flags['--input'], 'checklist input');
+      return cl.createChecklist(ctx, input);
+    }
+    if (positional.length === 0) {
+      return { checklists: cl.listChecklists(ctx) };
+    }
+    if (Object.hasOwn(flags, '--key') || Object.hasOwn(flags, '--status')) {
+      if (!flags['--key'] || !flags['--status'] || !flags['--revision']) {
+        throw err('INVALID_ARGS',
+          'checklist mark requires --key CHK### --status S --revision N');
+      }
+      return cl.markChecklistItem(ctx, positional[0], flags['--key'], {
+        status: flags['--status'], note: flags['--text'],
+        expectedRevision: decimalInt(flags['--revision'], '--revision'),
+      });
+    }
+    return cl.getChecklist(ctx, positional[0]);
+  }
   if (sub === 'doc') {
     if (positional.length !== 1) {
       throw err('INVALID_ARGS', 'task doc requires exactly one ID');
@@ -1144,6 +1221,10 @@ async function cmdPlan(sub, positional, flags) {
   if (sub === 'show') return getPlan(ctx, positional[0]);
   if (sub === 'next') return { tasks: nextPlanTasks(ctx, positional[0]) };
   if (sub === 'run') return planWaves(ctx, positional[0]);
+  if (sub === 'stories') {
+    const { renderStoryTaskList } = await import('./core/story-tasks.mjs');
+    return renderStoryTaskList(ctx, positional[0]);
+  }
   throw err('INVALID_ARGS', `unknown plan subcommand '${sub}'`);
 }
 
@@ -1809,6 +1890,12 @@ async function cmdTypedArtifact(family, sub, positional, flags) {
   if (family === 'specification' && sub === 'show') {
     return getSpecification(ctx, positional[0]);
   }
+  if (family === 'specification' && sub === 'clarify') {
+    const { recordClarification } = await import('./core/clarify.mjs');
+    const input = readInputFile(
+      requireFlag(flags, '--input'), 'clarification input');
+    return recordClarification(ctx, input);
+  }
   const input = readInputFile(requireFlag(flags, '--input'), `${family} input`);
   const prepare = {
     specification: prepareSpecification,
@@ -1817,6 +1904,25 @@ async function cmdTypedArtifact(family, sub, positional, flags) {
   }[family];
   const prepared = prepare(ctx, input);
   return await finishCreation(ctx, 'artifact', prepared.artifact, prepared.file, flags);
+}
+
+async function cmdConstitution(sub, flags) {
+  const { getConstitution, setConstitution } =
+    await import('./core/constitution.mjs');
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'), config: flags['--config'],
+  });
+  if (sub === 'show') {
+    const c = getConstitution(ctx);
+    return c ?? { constitution: null,
+      note: 'no constitution; create with constitution set --input FILE' };
+  }
+  if (sub === 'set') {
+    const input = readInputFile(
+      requireFlag(flags, '--input'), 'constitution input');
+    return setConstitution(ctx, input);
+  }
+  throw err('INVALID_ARGS', `unknown constitution subcommand '${sub}'`);
 }
 
 async function cmdApproval(sub, positional, flags) {
@@ -2164,7 +2270,8 @@ export async function run(argv, io) {
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
       'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb',
-      'memory', 'goal', 'report', 'activity', 'hooks', 'structure']);
+      'memory', 'goal', 'report', 'activity', 'hooks', 'structure',
+      'constitution']);
     let cmdKey;
     let spec;
     let aliasCommand = null;
@@ -2266,6 +2373,8 @@ export async function run(argv, io) {
       result = await cmdApproval(cmdKey.slice(9), rest, flags);
     } else if (cmdKey === 'methodology check') {
       result = await cmdMethodology(rest, flags);
+    } else if (cmdKey.startsWith('constitution ')) {
+      result = await cmdConstitution(cmdKey.slice(13), flags);
     } else if (cmdKey === 'adopt') {
       result = await cmdAdopt(flags);
     } else if (cmdKey === 'update') {
