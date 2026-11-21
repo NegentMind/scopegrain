@@ -9,6 +9,7 @@ import {
   validateBundle, registerExtension, registerPreset, listRegistry,
 } from '../src/core/distribution.mjs';
 import { createTask } from '../src/core/tasks.mjs';
+import { assertSafeId } from '../src/core/identifiers.mjs';
 import {
   bootstrappedCtx, cleanup, writeJson, VALID_ANSWERS,
 } from './helpers.mjs';
@@ -104,6 +105,20 @@ test('D4 bundle: pin validation + missing detection', () => {
   assert.deepEqual(b.missing, ['ghost']);
   assert.throws(() => validateBundle({ id: 'pkg', version: '1.0.0',
     requires: [{ id: 'a', sha256: 'zz' }] }), /sha256/);
+});
+
+test('G3 identifiers: Windows reserved names and non-slugs rejected', () => {
+  for (const bad of ['con', 'CON', 'aux', 'nul', 'com1', 'lpt9',
+    'Bad ID', 'a b', 'x/y', 'with..dots', '-lead', '']) {
+    assert.throws(() => assertSafeId(bad), /INVALID_VALUE|slug|reserved/);
+  }
+  for (const ok of ['task-1', 'my-ext', 'a', 'x'.repeat(64).slice(0, 63)
+    .replace(/^./, 'a')]) {
+    assert.equal(assertSafeId(ok), ok);
+  }
+  // Reserved names are also rejected inside documents that adopt them.
+  assert.throws(() => validateSubmission({ id: 'con', version: '1.0.0',
+    source: { uri: 'file://x' } }), /reserved/);
 });
 
 test('D5/D6 registries: extension lifecycle + preset priority persist', () => {

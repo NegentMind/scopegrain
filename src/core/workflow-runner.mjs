@@ -8,6 +8,7 @@
 
 import fs from 'node:fs';
 import { err } from './errors.mjs';
+import { assertSafeId } from './identifiers.mjs';
 import { resolveInside } from './paths.mjs';
 import { lstatOrNull, readFileLimited, decodeUtf8Strict } from './fsx.mjs';
 import { loadLimits } from './policy.mjs';
@@ -19,7 +20,6 @@ import { evaluateMethodology } from './methodology.mjs';
 import { markChecklistItem, checklistFindings } from './checklists.mjs';
 
 const RUN_DIR = (ctx) => `${ctx.configDir}/workflow-runs`;
-const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 // Whitelisted step operations — the trust boundary. New ops must map to
 // existing core functions; 'shell' or arbitrary commands are rejected at
@@ -53,18 +53,20 @@ function validateWorkflow(doc) {
       throw err('UNKNOWN_KEY', `workflow has unknown key '${k}'`);
     }
   }
-  if (doc.schemaVersion !== 1 || !ID_RE.test(doc.id ?? '')
+  if (doc.schemaVersion !== 1
       || !Array.isArray(doc.steps) || doc.steps.length === 0
       || doc.steps.length > 100) {
     throw err('INVALID_VALUE',
       'workflow requires schemaVersion 1, slug id and 1-100 steps');
   }
+  assertSafeId(doc.id, 'workflow.id');
   const seen = new Set();
   doc.steps.forEach((s, i) => {
     if (s === null || typeof s !== 'object' || Array.isArray(s)
-        || !ID_RE.test(s.id ?? '') || typeof s.op !== 'string') {
+        || typeof s.op !== 'string') {
       throw err('INVALID_VALUE', `steps[${i}] requires {id, op}`);
     }
+    assertSafeId(s.id, `steps[${i}].id`);
     if (!(s.op in OPS)) {
       throw err('INVALID_OP',
         `steps[${i}].op '${s.op}' is not a whitelisted harness primitive`);

@@ -9,13 +9,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { err } from './errors.mjs';
+import { assertSafeId } from './identifiers.mjs';
 import { resolveInside } from './paths.mjs';
 import {
   lstatOrNull, readFileLimited, decodeUtf8Strict,
 } from './fsx.mjs';
 import { loadLimits } from './policy.mjs';
 
-const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const SEMVER_RE = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 const SHA_RE = /^[0-9a-f]{64}$/;
 const OPS = new Set(['replace', 'prepend', 'append', 'wrap']);
@@ -32,9 +32,7 @@ export function validateSubmission(doc, label = 'submission', extraKeys = []) {
       throw err('UNKNOWN_KEY', `${label} has unknown key '${k}'`);
     }
   }
-  if (!ID_RE.test(doc.id ?? '')) {
-    throw err('INVALID_VALUE', `${label}.id must be a slug`);
-  }
+  assertSafeId(doc.id, `${label}.id`);
   if (!SEMVER_RE.test(doc.version ?? '')) {
     throw err('INVALID_VALUE', `${label}.version must be semver x.y.z`);
   }
@@ -159,9 +157,10 @@ export function validateBundle(doc, catalogIds) {
   }
   const missing = [];
   for (const [i, r] of doc.requires.entries()) {
-    if (r === null || typeof r !== 'object' || !ID_RE.test(r.id ?? '')) {
+    if (r === null || typeof r !== 'object') {
       throw err('INVALID_VALUE', `bundle.requires[${i}].id invalid`);
     }
+    assertSafeId(r.id, `bundle.requires[${i}].id`);
     if (r.sha256 !== undefined && !SHA_RE.test(r.sha256)) {
       throw err('INVALID_VALUE', `bundle.requires[${i}].sha256 invalid`);
     }
@@ -237,9 +236,11 @@ export function registerExtension(ctx, input) {
 // Preset: an installed override layer with priority — applied through
 // composeResource at projection time by consumers.
 export function registerPreset(ctx, input) {
-  if (!ID_RE.test(input?.id ?? '') || !Array.isArray(input?.overrides)) {
+  if (input === null || typeof input !== 'object'
+      || !Array.isArray(input.overrides)) {
     throw err('INVALID_VALUE', 'preset requires {id, overrides:[]}');
   }
+  assertSafeId(input.id, 'preset.id');
   for (const [i, o] of input.overrides.entries()) {
     if (o === null || typeof o !== 'object' || !OPS.has(o.op)) {
       throw err('INVALID_VALUE',
