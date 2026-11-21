@@ -37,7 +37,7 @@ const VALUE_FLAGS = new Set([
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
-  '--reconcile', '--defaults', '--probe', '--diff',
+  '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -196,8 +196,10 @@ const COMMANDS = {
     usage: 'plan run --project PATH KEY',
   },
   'context': {
-    flags: ['--project', '--config', '--tail'], pos: 0,
-    usage: 'context --project PATH [--tail N]',
+    flags: ['--project', '--config', '--tail', '--no-vantadb', '--timeout'],
+    pos: 0,
+    usage: 'context --project PATH [--tail N] '
+      + '[--no-vantadb] [--timeout MS]',
   },
   'task check-action': {
     flags: ['--project', '--config'], pos: 2,
@@ -365,7 +367,8 @@ const COMMANDS = {
     usage: 'session record UUID --revision N --input FILE [--apply]',
   },
   'session resume': {
-    flags: ['--project', '--config'], pos: 1, usage: 'session resume UUID',
+    flags: ['--project', '--config', '--no-vantadb', '--timeout'], pos: 1,
+    usage: 'session resume UUID [--no-vantadb] [--timeout MS]',
   },
   adopt: {
     flags: ['--project', '--config', '--apply'], pos: 0,
@@ -1261,6 +1264,26 @@ async function cmdContext(flags) {
         return { indexed: false, stale: null, summary: null };
       }
     })(),
+    // Automatic project-level rehydration: one bounded memory_recall
+    // over the distilled L1 pool when a VantaDB backend is enrolled.
+    // Degradable like the rest of the packet — never aborts.
+    vantadb: await (async () => {
+      if (flags['--no-vantadb'] === true) {
+        return { enrolled: null, recall: null, skipped: true };
+      }
+      try {
+        const { projectRehydration } = await import(
+          './integrations/vantadb-rehydrate.mjs');
+        return await projectRehydration({
+          ctx, timeoutMs: flags['--timeout'] !== undefined
+            ? decimalInt(flags['--timeout'], '--timeout') : undefined,
+        });
+      } catch (e) {
+        return { enrolled: null, recall: null,
+          error: { code: e.code ?? 'INTERNAL',
+            message: String(e.message ?? e) } };
+      }
+    })(),
   };
 }
 
@@ -1846,7 +1869,26 @@ async function cmdSession(sub, positional, flags) {
     }
     return recordSession(ctx, recordInput);
   }
-  if (sub === 'resume') return resumeSession(ctx, positional[0]);
+  if (sub === 'resume') {
+    const result = resumeSession(ctx, positional[0]);
+    // Automatic record-level rehydration: scan projected sg-formal-v1-*
+    // namespaces for journal events naming this task. Read-only, bounded,
+    // degradable; --no-vantadb skips the backend spawn entirely.
+    if (flags['--no-vantadb'] === true) {
+      return { ...result, vantadb: { enrolled: null, context: null,
+        skipped: true } };
+    }
+    const { recordRehydration } = await import(
+      './integrations/vantadb-rehydrate.mjs');
+    return {
+      ...result,
+      vantadb: await recordRehydration({
+        ctx, recordId: result.task.id,
+        timeoutMs: flags['--timeout'] !== undefined
+          ? decimalInt(flags['--timeout'], '--timeout') : undefined,
+      }),
+    };
+  }
   throw err('INVALID_ARGS', `unknown session subcommand '${sub}'`);
 }
 

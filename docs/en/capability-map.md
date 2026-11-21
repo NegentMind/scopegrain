@@ -272,11 +272,14 @@ Legacy `.tasksystem/` remains honored as an alternative state path.
    (2026-11-21) and embedded in `doctor`'s fingerprint warning.
 4. **Doctor**: partially resolved — added checks for Node runtime, policy
    parsing, journal internals (outbox/archive), verify store, sessions,
-   worklogs, ownership sidecars, `vantadb.json` (shape-only, no runtime)
-   and managed hooks (2026-11-21). Still missing: installed MCP deps,
-   viewer build, user artifacts, stale locks, host-fragment drift.
-5. **Quantitative legacy guards**: `researchEscalation`, iteration/duration
-   budgets and WIP without enforcement.
+   worklogs, ownership sidecars, `vantadb.json` (shape-only, no runtime),
+   managed hooks, stale locks and host-fragment drift (2026-11-21).
+   Still missing: installed MCP deps, viewer build, user artifacts.
+5. **Quantitative legacy guards**: partially resolved —
+   `researchEscalation` enforced 2026-11-21 (3 `VERIFY→ACT` reworks
+   without a `RESEARCH` visit block `→ACT`). Still missing:
+   iteration/duration budgets, WIP, and the "similar failures" half of
+   the escalation (requires hypotheses as a record field).
 6. **Tests**: cost dominated by the full-installation fixture
    (~230 files+fsync × ~119 invocations) and `--test-concurrency=1`
    (pinned after a Windows memory event). Levers: smoke subset,
@@ -284,3 +287,7 @@ Legacy `.tasksystem/` remains honored as an alternative state path.
 7. **Init**: internal substructures (journal, verify, sessions, reviews,
    captures, approvals, vantadb storage) not configurable via answers —
    fixed by design.
+8. ~~**Context rehydration**~~: resolved 2026-11-21 — `context` injects
+   automatic `memory_recall` L1 and `session resume` + MCP
+   `scopegrain_session_resume` inject `memory_context` per `recordId`;
+   degradable and fail-closed (`--no-vantadb`/`--timeout`).

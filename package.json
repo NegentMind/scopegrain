@@ -1,14 +1,49 @@
 {
   "name": "scopegrain",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "packageManager": "npm@11.6.0",
   "description": "Project-neutral engineering harness for coding agents",
+  "keywords": [
+    "agent",
+    "coding-agent",
+    "harness",
+    "workflow",
+    "tasks",
+    "mcp",
+    "journal",
+    "verification"
+  ],
+  "author": "The Negent Mind Authors",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NegentMind/scopegrain.git"
+  },
+  "bugs": "https://github.com/NegentMind/scopegrain/issues",
+  "homepage": "https://github.com/NegentMind/scopegrain#readme",
   "engines": {
     "node": ">=22"
   },
-  "license": "Apache-2.0",
+  "bin": {
+    "scopegrain": "bin/scopegrain.mjs",
+    "tasksystem": "bin/tasksystem.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "resources",
+    "policy",
+    "templates",
+    "schemas",
+    "provenance",
+    "docs",
+    "viewer/dist",
+    "examples",
+    "CHANGELOG.md",
+    "AUTHORS",
+    "NOTICE"
+  ],
   "scripts": {
     "test": "node --test --test-concurrency=1 tests/*.test.mjs"
   },

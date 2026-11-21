@@ -31,6 +31,7 @@ import { bindWorkspace, getWorkspace } from '../core/workspaces.mjs';
 import { callVantaDBTool, getVantaDBRecord, requireVantaDBConfig,
   vantaDBContext, vantaDBStatus }
   from '../integrations/vantadb-runtime.mjs';
+import { recordRehydration } from '../integrations/vantadb-rehydrate.mjs';
 
 const PROTOCOL_NOTE = 'stdout is reserved for MCP protocol; logs go to stderr';
 
@@ -321,11 +322,16 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_session_resume',
       config: {
-        description: 'Session usage plus actual task state and guidance reference',
+        description: 'Session usage plus actual task state, guidance reference and automatic record-level VantaDB rehydration (degradable)',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
       },
-      handler: wrap(async ({ id }) => resumeSession(ctx, id)),
+      handler: wrap(async ({ id }) => {
+        const result = resumeSession(ctx, id);
+        return { ...result,
+          vantadb: await recordRehydration({ ctx,
+            recordId: result.task.id }) };
+      }),
     },
     {
       name: 'scopegrain_memory_status',

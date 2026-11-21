@@ -5,8 +5,28 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-21
+
 ### Added
 
+- **Automatic context rehydration (VantaDB)** — when a backend is
+  enrolled, `context` injects a bounded `memory_recall` over distilled
+  L1 memories and `session resume` plus MCP `scopegrain_session_resume`
+  inject `memory_context` per `recordId` over the `sg-formal-v1-*`
+  namespaces. Both degrade to explicit markers (`{ enrolled: false }`
+  unenrolled, `{ error }` on backend failure), never abort the packet;
+  `--no-vantadb` skips the spawn and `--timeout MS` bounds it (15 s
+  default). The MCP surface stays read-only.
+- **`update --diff`** — attaches `discoveryDiff` to the update result,
+  flagging evidence drift before generated files are re-projected.
+- **Doctor: stale locks and host-fragment drift** — locks classify
+  dead-pid (self-recoverable warning) vs live-pid (never broken) vs
+  metadata-less beyond TTL; host fragments are re-rendered and compared
+  against installed bytes, reporting divergence.
+- **`researchEscalation` gate** — three `VERIFY→ACT` reworks without an
+  intervening `RESEARCH` visit now block the next `→ACT` transition
+  (`RESEARCH_ESCALATION_REQUIRED`), enforcing the actionable half of the
+  authored methodology policy.
 - **Structural project index (`structure`)** — bounded scan of the
   project tree producing a persisted index at
   `<state>/cache/structure-index.json`: file inventory, LOC/bytes per
@@ -59,6 +79,11 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Publication packaging** — `private` removed; `bin`
+  (`scopegrain`/`tasksystem`), `files` (bin, src, resources, policy,
+  templates, schemas, provenance, docs, `viewer/dist`, examples) and
+  repository/homepage/bugs/keywords metadata declared so the package is
+  installable (`npm i scopegrain` / `npx scopegrain`).
 - **Apache License 2.0 declared** — `LICENSE`, `NOTICE` and `AUTHORS`
   added at the root (`Copyright 2026 The Negent Mind Authors`);
   `package.json` license set to `Apache-2.0`; SPDX headers applied to

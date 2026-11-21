@@ -217,6 +217,31 @@ Nunca lee secretos ni contenido de binarios, no ejecuta comandos del
 proyecto, respeta los limites de profundidad/entradas con warnings, y
 rechaza symlinks/junctions segun las fronteras de seguridad existentes.
 
+## Rehidratacion automatica de contexto (VantaDB)
+
+Cuando un backend VantaDB esta enrolado, la historia proyectada del
+proyecto se inyecta sola en los dos puntos de reanudacion — sin
+consultas manuales al CLI:
+
+```
+context --project PATH [--tail N] [--no-vantadb] [--timeout MS]
+session resume UUID [--no-vantadb] [--timeout MS]
+```
+
+- `context` anade `vantadb`: `memory_recall` acotado (top_k 5, scope
+  agent) sobre las memorias L1 destiladas, para que el packet de inicio
+  de sesion traiga contexto episodico verificado.
+- `session resume` anade `vantadb`: `memory_context` por `recordId`
+  sobre los namespaces `sg-formal-v1-*` — todos los eventos de journal
+  proyectados remotamente para esa tarea.
+- Ambos fallan cerrados: sin enrolamiento el campo es
+  `{ enrolled: false }`; un backend caido degrada a
+  `{ enrolled: true, error: {...} }` sin abortar el packet.
+- `--no-vantadb` omite por completo el spawn del backend;
+  `--timeout MS` acota la espera (15 s por defecto).
+- La herramienta MCP `scopegrain_session_resume` aplica la misma
+  rehidratacion por record. La superficie MCP sigue siendo solo lectura.
+
 ## Memoria operativa, metas y metricas
 
 Logs JSONL acotados y append-only bajo `paths.memory`; contrato de campos
