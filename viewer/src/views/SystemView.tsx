@@ -31,8 +31,40 @@ export function SystemView() {
   const commands = vc.data?.commands ?? [];
   const counts = ws.data?.counts.tasksByState ?? {};
 
+  const ownerRows: Array<[string, string]> = [
+    ['init', t('system.ownerInit')],
+    ['doctor', t('system.ownerDoctor')],
+    ['investigate --diff', t('system.ownerDiff')],
+    ['structure scan/status', t('system.ownerStructure')],
+    ['view', t('system.ownerView')],
+    ['verify approve + verify run', t('system.ownerVerify')],
+    ['approval answer', t('system.ownerApproval')],
+  ];
+
   return (
     <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('system.owner')}</CardTitle>
+          <CardDescription>{t('system.ownerDesc')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ul className="space-y-1.5 text-sm">
+            {ownerRows.map(([cmd, desc]) => (
+              <li key={cmd} className="flex flex-wrap items-baseline gap-x-3">
+                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                  {cmd}
+                </code>
+                <span className="text-muted-foreground">{desc}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="border-t pt-3 text-xs text-muted-foreground">
+            {t('system.ownerBounds')}
+          </p>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>{t('system.lifecycle')}</CardTitle>

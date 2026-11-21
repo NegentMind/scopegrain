@@ -15,6 +15,36 @@ and the MCP server name (`scopegrain_*` tools). The `tasksystem` binary
 alias and legacy `.tasksystem` paths are kept for compatibility. This
 does not imply publishing a package.
 
+## For the human operator
+
+Scopegrain is agent-first: the coding agent consumes the session packet
+(`context`), the MCP tools and the remaining CLI verbs internally.
+A human operator does not need to learn the full command surface —
+only the verbs below.
+
+| Moment | Command | What it does |
+|---|---|---|
+| First adoption | `init` | Interactive onboarding: detects the stack, asks where each category of generated files should live, and shows every file before writing |
+| Health check | `doctor` | Diagnoses configuration, generated files, journal, stores, hooks and optional integrations — read-only, never repairs silently |
+| Re-investigation | `investigate --diff` | Compares the current project evidence with the recorded discovery decisions and reports what changed |
+| Code structure | `structure scan/status` | Builds (or reports) the persisted structural index: files, LOC, imports and complexity per language |
+| Dashboard | `view` | Starts the local, read-only web dashboard (15 views); it never mutates state |
+| Verification | `verify approve` + `verify run` | Whitelists a verification command, then runs only approved commands with bounded output |
+| Decisions | `approval answer` | Resolves pending human-in-the-loop approvals |
+
+Everything else is agent machinery. Boundaries worth knowing:
+
+- Nothing writes without `--apply` or an explicit confirmation; there is
+  no `--yes`/`--force` bypass.
+- Commands discovered in project manifests are never executed.
+- Network access, git push and host fragment activation always require
+  explicit consent.
+- Operational state lives under `.scopegrain/` by default
+  (`.tasksystem/` remains a supported legacy path); `context.md` there is
+  the owner's persistent notes file — agents read it, they do not edit it.
+- The viewer is read-only by design; mutations go through the CLI or the
+  MCP tools under the workflow gates.
+
 ## Workflow
 
 1. **Read-only discovery.** Inspect manifests and instructions with read

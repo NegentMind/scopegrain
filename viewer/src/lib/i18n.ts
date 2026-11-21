@@ -276,6 +276,22 @@ const DICT: Record<Locale, Record<string, string>> = {
     'system.command': 'Command',
     'system.source': 'Source',
     'system.cwd': 'Cwd',
+    'system.owner': 'For the human operator',
+    'system.ownerDesc':
+      'Agent-first design: the agent consumes the session packet, MCP tools '
+      + 'and remaining CLI verbs internally. These are the verbs a human '
+      + 'operator actually needs.',
+    'system.ownerInit': 'onboard a project and choose generated file paths',
+    'system.ownerDoctor': 'diagnose configuration, journal and store health',
+    'system.ownerDiff': 'diff project evidence against recorded decisions',
+    'system.ownerStructure': 'build or check the persisted code index',
+    'system.ownerView': 'this read-only dashboard',
+    'system.ownerVerify': 'whitelist, then run bounded verification commands',
+    'system.ownerApproval': 'resolve pending human-in-the-loop approvals',
+    'system.ownerBounds':
+      'Nothing writes without --apply; discovered commands never run; '
+      + 'network, git push and host activation require explicit consent; '
+      + 'this dashboard never mutates state.',
     'graph.lifecycle': 'Lifecycle funnel',
     'graph.lifecycleDesc': 'Tasks per C0 state over the canonical transition graph.',
     'graph.dag': 'Dependency graph',
@@ -619,6 +635,22 @@ const DICT: Record<Locale, Record<string, string>> = {
     'system.command': 'Comando',
     'system.source': 'Origen',
     'system.cwd': 'Directorio',
+    'system.owner': 'Para el operador humano',
+    'system.ownerDesc':
+      'Diseño agent-first: el agente consume el paquete de sesión, las tools '
+      + 'MCP y el resto de los verbos CLI internamente. Estos son los verbos '
+      + 'que un operador humano realmente necesita.',
+    'system.ownerInit': 'adoptar un proyecto y elegir las rutas generadas',
+    'system.ownerDoctor': 'diagnosticar configuración, journal y stores',
+    'system.ownerDiff': 'comparar la evidencia con las decisiones registradas',
+    'system.ownerStructure': 'construir o revisar el índice de código',
+    'system.ownerView': 'este panel de solo lectura',
+    'system.ownerVerify': 'aprobar y ejecutar verificación acotada',
+    'system.ownerApproval': 'resolver aprobaciones humanas pendientes',
+    'system.ownerBounds':
+      'Nada escribe sin --apply; los comandos descubiertos nunca se '
+      + 'ejecutan; la red, git push y la activación de hosts requieren '
+      + 'consentimiento explícito; este panel nunca muta estado.',
     'graph.lifecycle': 'Embudo del ciclo',
     'graph.lifecycleDesc': 'Tareas por estado C0 sobre el grafo de transiciones canónico.',
     'graph.dag': 'Grafo de dependencias',

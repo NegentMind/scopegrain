@@ -5,6 +5,36 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Structural project index (`structure`)** — bounded scan of the
+  project tree producing a persisted index at
+  `<state>/cache/structure-index.json`: file inventory, LOC/bytes per
+  language, import specifiers, internal/external dependency edges,
+  fan-in/fan-out and heuristic complexity, plus a deterministic
+  fingerprint for change detection without rescanning. `scan` previews,
+  `--apply` persists, `status` reports freshness, `show` returns the
+  document. `init --apply` seeds the index and `context` surfaces its
+  freshness so agents know when to refresh.
+- **`investigate --diff`** — exposes `diffInvestigation`: compares the
+  live semantic investigation against recorded discovery evidence and
+  reports fingerprint drift, added/removed manifests, lockfiles, stacks,
+  commands, new host signals, stale decisions and notes. `doctor` embeds
+  the diff in its fingerprint warning.
+- **Doctor operational checks** — Node runtime version, canonical policy
+  parsing, journal internals (outbox/archive), verify store, sessions,
+  worklogs (including rotated archives), record-ownership sidecars,
+  `vantadb.json` shape (no runtime — the core stays free of
+  `child_process`) and managed git hooks.
+- **Owner essentials** — dedicated operator section in `README.md` /
+  `README.es.md` and an operator card in the viewer's System view:
+  the handful of verbs a human needs (`init`, `doctor`,
+  `investigate --diff`, `structure`, `view`, `verify`, `approval`)
+  plus the consent boundaries.
+- **`docs/en/capability-map.md`** — English twin of the capability
+  catalog; the Spanish map now records the resolved and remaining audit
+  findings.
+
 ### Security
 
 - **Viewer API hardened against DNS rebinding** — every request must be
@@ -29,6 +59,14 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Apache License 2.0 declared** — `LICENSE`, `NOTICE` and `AUTHORS`
+  added at the root (`Copyright 2026 The Negent Mind Authors`);
+  `package.json` license set to `Apache-2.0`; SPDX headers applied to
+  every tracked `.mjs` and to `verify.yml`; `.md`/`.json` files are
+  covered by `LICENSE` + `NOTICE`. `private: true` is retained — this
+  is a licensing decision, not a publication event. The provenance
+  gates for license choice and the 65 reused-ID authorship attestation
+  are recorded as resolved in `docs/provenance.md`.
 - **Stale lock recovery** — lock payloads are now JSON `{t, pid, at}`.
   A lock whose writer pid is provably dead is reclaimed on the next
   acquire; a live pid is never broken; metadata-less locks (legacy bare

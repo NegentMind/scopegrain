@@ -28,10 +28,11 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.0`, suite `1228/1228` test
 | Comando | Qué hace |
 |---|---|
 | `inspect` | Snapshot acotado de manifiestos (8 stacks, lockfiles por presencia, scripts test/lint/build de package.json, AGENTS/CLAUDE/README, fingerprint sha256). Guarda `discovery.json` |
-| `investigate [--save]` | Análisis semántico: + dart/flutter/swift/gradle, topología monorepo, plataformas, frameworks de test, CI, hosts, i18n, layout. Sugiere respuestas de init con confianza+evidencia. `--save` persiste un research record |
-| `init` | Onboarding: investiga, pregunta nombre/locale/hosts/methodology, **7 rutas** (`plans tasks reports research decisions memory state`), **8 flags de versionado**, y propone `.gitignore` acotado. `--defaults`/`--answers` para no interactivo |
+| `investigate [--save] [--diff]` | Análisis semántico: + dart/flutter/swift/gradle, topología monorepo, plataformas, frameworks de test, CI, hosts, i18n, layout. Sugiere respuestas de init con confianza+evidencia. `--save` persiste un research record. `--diff` compara la evidencia actual contra `discovery.json`+config: fingerprint, manifiestos/lockfiles ±/retenidos, contenido cambiado, stacks/comandos ±, señales de host nuevas, decisiones stale, notas |
+| `init` | Onboarding: investiga, pregunta nombre/locale/hosts/methodology, **7 rutas** (`plans tasks reports research decisions memory state`), **8 flags de versionado**, propone `.gitignore` acotado y siembra el índice estructural. `--defaults`/`--answers` para no interactivo |
 | `adopt` | Determinista: reporta config, enrollment y journal de un proyecto con restos previos; `--apply` solo crea el enrollment si `adoptable` |
-| `doctor` | 12 checks de salud de instalación (ver §7) |
+| `doctor` | ~21 checks: instalación + salud operativa (ver §7) |
+| `structure scan/status/show` | Índice estructural acotado del árbol: inventario, LOC/bytes por lenguaje, imports, aristas internas/externas, fan-in/fan-out, complejidad heurística, fingerprint determinista. `scan --apply` persiste en `<state>/cache/structure-index.json`; `status` reporta frescura sin re-escanear; `context` lo expone al agente |
 | `update [--reconcile]` | Re-proyecta archivos generados desde la instalación actual; `--reconcile` reescribe solo los divergentes bajo raíces del harness |
 | `uninstall` | Borra solo lo demostrablemente creado por el harness; archivos divergentes quedan `leftBehind` |
 
@@ -237,7 +238,7 @@ opt-in por categoría.
 
 | Clave | Default | Contenido |
 |---|---|---|
-| `state` | `.scopegrain/state/` | journal, sessions, workspace, verify-commands, record-ownership, init-session |
+| `state` | `.scopegrain/state/` | journal, sessions, workspace, verify-commands, record-ownership, init-session, `cache/structure-index.json` |
 | `plans` | `.scopegrain/plans/` | planes + `specs/` |
 | `tasks` | `.scopegrain/tasks/` | records de tarea |
 | `reports` | `.scopegrain/reports/` | reports + `reviews/` (fijo) |
@@ -250,10 +251,10 @@ Legacy `.tasksystem/` sigue siendo honrado como ruta de estado alternativa.
 
 ## 11. Deuda y gaps conocidos (auditoría 2026-11-20)
 
-1. **Discovery**: sin análisis de código (AST/grafo/LOC), sin Deno/Makefile/Docker/devcontainer/versiones de runtime, sin grafo de dependencias ni contenido de CI.
+1. **Discovery**: resuelto parcialmente — `structure` (índice estructural: LOC, imports, aristas, complejidad heurística, fingerprint) implementado 2026-11-21. Siguen sin: AST real/símbolos (delegado al agente host por diseño), Deno/Makefile/Docker/devcontainer/versiones de runtime, contenido de workflows CI.
 2. **Research agentic**: los 5 workflows legacy (`bug-fix`, `feature-add`, `refactor`, `research`, `nine-second-saloon`) tienen `replacement: null`; sobreviven como recursos proyectables, no como capacidad del core.
-3. **`diffInvestigation`**: implementada y testeada, sin comando CLI que la exponga.
-4. **Doctor**: no verifica journal internals (outbox/snapshots/archive), verify store, sessions, worklog, ownership sidecars, vantadb, hooks, deps MCP, build del visor, artefactos de usuario, locks stale, versión de Node ni drift de fragmentos en hosts.
+3. ~~**`diffInvestigation`**~~: resuelto — expuesta como `investigate --diff` (2026-11-21) y embebida en el warning de fingerprint de `doctor`.
+4. **Doctor**: resuelto parcialmente — añadidos checks de runtime Node, parseo de policy, journal internals (outbox/archive), verify store, sessions, worklogs, ownership sidecars, `vantadb.json` (shape-only, sin runtime) y hooks gestionados (2026-11-21). Siguen sin: deps MCP instaladas, build del visor, artefactos de usuario, locks stale, drift de fragmentos en hosts.
 5. **Guards cuantitativas legacy**: `researchEscalation`, budgets de iteración/duración y WIP sin enforcement.
 6. **Tests**: coste dominado por fixture de instalación completa (~230 archivos+fsync × ~119 llamadas) y `--test-concurrency=1` (pinneado tras evento de memoria Windows). Palancas: smoke subset, concurrencia 2, mini-fixtures, parametrización owned-*.
 7. **Init**: subestructuras internas (journal, verify, sessions, reviews, captures, approvals, vantadb storage) no configurables por answers — fijas por diseño.

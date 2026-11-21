@@ -178,6 +178,45 @@ Other aliases declared in the catalog (`spec` -> `specify-change`,
 `audit-project` by mode, `research` -> `investigate`/
 `compare-options`) follow exactly the same mechanism.
 
+## Structural discovery
+
+### investigate --diff
+
+`investigate --project PATH [--config REL] [--save] [--diff]`
+
+With `--diff`, the semantic investigation is compared against the
+recorded discovery evidence (`discovery.json` and the configuration) and
+reports: fingerprint match/mismatch, added/removed/retained manifests
+and lockfiles, content changed under an unchanged path set, added or
+dropped stacks and commands, new host signals, stale decisions and
+explanatory notes. `doctor` embeds this diff in its fingerprint warning
+when the evidence changed.
+
+### structure scan / status / show
+
+```
+structure scan --project PATH [--config REL] [--apply]
+structure status --project PATH [--config REL]
+structure show --project PATH [--config REL]
+```
+
+Bounded structural analysis of the project tree: file inventory,
+LOC/bytes per language, imports, internal and external dependency edges,
+fan-in/fan-out and heuristic complexity. It produces a deterministic
+fingerprint used for change detection without rescanning.
+
+- `scan` is a preview; `--apply` persists the index at
+  `<paths.state>/cache/structure-index.json`. `init --apply` seeds it.
+- `status` reports whether an index exists and whether the fingerprint
+  is still fresh.
+- `show` returns the persisted document (or `NOT_FOUND` when absent).
+- `context` includes the freshness summary so the agent knows when to
+  refresh before relying on the index.
+
+It never reads secrets or binary contents, never executes project
+commands, honors depth/entry budgets with warnings, and rejects
+symlinks/junctions under the existing security boundaries.
+
 ## Operational memory, goals and metrics
 
 Bounded append-only JSONL logs under `paths.memory`; field contract in

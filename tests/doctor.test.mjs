@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Doctor cases: content comparison, templates check, warning propagation.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -92,6 +93,75 @@ test('missing or corrupt discovery.json is needs-attention, never repaired', () 
       JSON.stringify({ schemaVersion: 1, fingerprint: 'different' }));
     const r2 = runDoctor(ctx);
     assert.ok(r2.warnings.some((w) => w.includes('fingerprint')));
+  } finally { cleanup(dir); }
+});
+
+test('operational checks: malformed worklog line fails', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    writeFile(dir, '.tasksystem/memory/progress.jsonl',
+      '{"ok":true}\nnot-json\n');
+    const report = runDoctor(ctx);
+    assert.equal(report.status, 'needs-attention');
+    assert.ok(report.warnings.some(
+      (w) => w.startsWith('worklogs') && w.includes('progress.jsonl')));
+  } finally { cleanup(dir); }
+});
+
+test('operational checks: malformed verify store fails', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    writeFile(dir, '.tasksystem/state/verify-commands.json', '{corrupt');
+    const report = runDoctor(ctx);
+    assert.equal(report.status, 'needs-attention');
+    assert.ok(report.warnings.some((w) => w.startsWith('verify-store')));
+  } finally { cleanup(dir); }
+});
+
+test('operational checks: malformed session record fails', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    writeFile(dir, '.tasksystem/state/sessions/abc.json', '[]');
+    const report = runDoctor(ctx);
+    assert.equal(report.status, 'needs-attention');
+    assert.ok(report.warnings.some((w) => w.startsWith('sessions')));
+  } finally { cleanup(dir); }
+});
+
+test('operational checks: malformed journal outbox entry fails', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    writeFile(dir, '.tasksystem/state/journal/outbox/x.json', 'oops');
+    const report = runDoctor(ctx);
+    assert.equal(report.status, 'needs-attention');
+    assert.ok(report.warnings.some(
+      (w) => w.startsWith('journal-internals')));
+  } finally { cleanup(dir); }
+});
+
+test('operational checks: malformed vantadb enrollment fails', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    writeFile(dir, '.tasksystem/vantadb.json',
+      JSON.stringify({ backendId: 'vantadb' })); // no schemaVersion
+    const report = runDoctor(ctx);
+    assert.equal(report.status, 'needs-attention');
+    assert.ok(report.warnings.some((w) => w.startsWith('vantadb')));
+  } finally { cleanup(dir); }
+});
+
+test('operational checks: absent stores stay green on fresh init', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    const report = runDoctor(ctx);
+    // journal-internals is conditional: it only reports once the lazily
+    // created journal directory exists.
+    for (const name of ['runtime', 'policy',
+      'verify-store', 'sessions', 'worklogs', 'record-ownership',
+      'vantadb', 'hooks']) {
+      assert.ok(report.checks.some((c) => c.name === name && c.ok),
+        `expected ok check: ${name}`);
+    }
   } finally { cleanup(dir); }
 });
 

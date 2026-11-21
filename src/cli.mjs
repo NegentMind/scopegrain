@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // CLI command surface. All results go to stdout as JSON; failures go to
 // stderr as {error:{code,message}} with a non-zero exit code.
 import crypto from 'node:crypto';
@@ -36,7 +37,7 @@ const VALUE_FLAGS = new Set([
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
-  '--reconcile', '--defaults', '--probe',
+  '--reconcile', '--defaults', '--probe', '--diff',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -81,6 +82,18 @@ const COMMANDS = {
   'journal compact': {
     flags: ['--project', '--config'], pos: 0,
     usage: 'journal compact --project PATH [--config REL]',
+  },
+  'structure scan': {
+    flags: ['--project', '--config', '--apply'], pos: 0,
+    usage: 'structure scan --project PATH [--config REL] [--apply]',
+  },
+  'structure status': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'structure status --project PATH [--config REL]',
+  },
+  'structure show': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'structure show --project PATH [--config REL]',
   },
   'vantadb setup': {
     flags: ['--project', '--config', '--version', '--storage', '--binary',
@@ -375,8 +388,8 @@ const COMMANDS = {
     usage: 'uninstall --project PATH [--config REL] [--apply]',
   },
   investigate: {
-    flags: ['--project', '--config', '--save'], pos: 0,
-    usage: 'investigate --project PATH [--config REL] [--save]',
+    flags: ['--project', '--config', '--save', '--diff'], pos: 0,
+    usage: 'investigate --project PATH [--config REL] [--save] [--diff]',
   },
   'host activate': {
     flags: ['--project', '--config', '--host', '--surface', '--apply'], pos: 0,
@@ -647,6 +660,21 @@ function appliedInitResult(result, extra = {}) {
   };
 }
 
+// After a successful init apply, seed the structural index so the first
+// agent request already has code metrics. Best-effort: a scan failure
+// must never fail an already-applied init.
+async function initStructureIndex(projectRoot) {
+  try {
+    const { scanStructure, writeStructureIndex } = await import('./discovery/structure.mjs');
+    const ctx = resolveContext({ project: projectRoot });
+    const index = scanStructure(ctx.projectRoot);
+    const rel = writeStructureIndex(ctx, index);
+    return { written: rel, files: index.totals.files };
+  } catch (e) {
+    return { written: null, error: `${e.code ?? 'INTERNAL'}: ${e.message}` };
+  }
+}
+
 // --defaults: non-interactive answers at the same trust level as
 // accepting every interactive proposal. A valid existing config is the
 // preferred source — its values are replayed so a re-init stays a noop;
@@ -757,14 +785,16 @@ async function cmdInit(flags, io) {
     }
     const result = applyPlan(projectRoot, prepared.files);
     if (session !== null) discardInitSession(session);
-    return appliedInitResult(result);
+    const structureIndex = await initStructureIndex(projectRoot);
+    return appliedInitResult(result, { structureIndex });
   }
   // --defaults echoes the machine-chosen answers so the operator can audit
   // exactly what consent produced; --answers stays quiet (user-supplied).
   const extra = flags['--defaults'] ? { answers } : {};
   if (flags['--apply']) {
     const result = applyPlan(projectRoot, prepared.files);
-    return appliedInitResult(result, extra);
+    const structureIndex = await initStructureIndex(projectRoot);
+    return appliedInitResult(result, { ...extra, structureIndex });
   }
   return { mode: 'dry-run', applied: false, ...extra, ...planJson(prepared) };
 }
@@ -1134,6 +1164,7 @@ async function cmdContext(flags) {
   const { getSession, sessionsDirAbs } = await import('./core/sessions.mjs');
   const { bindWorkspace, getWorkspace } = await import('./core/workspaces.mjs');
   const { countJournalPending } = await import('./core/journal.mjs');
+  const { structureStatus } = await import('./discovery/structure.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1219,7 +1250,44 @@ async function cmdContext(flags) {
       }
     })(),
     pendingJournalOperations: pendingJournal,
+    // Structural index freshness: stat-only rescan, never reads contents.
+    // stale:true tells the agent to run `structure scan` before relying on
+    // cached structure instead of re-analyzing the tree itself.
+    structure: (() => {
+      try {
+        return structureStatus(ctx);
+      } catch {
+        return { indexed: false, stale: null, summary: null };
+      }
+    })(),
   };
+}
+
+async function cmdStructure(sub, flags) {
+  const {
+    readStructureIndex, scanStructure, structureStatus, writeStructureIndex,
+  } = await import('./discovery/structure.mjs');
+  const ctx = resolveContext({
+    project: requireFlag(flags, '--project'), config: flags['--config'],
+  });
+  if (sub === 'status') return structureStatus(ctx);
+  if (sub === 'show') {
+    const idx = readStructureIndex(ctx);
+    if (idx === null) {
+      throw err('NOT_FOUND', 'no structure index; run structure scan');
+    }
+    return idx;
+  }
+  // scan: rebuild + persist the index. Writes harness-owned cache data
+  // only; still gated behind --apply like every other mutating verb.
+  const index = scanStructure(ctx.projectRoot);
+  if (!flags['--apply']) {
+    const { files: _files, ...preview } = index;
+    return { mode: 'preview', index: preview };
+  }
+  const rel = writeStructureIndex(ctx, index);
+  const { files: _files, ...summary } = index;
+  return { mode: 'applied', index: summary, written: rel };
 }
 
 async function cmdWorkspace(sub, flags) {
@@ -1851,7 +1919,7 @@ async function cmdUninstall(flags) {
 // the record instead of writing it).
 async function cmdInvestigate(flags) {
   const { applyPlan } = await import('./core/bootstrap.mjs');
-  const { buildResearchRecord, investigateProject, suggestAnswers } = await import('./discovery/semantic.mjs');
+  const { buildResearchRecord, diffInvestigation, investigateProject, suggestAnswers } = await import('./discovery/semantic.mjs');
   const project = requireFlag(flags, '--project');
   let ctx = null;
   try {
@@ -1864,6 +1932,11 @@ async function cmdInvestigate(flags) {
   const investigation = investigateProject(
     project, ctx ? { config: ctx.config } : {});
   const result = { investigation, suggestions: suggestAnswers(investigation) };
+  if (flags['--diff']) {
+    result.diff = ctx === null
+      ? { stale: null, reason: 'no persisted config to diff against' }
+      : diffInvestigation(ctx.config, investigation);
+  }
   if (flags['--save']) {
     const { record, suggestedPath } = buildResearchRecord(investigation);
     if (ctx === null) {
@@ -1997,7 +2070,7 @@ export async function run(argv, io) {
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
       'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb',
-      'memory', 'goal', 'report', 'activity', 'hooks']);
+      'memory', 'goal', 'report', 'activity', 'hooks', 'structure']);
     let cmdKey;
     let spec;
     let aliasCommand = null;
@@ -2074,6 +2147,8 @@ export async function run(argv, io) {
       result = await cmdWorkspace(cmdKey.slice(10), flags);
     } else if (cmdKey.startsWith('journal ')) {
       result = await cmdJournal(cmdKey.slice(8), rest, flags);
+    } else if (cmdKey.startsWith('structure ')) {
+      result = await cmdStructure(cmdKey.slice(10), flags);
     } else if (cmdKey.startsWith('vantadb ')) {
       result = await cmdVantaDB(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('capture ')) {

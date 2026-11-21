@@ -16,6 +16,38 @@ nombre del servidor MCP (tools `scopegrain_*`). El alias de binario
 `tasksystem` y las rutas legadas `.tasksystem` se mantienen por
 compatibilidad. Esto no implica publicacion de un paquete.
 
+## Para el operador humano
+
+Scopegrain esta pensado para el agente: el agente de codigo consume el
+paquete de sesion (`context`), las tools MCP y el resto de los verbos
+CLI internamente. El operador humano no necesita aprender toda la
+superficie de comandos — solo los verbos siguientes.
+
+| Momento | Comando | Que hace |
+|---|---|---|
+| Primera adopcion | `init` | Onboarding interactivo: detecta el stack, pregunta donde ubicar cada categoria de archivos generados y muestra cada archivo antes de escribirlo |
+| Chequeo de salud | `doctor` | Diagnostica configuracion, archivos generados, journal, stores, hooks e integraciones opcionales — solo lectura, nunca repara en silencio |
+| Reinvestigacion | `investigate --diff` | Compara la evidencia actual del proyecto con las decisiones de descubrimiento registradas y reporta que cambio |
+| Estructura del codigo | `structure scan/status` | Construye (o reporta) el indice estructural persistido: archivos, LOC, imports y complejidad por lenguaje |
+| Panel | `view` | Lanza el dashboard web local de solo lectura (15 vistas); nunca muta estado |
+| Verificacion | `verify approve` + `verify run` | Pone un comando de verificacion en lista blanca y luego ejecuta solo comandos aprobados con salida acotada |
+| Decisiones | `approval answer` | Resuelve aprobaciones humanas pendientes |
+
+Todo lo demas es maquinaria del agente. Limites que conviene conocer:
+
+- Nada escribe sin `--apply` o una confirmacion explicita; no existe
+  bypass `--yes`/`--force`.
+- Los comandos descubiertos en los manifiestos del proyecto nunca se
+  ejecutan.
+- El acceso a red, `git push` y la activacion de fragmentos de host
+  siempre requieren consentimiento explicito.
+- El estado operativo vive bajo `.scopegrain/` por defecto
+  (`.tasksystem/` sigue siendo una ruta legacy soportada); `context.md`
+  ahi es el archivo de notas persistentes del owner — los agentes lo
+  leen, no lo editan.
+- El visor es de solo lectura por diseno; las mutaciones pasan por la
+  CLI o las tools MCP bajo los gates del workflow.
+
 ## Flujo de trabajo
 
 1. **Descubrimiento de solo lectura.** Inspeccionar manifiestos e
