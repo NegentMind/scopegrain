@@ -207,7 +207,10 @@ export function validateSpecificationData(data,
       { required: stored }),
     openQuestions: textArray(data.openQuestions, `${label}.openQuestions`,
       { required: stored }),
-    subspecs: subspecLinks(data.subspecs, `${label}.subspecs`),
+    // Round-trip exactness: absent stays absent — injecting [] would
+    // change the canonical data (and rendered body) of legacy artifacts.
+    ...(data.subspecs === undefined ? {}
+      : { subspecs: subspecLinks(data.subspecs, `${label}.subspecs`) }),
   };
 }
 

@@ -52,7 +52,7 @@ export function prepareSpecification(ctx, input) {
   }
   // Sub-spec links are fail-closed: every declared target must be an
   // existing spec artifact — a dangling link is rejected at write time.
-  for (const l of data.subspecs) {
+  for (const l of data.subspecs ?? []) {
     try {
       getArtifact(ctx, 'spec', l.id);
     } catch (e) {
