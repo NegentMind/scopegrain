@@ -77,7 +77,7 @@ export function reanswer(f, a, answer) {
     comment: 'explicit changed fixture answer' });
 }
 export function formalFixture({ mini = true, three = false, approved = true,
-    methodology, openQuestions = [] } = {}) {
+    methodology, openQuestions = [], planV3 } = {}) {
   const f = bootstrappedCtx();
   const s = prepareSpecification(f.ctx, {
     originalRequest: 'D2 synthetic specification', title: 'Fixture spec',
@@ -101,7 +101,7 @@ export function formalFixture({ mini = true, three = false, approved = true,
       scope: ['src/a'], scenarioRefs: refs('S1'), ...common });
   } else {
     const p = preparePlan(f.ctx, { key: 'd2-plan', title: 'Fixture plan',
-      ...common, tasks: [
+      ...common, ...(planV3 ?? {}), tasks: [
         { key: 'a', title: 'A', contract: 'C', scope: ['src/a'],
           scenarioRefs: refs('S1') },
         { key: 'b', title: 'B', contract: 'C', scope: ['src/b'],

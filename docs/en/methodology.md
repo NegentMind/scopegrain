@@ -136,6 +136,25 @@ verification invalidates the previous review unless another is supplied
 explicitly in the same call. Including `outcomeEvidenceId` inside a new
 verification at ACCEPT does not avoid this rule either.
 
+### Operational order for a formal ACCEPT
+
+1. `REVIEW` (or `REVIEW -> REVIEW`): attach the complete
+   `verification`{checks, coverage} plus a valid `review` in one call.
+2. `outcome create`: the report binds the current REVIEW revision and
+   `canonicalDigest({checks, coverage})` of the stored verification.
+3. `approval create` + `approval answer` for the report artifact
+   (content-bound to its digest).
+4. `task transition ACCEPT --evidence` carrying
+   `verification`{the same checks+coverage,
+   `outcomeEvidenceId`: report id} and `review`{...}. The attestation is
+   evaluated on the candidate at `previousRevision` — the revision the
+   report bound — so the locator belongs to the ACCEPT evidence itself.
+
+Pitfall: a `REVIEW -> REVIEW` attach performed *after* `outcome create`
+bumps the revision; the report goes stale
+(`OUTCOME_BINDING_MISMATCH`) and must be recreated with a fresh
+approval. Never attach `outcomeEvidenceId` through a self-loop.
+
 ## Interface and continuity
 
 The new interface distinguishes work procedures (`plan-work`,

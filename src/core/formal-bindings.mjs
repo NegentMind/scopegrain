@@ -9,7 +9,7 @@ import { getArtifact } from './artifacts.mjs';
 import { getSpecification } from './specifications.mjs';
 import { getTask } from './tasks.mjs';
 import { getPlan } from './plans.mjs';
-import { normalizeScenarioRefs, allScenarioRefs }
+import { normalizeScenarioRefs, allScenarioRefs, planCarriesFormalPair }
   from './methodology-data.mjs';
 
 const UUID_RE =
@@ -98,7 +98,8 @@ export function collectFormalBindings(ctx, task) {
     }
   }
   if (plan !== null) {
-    if (plan.schemaVersion !== 2
+    if (plan.schemaVersion < 2 || plan.schemaVersion > 3
+        || !planCarriesFormalPair(plan)
         || plan.specId.toLowerCase() !== task.specId.toLowerCase()
         || plan.designId.toLowerCase() !== task.designId.toLowerCase()) {
       issues.push(issue('FORMAL_BINDING_MISMATCH',

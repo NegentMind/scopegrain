@@ -9,6 +9,9 @@ import { checkMethodology, evaluateMethodology, evaluateTaskActions }
 import { transitionTask, updateTaskMeta } from '../src/core/transition.mjs';
 import { prepareOutcomeEvidence } from '../src/core/outcomes.mjs';
 import { createTask, getTask, taskFilePath } from '../src/core/tasks.mjs';
+import { collectFormalBindings } from '../src/core/formal-bindings.mjs';
+import { getPlan, preparePlan } from '../src/core/plans.mjs';
+import { applyPlan } from '../src/core/bootstrap.mjs';
 import fs from 'node:fs';
 import {
   approve, assessment, formalFixture, seedState,
@@ -220,5 +223,61 @@ test('V3 without formal pair cannot produce outcome evidence', () => {
     assert.throws(() => prepareOutcomeEvidence(f.ctx, {
       taskId: f.task.id, title: 'x', body: 'y' }),
       /not a formal/);
+  } finally { cleanup(f.dir); }
+});
+
+// B2: a plan with the formal pair PLUS V3 keys (triage/appetite/cynefin/...)
+// stores schemaVersion 3 — before the fix, collectFormalBindings rejected it
+// unconditionally and every member was dead-path'd with METHODOLOGY_BLOCKED.
+// V3 shape requires all seven plan keys present (nulls normalize).
+const PLAN_V3 = { triage: null, appetite: null, cynefin: 'clear',
+  riskRegister: null, premortem: null, stopConditions: null, budget: null };
+
+test('member of a V3 formal plan passes bindings and evaluates sdd', () => {
+  const f = formalFixture({ mini: false, planV3: PLAN_V3 });
+  try {
+    f.ctx.config.methodology = 'organic-sdd';
+    assert.equal(f.formalPlan.schemaVersion, 3);
+    const r = query(f);
+    assert.equal(r.allowed, true, JSON.stringify(r.issues));
+    assert.equal(r.route, 'sdd');
+  } finally { cleanup(f.dir); }
+});
+
+// B2: the same plan must carry a real planDigest into outcome evidence.
+test('member of a V3 formal plan produces outcome with planDigest', () => {
+  const f = formalFixture({ mini: false, planV3: PLAN_V3 });
+  try {
+    f.ctx.config.methodology = 'organic-sdd';
+    const seeded = seedState(f, f.task, 'REVIEW');
+    const p = prepareOutcomeEvidence(f.ctx, { taskId: seeded.id,
+      title: 'V3-plan outcome', body: 'declared fixture outcome' });
+    assert.ok(p.artifact && p.file);
+    assert.equal(typeof p.artifact.data.planDigest, 'string');
+    assert.equal(p.artifact.data.planDigest.length, 64);
+  } finally { cleanup(f.dir); }
+});
+
+// B2 fail-closed: a V3 plan WITHOUT the pair is still a binding mismatch
+// for a formal member — admission widens, never loosens.
+test('V3 plan without formal pair still mismatches a formal member', () => {
+  const f = formalFixture({ mini: true });
+  try {
+    // The informal plan's members carry no formal refs; organic-sdd would
+    // reject their creation — build it in manual mode, then restore.
+    f.ctx.config.methodology = 'manual';
+    const informal = preparePlan(f.ctx, { key: 'v3-informal',
+      title: 'Informal V3', authorContext: 'fixture-author',
+      ...PLAN_V3, tasks: [{ key: 'x', title: 'X', contract: 'C',
+        scope: ['src/a'], dependsOn: [] }] });
+    applyPlan(f.dir, informal.files);
+    f.ctx.config.methodology = 'organic-sdd';
+    assert.equal(getPlan(f.ctx, 'v3-informal').schemaVersion, 3);
+    const candidate = { ...getTask(f.ctx, f.task.id),
+      planKey: 'v3-informal' };
+    const b = collectFormalBindings(f.ctx, candidate);
+    assert.ok(b.issues.some((i) => i.code === 'FORMAL_BINDING_MISMATCH'),
+      JSON.stringify(b.issues));
+    assert.equal(b.planDigest, null);
   } finally { cleanup(f.dir); }
 });

@@ -19,7 +19,8 @@ import {
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
 import { getArtifact } from './artifacts.mjs';
 import { getSpecification } from './specifications.mjs';
-import { allScenarioRefs } from './methodology-data.mjs';
+import { allScenarioRefs, planCarriesFormalPair }
+  from './methodology-data.mjs';
 import {
   applyPlan as applyExclusiveFiles, preflightPlan,
 } from './bootstrap.mjs';
@@ -854,7 +855,7 @@ export function createOwnedPlanStore(ctx, options) {
         getTask(privateCtx, t.id); // TASK_NOT_FOUND/TASK_MALFORMED propagate
       }
     }
-    if (current.schemaVersion === 2) {
+    if (planCarriesFormalPair(current)) {
       const spec = getSpecification(privateCtx, current.specId);
       const union = new Set();
       for (const t of doc.tasks) {

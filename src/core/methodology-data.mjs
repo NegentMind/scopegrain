@@ -268,3 +268,16 @@ export function classifyWork(data) {
   }
   return { route: 'light', issues, attestationOnly };
 }
+
+// A plan is 'formal' by the non-null specId+designId pair it carries,
+// never by its schemaVersion: V2 plans always have the pair, V3 plans
+// may carry it too (preparePlan emits 3 when V3 semantic keys are
+// present even alongside the pair). V1 plans never carry refs, so this
+// is false for them by construction. Shared by collectFormalBindings
+// and validateNextPlanDoc — the two sites previously diverged on
+// schemaVersion === 2 (dead path for V3 formal plans).
+export function planCarriesFormalPair(plan) {
+  return plan !== null && typeof plan === 'object' && !Array.isArray(plan)
+    && typeof plan.specId === 'string'
+    && typeof plan.designId === 'string';
+}

@@ -493,6 +493,51 @@ test('V2 formal plan: coverage and member refs enforced on update', () => {
   } finally { cleanup(f.dir); }
 });
 
+// B2: a formal plan that also carries V3 keys stores schemaVersion 3.
+// Before the fix, validateNextPlanDoc gated member-refs revalidation and
+// scenario coverage on schemaVersion === 2 — a V3 formal plan skipped the
+// entire block and accepted corrupting updates a V2 twin would reject.
+test('V3 formal plan: same coverage and member refs enforced on update', () => {
+  const f = fixture();
+  try {
+    const { input } = formalFixture(f);
+    const created = f.store.create({ areaIds: [f.a],
+      plan: { ...input, triage: null, appetite: null, cynefin: 'clear',
+        riskRegister: null, premortem: null, stopConditions: null,
+        budget: null } });
+    assert.equal(created.ownershipConfirmed, true);
+    const doc = getPlan(f.ctx, 'v2-plan');
+    assert.equal(doc.schemaVersion, 3);
+    // Removing the only member breaks scenario coverage: rejected.
+    const hollow = { ...doc, tasks: [] };
+    assert.throws(() => f.store.update({ key: 'v2-plan',
+      expectedRevision: 0, plan: hollow }),
+      (e) => ['PLAN_MALFORMED', 'INVALID_PLAN',
+        'INVALID_OWNED_PLAN_INPUT'].includes(e.code));
+    // A member without matching formal refs is rejected.
+    const light = createTask(f.ctx, {
+      title: 'Light task', contract: 'c', authorContext: 'ctx-a', scope: [] });
+    const alien = { ...doc,
+      tasks: [...doc.tasks,
+        { key: 'alien', id: light.id, dependsOn: [],
+          triage: null, triageReason: null }] };
+    assert.throws(() => f.store.update({ key: 'v2-plan',
+      expectedRevision: 0, plan: alien }),
+      (e) => e.code === 'PLAN_MEMBERSHIP_INVALID');
+    // A member that exists but was not created for this plan key fails too.
+    const t2 = createTask(f.ctx, {
+      title: 'Other formal', contract: 'c', authorContext: 'ctx-a',
+      scope: ['src/a'], specId: input.specId, designId: input.designId,
+      scenarioRefs: [{ requirementId: 'R1', scenarioId: 'S1' }] });
+    const wrongPlan = { ...doc,
+      tasks: [...doc.tasks, { key: 't2', id: t2.id, dependsOn: [],
+        triage: null, triageReason: null }] };
+    assert.throws(() => f.store.update({ key: 'v2-plan',
+      expectedRevision: 0, plan: wrongPlan }),
+      (e) => e.code === 'PLAN_MEMBERSHIP_INVALID');
+  } finally { cleanup(f.dir); }
+});
+
 test('get validates ids and stays structural-only for readiness', () => {
   const f = fixture();
   try {

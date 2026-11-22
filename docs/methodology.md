@@ -129,6 +129,25 @@ invalida la review anterior salvo que se aporte otra explicitamente en la
 misma llamada. Incluir `outcomeEvidenceId` dentro de una nueva verificacion
 en ACCEPT tampoco evita esta regla.
 
+### Orden operativo para un ACCEPT formal
+
+1. `REVIEW` (o `REVIEW -> REVIEW`): adjuntar la `verification`{checks,
+   coverage} completa junto a un `review` valido en una sola llamada.
+2. `outcome create`: el informe vincula la revision REVIEW vigente y
+   `canonicalDigest({checks, coverage})` de la verificacion almacenada.
+3. `approval create` + `approval answer` para el artefacto report
+   (ligado por contenido a su digest).
+4. `task transition ACCEPT --evidence` con `verification`{los mismos
+   checks+coverage, `outcomeEvidenceId`: id del report} y `review`{...}.
+   La atestacion se evalua sobre el candidato a `previousRevision` — la
+   revision que el report vinculo — asi que el locator pertenece a la
+   evidencia del propio ACCEPT.
+
+Trampa a evitar: un `REVIEW -> REVIEW` posterior a `outcome create`
+incrementa la revision; el report queda stale
+(`OUTCOME_BINDING_MISMATCH`) y hay que recrearlo con una aprobacion
+nueva. Nunca adjuntar `outcomeEvidenceId` mediante un auto-bucle.
+
 ## Interfaz y continuidad
 
 La interfaz nueva distingue procedimientos de trabajo (`plan-work`,
