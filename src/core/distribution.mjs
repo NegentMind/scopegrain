@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Distribution machinery (spec-kit catalog/bundle/extension/preset
 // parity), constrained to local file:// sources — the remote boundary is
-// explicit: http(s) catalog URIs are validated but refused at load, and
-// install_allowed flags mark entries a future remote layer may fetch.
-// Everything here is declarative: validation, composition and planning;
-// never download or execute.
+// CLOSED by design, not deferred: http(s) catalog URIs validate their
+// shape but refuse at load (REMOTE_CATALOG_UNSUPPORTED), and no inert
+// "future remote" flags exist. Everything here is declarative:
+// validation, composition and planning; never download or execute.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,6 +13,10 @@ import { err } from './errors.mjs';
 import { assertSafeId } from './identifiers.mjs';
 import { isInside, resolveInside } from './paths.mjs';
 import { loadWorkspaceCatalog } from './catalog.mjs';
+import {
+  applyJournaledCreation, applyJournaledRecordUpdate,
+} from './journal.mjs';
+import { bindWorkspace, getWorkspace } from './workspaces.mjs';
 import {
   lstatOrNull, readFileLimited, decodeUtf8Strict,
 } from './fsx.mjs';
@@ -26,14 +30,14 @@ const SHA_RE = /^[0-9a-f]{64}$/;
 const OPS = new Set(['replace', 'prepend', 'append', 'wrap']);
 
 // ---- D7: catalog submission validation ---------------------------------
-// {id, version, source:{uri, sha256}, description?, install_allowed}
+// {id, version, source:{uri, sha256}, description?}
 export function validateSubmission(doc, label = 'submission', extraKeys = []) {
   if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) {
     throw err('INVALID_VALUE', `${label} must be an object`);
   }
   for (const k of Object.keys(doc)) {
     if (!['schemaVersion', 'id', 'version', 'source', 'description',
-      'install_allowed', 'entries', ...extraKeys].includes(k)) {
+      'entries', ...extraKeys].includes(k)) {
       throw err('UNKNOWN_KEY', `${label} has unknown key '${k}'`);
     }
   }
@@ -59,14 +63,9 @@ export function validateSubmission(doc, label = 'submission', extraKeys = []) {
   if (s.sha256 !== undefined && !SHA_RE.test(s.sha256)) {
     throw err('INVALID_VALUE', `${label}.source.sha256 must be 64 hex`);
   }
-  if (doc.install_allowed !== undefined
-      && typeof doc.install_allowed !== 'boolean') {
-    throw err('INVALID_VALUE', `${label}.install_allowed must be boolean`);
-  }
   return {
     id: doc.id, version: doc.version,
     source: { uri: s.uri, sha256: s.sha256 ?? null, remote },
-    install_allowed: doc.install_allowed ?? false,
     description: typeof doc.description === 'string' ? doc.description : '',
   };
 }
@@ -245,17 +244,145 @@ function loadRegistry(ctx, kind) {
   return doc;
 }
 
-function saveRegistry(ctx, kind, doc) {
-  const abs = resolveInside(ctx.projectRoot,
-    `${ctx.configDir}/${REGISTRY_RELS[kind]}`, `${kind} registry`);
+// ---- dist journal -------------------------------------------------------
+// Append-only mutation trail for distribution state. Every registry/payload
+// mutation under the dist lock records the previous file hash (CAS proof)
+// and a monotonic revision. When the project has a bound workspace the
+// registry write itself is routed through the shared journal kernel (real
+// byte-level CAS + outbox events); without one the write stays local and
+// this log is the authoritative trail. Deletions and payload files cannot
+// be expressed as journal records — the dist journal covers them.
+const DIST_JOURNAL_REL = 'dist-journal.jsonl';
+const DIST_JOURNAL_MAX = 4 * 1024 * 1024;
+
+function sha256Buf(b) {
+  return crypto.createHash('sha256').update(b).digest('hex');
+}
+
+function atomicWriteFile(abs, bytes) {
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   const tmp = `${abs}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(doc, null, 2) + '\n', { flag: 'wx' });
+  fs.writeFileSync(tmp, bytes, { flag: 'wx' });
   try { fs.renameSync(tmp, abs); }
   catch (e) {
     try { fs.unlinkSync(tmp); } catch { /* best effort */ }
     throw e;
   }
+}
+
+function distJournalAbs(ctx) {
+  return resolveInside(ctx.projectRoot,
+    `${ctx.configDir}/${DIST_JOURNAL_REL}`, 'dist journal');
+}
+
+// Bounded scan of the trail: highest global revision plus the highest
+// revision recorded for one registry (its journaled sourceRevision).
+function distJournalState(ctx, registry) {
+  const abs = distJournalAbs(ctx);
+  const st = lstatOrNull(abs);
+  const state = { last: 0, perRegistry: 0 };
+  if (!st || !st.isFile() || st.isSymbolicLink()) return state;
+  const l = readFileLimited(abs, DIST_JOURNAL_MAX * 2);
+  if (l.exceeded) return state;
+  for (const line of decodeUtf8Strict(l.content, 'MALFORMED',
+    DIST_JOURNAL_REL).split('\n')) {
+    if (!line.trim()) continue;
+    let e;
+    try { e = JSON.parse(line); } catch { continue; }
+    if (Number.isSafeInteger(e?.revision) && e.revision > state.last) {
+      state.last = e.revision;
+    }
+    if (e?.registry === registry
+        && Number.isSafeInteger(e?.revision)
+        && e.revision > state.perRegistry) {
+      state.perRegistry = e.revision;
+    }
+  }
+  return state;
+}
+
+function distJournalAppend(ctx, entry, state) {
+  const abs = distJournalAbs(ctx);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  const line = JSON.stringify(
+    { revision: state.last + 1, ...entry }) + '\n';
+  const st = lstatOrNull(abs);
+  if (st && st.isFile() && !st.isSymbolicLink()
+      && st.size + line.length > DIST_JOURNAL_MAX) {
+    // Compaction keeps the newest half of the bounded trail, atomic swap.
+    const l = readFileLimited(abs, DIST_JOURNAL_MAX * 2);
+    if (!l.exceeded) {
+      const lines = decodeUtf8Strict(l.content, 'MALFORMED',
+        DIST_JOURNAL_REL).split('\n').filter((x) => x.trim());
+      const keep = lines.slice(Math.floor(lines.length / 2));
+      atomicWriteFile(abs, Buffer.from(keep.join('\n') + '\n', 'utf8'));
+    }
+  }
+  fs.appendFileSync(abs, line);
+}
+
+// Best-effort bound workspace for the opt-in journaled path: a project
+// without an enrolled workspace (or with no areas) simply writes locally;
+// the dist journal still records the mutation with journaled:false.
+function tryBindDist(ctx) {
+  try {
+    const ws = getWorkspace(ctx);
+    const areaIds = (ws.areas ?? []).map((a) => a.id);
+    if (areaIds.length === 0) return null;
+    return bindWorkspace(ctx, { areaIds });
+  } catch {
+    return null;
+  }
+}
+
+// Commit a registry JSON file under the dist lock. Bound workspace: the
+// kernel enforces CAS (previousHash == current bytes) and emits events.
+// Unbound: temp+rename directly. Either way the mutation lands in the
+// dist journal with its previous/new hashes.
+function commitRegistryFile(ctx, { registry, rel, bytes, op, id = null }) {
+  const cfgRel = `${ctx.configDir}/${rel}`;
+  const abs = resolveInside(ctx.projectRoot, cfgRel, `${registry} registry`);
+  const st = lstatOrNull(abs);
+  if (st && (st.isSymbolicLink() || !st.isFile())) {
+    throw err('INVALID_PATH', `${cfgRel} is not a regular file`);
+  }
+  const prevBytes = st ? fs.readFileSync(abs) : null;
+  const prevSha = prevBytes ? sha256Buf(prevBytes) : null;
+  const state = distJournalState(ctx, registry);
+  const bound = tryBindDist(ctx);
+  let journaled = false;
+  if (bound) {
+    const change = {
+      sourceKind: 'dist-registry', recordId: registry,
+      areaIds: [...bound.areaIds],
+      file: { rel: cfgRel, content: bytes },
+    };
+    if (prevSha === null) {
+      applyJournaledCreation(bound,
+        [{ ...change, sourceRevision: null }]);
+    } else {
+      applyJournaledRecordUpdate(bound, () => [{
+        ...change, sourceRevision: state.perRegistry,
+        previousHash: prevSha,
+      }]);
+    }
+    journaled = true;
+  } else {
+    atomicWriteFile(abs, bytes);
+  }
+  distJournalAppend(ctx, {
+    at: new Date().toISOString(), op, registry, id, rel: cfgRel,
+    previousSha256: prevSha, newSha256: sha256Buf(bytes), journaled,
+  }, state);
+  return { journaled };
+}
+
+function saveRegistry(ctx, kind, doc, meta) {
+  return commitRegistryFile(ctx, {
+    registry: kind, rel: REGISTRY_RELS[kind],
+    bytes: Buffer.from(JSON.stringify(doc, null, 2) + '\n', 'utf8'),
+    op: meta?.op ?? 'registry-write', id: meta?.id ?? null,
+  });
 }
 
 // Registry mutations are read-modify-write: hold the dist lock for the
@@ -303,7 +430,8 @@ export function registerExtension(ctx, input) {
       ...doc, lifecycle, contributes, state: 'registered',
       registeredAt: new Date().toISOString(),
     });
-    saveRegistry(ctx, 'extensions', reg);
+    saveRegistry(ctx, 'extensions', reg,
+      { op: 'extension-register', id: doc.id });
     return Object.freeze(reg.extensions.at(-1));
   });
 }
@@ -321,7 +449,8 @@ export function removeExtension(ctx, id) {
         `extension '${id}' is active; deactivate before removing`);
     }
     const removed = reg.extensions.splice(i, 1)[0];
-    saveRegistry(ctx, 'extensions', reg);
+    saveRegistry(ctx, 'extensions', reg,
+      { op: 'extension-remove', id });
     return Object.freeze({ removed: removed.id });
   });
 }
@@ -358,7 +487,8 @@ export function setExtensionState(ctx, id, state) {
     delete ext.deactivatedAt;
     ext[`${state === 'active' ? 'activat' : 'deactivat'}edAt`] =
       new Date().toISOString();
-    saveRegistry(ctx, 'extensions', reg);
+    saveRegistry(ctx, 'extensions', reg,
+      { op: 'extension-state', id });
     return Object.freeze(ext);
   });
 }
@@ -388,7 +518,8 @@ export function registerPreset(ctx, input) {
       overrides: input.overrides,
       registeredAt: new Date().toISOString(),
     });
-    saveRegistry(ctx, 'presets', reg);
+    saveRegistry(ctx, 'presets', reg,
+      { op: 'preset-register', id: input.id });
     return Object.freeze(reg.presets.at(-1));
   });
 }
@@ -400,7 +531,8 @@ export function removePreset(ctx, id) {
     const i = reg.presets.findIndex((p) => p.id === id);
     if (i < 0) throw err('NOT_FOUND', `preset '${id}' not registered`);
     const removed = reg.presets.splice(i, 1)[0];
-    saveRegistry(ctx, 'presets', reg);
+    saveRegistry(ctx, 'presets', reg,
+      { op: 'preset-remove', id });
     return Object.freeze({ removed: removed.id });
   });
 }
@@ -592,6 +724,7 @@ export function installBundle(ctx, bundleDoc, sources, { apply = false } = {}) {
       `${destRel}/provenance.json`, 'bundle provenance');
     const provBytes = JSON.stringify(provenance, null, 2) + '\n';
     const provExisting = lstatOrNull(provAbs);
+    let prevProvSha = null;
     if (provExisting) {
       // Re-install: identical provenance is a no-op; different bytes
       // under the same bundle id mean divergent content — refuse to
@@ -601,6 +734,7 @@ export function installBundle(ctx, bundleDoc, sources, { apply = false } = {}) {
         throw err('CONFLICT',
           `bundle '${bundle.id}' provenance diverged; refusing to overwrite`);
       }
+      prevProvSha = sha256Buf(prev.content);
     } else {
       const tmp = `${provAbs}.tmp-${process.pid}`;
       fs.writeFileSync(tmp, provBytes, { flag: 'wx' });
@@ -610,6 +744,16 @@ export function installBundle(ctx, bundleDoc, sources, { apply = false } = {}) {
         throw e;
       }
     }
+    // Payload write trail: the provenance bytes carry every file hash,
+    // so its hash is the CAS anchor for the whole install.
+    distJournalAppend(ctx, {
+      at: new Date().toISOString(), op: 'bundle-install',
+      registry: 'bundles', id: bundle.id,
+      rel: `${destRel}/provenance.json`,
+      previousSha256: prevProvSha,
+      newSha256: sha256Buf(Buffer.from(provBytes, 'utf8')),
+      journaled: false,
+    }, distJournalState(ctx, 'bundles'));
     return Object.freeze({ mode: 'applied', applied: true,
       bundle: { id: bundle.id, version: bundle.version },
       files: plan, provenance: `${destRel}/provenance.json` });
@@ -640,17 +784,12 @@ export function loadMounted(ctx) {
   return doc;
 }
 
-function saveMounted(ctx, doc) {
-  const abs = resolveInside(ctx.projectRoot,
-    `${ctx.configDir}/${MOUNTED_REL}`, 'mounted catalog');
-  fs.mkdirSync(path.dirname(abs), { recursive: true });
-  const tmp = `${abs}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(doc, null, 2) + '\n', { flag: 'wx' });
-  try { fs.renameSync(tmp, abs); }
-  catch (e) {
-    try { fs.unlinkSync(tmp); } catch { /* best effort */ }
-    throw e;
-  }
+function saveMounted(ctx, doc, meta) {
+  return commitRegistryFile(ctx, {
+    registry: 'mounted-catalog', rel: MOUNTED_REL,
+    bytes: Buffer.from(JSON.stringify(doc, null, 2) + '\n', 'utf8'),
+    op: meta?.op ?? 'mounted-write', id: meta?.id ?? null,
+  });
 }
 
 function loadProvenance(ctx, bundleId) {
@@ -727,7 +866,7 @@ export function mountBundle(ctx, bundleId) {
       if (i >= 0) mounted.entries[i] = entry;
       else mounted.entries.push(entry);
     }
-    saveMounted(ctx, mounted);
+    saveMounted(ctx, mounted, { op: 'bundle-mount', id: bundleId });
     return Object.freeze({ bundle: bundleId,
       mounted: typed.filter((e) => typeof e.file === 'string')
         .map((e) => `${e.kind}/${e.id}`),
@@ -740,7 +879,7 @@ function unmountInner(ctx, bundleId) {
   const before = mounted.entries.length;
   mounted.entries = mounted.entries.filter(
     (e) => e.bundle !== bundleId);
-  saveMounted(ctx, mounted);
+  saveMounted(ctx, mounted, { op: 'bundle-unmount', id: bundleId });
   return { unmounted: before - mounted.entries.length,
     bundle: bundleId };
 }
@@ -757,6 +896,14 @@ export function uninstallBundle(ctx, bundleId, { keepFiles = false } = {}) {
   assertSafeId(bundleId, 'bundle id');
   return withDistLock(ctx, () => {
     const unmounted = unmountInner(ctx, bundleId);
+    const provAbs0 = resolveInside(ctx.projectRoot,
+      `${ctx.configDir}/bundles/${bundleId}/provenance.json`,
+      'bundle provenance');
+    const provSt = lstatOrNull(provAbs0);
+    const provSha = (provSt && provSt.isFile() && !provSt.isSymbolicLink())
+      ? sha256Buf(readFileLimited(provAbs0,
+          loadLimits().maxDocumentBytes).content)
+      : null;
     const prov = loadProvenance(ctx, bundleId);
     const deleted = [];
     const leftBehind = [];
@@ -796,7 +943,144 @@ export function uninstallBundle(ctx, bundleId, { keepFiles = false } = {}) {
         deleted.push(`${baseRel}/provenance.json`);
       }
     }
+    distJournalAppend(ctx, {
+      at: new Date().toISOString(), op: 'bundle-uninstall',
+      registry: 'bundles', id: bundleId,
+      rel: `${ctx.configDir}/bundles/${bundleId}/provenance.json`,
+      previousSha256: provSha, newSha256: null, journaled: false,
+      keepFiles,
+    }, distJournalState(ctx, 'bundles'));
     return Object.freeze({ bundle: bundleId, ...unmounted,
       deleted, leftBehind });
+  });
+}
+
+// ---- G7: distribution self-test ----------------------------------------
+// End-to-end probe of the distribution loop (discovery -> validation ->
+// dry-run -> install -> mount -> unmount -> uninstall) against a fixture
+// generated inside the project and always removed afterwards. Each step
+// is recorded pass/fail; the report is a diagnostic, not telemetry.
+const SELFTEST_ID = 'scopegrain-selftest';
+
+export function selfTestDist(ctx) {
+  const steps = [];
+  const scratchRel = `${ctx.configDir}/selftest-scratch`;
+  const scratchAbs = resolveInside(
+    ctx.projectRoot, scratchRel, 'selftest scratch');
+  const bundleRel = `${ctx.configDir}/bundles/${SELFTEST_ID}`;
+  const step = (name, fn) => {
+    try {
+      const detail = fn();
+      steps.push({ step: name, ok: true, detail: detail ?? null });
+      return true;
+    } catch (e) {
+      steps.push({ step: name, ok: false,
+        error: { code: e.code ?? 'ERROR', message: String(e.message ?? e) } });
+      return false;
+    }
+  };
+  const cleanup = () => {
+    try { fs.rmSync(scratchAbs, { recursive: true, force: true }); }
+    catch { /* best effort */ }
+    try {
+      const bundleAbs = resolveInside(
+        ctx.projectRoot, bundleRel, 'selftest bundle');
+      fs.rmSync(bundleAbs, { recursive: true, force: true });
+    } catch { /* best effort */ }
+    // A mounted remnant must not stay behind: drop its entries if the
+    // unmount step never ran.
+    try {
+      withDistLock(ctx, () => {
+        const mounted = loadMounted(ctx);
+        const filtered = mounted.entries.filter(
+          (e) => e.bundle !== SELFTEST_ID);
+        if (filtered.length !== mounted.entries.length) {
+          mounted.entries = filtered;
+          saveMounted(ctx, mounted,
+            { op: 'selftest-cleanup', id: SELFTEST_ID });
+        }
+      });
+    } catch { /* best effort */ }
+  };
+  try {
+    const skillBody = '# selftest\nscopegrain distribution probe\n';
+    const skillSha = sha256Buf(Buffer.from(skillBody, 'utf8'));
+    step('prepare', () => {
+      fs.mkdirSync(scratchAbs, { recursive: true });
+      fs.writeFileSync(path.join(scratchAbs, 'SKILL.md'), skillBody);
+      const cat = { entries: [{ id: 'selftest-skill', kind: 'skill',
+        source: { uri: `file://${scratchRel}/SKILL.md` } }] };
+      fs.writeFileSync(path.join(scratchAbs, 'cat.json'),
+        JSON.stringify(cat));
+      return { scratch: scratchRel };
+    });
+    let stack = null;
+    step('discovery', () => {
+      stack = loadCatalogStack(ctx,
+        [{ uri: `file://${scratchRel}/cat.json` }]);
+      if (!stack.entries.some((e) => e.id === 'selftest-skill')) {
+        throw err('NOT_FOUND', 'selftest entry not discovered');
+      }
+      return { entries: stack.entries.length };
+    });
+    let bundle = null;
+    step('validate', () => {
+      bundle = validateBundle({ id: SELFTEST_ID, version: '0.0.1',
+        requires: [{ id: 'selftest-skill', sha256: skillSha }] },
+        new Set((stack?.entries ?? []).map((e) => e.id)));
+      return { requires: bundle.requires?.length ?? 1 };
+    });
+    step('dry-run', () => {
+      const dry = installBundle(ctx, { id: SELFTEST_ID, version: '0.0.1',
+        requires: [{ id: 'selftest-skill', sha256: skillSha }] },
+        [{ uri: `file://${scratchRel}/cat.json` }]);
+      if (dry.mode !== 'dry-run' || dry.files.length < 1) {
+        throw err('INVALID_VALUE', 'dry-run did not plan files');
+      }
+      return { files: dry.files.length };
+    });
+    step('install', () => {
+      const done = installBundle(ctx, { id: SELFTEST_ID, version: '0.0.1',
+        requires: [{ id: 'selftest-skill', sha256: skillSha }] },
+        [{ uri: `file://${scratchRel}/cat.json` }], { apply: true });
+      if (done.applied !== true) {
+        throw err('INVALID_VALUE', 'install did not apply');
+      }
+      const prov = loadProvenance(ctx, SELFTEST_ID);
+      if (!Array.isArray(prov.files) || prov.files.length < 1) {
+        throw err('MALFORMED', 'provenance missing file records');
+      }
+      return { provenance: prov.files.length };
+    });
+    step('mount', () => {
+      const m = mountBundle(ctx, SELFTEST_ID);
+      const mounted = loadMounted(ctx);
+      if (!mounted.entries.some((e) => e.bundle === SELFTEST_ID)) {
+        throw err('NOT_FOUND', 'bundle not in mounted catalog');
+      }
+      return { mounted: m.mounted.length };
+    });
+    step('unmount', () => {
+      const u = unmountBundle(ctx, SELFTEST_ID);
+      if (loadMounted(ctx).entries
+        .some((e) => e.bundle === SELFTEST_ID)) {
+        throw err('INVALID_VALUE', 'mounted entries not removed');
+      }
+      return { unmounted: u.unmounted };
+    });
+    step('uninstall', () => {
+      const u = uninstallBundle(ctx, SELFTEST_ID);
+      if (lstatOrNull(resolveInside(ctx.projectRoot,
+        `${bundleRel}/provenance.json`, 'selftest provenance'))) {
+        throw err('INVALID_VALUE', 'bundle files left behind');
+      }
+      return { deleted: u.deleted.length };
+    });
+  } finally {
+    cleanup();
+  }
+  return Object.freeze({
+    ok: steps.every((s) => s.ok) && steps.length === 8,
+    steps: Object.freeze(steps),
   });
 }

@@ -484,6 +484,15 @@ que los recursos del snapshot — su `resourcePath` apunta dentro de
 `<configDir>/bundles/<id>/`, y `doctor` trata la capa mounted como
 overlay (nunca como señal de `upgradeAvailable`).
 
+`dist selftest --project PATH` ejercita el ciclo de distribucion
+completo (discovery → validate → dry-run → install → mount → unmount →
+uninstall) sobre un fixture generado dentro del proyecto y siempre
+eliminado al final. Devuelve `{ok, steps[]}` con cada paso
+pass/fail — diagnostico local, sin telemetria. Las mutaciones dejan
+rastro en `dist-journal.jsonl` (CAS por `previousSha256`/`newSha256`);
+con workspace enrolado la escritura del registro pasa ademas por el
+kernel del journal (`journaled: true`).
+
 ### policy/hooks.json — ejemplo declarativo
 
 ```json

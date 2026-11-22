@@ -431,6 +431,14 @@ const COMMANDS = {
     flags: ['--project', '--config'], pos: 0,
     usage: 'dist mounted-list --project PATH',
   },
+  'dist selftest': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'dist selftest --project PATH',
+  },
+  'dist pack': {
+    flags: ['--project', '--config', '--source', '--out'], pos: 0,
+    usage: 'dist pack --project PATH --source DIR --out FILE',
+  },
   'dist extension-remove': {
     flags: ['--project', '--config'], pos: 1,
     usage: 'dist extension-remove --project PATH ID',
@@ -1347,6 +1355,14 @@ async function cmdDist(sub, rest, flags) {
   }
   if (sub === 'preset-list') {
     return { presets: d.listRegistry(ctx, 'presets') };
+  }
+  if (sub === 'selftest') {
+    return d.selfTestDist(ctx);
+  }
+  if (sub === 'pack') {
+    const { packDirectory } = await import('./core/packaging.mjs');
+    return packDirectory(ctx, requireFlag(flags, '--source'),
+      requireFlag(flags, '--out'));
   }
   throw err('INVALID_ARGS', `unknown dist subcommand '${sub}'`);
 }

@@ -361,6 +361,15 @@ un esquema editado con keywords fuera del subconjunto falla en voz alta.
   por el mismo pipeline que los del snapshot — la capa mounted es overlay,
   nunca altera el manifest proyectado ni dispara `upgradeAvailable` en
   `doctor`.
+- Las mutaciones de distribucion (registros de extensiones/presets,
+  `mounted-catalog.json`, install/uninstall de bundles) dejan rastro en
+  `<configDir>/dist-journal.jsonl` bajo `dist.lock`: cada entrada lleva
+  `previousSha256`/`newSha256` encadenados (CAS por bytes) y una
+  `revision` monotonica. Si el proyecto tiene un workspace enrolado, la
+  escritura del registro se rutea ademas por el kernel del journal
+  compartido (`journaled: true`, eventos al outbox); sin enrolamiento la
+  escritura es local y el dist journal es la unica traza
+  (`journaled: false`).
 - La API local (`src/api/`) es una comodidad read-only sin auth mas alla
   del bind loopback: no es un host de produccion y el puerto no debe
   exponerse.
@@ -389,6 +398,15 @@ un esquema editado con keywords fuera del subconjunto falla en voz alta.
   En Windows la comparacion de identidad de rutas sigue la semantica
   case-insensitive del filesystem; un atacante que pueda alternar el
   case de un componente dentro de la ventana queda fuera del modelo.
+- Catalogos remotos: non-goal permanente. Toda la maquinaria de
+  distribucion (`distribution.mjs`: stack, bundles, extensiones,
+  presets, mounted layer) opera solo sobre URIs `file://`; las URIs
+  http(s) validan su forma pero `loadCatalogStack`/`installBundle`
+  las rechazan con `REMOTE_CATALOG_UNSUPPORTED`. No existe capa de
+  descarga, trust anchors ni metadata inerte de "futuro remoto": la
+  decision es cerrar la frontera, no diferirla. Un recurso remoto se
+  incorpora descargandolo manualmente y referenciandolo via `file://`
+  con su sha256 pineado.
 - Modelo de persistencia de artefactos: flow-forward. Los artefactos
   formales (specs, designs, outcomes, checklists, clarifications,
   convergence records) son inmutables una vez creados: una nueva

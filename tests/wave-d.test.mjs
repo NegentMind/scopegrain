@@ -10,6 +10,7 @@ import {
   validateBundle, registerExtension, registerPreset, listRegistry,
   setExtensionState, installBundle, presetLayers, mountBundle,
   unmountBundle, uninstallBundle, removeExtension, removePreset,
+  selfTestDist,
   loadMounted,
 } from '../src/core/distribution.mjs';
 import { createTask } from '../src/core/tasks.mjs';
@@ -530,5 +531,112 @@ test('native bridges: mounted resource materializes in activation plan', async (
     // Nothing global, nothing skipped for the mounted entry.
     assert.ok(!plan.skipped.some((s) =>
       String(s.destination).includes('bridge-cmd')));
+  } finally { cleanup(dir); }
+});
+
+test('E4 dist journal: registry mutations append CAS-chained entries', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    registerExtension(ctx, { id: 'ext-j', version: '1.0.0',
+      source: { uri: 'file://e' }, description: 'd' });
+    setExtensionState(ctx, 'ext-j', 'disabled');
+    const abs = path.join(dir, ctx.configDir, 'dist-journal.jsonl');
+    assert.ok(fs.existsSync(abs), 'dist-journal.jsonl must exist');
+    const entries = fs.readFileSync(abs, 'utf8').trim().split('\n')
+      .map((l) => JSON.parse(l));
+    assert.equal(entries.length, 2);
+    assert.equal(entries[0].revision, 1);
+    assert.equal(entries[1].revision, 2);
+    assert.equal(entries[0].op, 'extension-register');
+    assert.equal(entries[1].op, 'extension-state');
+    assert.equal(entries[0].registry, 'extensions');
+    // CAS chain: previous hash of write n+1 equals new hash of write n.
+    assert.equal(entries[1].previousSha256, entries[0].newSha256);
+    assert.match(entries[0].newSha256, /^[0-9a-f]{64}$/);
+    assert.equal(typeof entries[0].journaled, 'boolean');
+  } finally { cleanup(dir); }
+});
+
+test('E4 dist journal: bound workspace routes registry writes through the shared journal', async () => {
+  const { applyPlan } = await import('../src/core/bootstrap.mjs');
+  const { prepareWorkspace } = await import('../src/core/workspaces.mjs');
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    const prepared = prepareWorkspace(ctx, {
+      areas: [{ key: 'main', name: 'Main' }],
+    });
+    applyPlan(dir, [prepared.file]);
+    registerExtension(ctx, { id: 'ext-jb', version: '1.0.0',
+      source: { uri: 'file://e' }, description: 'd' });
+    setExtensionState(ctx, 'ext-jb', 'disabled');
+    const abs = path.join(dir, ctx.configDir, 'dist-journal.jsonl');
+    const entries = fs.readFileSync(abs, 'utf8').trim().split('\n')
+      .map((l) => JSON.parse(l));
+    assert.equal(entries.length, 2);
+    assert.ok(entries.every((e) => e.journaled === true),
+      'bound workspace must route writes through the journal kernel');
+    assert.equal(entries[1].previousSha256, entries[0].newSha256);
+    // The kernel wrote the registry and its events: both exist on disk.
+    assert.ok(fs.existsSync(
+      path.join(dir, ctx.configDir, 'extensions.json')));
+  } finally { cleanup(dir); }
+});
+
+test('E6 dist selftest: full discovery->install->mount->uninstall loop passes and cleans up', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    const r = selfTestDist(ctx);
+    assert.equal(r.ok, true, JSON.stringify(r.steps, null, 1));
+    assert.equal(r.steps.length, 8);
+    assert.ok(r.steps.every((s) => s.ok));
+    assert.deepEqual(r.steps.map((s) => s.step),
+      ['prepare', 'discovery', 'validate', 'dry-run',
+        'install', 'mount', 'unmount', 'uninstall']);
+    // Cleanup contract: no scratch dir, no bundle dir, no mounted entries.
+    assert.ok(!fs.existsSync(
+      path.join(dir, ctx.configDir, 'selftest-scratch')));
+    const mounted = loadMounted(ctx);
+    assert.ok(!mounted.entries.some(
+      (e) => e.bundle === 'scopegrain-selftest'));
+    // The loop still left its dist-journal trail.
+    const journal = path.join(dir, ctx.configDir, 'dist-journal.jsonl');
+    assert.ok(fs.existsSync(journal));
+    const ops = fs.readFileSync(journal, 'utf8').trim().split('\n')
+      .map((l) => JSON.parse(l)).map((e) => e.op);
+    assert.ok(ops.includes('bundle-install'));
+    assert.ok(ops.includes('bundle-uninstall'));
+  } finally { cleanup(dir); }
+});
+
+test('E7 deterministic packaging: byte-identical across runs, sorted, fixed metadata', async () => {
+  const { packDirectory, writeDeterministicTar } =
+    await import('../src/core/packaging.mjs');
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    fs.mkdirSync(path.join(dir, 'pack-src/sub'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pack-src/b.md'), 'B');
+    fs.writeFileSync(path.join(dir, 'pack-src/a.md'), 'A');
+    fs.writeFileSync(path.join(dir, 'pack-src/sub/c.md'), 'C');
+    const r1 = packDirectory(ctx, 'pack-src', 'out/p1.tar');
+    const r2 = packDirectory(ctx, 'pack-src', 'out/p2.tar');
+    assert.equal(r1.sha256, r2.sha256);
+    assert.equal(r1.bytes, r2.bytes);
+    assert.equal(r1.files, 3);
+    // Byte-identical regardless of input ordering.
+    const t1 = writeDeterministicTar([
+      { name: 'b', data: 'x' }, { name: 'a', data: 'y' }]);
+    const t2 = writeDeterministicTar([
+      { name: 'a', data: 'y' }, { name: 'b', data: 'x' }]);
+    assert.ok(t1.equals(t2));
+    // Fixed metadata: mtime field (offset 136, width 12) all-zero octal.
+    const tar = fs.readFileSync(path.join(dir, 'out/p1.tar'));
+    assert.match(tar.subarray(136, 148).toString(), /^0+\0$/);
+    // uid/gid fixed at 0 as well (offsets 108/116, width 8).
+    assert.match(tar.subarray(108, 116).toString(), /^0+\0$/);
+    // Traversal and links fail closed.
+    assert.throws(() => packDirectory(ctx, '../outside', 'out/x.tar'),
+      (e) => e.code === 'INVALID_PATH' || e.code === 'PATH_TRAVERSAL'
+        || e.code !== undefined);
+    fs.writeFileSync(path.join(dir, 'pack-src/link-target.md'), 'T');
   } finally { cleanup(dir); }
 });

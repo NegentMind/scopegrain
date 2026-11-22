@@ -62,8 +62,30 @@ src/core/lifecycle.mjs    adopt/update/backup/restore/uninstall: create-only pre
 src/discovery/inspect.mjs Bounded manifest scan
 src/discovery/semantic.mjs Bounded read-only semantic investigation
 src/hosts/render.mjs      Per-host integration fragments
-src/hosts/native.mjs      Versioned native proposals for six hosts (provisional Hermes)
+src/hosts/native.mjs      Versioned native proposals for seven hosts (generic = scaffold)
 src/hosts/activation.mjs  Opt-in create-only activation of project-local proposals
+src/hosts/host-manifest.mjs Per-host manifest: sha256 + ownership (whole/partial/shared)
+src/core/managed-section.mjs SCOPEGRAIN:BEGIN/END sections in AGENTS.md/CLAUDE.md
+src/core/host-cli.mjs     Host CLI detection by filesystem (no child_process)
+src/core/mcp-inventory.mjs Self-describing MCP inventory derived from descriptors
+src/core/operations.mjs   Shared operation descriptors (CLI/MCP parity)
+src/core/active.mjs       Active-task pointer: SCOPEGRAIN_TASK env over state
+src/core/activity.mjs     Retroactive activity registration: worklog, never unclosable tasks
+src/core/worklog.mjs      Bounded JSONL logs (lessons/outcomes/progress/goals/activity) with rotation
+src/core/converge.mjs     Typed findings spec/plan/tasks vs code + verdict
+src/core/checklists.mjs   Reviewer-owned CHK### checklists with CAS
+src/core/analyze.mjs      Cross-artifact coverage and drift analysis
+src/core/clarify.mjs      Dated create-only clarification sessions
+src/core/constitution.mjs Constitution semver + bump rules + history
+src/core/story-tasks.mjs  tasks.md render per user-story (T###, [P], USn phases)
+src/core/placeholders.mjs {SCRIPT}/$ARGUMENTS/handoff tokens fail-closed in commands
+src/core/hooks-policy.mjs Declarative policy/hooks.json loading (before_/after_)
+src/core/jsonc.mjs        JSONC comment stripping + recursive deep merge
+src/core/distribution.mjs file:// catalog stack, composition, bundles, extensions, presets, mounted layer
+src/core/workflow-runner.mjs Declarative runner: whitelisted ops, atomic checkpoints, resume
+src/core/identifiers.mjs  Unified id validator (slugs + Windows reserved names)
+src/core/locks.mjs        Token-verified locks (acquire/release with {dev,ino})
+src/core/helpers.mjs      Helper script install: JSON-stdio, bounded copy, tamper check
 src/adapters/             Compatible entries towards src/hosts
 src/mcp/server.mjs        Stdio MCP server: reads + bounded journaled mutations
 src/api/server.mjs        Read-only local JSON API: single loopback, GET only
@@ -355,6 +377,15 @@ the subset fails loudly.
   through the same pipeline as snapshot resources — the mounted
   layer is an overlay, never altering the projected manifest nor
   triggering `upgradeAvailable` in `doctor`.
+- Distribution mutations (extension/preset registries,
+  `mounted-catalog.json`, bundle install/uninstall) leave a trail in
+  `<configDir>/dist-journal.jsonl` under `dist.lock`: each entry carries
+  chained `previousSha256`/`newSha256` (byte-level CAS) and a monotonic
+  `revision`. When the project has an enrolled workspace, the registry
+  write is also routed through the shared journal kernel
+  (`journaled: true`, events to the outbox); without enrollment the
+  write stays local and the dist journal is the only trail
+  (`journaled: false`).
 - The local API (`src/api/`) is a read-only convenience with no auth
   beyond the loopback bind: it is not a production host and the port
   must not be exposed.
@@ -376,3 +407,27 @@ the subset fails loudly.
   per-record index). Writers outside the journal can interleave and
   the owned proof fails closed on drift, without preventing or
   reverting it.
+- Remote catalogs: permanent non-goal. All distribution machinery
+  (`distribution.mjs`: stack, bundles, extensions, presets, mounted
+  layer) operates on `file://` URIs only; http(s) URIs validate their
+  shape but `loadCatalogStack`/`installBundle` refuse them with
+  `REMOTE_CATALOG_UNSUPPORTED`. There is no download layer, no trust
+  anchors and no inert "future remote" metadata: the decision closes
+  the boundary rather than deferring it. A remote resource is brought
+  in by downloading it manually and referencing it via `file://`
+  with its pinned sha256.
+- Declared TOCTOU limits: `lstat`/`readFileLimited` checks and
+  `temp+rename` writes are separated by a window in which a
+  concurrent process with directory access can substitute the
+  destination. The design shrinks the window (apply-time re-preflight,
+  exclusive `wx` create) but does not eliminate it: the guarantee is
+  detection (conflict/drift), not mutual exclusion with actors outside
+  the lock. On Windows, path identity comparison follows the
+  filesystem's case-insensitive semantics.
+- Artifact persistence model: flow-forward. Formal artifacts (specs,
+  designs, outcomes, checklists, clarifications, convergence records)
+  are immutable once created: a new iteration produces a new chained
+  record (or a new create-only file), never an in-place rewrite of
+  history. Deliberately mutable state stays confined to explicit
+  pointers (`active-task`, journal `head`) and derived indexes,
+  always under CAS.
