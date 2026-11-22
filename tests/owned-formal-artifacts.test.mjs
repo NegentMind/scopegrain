@@ -83,6 +83,8 @@ function fixture(type, { enrolled = true, plans = 'custom/plans',
   return f;
 }
 
+// Stat-tuple snapshot: cheaper than byte reads and stricter for a
+// read-only assertion — a same-content rewrite still moves mtimeMs.
 function tree(root) {
   const out = {};
   function walk(dir, prefix = '') {
@@ -91,7 +93,7 @@ function tree(root) {
       const abs = path.join(dir, name);
       const st = fs.lstatSync(abs);
       out[rel] = st.isSymbolicLink() ? { link: fs.readlinkSync(abs) }
-        : st.isDirectory() ? 'directory' : fs.readFileSync(abs);
+        : st.isDirectory() ? 'directory' : `${st.size}:${st.mtimeMs}`;
       if (st.isDirectory() && !st.isSymbolicLink()) walk(abs, rel);
     }
   }

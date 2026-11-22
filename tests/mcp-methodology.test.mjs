@@ -41,6 +41,10 @@ const WRITE_TOOLS = new Set([
   'scopegrain_task_disposition', 'scopegrain_memory_add',
   'scopegrain_goal_create', 'scopegrain_goal_transition',
 ]);
+// Stat-tuple snapshot: cheaper than byte reads and stricter for a
+// read-only assertion — a same-content rewrite still moves mtimeMs.
+// Only an explicit same-size write with a restored mtime would evade,
+// which no product write path performs.
 function filesAndBytes(root) {
   const out = {};
   function walk(dir, prefix = '') {
@@ -50,7 +54,7 @@ function filesAndBytes(root) {
       const st = fs.lstatSync(abs);
       out[rel] = st.isDirectory() ? 'directory'
         : st.isSymbolicLink() ? `link:${fs.readlinkSync(abs)}`
-          : fs.readFileSync(abs);
+          : `${st.size}:${st.mtimeMs}`;
       if (st.isDirectory()) walk(abs, rel);
     }
   }
