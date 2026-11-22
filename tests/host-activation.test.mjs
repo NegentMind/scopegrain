@@ -166,27 +166,24 @@ test('surface filters variant entries; bogus surface is an error', () => {
   } finally { cleanup(dir); }
 });
 
-test('colliding destinations are conflict on BOTH sides; apply fails closed', () => {
-  // Antigravity variants share destinations: without a surface selection
-  // every variant pair collides on the same rel.
+test('multi-variant host without surface fails with a named surface list', () => {
+  // Antigravity variants share destinations and policy marks them
+  // selectionRequired: activating without --surface must refuse up front
+  // with the valid selectors, not collide inside the plan (UAT-1 R3).
   const { dir, ctx } = fixture(['antigravity']);
   try {
-    const preview = prepareActivation(ctx, { host: 'antigravity' });
-    const byRel = new Map();
-    for (const f of preview.files) {
-      byRel.set(f.rel, [...(byRel.get(f.rel) ?? []), f]);
-    }
-    const dups = [...byRel.values()].filter((g) => g.length > 1);
-    assert.ok(dups.length > 0, 'variant destinations must collide');
-    for (const group of dups) {
-      for (const f of group) {
-        assert.equal(f.action, 'conflict',
-          `${f.rel} must be conflict on both sides of the collision`);
-        assert.match(f.reason ?? '', /collides/);
-      }
-    }
+    assert.throws(() => prepareActivation(ctx, { host: 'antigravity' }),
+      (e) => e.code === 'INVALID_ARGS'
+        && /requires --surface/.test(e.message)
+        && e.message.includes('app-cli'));
     assert.throws(() => applyActivation(ctx, { host: 'antigravity' }),
-      (e) => e.code === 'PLAN_CONFLICT');
+      (e) => e.code === 'INVALID_ARGS');
+    // Explicit surfaces still plan cleanly.
+    for (const surface of ['app-cli', 'ide']) {
+      const plan = prepareActivation(ctx, { host: 'antigravity', surface });
+      assert.equal(plan.files.filter((f) => f.action === 'conflict')
+        .length, 0, `${surface} must plan without conflicts`);
+    }
   } finally { cleanup(dir); }
 });
 
@@ -308,7 +305,9 @@ test('no applyable destination is absolute, global or traversing', () => {
   for (const host of KNOWN_HOSTS) {
     const { dir, ctx } = fixture([host]);
     try {
-      const preview = prepareActivation(ctx, { host });
+      // Antigravity is multi-variant: an explicit surface is required.
+      const surface = host === 'antigravity' ? 'app-cli' : undefined;
+      const preview = prepareActivation(ctx, { host, surface });
       for (const f of preview.files) {
         assert.ok(!path.isAbsolute(f.rel), f.rel);
         assert.ok(!f.rel.startsWith('~'), f.rel);

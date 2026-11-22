@@ -23,6 +23,7 @@ import { validateVerifyStore, verifyStoreRel } from './verify-commands.mjs';
 import { gitHooksDir } from './hooks.mjs';
 import { detectHostClis } from './host-cli.mjs';
 import { prepareActivation } from '../hosts/activation.mjs';
+import { loadNativeVariants } from '../hosts/native.mjs';
 
 const MAX_LIST = 100000;
 const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals',
@@ -714,23 +715,39 @@ export function runDoctor(ctx, opts = {}) {
     } else {
       const details = [];
       const bad = [];
+      // Multi-variant hosts (antigravity app-cli/ide) declare their
+      // installable surfaces in policy/native-variants.json — evaluate
+      // each surface separately; the unsurfaced plan intentionally errors
+      // because the variants share destinations by design.
+      let declaredVariants = {};
+      try {
+        declaredVariants = loadNativeVariants({ installRoot }).hosts ?? {};
+      } catch { /* variants file absent: hosts emit no variants */ }
       try {
         for (const host of hosts) {
-          try {
-            const plan = prepareActivation(ctx, { host, installRoot });
-            const c = { create: 0, noop: 0, conflict: 0 };
-            const divergent = [];
-            for (const f of plan.files) {
-              c[f.action] = (c[f.action] ?? 0) + 1;
-              if (f.action === 'conflict') divergent.push(f.rel);
+          const surfaces = (Array.isArray(declaredVariants[host])
+              && declaredVariants[host].length > 0)
+            ? declaredVariants[host].map((v) => v.id)
+            : [null];
+          for (const surface of surfaces) {
+            const label = surface === null ? host : `${host}:${surface}`;
+            try {
+              const plan = prepareActivation(
+                ctx, { host, surface: surface ?? undefined, installRoot });
+              const c = { create: 0, noop: 0, conflict: 0 };
+              const divergent = [];
+              for (const f of plan.files) {
+                c[f.action] = (c[f.action] ?? 0) + 1;
+                if (f.action === 'conflict') divergent.push(f.rel);
+              }
+              details.push(`${label}: ${c.noop} ok, ${c.create} pending`
+                + (c.conflict > 0 ? `, ${c.conflict} divergent` : ''));
+              if (c.conflict > 0) {
+                bad.push(`${label}: ${divergent.slice(0, 5).join(', ')}`);
+              }
+            } catch (e) {
+              bad.push(`${label}: ${e.code ?? e.message}`);
             }
-            details.push(`${host}: ${c.noop} ok, ${c.create} pending`
-              + (c.conflict > 0 ? `, ${c.conflict} divergent` : ''));
-            if (c.conflict > 0) {
-              bad.push(`${host}: ${divergent.slice(0, 5).join(', ')}`);
-            }
-          } catch (e) {
-            bad.push(`${host}: ${e.code ?? e.message}`);
           }
         }
       } catch (e) {

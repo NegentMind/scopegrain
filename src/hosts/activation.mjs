@@ -141,6 +141,16 @@ export function buildActivation(ctx, { host, surface, installRoot } = {}) {
       }
       entries = matched;
     }
+  } else if (entries.some((e) => e.selectionRequired === true)) {
+    // Multi-variant hosts (policy marks every variant selectionRequired):
+    // without a surface the plan mixes variants and collides on shared
+    // destinations. Name the valid selectors instead of failing later
+    // with an opaque PLAN_CONFLICT.
+    const selectors = [...new Set(entries.flatMap((e) =>
+      [e.variant, ...(e.surfaces ?? [])].filter(Boolean)))];
+    throw err('INVALID_ARGS',
+      `host '${host}' requires --surface `
+      + `(declared surfaces: ${selectors.join(', ')})`);
   }
 
   const applyable = [];
@@ -184,6 +194,16 @@ export function buildActivation(ctx, { host, surface, installRoot } = {}) {
     }
     applyable.push({ rel, content,
       source: e.source, kind: e.kind, format: e.format });
+  }
+  // Identical proposals claiming one destination are not a conflict —
+  // dedupe same rel+content pairs before the collision check. Same rel
+  // with different bytes stays doubled and still collides downstream.
+  const seen = new Set();
+  for (let i = applyable.length - 1; i >= 0; i -= 1) {
+    const f = applyable[i];
+    const key = `${f.rel}${f.content.toString('base64')}`;
+    if (seen.has(key)) applyable.splice(i, 1);
+    else seen.add(key);
   }
   if (skipped.length > 0) {
     warnings.push(`${skipped.length} proposal(s) require manual merge or `

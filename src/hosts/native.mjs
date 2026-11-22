@@ -299,7 +299,7 @@ function nativeName(policy, id) {
 }
 
 // Closed loader for policy/native-variants.json (lead-authored data).
-function loadNativeVariants({ installRoot = INSTALL_ROOT } = {}) {
+export function loadNativeVariants({ installRoot = INSTALL_ROOT } = {}) {
   const abs = path.join(installRoot, 'policy/native-variants.json');
   const st = lstatOrNull(abs);
   // REQUIRED: a variant-bearing installation must ship the file; silently
