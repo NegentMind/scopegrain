@@ -882,13 +882,16 @@ export function createOwnedPlanStore(ctx, options) {
     }
     // Re-emit in the canonical stored field order (same shape the create
     // serializer produces) so byte identity is stable across updates.
-    // V3 documents keep their plan-level keys — dropping them would emit
-    // a document every subsequent reader rejects as malformed.
+    // V3 documents keep their plan-level keys AND per-member triage keys —
+    // dropping either would emit a document every subsequent reader
+    // rejects as malformed.
     const next = {
       schemaVersion: doc.schemaVersion, key: doc.key, title: doc.title,
       authorContext: doc.authorContext, inputDigest: doc.inputDigest,
       tasks: doc.tasks.map((t) => ({ key: t.key, id: t.id,
-        dependsOn: [...t.dependsOn] })),
+        dependsOn: [...t.dependsOn],
+        ...(doc.schemaVersion === 3
+          ? { triage: t.triage, triageReason: t.triageReason } : {}) })),
       createdAt: doc.createdAt,
       ...(doc.schemaVersion >= 2
         ? { specId: doc.specId, designId: doc.designId } : {}),

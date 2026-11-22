@@ -508,10 +508,17 @@ test('V3 formal plan: same coverage and member refs enforced on update', () => {
     assert.equal(created.ownershipConfirmed, true);
     const doc = getPlan(f.ctx, 'v2-plan');
     assert.equal(doc.schemaVersion, 3);
+    // Success vertex first: a legit update (title, members intact) must
+    // apply — re-emission preserves per-member triage/triageReason.
+    const titled = f.store.update({ key: 'v2-plan',
+      expectedRevision: 0, plan: { ...doc, title: 'V3 plan v2' } });
+    assert.equal(titled.mode, 'applied');
+    assert.equal(titled.sourceRevision, 1);
+    assert.equal(getPlan(f.ctx, 'v2-plan').tasks[0].triage, null);
     // Removing the only member breaks scenario coverage: rejected.
     const hollow = { ...doc, tasks: [] };
     assert.throws(() => f.store.update({ key: 'v2-plan',
-      expectedRevision: 0, plan: hollow }),
+      expectedRevision: 1, plan: hollow }),
       (e) => ['PLAN_MALFORMED', 'INVALID_PLAN',
         'INVALID_OWNED_PLAN_INPUT'].includes(e.code));
     // A member without matching formal refs is rejected.
@@ -522,7 +529,7 @@ test('V3 formal plan: same coverage and member refs enforced on update', () => {
         { key: 'alien', id: light.id, dependsOn: [],
           triage: null, triageReason: null }] };
     assert.throws(() => f.store.update({ key: 'v2-plan',
-      expectedRevision: 0, plan: alien }),
+      expectedRevision: 1, plan: alien }),
       (e) => e.code === 'PLAN_MEMBERSHIP_INVALID');
     // A member that exists but was not created for this plan key fails too.
     const t2 = createTask(f.ctx, {
@@ -533,8 +540,30 @@ test('V3 formal plan: same coverage and member refs enforced on update', () => {
       tasks: [...doc.tasks, { key: 't2', id: t2.id, dependsOn: [],
         triage: null, triageReason: null }] };
     assert.throws(() => f.store.update({ key: 'v2-plan',
-      expectedRevision: 0, plan: wrongPlan }),
+      expectedRevision: 1, plan: wrongPlan }),
       (e) => e.code === 'PLAN_MEMBERSHIP_INVALID');
+  } finally { cleanup(f.dir); }
+});
+
+// Same re-emission bug hit informal V3 plans (no formal pair): any
+// update died in validatePlanShape before the CAS write.
+test('informal V3 plan update applies and preserves member triage', () => {
+  const f = fixture();
+  try {
+    f.store.create({ areaIds: [f.a], plan: { ...GOOD,
+      triage: { base: { decision: 'do', reason: 'seeded' } },
+      appetite: null, cynefin: null, riskRegister: null, premortem: null,
+      stopConditions: null, budget: null } });
+    const doc = getPlan(f.ctx, 'rel-1');
+    assert.equal(doc.schemaVersion, 3);
+    const upd = f.store.update({ key: 'rel-1', expectedRevision: 0,
+      plan: { ...doc, title: 'Release 1.1' } });
+    assert.equal(upd.mode, 'applied');
+    assert.equal(upd.sourceRevision, 1);
+    const after = getPlan(f.ctx, 'rel-1');
+    assert.equal(after.title, 'Release 1.1');
+    assert.equal(after.triage.base.decision, 'do');
+    assert.equal(after.tasks[0].triage, null);
   } finally { cleanup(f.dir); }
 });
 
