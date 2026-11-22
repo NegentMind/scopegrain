@@ -40,7 +40,10 @@ function categoryPatterns(key, paths, versioning, base) {
 
 // Returns [{rel, content}] for <configDir>/.gitignore (skipped entirely when
 // configDir is the project root) and integrations/gitignore-proposal.txt.
-export function buildVersioningFiles({ configDir, paths, versioning }) {
+// machineLocalPaths: host-activation destinations that embed absolute
+// machine paths (e.g. .devin/mcp_config.json); they must never be versioned.
+export function buildVersioningFiles({ configDir, paths, versioning,
+  machineLocalPaths = [] }) {
   for (const k of VERSIONING_KEYS) {
     if (typeof versioning[k] !== 'boolean') {
       throw err('INVALID_VALUE', `versioning.${k} must be boolean`);
@@ -57,6 +60,25 @@ export function buildVersioningFiles({ configDir, paths, versioning }) {
     } else {
       proposalLines.push(...categoryPatterns(key, paths, versioning, `/${rel}`));
     }
+  }
+
+  const seen = new Set();
+  const localProposal = [];
+  for (const p of machineLocalPaths) {
+    const rel = portableKey(p);
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    if (isInsideConfigDir(configDir, rel)) {
+      ignoreLines.push(`/${escapeLiteral(subOf(rel))}`);
+    } else {
+      localProposal.push(`/${escapeLiteral(rel)}`);
+    }
+  }
+  if (localProposal.length > 0) {
+    proposalLines.push(
+      '# machine-local host files (absolute paths embedded;',
+      '# regenerate per machine, never version):',
+      ...localProposal);
   }
 
   const files = [];

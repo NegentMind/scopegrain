@@ -285,3 +285,25 @@ test('case-insensitive duplicate plan destinations are rejected', () => {
       (e) => ['PLAN_CONFLICT', 'PATH_COLLISION'].includes(e.code));
   } finally { cleanup(dir); }
 });
+
+// Machine-local host destinations (absolute paths embedded) must be proposed
+// for git exclusion: versioning one guarantees PLAN_CONFLICT or a broken MCP
+// on any other machine.
+for (const [host, dest] of [
+  ['devin', '/.devin/mcp_config.json'],
+  ['antigravity', '/.agents/mcp_config.json'],
+]) {
+  test(`${host} init proposes git exclusion for ${dest}`, () => {
+    const dir = makeTempDir('mlprop');
+    try {
+      const prepared = prepareInit({ projectRoot: dir,
+        answers: { ...VALID_ANSWERS, hosts: [host] } });
+      const prop = prepared.files.find((f) =>
+        f.rel.endsWith('integrations/gitignore-proposal.txt'));
+      assert.ok(prop, 'gitignore proposal file planned');
+      assert.ok(
+        String(prop.content).includes(dest),
+        `proposal must cover ${dest}`);
+    } finally { cleanup(dir); }
+  });
+}

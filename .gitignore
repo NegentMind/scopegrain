@@ -7,3 +7,9 @@ tests/.tmp/
 .tasksystem/
 .scopegrain/
 *.log
+
+# machine-local host MCP configs (absolute paths embedded; regenerate
+# per machine with scopegrain host activate)
+.agents/mcp_config.json
+.devin/mcp_config.json
+.devin/config.json

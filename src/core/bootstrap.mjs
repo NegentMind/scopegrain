@@ -141,16 +141,10 @@ export function buildInitPlan({
     files.push(planFile(projectRoot, `${prefix}${cf.rel}`, cf.content));
   }
 
-  // Versioning proposals: <configDir>/.gitignore (skipped at project root)
-  // and integrations/gitignore-proposal.txt. Root .gitignore untouched.
-  for (const vf of buildVersioningFiles({
-    configDir, paths: config.paths, versioning: config.versioning,
-  })) {
-    files.push(planFile(projectRoot, vf.rel, vf.content));
-  }
-
   // Native host proposals: thin bridges under integrations/native plus the
   // manual-review activation plan. Proposals only — no host-root writes.
+  // Rendered before versioning so machine-local destinations feed the
+  // gitignore proposal below.
   const native = renderNativeAdapters(config, {
     configRel: cfgRel,
     installRoot: installRoot || path.dirname(templatesDir),
@@ -159,6 +153,18 @@ export function buildInitPlan({
   });
   for (const nf of native.files) {
     files.push(planFile(projectRoot, nf.rel, Buffer.from(nf.content, 'utf8')));
+  }
+
+  // Versioning proposals: <configDir>/.gitignore (skipped at project root)
+  // and integrations/gitignore-proposal.txt. Root .gitignore untouched.
+  const machineLocalPaths = native.activationPlan.entries
+    .filter((e) => e.machineLocal && typeof e.destination === 'string')
+    .map((e) => e.destination);
+  for (const vf of buildVersioningFiles({
+    configDir, paths: config.paths, versioning: config.versioning,
+    machineLocalPaths,
+  })) {
+    files.push(planFile(projectRoot, vf.rel, vf.content));
   }
   files.push(planFile(projectRoot,
     `${prefix}integrations/native/activation-plan.json`,

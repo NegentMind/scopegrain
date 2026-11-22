@@ -147,3 +147,29 @@ test('custom explicit paths remain valid with versioning enabled', () => {
   assert.equal(cfg.paths.plans, 'docs/agent/plans');
   assert.equal(cfg.versioning.plans, true);
 });
+
+test('machine-local host destinations land in the root proposal', () => {
+  const files = buildVersioningFiles({
+    configDir: '.tasksystem',
+    paths: DEFAULT_ANSWERS.paths,
+    versioning: { ...ALL_VERSIONING_FALSE },
+    machineLocalPaths: [
+      '.agents/mcp_config.json',
+      '.devin/mcp_config.json',
+      '.devin/mcp_config.json',
+      '.devin/config.json',
+      '.tasksystem/cache/local.json',
+    ],
+  });
+  const prop = files.find((f) => f.rel.includes('gitignore-proposal'));
+  assert.ok(prop.content.includes('/.agents/mcp_config.json'));
+  assert.ok(prop.content.includes('/.devin/mcp_config.json'));
+  assert.ok(prop.content.includes('/.devin/config.json'));
+  assert.equal(prop.content.match(/\/\.devin\/mcp_config\.json/g).length, 1,
+    'duplicate destinations are deduplicated');
+  const gi = files.find((f) => f.rel === '.tasksystem/.gitignore');
+  // A machine-local destination inside the config dir is covered by the
+  // nested .gitignore instead of the root proposal.
+  assert.ok(gi.content.includes('/cache/local.json'));
+  assert.ok(!prop.content.includes('cache/local.json'));
+});
