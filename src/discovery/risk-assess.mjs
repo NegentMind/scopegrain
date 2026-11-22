@@ -45,26 +45,50 @@ const CONCURRENCY_HINT = /(?:\bmutex\b|\brwlock\b|\batomic|\bthread\b|goroutine|
 // Parses the subset of unified diff needed for classification: file
 // headers, mode changes, binary markers and added/removed line counts and
 // content. Malformed hunks are tolerated: unknown bytes simply cannot
-// prove passive.
+// prove passive. Each hunk's declared line counts (@@ -a,b +c,d @@) are
+// validated against the lines actually consumed — a truncated or
+// overstated hunk makes the file undecidable, never passive.
+const HUNK_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
 export function parseUnifiedDiff(text) {
   const files = [];
   let cur = null;
-  let inHunk = false;
+  let hunk = null;
+  const closeHunk = () => {
+    if (hunk && (hunk.gotOld !== hunk.old || hunk.gotNew !== hunk.new)) {
+      cur.malformed = true;
+    }
+    hunk = null;
+  };
   // Normalise CRLF so anchors ($) and header prefixes still match when a
   // Windows editor or PowerShell re-saves the diff.
   for (const line of text.replace(/\r\n/g, '\n').split('\n')) {
     const m = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
     if (m) {
+      if (cur) closeHunk();
       cur = { path: m[2], oldPath: m[1], oldMode: null, newMode: null,
         added: 0, removed: 0, addedLines: [], binary: false,
         malformed: false };
       files.push(cur);
-      inHunk = false;
       continue;
     }
     if (!cur) continue;
-    if (!inHunk) {
-      if (line.startsWith('@@ ')) { inHunk = true; continue; }
+    if (line.startsWith('@@ ')) {
+      const h = HUNK_RE.exec(line);
+      if (h) {
+        closeHunk();
+        hunk = { old: h[2] === undefined ? 1 : parseInt(h[2], 10),
+          new: h[4] === undefined ? 1 : parseInt(h[4], 10),
+          gotOld: 0, gotNew: 0 };
+      } else {
+        // A hunk-shaped line without parseable counts cannot prove
+        // anything — fail closed, same as a truncated hunk.
+        closeHunk();
+        cur.malformed = true;
+      }
+      continue;
+    }
+    if (!hunk) {
       if (line.startsWith('old mode ')) cur.oldMode = line.slice(9).trim();
       else if (line.startsWith('new mode ')) {
         cur.newMode = line.slice(10).trim();
@@ -93,12 +117,18 @@ export function parseUnifiedDiff(text) {
     if (line.startsWith('+')) {
       cur.added += 1;
       cur.addedLines.push(line.slice(1));
+      hunk.gotNew += 1;
     } else if (line.startsWith('-')) {
       cur.removed += 1;
-    } else if (!line.startsWith(' ') && !line.startsWith('\\')) {
-      inHunk = false;
+      hunk.gotOld += 1;
+    } else if (line.startsWith(' ')) {
+      hunk.gotOld += 1;
+      hunk.gotNew += 1;
+    } else if (!line.startsWith('\\')) {
+      closeHunk();
     }
   }
+  if (cur) closeHunk();
   return { files };
 }
 

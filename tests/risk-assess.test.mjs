@@ -10,6 +10,9 @@ const diff = (path, { mode, added = [], removed = 0, binary = false } = {}) => {
   if (binary) lines.push('Binary files a/x and b/x differ');
   lines.push('--- a/' + path, '+++ b/' + path,
     `@@ -1,${removed + 1} +1,${added.length + 1} @@`);
+  // The declared counts include one context line, so it must be emitted:
+  // hunk-count validation treats an overstated hunk as malformed.
+  lines.push(' ctx');
   for (let i = 0; i < removed; i++) lines.push('-old line ' + i);
   for (const a of added) lines.push('+' + a);
   return lines.join('\n');
