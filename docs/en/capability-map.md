@@ -239,7 +239,7 @@ plus `RESEARCH`, `STALL`, `ABANDON` (terminal). Rules:
 
 ## 9. Canonical resources (projectable)
 
-`resources/` — 42 skills · 22 rules · 17 commands · 15 agents · 24 references ·
+`resources/` — 44 skills · 22 rules · 17 commands · 15 agents · 24 references ·
 4 prompts · profiles · mcps. `manifest.json` is the catalog with SHA
 snapshots (`catalog check` verifies drift); installation via
 `init`/`update`, opt-in versioning per category.

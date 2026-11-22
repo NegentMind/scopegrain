@@ -250,7 +250,7 @@ más `RESEARCH`, `STALL`, `ABANDON` (terminal). Reglas:
 
 ## 9. Recursos canónicos (proyectables)
 
-`resources/` — 42 skills · 22 rules · 17 commands · 15 agents · 24 references ·
+`resources/` — 44 skills · 22 rules · 17 commands · 15 agents · 24 references ·
 4 prompts · profiles · mcps. `manifest.json` es el catálogo con snapshots SHA
 (`catalog check` verifica drift); instalación via `init`/`update`, versionado
 opt-in por categoría.
