@@ -61,6 +61,46 @@ test('manifest ids and paths are unique case-insensitively per kind', () => {
   }
 });
 
+test('manifest carries a semver content version', () => {
+  const m = manifest();
+  assert.match(m.version, /^[0-9]+\.[0-9]+\.[0-9]+$/,
+    'resources/manifest.json needs a semver "version" (G5b guard)');
+});
+
+test('version-bump guard: pure decision logic is fail-closed', async () => {
+  const { semverCompare, resourcesChanged, evaluateBump } =
+    await import('../scripts/check-manifest-version.mjs');
+  assert.equal(semverCompare('1.2.3', '1.2.3'), 0);
+  assert.equal(semverCompare('1.10.0', '1.9.9'), 1);
+  assert.equal(semverCompare('0.9.9', '1.0.0'), -1);
+  assert.throws(() => semverCompare('x.y', '1.0.0'), /non-semver/);
+  assert.ok(resourcesChanged(['resources/commands/x.md']));
+  assert.ok(resourcesChanged(['resources/manifest.json']));
+  assert.ok(!resourcesChanged(['src/core/x.mjs', 'docs/a.md']));
+  // No resource change -> no bump required.
+  assert.equal(evaluateBump({
+    changedPaths: ['src/x.mjs'], baseVersion: '0.1.0',
+    headVersion: '0.1.0' }).ok, true);
+  // Resource change with equal or lower version fails.
+  assert.equal(evaluateBump({
+    changedPaths: ['resources/rules/r.md'], baseVersion: '0.1.0',
+    headVersion: '0.1.0' }).ok, false);
+  assert.equal(evaluateBump({
+    changedPaths: ['resources/rules/r.md'], baseVersion: '0.2.0',
+    headVersion: '0.1.0' }).ok, false);
+  // Missing head version fails; missing base counts as 0.0.0.
+  assert.equal(evaluateBump({
+    changedPaths: ['resources/rules/r.md'], baseVersion: '0.1.0',
+    headVersion: null }).ok, false);
+  assert.equal(evaluateBump({
+    changedPaths: ['resources/rules/r.md'], baseVersion: null,
+    headVersion: '0.0.1' }).ok, true);
+  // A strict semver bump passes — including bump-only diffs.
+  assert.equal(evaluateBump({
+    changedPaths: ['resources/manifest.json'], baseVersion: '0.1.0',
+    headVersion: '0.1.1' }).ok, true);
+});
+
 test('SCOPEGRAIN_* env vars do not alter context resolution', async () => {
   // Environment isolation: a hostile/polluted env must not redirect
   // resolution away from the explicit --project boundary.

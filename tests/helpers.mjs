@@ -114,11 +114,34 @@ export function makeCatalogFixture(root, { entries = null, files = {} } = {}) {
 
 // Full-init project fixture: applies the whole generated plan so
 // workspace-snapshot APIs (catalog.json, projected resources) exist.
+// Bootstrap templates are content-identical per answers set (nothing
+// embeds the project root — verified), so one canonical render is
+// reused: each call gets a private copy instead of re-rendering ~500
+// files. cpSync is ~40% cheaper than prepareInit+applyPlan per fixture.
+const bootTemplates = new Map();
+process.on('exit', () => {
+  for (const entry of bootTemplates.values()) {
+    try { fs.rmSync(entry.dir, { recursive: true, force: true }); }
+    catch { /* best effort */ }
+  }
+});
+
 export function bootstrappedCtx(answers) {
+  const resolved = answers ?? { ...DEFAULT_ANSWERS, hosts: ['claude'] };
+  const key = JSON.stringify(resolved);
+  let entry = bootTemplates.get(key);
+  if (!entry) {
+    const dir = makeTempDir('boottpl');
+    const plan = prepareInit({ projectRoot: dir,
+      configRel: '.tasksystem/config.json',
+      answers: resolved });
+    applyPlan(dir, plan.files);
+    entry = { dir, plan };
+    bootTemplates.set(key, entry);
+  }
   const dir = makeTempDir('boot');
-  const plan = prepareInit({ projectRoot: dir,
-    configRel: '.tasksystem/config.json',
-    answers: answers ?? { ...DEFAULT_ANSWERS, hosts: ['claude'] } });
-  applyPlan(dir, plan.files);
-  return { dir, ctx: resolveContext({ project: dir }), plan };
+  fs.cpSync(entry.dir, dir, { recursive: true });
+  // `plan` describes the template render: rel paths are accurate, any
+  // absolute path still points at the shared template directory.
+  return { dir, ctx: resolveContext({ project: dir }), plan: entry.plan };
 }

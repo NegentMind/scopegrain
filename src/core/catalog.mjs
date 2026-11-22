@@ -175,7 +175,10 @@ export function loadCatalog({
       || Array.isArray(manifest)) {
     throw err('CATALOG_MALFORMED', 'manifest must be an object');
   }
-  const allowedTop = ['schemaVersion', 'entries', 'aliases'];
+  // 'version' is optional install-manifest metadata: the resource-set
+  // content version bumped by CI when resources/ changes (never projected
+  // into snapshots — they are pinned by sha256, not by version).
+  const allowedTop = ['schemaVersion', 'entries', 'aliases', 'version'];
   for (const k of Object.keys(manifest)) {
     if (!allowedTop.includes(k)) {
       throw err('CATALOG_MALFORMED', `manifest has unknown key '${k}'`);
@@ -191,6 +194,12 @@ export function loadCatalog({
       || manifest.entries.length === 0) {
     throw err('CATALOG_MALFORMED',
       `manifest requires schemaVersion ${version} and entries`);
+  }
+  if (manifest.version !== undefined
+      && (typeof manifest.version !== 'string'
+        || !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(manifest.version))) {
+    throw err('CATALOG_MALFORMED',
+      'manifest.version must be semver x.y.z when present');
   }
 
   // Snapshot entries resolve relative to the manifest's own directory
@@ -428,6 +437,7 @@ export function loadCatalog({
     installRoot, entries, byKey, aliases, warnings,
     snapshot: isSnapshot, snapshotVersion: isSnapshot ? version : null,
     contentRoot, containmentRoot: root, integrity, manifestRel: rel,
+    version: manifest.version ?? null,
   };
 }
 
