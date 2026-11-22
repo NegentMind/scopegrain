@@ -1,6 +1,6 @@
 ---
 name: "scopegrain-unified-review"
-description: "Use to choose quick verification, certification, focused review or wider inspection without duplicating audit procedures"
+description: "Use to choose quick verification, certification, focused review or wider inspection proportional to evidenced risk, without duplicating audit procedures"
 ---
 
 # Scopegrain Resource Bridge
