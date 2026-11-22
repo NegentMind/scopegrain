@@ -405,3 +405,130 @@ test('preset remove: registry shrinks under lock', () => {
     assert.throws(() => removePreset(ctx, 'tmp'), /not registered/);
   } finally { cleanup(dir); }
 });
+
+test('R2 dir-source pin binds to the conventional main file', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    // A directory source pins against its kind's conventional main file:
+    // a declared sha256 that binds to nothing must fail closed.
+    fs.mkdirSync(path.join(dir, 'pack/skill-dir'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pack/skill-dir/SKILL.md'), 'skill body');
+    fs.writeFileSync(path.join(dir, 'pack/skill-dir/extra.txt'), 'aux');
+    const sha = crypto.createHash('sha256')
+      .update('skill body').digest('hex');
+    writeJson(dir, 'cats/dir-cat.json', {
+      entries: [{ id: 'skill-dir', kind: 'skill',
+        source: { uri: 'file://pack/skill-dir' } }] });
+    const bundle = (requires) => ({ id: 'pkgdir', version: '1.0.0',
+      requires });
+    const sources = [{ uri: 'file://cats/dir-cat.json' }];
+    const done = installBundle(ctx,
+      bundle([{ id: 'skill-dir', sha256: sha }]), sources, { apply: true });
+    assert.equal(done.applied, true);
+    const prov = JSON.parse(fs.readFileSync(path.join(dir,
+      '.tasksystem/bundles/pkgdir/provenance.json'), 'utf8'));
+    assert.equal(prov.entries[0].file, 'skill-dir/SKILL.md');
+    assert.equal(prov.entries[0].sha256, sha);
+    // A pin for different bytes fails against the MAIN file — not "any
+    // file in the tree".
+    fs.writeFileSync(path.join(dir, 'pack/skill-dir/SKILL.md'), 'changed');
+    assert.throws(() => installBundle(ctx,
+      bundle([{ id: 'skill-dir', sha256: sha }]), sources),
+      (e) => e.code === 'HASH_MISMATCH');
+    // A pinned source whose kind has no conventional main file present
+    // binds to nothing — fail closed, never silently unverified.
+    fs.writeFileSync(path.join(dir, 'pack/skill-dir/SKILL.md'), 'skill body');
+    fs.renameSync(path.join(dir, 'pack/skill-dir/SKILL.md'),
+      path.join(dir, 'pack/skill-dir/RENAMED.md'));
+    assert.throws(() => installBundle(ctx,
+      bundle([{ id: 'skill-dir', sha256: sha }]), sources),
+      (e) => e.code === 'HASH_MISMATCH');
+  } finally { cleanup(dir); }
+});
+
+test('mounted entry shadowing a canonical alias fails closed', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    // 'pipeline' is a canonical command alias, not a command id — a
+    // mounted entry with that id would make the alias unreachable.
+    const file = path.join(dir, '.tasksystem/bundles/forgery/cmd.md');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, 'x');
+    writeJson(dir, '.tasksystem/mounted-catalog.json', {
+      entries: [{ kind: 'command', id: 'pipeline',
+        path: 'bundles/forgery/cmd.md', sha256: 'a'.repeat(64),
+        bundle: 'forgery', modes: ['default'] }],
+    });
+    assert.throws(() => loadWorkspaceCatalog(ctx),
+      (e) => e.code === 'CATALOG_DUPLICATE'
+        && /shadows a catalog alias/.test(e.message));
+    // Mounted-vs-mounted duplicate paths fail closed too. The first
+    // entry needs its REAL sha: hash verification runs per-entry inside
+    // the loop, so it must pass for the second entry to be evaluated.
+    const realSha = crypto.createHash('sha256').update('x').digest('hex');
+    writeJson(dir, '.tasksystem/mounted-catalog.json', {
+      entries: [
+        { kind: 'command', id: 'c-a', path: 'bundles/forgery/cmd.md',
+          sha256: realSha, bundle: 'forgery', modes: ['default'] },
+        { kind: 'rule', id: 'r-b', path: 'bundles/forgery/cmd.md',
+          sha256: 'b'.repeat(64), bundle: 'forgery' },
+      ],
+    });
+    assert.throws(() => loadWorkspaceCatalog(ctx),
+      (e) => e.code === 'CATALOG_DUPLICATE'
+        && /duplicate mounted path/.test(e.message));
+  } finally { cleanup(dir); }
+});
+
+test('doctor: mounted bundle is an overlay, not an upgrade signal', async () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    const { runDoctor } = await import('../src/core/doctor.mjs');
+    const before = runDoctor(ctx);
+    // Baseline may legitimately differ for unrelated reasons; the
+    // invariant is that MOUNTING does not flip it to true.
+    fs.mkdirSync(path.join(dir, 'pack'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pack/ref.md'), 'ref');
+    writeJson(dir, 'cats/pack-cat.json', {
+      entries: [{ id: 'ref-d', kind: 'reference',
+        source: { uri: 'file://pack/ref.md' } }] });
+    installBundle(ctx, { id: 'pkgd', version: '1.0.0',
+      requires: [{ id: 'ref-d' }] },
+      [{ uri: 'file://cats/pack-cat.json' }], { apply: true });
+    mountBundle(ctx, 'pkgd');
+    const after = runDoctor(ctx);
+    assert.notEqual(after.upgradeAvailable, true,
+      'mounted overlay must not trigger snapshot-upgrade signal');
+    assert.equal(after.upgradeAvailable, before.upgradeAvailable);
+  } finally { cleanup(dir); }
+});
+
+test('native bridges: mounted resource materializes in activation plan', async () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    fs.mkdirSync(path.join(dir, 'pack'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pack/cmd.md'),
+      '---\ndescription: bridge target\n---\nbody');
+    writeJson(dir, 'cats/pack-cat.json', {
+      entries: [{ id: 'bridge-cmd', kind: 'command', modes: ['default'],
+        source: { uri: 'file://pack/cmd.md' } }] });
+    installBundle(ctx, { id: 'pkgb', version: '1.0.0',
+      requires: [{ id: 'bridge-cmd' }] },
+      [{ uri: 'file://cats/pack-cat.json' }], { apply: true });
+    mountBundle(ctx, 'pkgb');
+    const { buildActivation } =
+      await import('../src/hosts/activation.mjs');
+    const plan = buildActivation(ctx, { host: 'claude' });
+    // The mounted command projects to a claude command destination —
+    // same pipeline as snapshot resources.
+    const bridged = plan.applyable.find(
+      (f) => f.kind === 'command' && f.rel.includes('bridge-cmd'));
+    assert.ok(bridged,
+      `no bridge emitted for mounted command: ${JSON.stringify(plan.applyable.map((f) => f.rel))}`);
+    // The bridge's resource pointer stays inside the confined bundle dir.
+    assert.ok(bridged.content.includes('bundles/pkgb/bridge-cmd'));
+    // Nothing global, nothing skipped for the mounted entry.
+    assert.ok(!plan.skipped.some((s) =>
+      String(s.destination).includes('bridge-cmd')));
+  } finally { cleanup(dir); }
+});

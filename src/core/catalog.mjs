@@ -574,6 +574,7 @@ function mergeMounted(cat, configDir, containmentRoot, verify) {
       || !Array.isArray(doc.entries)) {
     throw err('CATALOG_MALFORMED', 'mounted-catalog.json requires {entries:[]}');
   }
+  const mountedPaths = new Set();
   for (const [i, e] of doc.entries.entries()) {
     if (e === null || typeof e !== 'object' || Array.isArray(e)) {
       throw err('CATALOG_MALFORMED', `mounted entries[${i}] is not an object`);
@@ -594,21 +595,50 @@ function mergeMounted(cat, configDir, containmentRoot, verify) {
       throw err('CATALOG_MALFORMED',
         `mounted ${e.kind}/${e.id} requires sha256`);
     }
+    // The owning bundle must be a safe id AND the path must live under
+    // bundles/<bundle>/ — else a forged entry mounts another bundle's
+    // files and escapes unmount-by-bundle.
+    if (typeof e.bundle !== 'string' || !ID_RE.test(e.bundle)) {
+      throw err('CATALOG_MALFORMED',
+        `mounted ${e.kind}/${e.id} has invalid bundle id`);
+    }
     const rel = toCanonicalRelative(e.path, `mounted ${e.kind}/${e.id}`);
-    if (!rel.startsWith('bundles/')) {
+    if (!rel.startsWith(`bundles/${e.bundle}/`)) {
       throw err('CATALOG_INVALID_FILE',
-        `mounted ${e.kind}/${e.id} path outside bundles/: ${rel}`);
+        `mounted ${e.kind}/${e.id} path outside bundles/${e.bundle}/: ${rel}`);
     }
     if (e.kind === 'command'
-        && (!Array.isArray(e.modes) || e.modes.length === 0)) {
+        && (!Array.isArray(e.modes) || e.modes.length === 0
+          || !e.modes.every((m) => typeof m === 'string' && m.trim() !== '')
+          || new Set(e.modes).size !== e.modes.length)) {
       throw err('CATALOG_MALFORMED',
-        `mounted command/${e.id} requires modes`);
+        `mounted command/${e.id} requires unique non-empty modes`);
+    }
+    for (const dk of DEP_KEYS) {
+      if (e[dk] !== undefined && (!Array.isArray(e[dk])
+          || !e[dk].every((x) => typeof x === 'string'))) {
+        throw err('CATALOG_MALFORMED',
+          `mounted ${e.kind}/${e.id}.${dk} must be a string array`);
+      }
     }
     const key = `${e.kind}/${e.id}`.toLowerCase();
     if (cat.byKey.has(key)) {
       throw err('CATALOG_DUPLICATE',
         `mounted entry ${key} collides with catalog`);
     }
+    // A mounted id that shadows a canonical alias would make the alias
+    // silently unreachable — byKey resolves before alias lookup.
+    if (cat.aliases.some((a) => a.kind === e.kind
+        && a.id.toLowerCase() === e.id.toLowerCase())) {
+      throw err('CATALOG_DUPLICATE',
+        `mounted ${key} shadows a catalog alias`);
+    }
+    const destKey = portableKey(rel);
+    if (mountedPaths.has(destKey)) {
+      throw err('CATALOG_DUPLICATE',
+        `duplicate mounted path ${rel}`);
+    }
+    mountedPaths.add(destKey);
     if (verify) {
       const bytes = readEntryContent(configDir, rel, containmentRoot);
       const digest = crypto.createHash('sha256').update(bytes).digest('hex');
@@ -618,7 +648,7 @@ function mergeMounted(cat, configDir, containmentRoot, verify) {
       }
     }
     const canon = { ...e, path: rel,
-      description: e.description ?? `mounted:${e.bundle ?? 'bundle'}` };
+      description: e.description ?? `mounted:${e.bundle}` };
     cat.entries.push(canon);
     cat.byKey.set(key, canon);
   }

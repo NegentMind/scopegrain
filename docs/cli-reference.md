@@ -478,7 +478,11 @@ aporta sus recursos declarados al workflow packet
 `extension-remove` exige estado `disabled` — no hay teardown silencioso.
 Todas las mutaciones de registros (`extensions.json`, `presets.json`,
 `bundles/`, `mounted-catalog.json`) se serializan bajo `dist.lock`
-verificado.
+verificado. Los recursos montados son consumidores de primera clase:
+`host activate` los proyecta como puentes nativos por el mismo pipeline
+que los recursos del snapshot — su `resourcePath` apunta dentro de
+`<configDir>/bundles/<id>/`, y `doctor` trata la capa mounted como
+overlay (nunca como señal de `upgradeAvailable`).
 
 ### policy/hooks.json — ejemplo declarativo
 

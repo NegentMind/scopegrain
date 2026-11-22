@@ -22,7 +22,8 @@ import {
   RESERVED_PREFIXES, isSameOrAncestor, portableKey, resolveInside,
   toCanonicalRelative,
 } from '../core/paths.mjs';
-import { KNOWN_HOSTS } from '../core/config.mjs';
+import { KNOWN_HOSTS, configDirOf } from '../core/config.mjs';
+import { loadCatalog, loadWorkspaceCatalog } from '../core/catalog.mjs';
 import { applyPlan } from '../core/bootstrap.mjs';
 import { renderNativeAdapters } from './native.mjs';
 
@@ -104,8 +105,25 @@ export function buildActivation(ctx, { host, surface, installRoot } = {}) {
       && (typeof surface !== 'string' || surface === '')) {
     throw err('INVALID_ARGS', 'surface must be a non-empty string');
   }
+  // Workspace catalog (not install catalog): mounted bundle resources
+  // materialize as native bridges too — catalogDestRel of a mounted
+  // entry resolves inside <configDir>/bundles/, which is a valid
+  // project-local resource pointer for the bridge frontmatter.
+  // No workspace snapshot means no mounted layer can exist — unless a
+  // dangling mounted-catalog.json was hand-planted, which fails closed.
+  const configDir = ctx.configDir ?? configDirOf(configRel);
+  let catalog;
+  try {
+    catalog = loadWorkspaceCatalog({ ...ctx, configDir });
+  } catch (e) {
+    if (e.code !== 'WORKSPACE_CATALOG_MISSING') throw e;
+    const dangling = lstatOrNull(path.join(
+      projectRoot, configDir, 'mounted-catalog.json'));
+    if (dangling) throw e;
+    catalog = loadCatalog({ installRoot });
+  }
   const { files: rendered, activationPlan } = renderNativeAdapters(config,
-    { configRel, projectRoot, installRoot });
+    { configRel, projectRoot, installRoot, catalog });
   const byRel = new Map(rendered.map((f) => [f.rel, f.content]));
   const warnings = [];
 

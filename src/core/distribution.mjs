@@ -338,6 +338,12 @@ export function setExtensionState(ctx, id, state) {
     const reg = loadRegistry(ctx, 'extensions');
     const ext = reg.extensions.find((e) => e.id === id);
     if (!ext) throw err('NOT_FOUND', `extension '${id}' not registered`);
+    // Registry is disk state: a hand-edited contributes must not crash
+    // or bypass validation with a non-array value.
+    if (state === 'active' && !Array.isArray(ext.contributes)) {
+      throw err('MALFORMED',
+        `extension '${id}' registry record is malformed`);
+    }
     if (state === 'active' && ext.contributes.length > 0) {
       const cat = loadWorkspaceCatalog(ctx);
       const missing = ext.contributes
@@ -415,14 +421,26 @@ const KIND_MAIN = {
   profile: 'PROFILE.json', mcp: 'MCP.json',
 };
 
-function sha256File(abs) {
-  return crypto.createHash('sha256')
-    .update(fs.readFileSync(abs)).digest('hex');
+function sha256File(abs, maxBytes) {
+  // fstat on the open fd bounds the read to the file we actually opened —
+  // a post-lstat size blow-up cannot turn this into an unbounded read.
+  const fd = fs.openSync(abs, 'r');
+  try {
+    const st = fs.fstatSync(fd);
+    if (maxBytes !== undefined && st.size > maxBytes) {
+      throw err('DOCUMENT_TOO_LARGE', `file exceeds limit: ${abs}`);
+    }
+    return crypto.createHash('sha256')
+      .update(fs.readFileSync(fd)).digest('hex');
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 // Collect the regular files of a file:// source (file or dir), bounded
-// in count, depth and bytes. Links are refused, never followed.
-function collectSourceFiles(abs, relBase, depth = 0) {
+// in count, depth and bytes — incrementally, so a hostile wide tree
+// aborts DURING traversal instead of after materializing it.
+function collectSourceFiles(abs, relBase, state, depth = 0) {
   if (depth > MAX_BUNDLE_DEPTH) {
     throw err('BUNDLE_TOO_LARGE',
       `bundle source exceeds depth ${MAX_BUNDLE_DEPTH}: ${relBase}`);
@@ -431,21 +449,31 @@ function collectSourceFiles(abs, relBase, depth = 0) {
   if (st.isSymbolicLink()) {
     throw err('INVALID_PATH', `bundle source contains a link: ${relBase}`);
   }
-  if (st.isFile()) return [{ rel: relBase, abs }];
+  if (st.isFile()) {
+    state.count += 1;
+    state.bytes += st.size;
+    if (state.count > MAX_BUNDLE_FILES
+        || state.bytes > MAX_BUNDLE_TOTAL) {
+      throw err('BUNDLE_TOO_LARGE',
+        `bundle source exceeds file/byte bounds: ${relBase}`);
+    }
+    state.out.push({ rel: relBase, abs, size: st.size });
+    return;
+  }
   if (!st.isDirectory()) {
     throw err('INVALID_PATH', `bundle source is not file/dir: ${relBase}`);
   }
-  const out = [];
   for (const name of fs.readdirSync(abs).sort()) {
-    out.push(...collectSourceFiles(
-      path.join(abs, name), `${relBase}/${name}`, depth + 1));
+    collectSourceFiles(
+      path.join(abs, name), `${relBase}/${name}`, state, depth + 1);
   }
-  return out;
 }
 
 // Resolve the bundle's requires against the local stack and produce an
 // install plan: [{id, rel, sha256}]. Dry-run by default; apply copies the
 // files under <configDir>/bundles/<bundle-id>/ and records provenance.
+// The apply phase holds the dist lock so provenance can never be read
+// mid-write by a concurrent mount/uninstall.
 export function installBundle(ctx, bundleDoc, sources, { apply = false } = {}) {
   const stack = loadCatalogStack(ctx, sources);
   const catalogIds = new Set(stack.entries.map((e) => e.id));
@@ -455,8 +483,8 @@ export function installBundle(ctx, bundleDoc, sources, { apply = false } = {}) {
       `bundle requires missing entries: ${bundle.missing.join(', ')}`);
   }
   const limits = loadLimits();
+  const state = { count: 0, bytes: 0, out: [] };
   const files = [];
-  let totalBytes = 0;
   for (const req of bundle.requires) {
     const entry = stack.entries.find((e) => e.id === req.id);
     const uri = entry?.source?.uri ?? '';
@@ -468,25 +496,35 @@ export function installBundle(ctx, bundleDoc, sources, { apply = false } = {}) {
       ctx.projectRoot, uri.slice('file://'.length), 'bundle entry');
     const st = lstatOrNull(abs);
     if (!st) throw err('NOT_FOUND', `bundle source for '${req.id}' missing`);
-    const collected = collectSourceFiles(abs, req.id);
-    for (const f of collected) {
-      const fSt = fs.lstatSync(f.abs);
-      if (fSt.size > limits.maxDocumentBytes) {
+    collectSourceFiles(abs, req.id, state);
+    for (const f of state.out.splice(0)) {
+      if (f.size > limits.maxDocumentBytes) {
         throw err('DOCUMENT_TOO_LARGE',
           `bundle file exceeds limit: ${f.rel}`);
       }
-      totalBytes += fSt.size;
-      if (files.length >= MAX_BUNDLE_FILES
-          || totalBytes > MAX_BUNDLE_TOTAL) {
-        throw err('BUNDLE_TOO_LARGE',
-          `bundle '${bundle.id}' exceeds install bounds`);
-      }
-      const sha = sha256File(f.abs);
-      if (req.sha256 && f.rel === req.id && sha !== req.sha256) {
-        throw err('HASH_MISMATCH',
-          `bundle entry '${req.id}' sha256 mismatch`);
-      }
+      const sha = sha256File(f.abs, limits.maxDocumentBytes);
       files.push({ rel: f.rel, abs: f.abs, sha256: sha });
+    }
+  }
+  // File sources pin their own sha; directory sources pin their kind's
+  // conventional main file. A declared pin that binds to NOTHING fails
+  // closed — a pin that silently binds nothing is worse than no pin.
+  for (const req of bundle.requires) {
+    if (!req.sha256) continue;
+    const entry = stack.entries.find((e) => e.id === req.id);
+    const reqFiles = files.filter(
+      (f) => f.rel === req.id || f.rel.startsWith(`${req.id}/`));
+    const single = reqFiles.find((f) => f.rel === req.id);
+    const mainFile = single ?? (KIND_MAIN[entry?.kind]
+      ? reqFiles.find((f) => f.rel === `${req.id}/${KIND_MAIN[entry.kind]}`)
+      : null);
+    if (!mainFile) {
+      throw err('HASH_MISMATCH',
+        `bundle entry '${req.id}' pin binds to no file`);
+    }
+    if (mainFile.sha256 !== req.sha256) {
+      throw err('HASH_MISMATCH',
+        `bundle entry '${req.id}' sha256 mismatch`);
     }
   }
   const destRel = `${ctx.configDir}/bundles/${bundle.id}`;
@@ -500,68 +538,82 @@ export function installBundle(ctx, bundleDoc, sources, { apply = false } = {}) {
       bundle: { id: bundle.id, version: bundle.version },
       files: plan });
   }
-  // Apply: create-only per file — existing bytes are never overwritten.
-  for (const [i, f] of files.entries()) {
-    const dest = path.join(destAbs, f.rel);
-    const st = lstatOrNull(dest);
-    if (st) {
-      if (!st.isFile() || st.isSymbolicLink()
-          || sha256File(dest) !== f.sha256) {
-        throw err('CONFLICT',
-          `bundle install destination diverged: ${plan[i].rel}`);
+  return withDistLock(ctx, () => {
+    // Apply: create-only per file — existing bytes are never overwritten.
+    // Each destination is RE-RESOLVED at write time: the ancestor chain
+    // is re-verified right before use, shrinking the ancestor-swap window.
+    for (const [i, f] of files.entries()) {
+      const dest = resolveInside(ctx.projectRoot, plan[i].rel,
+        'bundle install destination');
+      const st = lstatOrNull(dest);
+      if (st) {
+        if (!st.isFile() || st.isSymbolicLink()
+            || sha256File(dest, limits.maxDocumentBytes) !== f.sha256) {
+          throw err('CONFLICT',
+            `bundle install destination diverged: ${plan[i].rel}`);
+        }
+        continue; // identical content already installed — idempotent
       }
-      continue; // identical content already installed — idempotent
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      const tmp = `${dest}.tmp-${process.pid}`;
+      fs.writeFileSync(tmp, fs.readFileSync(f.abs), { flag: 'wx' });
+      try { fs.renameSync(tmp, dest); }
+      catch (e) {
+        try { fs.unlinkSync(tmp); } catch { /* best effort */ }
+        throw e;
+      }
     }
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    const tmp = `${dest}.tmp-${process.pid}`;
-    fs.writeFileSync(tmp, fs.readFileSync(f.abs), { flag: 'wx' });
-    try { fs.renameSync(tmp, dest); }
-    catch (e) {
-      try { fs.unlinkSync(tmp); } catch { /* best effort */ }
-      throw e;
+    // Provenance is content-addressed: identical inputs produce identical
+    // bytes, which is what makes re-install a no-op rather than a
+    // conflict. Written atomically — readers under the lock never see a
+    // half-written provenance document.
+    const provenance = {
+      schemaVersion: 1, id: bundle.id, version: bundle.version,
+      requires: bundle.requires, contributes: bundle.contributes,
+      entries: bundle.requires.map((r) => {
+        const e = stack.entries.find((x) => x.id === r.id);
+        // File sources resolve to themselves; directory sources resolve
+        // to the kind's conventional main file (else file stays null and
+        // the entry cannot be mounted — reported, not guessed).
+        const reqFiles = files.filter(
+          (f) => f.rel === r.id || f.rel.startsWith(`${r.id}/`));
+        const main = KIND_MAIN[e?.kind];
+        const single = reqFiles.find((f) => f.rel === r.id);
+        const mainFile = single
+          ?? (main
+            ? reqFiles.find((f) => f.rel === `${r.id}/${main}`) : null);
+        return { id: r.id, kind: e?.kind ?? null,
+          file: mainFile?.rel ?? null, sha256: mainFile?.sha256 ?? null,
+          ...(Array.isArray(e?.modes) ? { modes: e.modes } : {}) };
+      }),
+      files: plan.map((p) => ({ rel: p.rel, sha256: p.sha256 })),
+    };
+    const provAbs = resolveInside(ctx.projectRoot,
+      `${destRel}/provenance.json`, 'bundle provenance');
+    const provBytes = JSON.stringify(provenance, null, 2) + '\n';
+    const provExisting = lstatOrNull(provAbs);
+    if (provExisting) {
+      // Re-install: identical provenance is a no-op; different bytes
+      // under the same bundle id mean divergent content — refuse to
+      // clobber.
+      const prev = readFileLimited(provAbs, limits.maxDocumentBytes);
+      if (prev.exceeded || prev.content.toString('utf8') !== provBytes) {
+        throw err('CONFLICT',
+          `bundle '${bundle.id}' provenance diverged; refusing to overwrite`);
+      }
+    } else {
+      const tmp = `${provAbs}.tmp-${process.pid}`;
+      fs.writeFileSync(tmp, provBytes, { flag: 'wx' });
+      try { fs.renameSync(tmp, provAbs); }
+      catch (e) {
+        try { fs.unlinkSync(tmp); } catch { /* best effort */ }
+        throw e;
+      }
     }
-  }
-  // Provenance is content-addressed: identical inputs produce identical
-  // bytes, which is what makes re-install a no-op rather than a conflict.
-  const provenance = {
-    schemaVersion: 1, id: bundle.id, version: bundle.version,
-    requires: bundle.requires, contributes: bundle.contributes,
-    entries: bundle.requires.map((r) => {
-      const e = stack.entries.find((x) => x.id === r.id);
-      // File sources resolve to themselves; directory sources resolve to
-      // the kind's conventional main file (else file stays null and the
-      // entry cannot be mounted — reported, not guessed).
-      const reqFiles = files.filter(
-        (f) => f.rel === r.id || f.rel.startsWith(`${r.id}/`));
-      const main = KIND_MAIN[e?.kind];
-      const single = reqFiles.find((f) => f.rel === r.id);
-      const mainFile = single
-        ?? (main
-          ? reqFiles.find((f) => f.rel === `${r.id}/${main}`) : null);
-      return { id: r.id, kind: e?.kind ?? null,
-        file: mainFile?.rel ?? null, sha256: mainFile?.sha256 ?? null,
-        ...(Array.isArray(e?.modes) ? { modes: e.modes } : {}) };
-    }),
-    files: plan.map((p) => ({ rel: p.rel, sha256: p.sha256 })),
-  };
-  const provAbs = resolveInside(ctx.projectRoot,
-    `${destRel}/provenance.json`, 'bundle provenance');
-  const provBytes = JSON.stringify(provenance, null, 2) + '\n';
-  const provExisting = lstatOrNull(provAbs);
-  if (provExisting) {
-    // Re-install: identical provenance is a no-op; different bytes under
-    // the same bundle id mean divergent content — refuse to clobber.
-    const prev = readFileLimited(provAbs, limits.maxDocumentBytes);
-    if (prev.exceeded || prev.content.toString('utf8') !== provBytes) {
-      throw err('CONFLICT',
-        `bundle '${bundle.id}' provenance diverged; refusing to overwrite`);
-    }
-  } else {
-    fs.writeFileSync(provAbs, provBytes, { flag: 'wx' });
-  }
-  return Object.freeze({ mode: 'applied', applied: true,
-    bundle: { id: bundle.id, version: bundle.version },
-    files: plan, provenance: `${destRel}/provenance.json` });
+    return Object.freeze({ mode: 'applied', applied: true,
+      bundle: { id: bundle.id, version: bundle.version },
+      files: plan, provenance: `${destRel}/provenance.json` });
+  });
 }
 
 // ---- mounted catalog layer ------------------------------------------------
@@ -622,7 +674,14 @@ export function mountBundle(ctx, bundleId) {
   assertSafeId(bundleId, 'bundle id');
   return withDistLock(ctx, () => {
     const prov = loadProvenance(ctx, bundleId);
-    const typed = (prov.entries ?? []).filter((e) => e.kind !== null);
+    // Provenance is disk data: a malformed entries array must not
+    // persist a bad kind into mounted-catalog (which then breaks every
+    // catalog load until hand-repaired).
+    if (!Array.isArray(prov.entries)) {
+      throw err('MALFORMED', `bundle '${bundleId}' provenance is malformed`);
+    }
+    const typed = prov.entries.filter((e) => e !== null
+      && typeof e === 'object' && RESOURCE_KINDS.has(e.kind));
     const mounted = loadMounted(ctx);
     const snapshot = loadWorkspaceCatalog(ctx);
     const unmounted = [];
@@ -631,6 +690,12 @@ export function mountBundle(ctx, bundleId) {
       if (typeof e.file !== 'string') {
         unmounted.push(key);
         continue;
+      }
+      // A mounted entry without a recorded sha would skip integrity
+      // verification — provenance tampering to null must fail closed.
+      if (typeof e.sha256 !== 'string' || !SHA_RE.test(e.sha256)) {
+        throw err('MALFORMED',
+          `bundle entry ${key} lacks a sha256 pin`);
       }
       // byKey includes already-mounted entries: re-mounting THIS bundle's
       // own entry is a refresh; snapshot ids and other bundles' ids are

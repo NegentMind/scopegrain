@@ -122,9 +122,15 @@ export function runDoctor(ctx, opts = {}) {
       const expectedFiles = catalogFiles({ installRoot });
       const expectedManifest = JSON.parse(expectedFiles.find(
         (f) => f.rel === 'catalog.json').content);
+      // Exclude the mounted layer — mounted entries are appended by
+      // mergeMounted AFTER the snapshot manifest and would make this
+      // comparison diverge permanently (false 'upgrade' every doctor
+      // run once any bundle is mounted).
+      const snapshotEntries = workspace.entries.slice(
+        0, workspace.entries.length - (workspace.mounted ?? 0));
       const snapshotManifest = {
         schemaVersion: workspace.snapshotVersion,
-        entries: workspace.entries.map((e) => ({
+        entries: snapshotEntries.map((e) => ({
           ...e, sha256: e.sha256.toLowerCase(),
         })),
         aliases: workspace.aliases,

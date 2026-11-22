@@ -355,7 +355,12 @@ un esquema editado con keywords fuera del subconjunto falla en voz alta.
   `src/hosts/activation.mjs` aplica opt-in solo propuestas de archivo
   completo con destino dentro del proyecto (create-only, mismas reglas de
   bootstrap); los merges en config compartida y las rutas globales (`~/`)
-  son siempre manuales.
+  son siempre manuales. La activacion consume el catalogo del workspace:
+  los recursos mounted (`<configDir>/bundles/<id>/`, sha256-verificados en
+  cada carga via `mounted-catalog.json`) materializan como puentes nativos
+  por el mismo pipeline que los del snapshot — la capa mounted es overlay,
+  nunca altera el manifest proyectado ni dispara `upgradeAvailable` en
+  `doctor`.
 - La API local (`src/api/`) es una comodidad read-only sin auth mas alla
   del bind loopback: no es un host de produccion y el puerto no debe
   exponerse.

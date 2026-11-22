@@ -349,7 +349,12 @@ the subset fails loudly.
   `src/hosts/activation.mjs` applies opt-in only full-file proposals
   with a destination inside the project (create-only, same bootstrap
   rules); merges into shared config and global (`~/`) paths are
-  always manual.
+  always manual. Activation consumes the workspace catalog: mounted
+  resources (`<configDir>/bundles/<id>/`, sha256-verified on every
+  load via `mounted-catalog.json`) materialize as native bridges
+  through the same pipeline as snapshot resources — the mounted
+  layer is an overlay, never altering the projected manifest nor
+  triggering `upgradeAvailable` in `doctor`.
 - The local API (`src/api/`) is a read-only convenience with no auth
   beyond the loopback bind: it is not a production host and the port
   must not be exposed.
