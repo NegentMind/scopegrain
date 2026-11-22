@@ -141,6 +141,26 @@ export function bootstrappedCtx(answers) {
   }
   const dir = makeTempDir('boot');
   fs.cpSync(entry.dir, dir, { recursive: true });
+  // MCP fragments embed the rendered project root (JSON-escaped) — a
+  // copied fixture must carry ITS root, so rewrite the template path in
+  // the integrations subtree before handing the fixture out.
+  const tplEsc = JSON.stringify(entry.dir).slice(1, -1);
+  const dirEsc = JSON.stringify(dir).slice(1, -1);
+  const integ = path.join(dir, '.tasksystem', 'integrations');
+  if (fs.existsSync(integ)) {
+    const walk = (d) => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        const t = fs.readFileSync(p, 'utf8');
+        if (t.includes(tplEsc) || t.includes(entry.dir)) {
+          fs.writeFileSync(p,
+            t.split(tplEsc).join(dirEsc).split(entry.dir).join(dir));
+        }
+      }
+    };
+    walk(integ);
+  }
   // `plan` describes the template render: rel paths are accurate, any
   // absolute path still points at the shared template directory.
   return { dir, ctx: resolveContext({ project: dir }), plan: entry.plan };
