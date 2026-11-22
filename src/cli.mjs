@@ -34,12 +34,12 @@ const VALUE_FLAGS = new Set([
   '--install-dir', '--namespace', '--key', '--top-k', '--record-id',
   '--reason', '--by', '--log', '--tail', '--backlog', '--status', '--index',
   '--text', '--outcome', '--cursor', '--arguments', '--script',
-  '--assessment',
+  '--assessment', '--source', '--out', '--registry', '--op', '--id',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
-  '--record',
+  '--record', '--keep-files', '--no-resume',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -215,7 +215,7 @@ const COMMANDS = {
   },
   'task checklist': {
     flags: ['--project', '--config', '--input', '--revision',
-      '--status', '--text', '--key'],
+      '--status', '--text', '--key', '--apply'],
     pos: -1,
     usage: 'task checklist --project PATH [ID] '
       + '(--input FILE to create | no ID to list | ID to show | '
@@ -230,8 +230,8 @@ const COMMANDS = {
     usage: 'plan stories --project PATH KEY',
   },
   'specification clarify': {
-    flags: ['--project', '--config', '--input'], pos: 0,
-    usage: 'specification clarify --project PATH --input FILE',
+    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
+    usage: 'specification clarify --project PATH --input FILE [--apply]',
   },
   'constitution show': {
     flags: ['--project', '--config'], pos: 0,
@@ -1122,7 +1122,9 @@ async function cmdTask(sub, positional, flags, io) {
         throw err('INVALID_ARGS', 'checklist create takes no positional ID');
       }
       const input = readInputFile(flags['--input'], 'checklist input');
-      return cl.createChecklist(ctx, input);
+      const prepared = cl.prepareChecklist(ctx, input);
+      return await finishCreation(
+        ctx, 'checklist', prepared.record, prepared.file, flags);
     }
     if (positional.length === 0) {
       return { checklists: cl.listChecklists(ctx) };
@@ -2107,10 +2109,12 @@ async function cmdTypedArtifact(family, sub, positional, flags) {
     return getSpecification(ctx, positional[0]);
   }
   if (family === 'specification' && sub === 'clarify') {
-    const { recordClarification } = await import('./core/clarify.mjs');
+    const { prepareClarification } = await import('./core/clarify.mjs');
     const input = readInputFile(
       requireFlag(flags, '--input'), 'clarification input');
-    return recordClarification(ctx, input);
+    const prepared = prepareClarification(ctx, input);
+    return await finishCreation(
+      ctx, 'clarification', prepared.record, prepared.file, flags);
   }
   const input = readInputFile(requireFlag(flags, '--input'), `${family} input`);
   const prepare = {
@@ -2723,6 +2727,13 @@ export async function run(argv, io) {
 
 // Default IO bound to real stdio; the interactive ask uses readline.
 export function defaultIO() {
+  // A consumer that truncates the stream (`| head`, `| Select -First`)
+  // raises EPIPE on the next write — exit cleanly instead of crashing
+  // with an unhandled 'error' event. Other stream errors still throw.
+  process.stdout.on('error', (e) => {
+    if (e && e.code === 'EPIPE') process.exit(0);
+    throw e;
+  });
   let rl = null;
   return {
     isTTY: !!process.stdin.isTTY,

@@ -82,7 +82,9 @@ export function listChecklists(ctx, taskId = null) {
 }
 
 // input: {taskId, title, items:[{text} | {id,text,status,note}]}
-export function createChecklist(ctx, input) {
+// Validates the input and builds the checklist record plus its target
+// file — the CLI previews this without writing (create convention).
+export function prepareChecklist(ctx, input) {
   closed(input, new Set(['taskId', 'title', 'items']), 'checklist input');
   if (typeof input.title !== 'string' || input.title.trim() === '') {
     throw err('INVALID_VALUE', 'checklist title must be non-empty');
@@ -107,13 +109,24 @@ export function createChecklist(ctx, input) {
     createdAt: at,
     updatedAt: at,
   }, 'prepared checklist');
-  const abs = resolveInside(
-    ctx.projectRoot, fileRel(ctx, record.id), 'checklist');
+  const rel = fileRel(ctx, record.id);
+  return {
+    record,
+    file: {
+      rel,
+      abs: resolveInside(ctx.projectRoot, rel, 'checklist'),
+      content: JSON.stringify(record, null, 2) + '\n',
+    },
+  };
+}
+
+export function createChecklist(ctx, input) {
+  const { record, file } = prepareChecklist(ctx, input);
   fs.mkdirSync(resolveInside(
     ctx.projectRoot, dirRel(ctx), 'checklists'), { recursive: true });
-  const fd = fs.openSync(abs, 'wx');
+  const fd = fs.openSync(file.abs, 'wx');
   try {
-    fs.writeSync(fd, JSON.stringify(record, null, 2) + '\n');
+    fs.writeSync(fd, file.content);
     fs.fsyncSync(fd);
   } finally { fs.closeSync(fd); }
   return record;

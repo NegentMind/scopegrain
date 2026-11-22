@@ -123,7 +123,7 @@ test('help has exactly the specification usages, exact note and unchanged captur
   const help = await call(['--help']);
   assert.deepEqual(help.commands.filter((c) => c.command.startsWith('specification '))
     .map((c) => c.command), [
-    'specification clarify --project PATH --input FILE',
+    'specification clarify --project PATH --input FILE [--apply]',
     'specification create --project PATH --input FILE [--owned] [--apply]',
     'specification show --project PATH UUID [--owned]',
   ]);

@@ -378,7 +378,7 @@ de tarea activa se resuelve `SCOPEGRAIN_TASK` (env) antes que el archivo
 ```text
 scopegrain task converge --project PATH ID|SLUG [--record]
 scopegrain task analyze --project PATH ID|SLUG
-scopegrain task checklist --project PATH [ID] (--input FILE |
+scopegrain task checklist --project PATH [ID] (--input FILE [--apply] |
   ID --key CHK### --status S --revision N [--text NOTE])
 ```
 
@@ -392,7 +392,7 @@ y cobertura. `checklist` gestiona artefactos `CHK###` reviewer-owned
 
 ```text
 scopegrain plan stories --project PATH KEY
-scopegrain specification clarify --project PATH --input FILE
+scopegrain specification clarify --project PATH --input FILE [--apply]
 scopegrain constitution show|set --project PATH [--input FILE]
 ```
 

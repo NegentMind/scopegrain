@@ -18,7 +18,9 @@ const dirRel = (ctx, specId) =>
   `${ctx.configDir}/clarifications/${specId.toLowerCase()}`;
 
 // input: {specId, date?, entries:[{question, answer}]}
-export function recordClarification(ctx, input) {
+// Validates the input and builds the session record plus its target
+// file — the CLI previews this without writing (create convention).
+export function prepareClarification(ctx, input) {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw err('INVALID_VALUE', 'clarification input must be an object');
   }
@@ -74,14 +76,27 @@ export function recordClarification(ctx, input) {
     createdAt: new Date().toISOString(),
   };
   const rel = `${dir}/${String(seq).padStart(3, '0')}-${date}.json`;
-  const abs = resolveInside(ctx.projectRoot, rel, 'clarification session');
+  return {
+    record: Object.freeze({ ...record, record: rel }),
+    file: {
+      rel,
+      abs: resolveInside(ctx.projectRoot, rel, 'clarification session'),
+      content: JSON.stringify(record, null, 2) + '\n',
+    },
+  };
+}
+
+export function recordClarification(ctx, input) {
+  const { record, file } = prepareClarification(ctx, input);
+  const dirAbs = resolveInside(ctx.projectRoot,
+    dirRel(ctx, input.specId), 'clarifications dir');
   fs.mkdirSync(dirAbs, { recursive: true });
-  const fd = fs.openSync(abs, 'wx');
+  const fd = fs.openSync(file.abs, 'wx');
   try {
-    fs.writeSync(fd, JSON.stringify(record, null, 2) + '\n');
+    fs.writeSync(fd, file.content);
     fs.fsyncSync(fd);
   } finally { fs.closeSync(fd); }
-  return Object.freeze({ ...record, record: rel });
+  return record;
 }
 
 export function listClarifications(ctx, specId) {

@@ -204,18 +204,42 @@ function creditSpan(span, verbs, referenced) {
   }
 }
 
+// Alternation notation (`constitution show|set`, `x-activate|deactivate`)
+// documents sibling verbs in one invocation: the left side is complete
+// and each right part shares the left prefix up to the last separator
+// ('-', '/', '.', '_') — 'show|set' -> ['show','set'],
+// 'extension-activate|deactivate' -> ['extension-activate',
+// 'extension-deactivate'].
+function expandAlternates(word) {
+  if (!word.includes('|')) return [word];
+  const parts = word.split('|');
+  const left = parts[0];
+  const sep = Math.max(left.lastIndexOf('-'), left.lastIndexOf('/'),
+    left.lastIndexOf('.'), left.lastIndexOf('_'));
+  const prefix = sep >= 0 ? left.slice(0, sep + 1) : '';
+  return [left, ...parts.slice(1).map((p) => prefix + p)];
+}
+
 function creditInvocation(args, verbs, firstWords, referenced, stale) {
   const tok = tokens(args);
   if (tok.length === 0) return;
   const t1 = tok[0];
   if (!VERB_START_RE.test(t1) || t1.startsWith('-')
       || PLACEHOLDER_RE.test(t1)) return;
-  let candidate = t1;
-  if (firstWords.has(t1) && tok.length >= 2 && !tok[1].startsWith('-')) {
-    candidate = `${t1} ${tok[1]}`;
+  const t1Alts = expandAlternates(t1);
+  const t2Alts = (tok.length >= 2 && tok[1].includes('|'))
+    ? expandAlternates(tok[1]) : [tok[1]];
+  const candidates = [];
+  for (const a of t1Alts) {
+    for (const b of t2Alts) {
+      candidates.push(
+        firstWords.has(a) && b && !b.startsWith('-') ? `${a} ${b}` : a);
+    }
   }
-  if (verbs.has(candidate)) referenced.add(candidate);
-  else stale.add(candidate);
+  for (const candidate of candidates) {
+    if (verbs.has(candidate)) referenced.add(candidate);
+    else stale.add(candidate);
+  }
 }
 
 // Scans one markdown document. Returns the real verbs it references and
