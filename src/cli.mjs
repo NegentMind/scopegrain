@@ -1544,6 +1544,20 @@ async function cmdContext(flags) {
             message: String(e.message ?? e) } };
       }
     })(),
+    // Retroactive activity evidence (commits outside the task loop)
+    // surfaces alongside progress so session start sees recent work.
+    activity: (() => {
+      try {
+        const log = readWorklog(ctx, 'activity', { tail });
+        return log.truncated
+          ? { truncated: true, entries: log.entries }
+          : { truncated: false, entries: log.entries };
+      } catch (e) {
+        return { truncated: false, entries: [],
+          error: { code: e.code ?? 'INTERNAL',
+            message: String(e.message ?? e) } };
+      }
+    })(),
     goals: (() => {
       try {
         return listGoals(ctx).goals.filter((g) => g.status === 'open')

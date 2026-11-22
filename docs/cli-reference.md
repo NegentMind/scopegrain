@@ -325,13 +325,27 @@ guardados, mas reciente primero (default 50).
 scopegrain activity record --project PATH --input FILE [--apply]
 ```
 
-Registra retroactivamente trabajo hecho fuera del ciclo de tareas: crea
-una tarea `type: ops` con `source: activity:<kind>` y una entrada en el
-log `progress`. Con `taskId` enlaza la acción a una tarea existente.
+Registra retroactivamente trabajo hecho fuera del ciclo de tareas como
+**evidencia de bookkeeping**, nunca como trabajo accionable: escribe una
+entrada en el log `activity` (`<state>/memory/activity.jsonl`), visible en
+`context`, la API, MCP y el runtime VantaDB. Un registro retroactivo no
+puede producir honestamente la evidencia que `ACCEPT`/`CLOSE` exigen, así
+que el comportamiento por defecto **no crea tareas** — la política de
+workflow no tiene transición legal para ellas.
+
+Resolución de enlace, en orden: (1) `taskId` explícito enlaza a esa
+tarea; (2) sin `taskId`, el puntero de tarea activa (`SCOPEGRAIN_TASK` o
+`<state>/active-task`) enlaza automáticamente — la evidencia aterriza en
+el trabajo real; (3) sin puntero, la entrada queda `taskId: null` —
+"evidence beats linkage": un puntero corrupto degrada a `linkWarning`
+sin perder el registro. Opt-in `record: "task"` conserva el comportamiento
+legado (tarea `type: ops` en PLAN) para llamadas manuales que sí quieren
+un ítem accionable.
+
 Input: `{kind: action|commit|note, title, summary?, ref?, files?,
-taskId?, author?, methodology?}`. Bajo modos metodológicos exigentes
-sintetiza una evaluación **declarada** (authorized por el actor, no una
-aprobación fabricada).
+taskId?, author?, methodology?, record?}`. Solo con `record: "task"` y
+bajo modos metodológicos exigentes sintetiza una evaluación **declarada**
+(authorized por el actor, no una aprobación fabricada).
 
 ### hooks install / hooks uninstall
 

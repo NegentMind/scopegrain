@@ -718,7 +718,8 @@ export function vantaDBStatus({ ctx, bound }) {
   };
 }
 
-const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals'];
+const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals',
+  'activity'];
 
 function worklogSummary(log, entry) {
   const text = entry.summary ?? entry.title ?? entry.text ?? entry.outcome

@@ -45,7 +45,7 @@ const WRITE_LOCAL = {
 };
 // Worklog logs agents may append to directly. 'goals' stays excluded:
 // goal records need generated ids, so they go through the goal tools.
-const WORKLOG_APPEND = ['lessons', 'outcomes', 'progress'];
+const WORKLOG_APPEND = ['lessons', 'outcomes', 'progress', 'activity'];
 const WORKLOG_READ = [...WORKLOG_APPEND, 'goals'];
 const DISPOSITION_KINDS =
   ['deferred', 'icebox', 'future', 'discarded', 'cancelled', 'active'];

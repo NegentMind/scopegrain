@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // Retroactive activity registration: actions performed outside the task
 // lifecycle (a direct commit, an ad-hoc edit, a manual fix) get recorded
-// as a task record plus a progress-log entry. Two honest shapes:
-//   - new task: type 'ops', source 'activity:<kind>', a *declared*
-//     methodology assessment when the project mode gates creation (the
-//     registrant attests the action was authorized — never a fabricated
-//     approval), notes carry the summary.
-//   - existing taskId: only a progress entry links the action to work
-//     already tracked (e.g. a commit message naming a task UUID).
+// as an activity-log entry — bookkeeping evidence, NEVER an actionable
+// task. The workflow policy has no legal path for a retroactive record
+// (ACCEPT requires verification+review it cannot honestly produce), so
+// the post-commit hook must not create tasks that pollute PLAN forever.
+// Shapes:
+//   - taskId given or an active task pointer exists: the entry LINKS to
+//     that task (evidence attributed to real work).
+//   - otherwise: entry with taskId:null — evidence without a work item.
+//   - input.record === 'task': explicit opt-in keeps the legacy shape —
+//     an ops task in PLAN plus the entry (for manual `activity record`
+//     where the caller wants an actionable record).
 import { err } from './errors.mjs';
 import { createTask, getTask } from './tasks.mjs';
 import { appendWorklog } from './worklog.mjs';
 import { validateMethodologyMode } from './config.mjs';
+import { getActiveTask } from './active.mjs';
 
 const KINDS = new Set(['action', 'commit', 'note']);
 const MAX_TITLE = 4096;
@@ -35,7 +40,7 @@ export function normalizeActivityInput(input) {
     throw err('INVALID_VALUE', 'activity input must be an object');
   }
   const allowed = new Set(['kind', 'title', 'summary', 'ref', 'files',
-    'taskId', 'author', 'methodology']);
+    'taskId', 'author', 'methodology', 'record']);
   for (const k of Object.keys(input)) {
     if (!allowed.has(k)) {
       throw err('UNKNOWN_KEY', `activity input received unknown key '${k}'`);
@@ -57,7 +62,11 @@ export function normalizeActivityInput(input) {
     files: [],
     taskId: input.taskId === undefined ? null : input.taskId,
     methodology: input.methodology,
+    record: input.record,
   };
+  if (out.record !== undefined && out.record !== 'task') {
+    throw err('INVALID_VALUE', "record must be 'task' when present");
+  }
   if (out.taskId !== null
       && (typeof out.taskId !== 'string' || !UUID_RE.test(out.taskId))) {
     throw err('INVALID_ID', 'taskId must be a UUID');
@@ -110,10 +119,35 @@ export function recordActivity(ctx, rawInput) {
 
   if (input.taskId !== null) {
     const task = getTask(ctx, input.taskId); // throws TASK_NOT_FOUND
-    const entry = appendWorklog(ctx, 'progress', {
+    const entry = appendWorklog(ctx, 'activity', {
       ...progress, taskId: task.id, linked: true,
     });
-    return { taskId: task.id, created: false, progress: entry };
+    return { taskId: task.id, created: false, activity: entry };
+  }
+
+  // No explicit taskId: link to the active-task pointer when one
+  // resolves — the commit then lands as evidence on the real work item.
+  // A missing or unreadable pointer never blocks the write: evidence
+  // beats linkage.
+  let linkWarning = null;
+  if (input.record !== 'task') {
+    try {
+      const active = getActiveTask(ctx);
+      if (active.task) {
+        const entry = appendWorklog(ctx, 'activity', {
+          ...progress, taskId: active.task.id, linked: true,
+        });
+        return { taskId: active.task.id, created: false,
+          activity: entry, linkedVia: active.source };
+      }
+    } catch (e) {
+      linkWarning = `active-task pointer unreadable: ${e.code}`;
+    }
+    const entry = appendWorklog(ctx, 'activity', {
+      ...progress, taskId: null, linked: false,
+    });
+    return { taskId: null, created: false, activity: entry,
+      ...(linkWarning ? { linkWarning } : {}) };
   }
 
   const mode = validateMethodologyMode(
@@ -136,8 +170,8 @@ export function recordActivity(ctx, rawInput) {
     source: `activity:${input.kind}`,
     notes,
   });
-  const entry = appendWorklog(ctx, 'progress', {
+  const entry = appendWorklog(ctx, 'activity', {
     ...progress, taskId: task.id, linked: false,
   });
-  return { taskId: task.id, created: true, task, progress: entry };
+  return { taskId: task.id, created: true, task, activity: entry };
 }

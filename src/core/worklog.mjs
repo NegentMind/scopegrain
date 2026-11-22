@@ -18,7 +18,8 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUUID = (v) => typeof v === 'string' && UUID_RE.test(v);
 
-const LOG_NAMES = new Set(['lessons', 'outcomes', 'progress', 'goals']);
+const LOG_NAMES = new Set(['lessons', 'outcomes', 'progress', 'goals',
+  'activity']);
 const MAX_LINE_BYTES = 16 * 1024;
 const MAX_TAIL = 1000;
 const GOAL_STATUSES = new Set(['open', 'achieved', 'dropped']);
@@ -93,6 +94,39 @@ export function appendWorklog(ctx, name, fields) {
       taskId: fields.taskId,
       title: fields.title,
       result: fields.result ?? null,
+      summary: fields.summary ?? null,
+      domain: fields.domain ?? null,
+      ref: fields.ref ?? null,
+      kind: fields.kind ?? null,
+      files: fields.files ?? null,
+      author: fields.author ?? null,
+      linked: fields.linked ?? null,
+    };
+  } else if (name === 'activity') {
+    // Retroactive activity evidence — a commit, an ad-hoc action — that
+    // is bookkeeping, NOT a work item. taskId is nullable: unlinkable
+    // activity is still recorded (evidence beats linkage), never forced
+    // through task lifecycle gates it cannot honestly satisfy.
+    validateEntryFields(fields,
+      new Set(['taskId', 'title', 'summary', 'domain', 'ref',
+        'kind', 'files', 'author', 'linked']),
+      'activity');
+    if (fields.taskId !== undefined && fields.taskId !== null
+        && !isUUID(fields.taskId)) {
+      throw err('INVALID_ID',
+        'activity.taskId must be a task UUID or null');
+    }
+    if (typeof fields.title !== 'string' || fields.title.trim() === '') {
+      throw err('INVALID_VALUE', 'activity.title must be a non-empty string');
+    }
+    if (fields.files !== undefined
+        && (!Array.isArray(fields.files)
+          || !fields.files.every((f) => typeof f === 'string' && f !== ''))) {
+      throw err('INVALID_VALUE', 'activity.files must be strings');
+    }
+    entry = {
+      taskId: fields.taskId ?? null,
+      title: fields.title,
       summary: fields.summary ?? null,
       domain: fields.domain ?? null,
       ref: fields.ref ?? null,

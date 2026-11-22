@@ -49,7 +49,8 @@ export const LIMITS = Object.freeze({
 
 const TRUNCATED_MARKER = '\n[truncated by api]';
 
-const MEMORY_LOGS = new Set(['lessons', 'outcomes', 'progress', 'goals']);
+const MEMORY_LOGS = new Set(['lessons', 'outcomes', 'progress', 'goals',
+  'activity']);
 const REPORT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,120}-status\.json$/;
 
 function boundedInt(raw, fallback, { min, max, label }) {

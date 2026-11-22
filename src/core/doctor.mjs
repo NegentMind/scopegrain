@@ -25,7 +25,8 @@ import { detectHostClis } from './host-cli.mjs';
 import { prepareActivation } from '../hosts/activation.mjs';
 
 const MAX_LIST = 100000;
-const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals'];
+const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals',
+  'activity'];
 const POLICY_FILES = [
   'workflow.json', 'operation-limits.json', 'methodology.json',
   'onboarding-defaults.json',

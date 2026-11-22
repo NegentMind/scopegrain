@@ -17,13 +17,17 @@ import {
 } from '../src/core/hooks.mjs';
 import { resolveContext } from '../src/core/context.mjs';
 import { appendWorklog, readWorklog } from '../src/core/worklog.mjs';
-import { getTask } from '../src/core/tasks.mjs';
+import { getTask, listTasks } from '../src/core/tasks.mjs';
+import { setActiveTask } from '../src/core/active.mjs';
 
 function fixture(methodology = 'manual') {
   const dir = makeTempDir('activity');
   writeJson(dir, '.tasksystem/config.json',
     createConfig(dir, { ...VALID_ANSWERS, methodology }, {}));
   fs.mkdirSync(path.join(dir, '.git', 'hooks'), { recursive: true });
+  // getActiveTask reads the real process env: a leaked SCOPEGRAIN_TASK
+  // must not make these tests nondeterministic.
+  delete process.env.SCOPEGRAIN_TASK;
   return { dir, ctx: resolveContext({ project: dir }) };
 }
 
@@ -52,7 +56,7 @@ test('hook block single-quotes interpolated paths (shell injection guard)', () =
   } finally { cleanup(dir); }
 });
 
-test('recordActivity creates an ops task and a progress entry', () => {
+test('recordActivity default writes an unlinked worklog entry, no task', () => {
   const { dir, ctx } = fixture();
   try {
     const r = recordActivity(ctx, {
@@ -60,17 +64,39 @@ test('recordActivity creates an ops task and a progress entry', () => {
       ref: 'abc1234', summary: 'fix crash', files: ['src/x.mjs'],
       author: 'eros',
     });
+    assert.equal(r.created, false);
+    assert.equal(r.taskId, null);
+    // Evidence lands in the activity log — never in PLAN.
+    assert.equal(listTasks(ctx).tasks.length, 0);
+    const { entries } = readWorklog(ctx, 'activity');
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].taskId, null);
+    assert.equal(entries[0].kind, 'commit');
+    assert.equal(entries[0].ref, 'abc1234');
+    assert.equal(entries[0].domain, 'activity:commit');
+    assert.deepEqual(entries[0].files, ['src/x.mjs']);
+    assert.equal(entries[0].linked, false);
+    // The progress log stays untouched by retroactive bookkeeping.
+    assert.equal(readWorklog(ctx, 'progress').entries.length, 0);
+  } finally { cleanup(dir); }
+});
+
+test("recordActivity opt-in record:'task' keeps the legacy ops task", () => {
+  const { dir, ctx } = fixture();
+  try {
+    const r = recordActivity(ctx, {
+      kind: 'commit', title: 'commit abc1234: fix crash',
+      ref: 'abc1234', summary: 'fix crash', files: ['src/x.mjs'],
+      record: 'task',
+    });
     assert.equal(r.created, true);
     const task = getTask(ctx, r.taskId);
     assert.equal(task.type, 'ops');
     assert.equal(task.source, 'activity:commit');
     assert.equal(task.state, 'PLAN');
-    const { entries } = readWorklog(ctx, 'progress');
+    const { entries } = readWorklog(ctx, 'activity');
     assert.equal(entries.length, 1);
     assert.equal(entries[0].taskId, task.id);
-    assert.equal(entries[0].kind, 'commit');
-    assert.equal(entries[0].ref, 'abc1234');
-    assert.deepEqual(entries[0].files, ['src/x.mjs']);
     assert.equal(entries[0].linked, false);
   } finally { cleanup(dir); }
 });
@@ -78,29 +104,92 @@ test('recordActivity creates an ops task and a progress entry', () => {
 test('recordActivity on existing taskId links without creating', () => {
   const { dir, ctx } = fixture();
   try {
-    const first = recordActivity(ctx, { title: 'first action' });
+    const first = recordActivity(ctx,
+      { title: 'first action', record: 'task' });
     const linked = recordActivity(ctx, {
       title: 'follow-up commit', taskId: first.taskId, ref: 'deadbeef',
     });
     assert.equal(linked.created, false);
     assert.equal(linked.taskId, first.taskId);
-    const { entries } = readWorklog(ctx, 'progress');
+    const { entries } = readWorklog(ctx, 'activity');
     assert.equal(entries.length, 2);
     assert.equal(entries[1].linked, true);
+    assert.equal(entries[1].taskId, first.taskId);
     assert.equal(entries[1].ref, 'deadbeef');
   } finally { cleanup(dir); }
 });
 
-test('gated modes get a declared, never fabricated, assessment', () => {
+test('recordActivity links to the persisted active-task pointer', () => {
+  const { dir, ctx } = fixture();
+  try {
+    const created = recordActivity(ctx,
+      { title: 'real work item', record: 'task' });
+    setActiveTask(ctx, created.taskId);
+    const r = recordActivity(ctx,
+      { title: 'commit while task active', ref: 'bead' });
+    assert.equal(r.created, false);
+    assert.equal(r.taskId, created.taskId);
+    assert.equal(r.linkedVia, 'file');
+    const { entries } = readWorklog(ctx, 'activity');
+    assert.equal(entries.at(-1).linked, true);
+    assert.equal(entries.at(-1).taskId, created.taskId);
+  } finally { cleanup(dir); }
+});
+
+test('recordActivity links via SCOPEGRAIN_TASK env, which beats the file', () => {
+  const { dir, ctx } = fixture();
+  try {
+    const a = recordActivity(ctx, { title: 'task A', record: 'task' });
+    const b = recordActivity(ctx, { title: 'task B', record: 'task' });
+    setActiveTask(ctx, a.taskId);
+    process.env.SCOPEGRAIN_TASK = b.taskId;
+    const r = recordActivity(ctx, { title: 'env-linked', ref: 'e1' });
+    assert.equal(r.taskId, b.taskId);
+    assert.equal(r.linkedVia, 'env');
+  } finally {
+    delete process.env.SCOPEGRAIN_TASK;
+    cleanup(dir);
+  }
+});
+
+test('recordActivity survives a corrupt active pointer (linkWarning)', () => {
+  const { dir, ctx } = fixture();
+  try {
+    // An unreadable reference must degrade to an unlinked entry — the
+    // evidence is still written (evidence beats linkage).
+    fs.writeFileSync(
+      path.join(dir, '.tasksystem', 'active-task'), 'not-a-task\n');
+    const r = recordActivity(ctx, { title: 'still recorded', ref: 'cafe' });
+    assert.equal(r.created, false);
+    assert.equal(r.taskId, null);
+    assert.equal(typeof r.linkWarning, 'string');
+    const { entries } = readWorklog(ctx, 'activity');
+    assert.equal(entries.at(-1).taskId, null);
+    assert.equal(entries.at(-1).linked, false);
+  } finally { cleanup(dir); }
+});
+
+test("gated modes get a declared, never fabricated, assessment on opt-in", () => {
   const { dir, ctx } = fixture('organic-sdd');
   try {
     const r = recordActivity(ctx, {
       title: 'outside work', ref: 'feedface', author: 'owner',
+      record: 'task',
     });
     const task = getTask(ctx, r.taskId);
     assert.equal(task.methodology.authorization.status, 'authorized');
     assert.equal(task.methodology.authorization.actor, 'owner');
     assert.equal(task.methodology.authorization.reference, 'feedface');
+  } finally { cleanup(dir); }
+});
+
+test('gated mode without opt-in still records without a task', () => {
+  const { dir, ctx } = fixture('organic-sdd');
+  try {
+    const r = recordActivity(ctx,
+      { title: 'hook commit', ref: 'ab12', kind: 'commit' });
+    assert.equal(r.created, false);
+    assert.equal(listTasks(ctx).tasks.length, 0);
   } finally { cleanup(dir); }
 });
 
@@ -111,6 +200,8 @@ test('activity input is closed: unknown keys and bad taskId rejected', () => {
     (e) => e.code === 'INVALID_ID');
   assert.throws(() => normalizeActivityInput({ title: 'x', kind: 'magic' }),
     (e) => e.code === 'INVALID_VALUE');
+  assert.throws(() => normalizeActivityInput(
+    { title: 'x', record: 'everything' }), (e) => e.code === 'INVALID_VALUE');
 });
 
 test('hooks install is idempotent and uninstall removes only the block', () => {
@@ -165,7 +256,17 @@ test('CLI: activity record dry-run writes nothing, --apply persists', async () =
         path.join(dir, 'in.json'), '--apply'], io2), 0);
     const applied = JSON.parse(io2.out.stdout.at(-1));
     assert.equal(applied.mode, 'applied');
-    assert.equal(applied.created, true);
+    // Default record is worklog-only: no task is fabricated for evidence.
+    assert.equal(applied.created, false);
+    assert.equal(applied.taskId, null);
+    writeJson(dir, 'in-task.json',
+      { title: 'manual ops record', record: 'task' });
+    const io4 = fakeIO();
+    assert.equal(await run(
+      ['activity', 'record', '--project', dir, '--input',
+        path.join(dir, 'in-task.json'), '--apply'], io4), 0);
+    const appliedTask = JSON.parse(io4.out.stdout.at(-1));
+    assert.equal(appliedTask.created, true);
     const io3 = fakeIO();
     assert.equal(await run(
       ['hooks', 'install', '--project', dir], io3), 0);

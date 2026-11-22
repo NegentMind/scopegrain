@@ -67,6 +67,8 @@ src/core/host-cli.mjs     Deteccion de CLIs de host por filesystem (sin child_pr
 src/core/mcp-inventory.mjs Inventario MCP auto-descriptivo derivado de los descriptors
 src/core/operations.mjs   Descriptors de operacion compartidos (CLI/MCP parity)
 src/core/active.mjs       Puntero de tarea activa: env SCOPEGRAIN_TASK sobre state
+src/core/activity.mjs     Registro retroactivo de actividad: worklog, nunca tasks imposibles de cerrar
+src/core/worklog.mjs      Logs JSONL acotados (lessons/outcomes/progress/goals/activity) con rotacion
 src/core/converge.mjs     Findings tipados spec/plan/tasks vs codigo + veredicto
 src/core/checklists.mjs   Checklists CHK### reviewer-owned con CAS
 src/core/analyze.mjs      Analisis cross-artifact de cobertura y drift
