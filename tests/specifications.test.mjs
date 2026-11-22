@@ -255,3 +255,45 @@ test('design: V2 required, binds spec digest, drift detected', () => {
       (e) => e.code === 'ARTIFACT_DRIFT');
   } finally { cleanup(dir); }
 });
+
+test('E8 subspecs: typed links, existing target required, closed', () => {
+  const { dir, ctx } = bootstrappedCtx();
+  try {
+    const child = prepareSpecification(ctx, specIn());
+    applyPlan(dir, [child.file]);
+    // Valid typed link to an existing spec persists through data.
+    const parent = prepareSpecification(ctx, specIn({
+      subspecs: [{ type: 'decomposition', id: child.artifact.id,
+        title: 'sub-area A' }],
+    }));
+    applyPlan(dir, [parent.file]);
+    const stored = getSpecification(ctx, parent.artifact.id);
+    assert.deepEqual(stored.data.subspecs,
+      [{ type: 'decomposition', id: child.artifact.id,
+        title: 'sub-area A' }]);
+    // Unknown link type, bad id shape, dangling target: all rejected.
+    assert.throws(() => prepareSpecification(ctx, specIn({
+      subspecs: [{ type: 'mystery', id: child.artifact.id }],
+    })), (e) => e.code === 'SPEC_DATA_MALFORMED');
+    assert.throws(() => prepareSpecification(ctx, specIn({
+      subspecs: [{ type: 'dependency', id: 'not-a-uuid' }],
+    })), (e) => e.code === 'SPEC_DATA_MALFORMED');
+    const ghost = '00000000-0000-4000-8000-000000000000';
+    assert.throws(() => prepareSpecification(ctx, specIn({
+      subspecs: [{ type: 'decomposition', id: ghost }],
+    })), (e) => e.code === 'NOT_FOUND');
+    // Duplicate typed edge is rejected.
+    assert.throws(() => prepareSpecification(ctx, specIn({
+      subspecs: [
+        { type: 'decomposition', id: child.artifact.id },
+        { type: 'decomposition', id: child.artifact.id }],
+    })), (e) => e.code === 'SPEC_DATA_MALFORMED');
+    // Same target under a different type is a distinct edge.
+    const both = prepareSpecification(ctx, specIn({
+      subspecs: [
+        { type: 'decomposition', id: child.artifact.id },
+        { type: 'dependency', id: child.artifact.id }],
+    }));
+    assert.equal(both.artifact.data.subspecs.length, 2);
+  } finally { cleanup(dir); }
+});

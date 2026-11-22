@@ -12,12 +12,55 @@ const SHA_RE = /^[0-9a-f]{64}$/;
 
 const SPEC_KEYS = new Set([
   'schemaVersion', 'originalRequest', 'outcome', 'requirements', 'scope',
-  'constraints', 'nonGoals', 'openQuestions',
+  'constraints', 'nonGoals', 'openQuestions', 'subspecs',
 ]);
 const OUTCOME_KEYS = new Set(['statement', 'evidencePlan']);
 const REQ_KEYS = new Set(['id', 'statement', 'scenarios']);
 const SCEN_KEYS = new Set(['id', 'given', 'when', 'then']);
 const DESIGN_KEYS = new Set(['specId', 'specDigest']);
+const SUBSPEC_KEYS = new Set(['type', 'id', 'title']);
+// Typed edges for spec-of-specs composition (epic -> sub-specs). Closed
+// vocabulary — a link type is a declared relation, not free text.
+const SUBSPEC_TYPES = new Set([
+  'decomposition', 'dependency', 'alternative', 'supersedes',
+]);
+
+export function subspecLinks(v, label = 'subspecs',
+    { required = false } = {}) {
+  if (v === undefined) {
+    if (required) {
+      throw err('SPEC_DATA_MALFORMED',
+        `${label} is required in stored data`);
+    }
+    return [];
+  }
+  if (!Array.isArray(v)) {
+    throw err('SPEC_DATA_MALFORMED', `${label} must be an array`);
+  }
+  const seen = new Set();
+  return v.map((l, i) => {
+    closed(l, SUBSPEC_KEYS, `${label}[${i}]`);
+    if (!SUBSPEC_TYPES.has(l.type)) {
+      throw err('SPEC_DATA_MALFORMED',
+        `${label}[${i}].type must be one of ${[...SUBSPEC_TYPES].join(', ')}`);
+    }
+    if (typeof l.id !== 'string' || !UUID_RE.test(l.id)) {
+      throw err('SPEC_DATA_MALFORMED',
+        `${label}[${i}].id must be a UUID`);
+    }
+    const edge = `${l.type}/${l.id}`.toLowerCase();
+    if (seen.has(edge)) {
+      throw err('SPEC_DATA_MALFORMED',
+        `${label} has duplicate ${l.type} link to '${l.id}'`);
+    }
+    seen.add(edge);
+    const out = { type: l.type, id: l.id };
+    if (l.title !== undefined) {
+      out.title = text(l.title, `${label}[${i}].title`);
+    }
+    return out;
+  });
+}
 
 function closed(v, keys, label) {
   if (v === null || typeof v !== 'object' || Array.isArray(v)) {
@@ -164,6 +207,7 @@ export function validateSpecificationData(data,
       { required: stored }),
     openQuestions: textArray(data.openQuestions, `${label}.openQuestions`,
       { required: stored }),
+    subspecs: subspecLinks(data.subspecs, `${label}.subspecs`),
   };
 }
 

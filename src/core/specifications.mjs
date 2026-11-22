@@ -14,7 +14,7 @@ import {
 
 const SPEC_INPUT_KEYS = new Set([
   'originalRequest', 'title', 'outcome', 'requirements', 'scope',
-  'constraints', 'nonGoals', 'openQuestions', 'references',
+  'constraints', 'nonGoals', 'openQuestions', 'references', 'subspecs',
 ]);
 const DESIGN_INPUT_KEYS = new Set([
   'specId', 'title', 'body', 'references',
@@ -43,11 +43,22 @@ export function prepareSpecification(ctx, input) {
     constraints: input.constraints,
     nonGoals: input.nonGoals,
     openQuestions: input.openQuestions,
+    subspecs: input.subspecs,
   }, 'specification input');
   // Prepare-time containment: scope paths must resolve inside the project
   // (rejects junction/link escapes the lexical check cannot see).
   for (const s of data.scope) {
     resolveInside(ctx.projectRoot, s, 'specification scope');
+  }
+  // Sub-spec links are fail-closed: every declared target must be an
+  // existing spec artifact — a dangling link is rejected at write time.
+  for (const l of data.subspecs) {
+    try {
+      getArtifact(ctx, 'spec', l.id);
+    } catch (e) {
+      throw err('NOT_FOUND',
+        `subspec link ${l.type} targets missing spec '${l.id}'`);
+    }
   }
   // Stored body is EXACTLY the renderer output — never re-summarized.
   const body = renderSpecification(
