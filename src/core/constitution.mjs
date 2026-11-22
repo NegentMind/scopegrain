@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import { err } from './errors.mjs';
-import { resolveInside } from './paths.mjs';
+import { configRel, resolveInside } from './paths.mjs';
 import { lstatOrNull, readFileLimited, decodeUtf8Strict } from './fsx.mjs';
 import { loadLimits } from './policy.mjs';
 
@@ -19,7 +19,7 @@ const FILE_KEYS = new Set([
   'createdAt', 'updatedAt',
 ]);
 
-const rel = (ctx) => `${ctx.configDir}/constitution.json`;
+const rel = (ctx) => configRel(ctx, 'constitution.json');
 
 function parseSemver(v) {
   const m = String(v).match(SEMVER_RE);
@@ -150,8 +150,9 @@ export function setConstitution(ctx, input) {
   };
   const abs = resolveInside(ctx.projectRoot, rel(ctx), 'constitution');
   const tmp = `${abs}.tmp-${process.pid}`;
-  fs.mkdirSync(resolveInside(
-    ctx.projectRoot, ctx.configDir, 'config dir'), { recursive: true });
+  const dirAbs = ctx.configDir === '.' ? ctx.projectRoot
+    : resolveInside(ctx.projectRoot, ctx.configDir, 'config dir');
+  fs.mkdirSync(dirAbs, { recursive: true });
   fs.writeFileSync(tmp, JSON.stringify(doc, null, 2) + '\n', { flag: 'wx' });
   try { fs.renameSync(tmp, abs); }
   catch (e) {

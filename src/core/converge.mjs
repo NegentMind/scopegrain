@@ -7,7 +7,7 @@
 
 import fs from 'node:fs';
 import { err } from './errors.mjs';
-import { resolveInside } from './paths.mjs';
+import { configRel, resolveInside } from './paths.mjs';
 import { lstatOrNull } from './fsx.mjs';
 import { getTask } from './tasks.mjs';
 import { getArtifact } from './artifacts.mjs';
@@ -94,7 +94,7 @@ export function evaluateConvergence(ctx, task) {
 }
 
 function convergenceDir(ctx) {
-  return `${ctx.configDir}/convergence`;
+  return configRel(ctx, `convergence`);
 }
 
 // Persist a convergence record create-only: NNN is the next monotonic

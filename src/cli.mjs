@@ -7,7 +7,7 @@ import readline from 'node:readline/promises';
 import { err, toErrorPayload } from './core/errors.mjs';
 import { DEFAULT_PATH_PROPOSALS, KNOWN_HOSTS, PATH_KEYS, VERSIONING_KEYS, loadConfig, resolveConfigPath, validateMethodologyMode } from './core/config.mjs';
 import { resolveContext } from './core/context.mjs';
-import { resolveInside, resolveProjectRoot } from './core/paths.mjs';
+import { configRel, resolveInside, resolveProjectRoot } from './core/paths.mjs';
 import {
   decodeUtf8Strict, mkdirpSync, readFileLimited, writeFileExclusive,
 } from './core/fsx.mjs';
@@ -1504,7 +1504,7 @@ async function cmdContext(flags) {
   } catch { /* journal absent or unreadable — surface as 0 */ }
   // User-owned session-start knowledge: .scopegrain/context.md, bounded.
   const CONTEXT_MD_MAX = 32 * 1024;
-  const contextMdPath = `${ctx.configDir}/context.md`;
+  const contextMdPath = configRel(ctx, `context.md`);
   let userContext = null;
   try {
     const raw = fs.readFileSync(
@@ -1533,8 +1533,8 @@ async function cmdContext(flags) {
   return {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
-    instructions: `${ctx.configDir}/instructions.md`,
-    config: `${ctx.configDir}/config.json`,
+    instructions: configRel(ctx, `instructions.md`),
+    config: configRel(ctx, `config.json`),
     userContext, sessions,
     project: { name: ctx.projectName ?? null, root: ctx.projectRoot },
     workspace: {
@@ -1925,12 +1925,12 @@ async function cmdVantaDB(sub, positional, flags) {
       ? path.resolve(flags['--install-dir']) : defaultInstallRoot();
     const explicitBinary = flags['--binary'] ? path.resolve(flags['--binary']) : null;
     const asset = explicitBinary ? null : releaseAsset(version);
-    const configRel = `${ctx.configDir}/vantadb.json`;
+    const vantaCfgRel = configRel(ctx, 'vantadb.json');
     if (!flags['--apply']) {
       return {
         preview: true, version, storagePath, installRoot,
         binary: explicitBinary ?? `download ${asset.name}`,
-        asset, configRel,
+        asset, configRel: vantaCfgRel,
       };
     }
     let binaryPath;

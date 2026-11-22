@@ -226,8 +226,8 @@ function expandAlternates(word) {
     left.lastIndexOf('.'), left.lastIndexOf('_'));
   const prefix = sep >= 0 ? left.slice(0, sep + 1) : '';
   return [left, ...parts.slice(1)
-    .map((p) => (prefix !== '' && p.startsWith(prefix) ? p : prefix + p))
-    .filter((s) => s !== '')];
+    .map((p) => (prefix !== '' && p.startsWith(prefix) ? p : prefix + p))]
+    .filter((s) => s !== '');
 }
 
 function creditInvocation(args, verbs, firstWords, referenced, stale) {

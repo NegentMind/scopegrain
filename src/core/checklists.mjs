@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
-import { resolveInside } from './paths.mjs';
+import { configRel, resolveInside } from './paths.mjs';
 import { lstatOrNull, readFileLimited, decodeUtf8Strict } from './fsx.mjs';
 import { loadLimits } from './policy.mjs';
 import { getTask } from './tasks.mjs';
@@ -16,8 +16,7 @@ import { getTask } from './tasks.mjs';
 const ITEM_STATUSES = new Set(['pending', 'pass', 'fail', 'na']);
 const CHK_RE = /^CHK[0-9]{3}$/;
 
-const dirRel = (ctx) =>
-  (ctx.configDir === '.' ? 'checklists' : `${ctx.configDir}/checklists`);
+const dirRel = (ctx) => configRel(ctx, 'checklists');
 const fileRel = (ctx, id) => `${dirRel(ctx)}/${id.toLowerCase()}.json`;
 
 function closed(obj, keys, label) {

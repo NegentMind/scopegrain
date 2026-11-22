@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import { err } from './errors.mjs';
 import { assertSafeId } from './identifiers.mjs';
-import { resolveInside } from './paths.mjs';
+import { configRel, resolveInside } from './paths.mjs';
 import { lstatOrNull, readFileLimited, decodeUtf8Strict } from './fsx.mjs';
 import { loadLimits } from './policy.mjs';
 import { getTask } from './tasks.mjs';
@@ -19,7 +19,7 @@ import { analyzeTask } from './analyze.mjs';
 import { evaluateMethodology } from './methodology.mjs';
 import { markChecklistItem, checklistFindings } from './checklists.mjs';
 
-const RUN_DIR = (ctx) => `${ctx.configDir}/workflow-runs`;
+const RUN_DIR = (ctx) => configRel(ctx, `workflow-runs`);
 
 // Whitelisted step operations — the trust boundary. New ops must map to
 // existing core functions; 'shell' or arbitrary commands are rejected at

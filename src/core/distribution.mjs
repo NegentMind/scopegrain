@@ -11,7 +11,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
 import { assertSafeId } from './identifiers.mjs';
-import { isInside, resolveInside } from './paths.mjs';
+import { configRel, isInside, resolveInside } from './paths.mjs';
 import { loadWorkspaceCatalog } from './catalog.mjs';
 import {
   applyJournaledCreation, applyJournaledRecordUpdate,
@@ -227,7 +227,7 @@ const REGISTRY_RELS = {
 };
 
 function loadRegistry(ctx, kind) {
-  const rel = `${ctx.configDir}/${REGISTRY_RELS[kind]}`;
+  const rel = configRel(ctx, REGISTRY_RELS[kind]);
   const abs = resolveInside(ctx.projectRoot, rel, `${kind} registry`);
   const st = lstatOrNull(abs);
   if (!st) return { schemaVersion: 1, [kind]: [] };
@@ -272,7 +272,7 @@ function atomicWriteFile(abs, bytes) {
 
 function distJournalAbs(ctx) {
   return resolveInside(ctx.projectRoot,
-    `${ctx.configDir}/${DIST_JOURNAL_REL}`, 'dist journal');
+    configRel(ctx, DIST_JOURNAL_REL), 'dist journal');
 }
 
 // Bounded scan of the trail: highest global revision plus the highest
@@ -397,7 +397,7 @@ function tryBindDist(ctx) {
 // Unbound: temp+rename directly. Either way the mutation lands in the
 // dist journal with its previous/new hashes.
 function commitRegistryFile(ctx, { registry, rel, bytes, op, id = null }) {
-  const cfgRel = `${ctx.configDir}/${rel}`;
+  const cfgRel = configRel(ctx, rel);
   const abs = resolveInside(ctx.projectRoot, cfgRel, `${registry} registry`);
   const st = lstatOrNull(abs);
   if (st && (st.isSymbolicLink() || !st.isFile())) {
@@ -446,7 +446,7 @@ function saveRegistry(ctx, kind, doc, meta) {
 // whole load+save cycle so two CLIs cannot interleave a lost update.
 export function withDistLock(ctx, fn) {
   const lockAbs = resolveInside(ctx.projectRoot,
-    `${ctx.configDir}/dist.lock`, 'dist lock');
+    configRel(ctx, 'dist.lock'), 'dist lock');
   fs.mkdirSync(path.dirname(lockAbs), { recursive: true });
   const lock = acquireVerifiedLock(lockAbs, 'DIST_LOCKED',
     'another distribution operation holds the lock');
@@ -716,7 +716,7 @@ export function installBundle(ctx, bundleDoc, sources, { apply = false } = {}) {
         `bundle entry '${req.id}' sha256 mismatch`);
     }
   }
-  const destRel = `${ctx.configDir}/bundles/${bundle.id}`;
+  const destRel = configRel(ctx, `bundles/${bundle.id}`);
   const destAbs = resolveInside(ctx.projectRoot, destRel, 'bundle install');
   const plan = files.map((f) => ({
     rel: `${destRel}/${f.rel}`, sha256: f.sha256,
@@ -824,7 +824,7 @@ export function installBundle(ctx, bundleDoc, sources, { apply = false } = {}) {
 const MOUNTED_REL = 'mounted-catalog.json';
 
 export function loadMounted(ctx) {
-  const rel = `${ctx.configDir}/${MOUNTED_REL}`;
+  const rel = configRel(ctx, MOUNTED_REL);
   const abs = resolveInside(ctx.projectRoot, rel, 'mounted catalog');
   const st = lstatOrNull(abs);
   if (!st) return { schemaVersion: 1, entries: [] };
@@ -850,7 +850,7 @@ function saveMounted(ctx, doc, meta) {
 }
 
 function loadProvenance(ctx, bundleId) {
-  const rel = `${ctx.configDir}/bundles/${bundleId}/provenance.json`;
+  const rel = configRel(ctx, `bundles/${bundleId}/provenance.json`);
   const abs = resolveInside(ctx.projectRoot, rel, 'bundle provenance');
   const st = lstatOrNull(abs);
   if (!st || st.isSymbolicLink() || !st.isFile()) {
@@ -903,7 +903,7 @@ export function mountBundle(ctx, bundleId) {
       }
       const i = mounted.entries.findIndex(
         (x) => `${x.kind}/${x.id}`.toLowerCase() === key);
-      const fileRel = `${ctx.configDir}/bundles/${bundleId}/${e.file}`;
+      const fileRel = configRel(ctx, `bundles/${bundleId}/${e.file}`);
       const fileAbs = resolveInside(
         ctx.projectRoot, fileRel, 'mounted resource');
       const fst = lstatOrNull(fileAbs);
@@ -954,7 +954,7 @@ export function uninstallBundle(ctx, bundleId, { keepFiles = false } = {}) {
   return withDistLock(ctx, () => {
     const unmounted = unmountInner(ctx, bundleId);
     const provAbs0 = resolveInside(ctx.projectRoot,
-      `${ctx.configDir}/bundles/${bundleId}/provenance.json`,
+      configRel(ctx, `bundles/${bundleId}/provenance.json`),
       'bundle provenance');
     const provSt = lstatOrNull(provAbs0);
     const provSha = (provSt && provSt.isFile() && !provSt.isSymbolicLink())
@@ -965,7 +965,7 @@ export function uninstallBundle(ctx, bundleId, { keepFiles = false } = {}) {
     const deleted = [];
     const leftBehind = [];
     if (!keepFiles) {
-      const baseRel = `${ctx.configDir}/bundles/${bundleId}`;
+      const baseRel = configRel(ctx, `bundles/${bundleId}`);
       for (const f of prov.files ?? []) {
         // Provenance is disk data: rel paths MUST stay inside the bundle
         // directory or a tampered provenance would delete unrelated files.
@@ -1003,7 +1003,7 @@ export function uninstallBundle(ctx, bundleId, { keepFiles = false } = {}) {
     distJournalAppend(ctx, {
       at: new Date().toISOString(), op: 'bundle-uninstall',
       registry: 'bundles', id: bundleId,
-      rel: `${ctx.configDir}/bundles/${bundleId}/provenance.json`,
+      rel: configRel(ctx, `bundles/${bundleId}/provenance.json`),
       previousSha256: provSha, newSha256: null, journaled: false,
       keepFiles,
     }, distJournalState(ctx, 'bundles'));
@@ -1021,10 +1021,10 @@ const SELFTEST_ID = 'scopegrain-selftest';
 
 export function selfTestDist(ctx) {
   const steps = [];
-  const scratchRel = `${ctx.configDir}/selftest-scratch`;
+  const scratchRel = configRel(ctx, 'selftest-scratch');
   const scratchAbs = resolveInside(
     ctx.projectRoot, scratchRel, 'selftest scratch');
-  const bundleRel = `${ctx.configDir}/bundles/${SELFTEST_ID}`;
+  const bundleRel = configRel(ctx, `bundles/${SELFTEST_ID}`);
   const step = (name, fn) => {
     try {
       const detail = fn();

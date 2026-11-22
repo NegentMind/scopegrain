@@ -8,7 +8,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { err } from '../core/errors.mjs';
 import { readJsonFile, mkdirpSync, writeFileExclusive, removeIfExists }
   from '../core/fsx.mjs';
-import { resolveInside } from '../core/paths.mjs';
+import { configRel, resolveInside } from '../core/paths.mjs';
 import { listJournalAcked, listJournalPending } from '../core/journal.mjs';
 import { loadJournalPolicy } from '../core/policy.mjs';
 import { canonicalDigest } from '../core/digests.mjs';
@@ -83,7 +83,7 @@ export function defaultStoragePath() {
 }
 
 export function vantaDBConfigAbs(ctx) {
-  return resolveInside(ctx.projectRoot, `${ctx.configDir}/${CONFIG_REL}`, 'vantadb config');
+  return resolveInside(ctx.projectRoot, configRel(ctx, `${CONFIG_REL}`), 'vantadb config');
 }
 
 // vantadb.json lives inside the (possibly versioned) config dir, so a

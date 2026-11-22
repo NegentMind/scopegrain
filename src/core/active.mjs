@@ -7,7 +7,7 @@
 
 import fs from 'node:fs';
 import { err } from './errors.mjs';
-import { resolveInside } from './paths.mjs';
+import { configRel, resolveInside } from './paths.mjs';
 import { lstatOrNull, readFileLimited, decodeUtf8Strict } from './fsx.mjs';
 import { getTask, listTasks, taskBySlug } from './tasks.mjs';
 
@@ -16,7 +16,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function activeTaskRel(ctx) {
-  return `${ctx.configDir}/${POINTER_REL}`;
+  return configRel(ctx, POINTER_REL);
 }
 
 // Resolve a user reference (uuid or NNN-slug) to a stored task record.

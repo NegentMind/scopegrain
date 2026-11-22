@@ -9,15 +9,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
-import { resolveInside, assertDestination } from './paths.mjs';
+import { configRel, resolveInside, assertDestination } from './paths.mjs';
 import {
   lstatOrNull, readFileLimited, decodeUtf8Strict,
 } from './fsx.mjs';
 import { loadLimits } from './policy.mjs';
 
 const RUNTIMES = new Set(['node', 'sh', 'pwsh', 'python']);
-const dirRel = (ctx) => `${ctx.configDir}/helpers`;
-const manifestRel = (ctx) => `${ctx.configDir}/helpers.json`;
+const dirRel = (ctx) => configRel(ctx, `helpers`);
+const manifestRel = (ctx) => configRel(ctx, `helpers.json`);
 
 function readManifest(ctx) {
   const rel = manifestRel(ctx);

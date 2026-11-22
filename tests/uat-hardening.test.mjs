@@ -119,6 +119,31 @@ test('mixed alternation credits the real half and flags the bogus half', () => {
   assert.ok([...r.stale].some((s) => s.includes('bogus')));
 });
 
+test('alternation edge forms: full-prefix right side and empty parts', () => {
+  // 'activate|extension-deactivate': the right side already carries the
+  // shared prefix and is used verbatim — not 'extension-extension-*'.
+  const r = scanDocText(
+    fenced('dist extension-activate|extension-deactivate'), VERBS);
+  assert.deepEqual([...r.stale], []);
+  // Trailing 'a|' produces no empty stale candidate.
+  const t = scanDocText(fenced('constitution show|'), VERBS);
+  assert.ok(![...t.stale].includes(''));
+});
+
+test('extra file headers inside or after a hunk mark malformed', () => {
+  // A second '--- '/'+++ ' pair at file level, or one after a hunk,
+  // means the diff is crafted or truncated — never silently skipped.
+  const crafted = [
+    'diff --git a/docs/x.md b/docs/x.md',
+    '--- a/docs/x.md', '+++ b/docs/x.md',
+    '@@ -1 +1,2 @@', '-old', '+new', '+extra',
+    '+++spawn(hostile)',
+  ].join('\n');
+  const r = classifyRisk(parseUnifiedDiff(crafted));
+  assert.equal(r.risk, 'high');
+  assert.ok(r.reasons.some((x) => x.signal === 'undecidable'));
+});
+
 // R5: `task checklist --input` and `specification clarify --input`
 // follow the preview convention — nothing is written without --apply
 // (UAT: both mutated immediately on a bare invocation).

@@ -57,6 +57,13 @@ function validateSegment(seg, original) {
 // colon (drives and ADS), <>|?* characters, POSIX and win32 absolutes,
 // UNC, '..', '.', empty segments, trailing space/dot and device names.
 // Unicode letters are preserved; only ASCII-restricted names are rejected.
+// Joins a name under ctx.configDir. A root-level config file yields
+// configDir '.', which toCanonicalRelative rejects as a path segment —
+// collapse it so `${configDir}/x` call sites never produce './x'.
+export function configRel(ctx, name) {
+  return ctx.configDir === '.' ? name : `${ctx.configDir}/${name}`;
+}
+
 export function toCanonicalRelative(input, label = 'path') {
   if (typeof input !== 'string') {
     throw err('INVALID_PATH', `${label} must be a string`);
