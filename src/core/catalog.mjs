@@ -666,15 +666,72 @@ function mergeMounted(cat, configDir, containmentRoot, verify) {
   return cat;
 }
 
+// Per-process reuse of the verified workspace catalog. The eager sha256
+// pass over every snapshot and mounted entry is repeated only when the
+// fingerprint changes: manifest and mounted-catalog bytes hashed (two
+// small files) plus a size+mtimeMs stat tuple for every covered entry
+// file. Any stat-changing write invalidates; a stat-preserving byte edit
+// escapes only the eager pass — getResource re-hashes served bytes, so
+// delivery still fails closed. That narrows the eager-detection window
+// to the same TOCTOU caveat already documented for on-disk state.
+// Callers must not mutate the returned catalog's containers.
+const VERIFIED_CACHE_MAX = 64;
+const verifiedCache = new Map();
+
+function coveredFileTuple(abs) {
+  const st = lstatOrNull(abs);
+  return st !== null && st.isFile() ? `${st.size}:${st.mtimeMs}` : 'absent';
+}
+
+function verifyFingerprint(cat, manifestAbs, mountedAbs, configDir) {
+  const lim = loadLimits().maxDocumentBytes;
+  const fileSha = (abs) => {
+    if (lstatOrNull(abs) === null) return 'absent';
+    const l = readFileLimited(abs, lim);
+    return l.exceeded ? 'exceeded'
+      : crypto.createHash('sha256').update(l.content).digest('hex');
+  };
+  const parts = [fileSha(manifestAbs), fileSha(mountedAbs)];
+  for (const e of cat.entries) {
+    parts.push(coveredFileTuple(path.join(configDir, e.path)));
+  }
+  return parts.join('|');
+}
+
 export function loadWorkspaceCatalog(ctx, { verifyResources = true } = {}) {
   const configDir = ctx.configDir === '.'
     ? ctx.projectRoot
     : resolveInside(ctx.projectRoot, ctx.configDir, 'config directory');
-  const cat = loadCatalog({
-    installRoot: configDir, manifestRel: 'catalog.json', verifyResources,
+  const load = (verify) => mergeMounted(loadCatalog({
+    installRoot: configDir, manifestRel: 'catalog.json',
+    verifyResources: verify,
     snapshot: true, containmentRoot: ctx.projectRoot,
+  }), configDir, ctx.projectRoot, verify);
+  if (!verifyResources) return load(false);
+  const manifestAbs = path.join(configDir, 'catalog.json');
+  const mountedAbs = path.join(configDir, 'mounted-catalog.json');
+  const key = path.resolve(configDir);
+  // Metadata-only parse first: manifest corruption still fails closed,
+  // and its entry list defines which files the fingerprint must cover.
+  const fingerprint = verifyFingerprint(
+    load(false), manifestAbs, mountedAbs, configDir);
+  const hit = verifiedCache.get(key);
+  if (hit && hit.fingerprint === fingerprint) {
+    verifiedCache.delete(key);
+    verifiedCache.set(key, hit);
+    const c = hit.catalog;
+    return { ...c, entries: c.entries.slice(), byKey: new Map(c.byKey),
+      aliases: c.aliases?.slice(), warnings: c.warnings?.slice() };
+  }
+  const cat = load(true);
+  verifiedCache.set(key, {
+    fingerprint: verifyFingerprint(cat, manifestAbs, mountedAbs, configDir),
+    catalog: cat,
   });
-  return mergeMounted(cat, configDir, ctx.projectRoot, verifyResources);
+  if (verifiedCache.size > VERIFIED_CACHE_MAX) {
+    verifiedCache.delete(verifiedCache.keys().next().value);
+  }
+  return cat;
 }
 
 // Alias/mode resolution for a requested command invocation.

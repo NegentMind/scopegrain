@@ -424,6 +424,13 @@ the subset fails loudly.
   detection (conflict/drift), not mutual exclusion with actors outside
   the lock. On Windows, path identity comparison follows the
   filesystem's case-insensitive semantics.
+- Verified catalog reuse: `loadWorkspaceCatalog` re-runs the full
+  sha256 pass only when a fingerprint changes (manifest and
+  mounted-catalog hashes plus size+mtimeMs tuples for every covered
+  entry). A size- and mtime-preserving edit escapes only eager
+  detection; `getResource` re-hashes served bytes, so delivery still
+  fails closed. Same limit family as the TOCTOU window, made
+  explicit.
 - Artifact persistence model: flow-forward. Formal artifacts (specs,
   designs, outcomes, checklists, clarifications, convergence records)
   are immutable once created: a new iteration produces a new chained

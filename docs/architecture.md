@@ -398,6 +398,13 @@ un esquema editado con keywords fuera del subconjunto falla en voz alta.
   En Windows la comparacion de identidad de rutas sigue la semantica
   case-insensitive del filesystem; un atacante que pueda alternar el
   case de un componente dentro de la ventana queda fuera del modelo.
+- Reutilizacion del catalogo verificado: `loadWorkspaceCatalog` repite
+  la verificacion sha256 completa solo cuando cambia un fingerprint
+  (hash de manifest y mounted-catalog mas tuplas size+mtimeMs de cada
+  entrada). Una edicion que preserve size y mtime escapa solo a la
+  deteccion ansiosa; `getResource` re-hashea los bytes servidos, asi
+  que la entrega sigue fallando cerrado. Misma familia de limite que
+  el TOCTOU anterior, explicita.
 - Catalogos remotos: non-goal permanente. Toda la maquinaria de
   distribucion (`distribution.mjs`: stack, bundles, extensiones,
   presets, mounted layer) opera solo sobre URIs `file://`; las URIs
