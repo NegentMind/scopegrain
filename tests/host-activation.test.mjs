@@ -13,6 +13,7 @@ import {
 } from '../src/hosts/activation.mjs';
 import { KNOWN_HOSTS, createConfig } from '../src/core/config.mjs';
 import { renderNativeAdapters } from '../src/hosts/native.mjs';
+import { renderAdapters } from '../src/hosts/render.mjs';
 import { applyPlan } from '../src/core/bootstrap.mjs';
 import {
   DEFAULT_ANSWERS, cleanup, exists, makeTempDir, readJson, writeFile,
@@ -348,4 +349,51 @@ test('applied destinations parse per host format (all admitted hosts)', () => {
       }
     } finally { cleanup(dir); }
   }
+});
+
+test('generic adapter contract: .agent/ roots only, create-only, noop re-apply', () => {
+  const { dir, ctx } = fixture(['generic']);
+  try {
+    const preview = prepareActivation(ctx, { host: 'generic' });
+    assert.equal(preview.host, 'generic');
+    assert.ok(preview.files.length > 0);
+    // Contract: every destination lives under the .agent/ convention
+    // roots — nothing outside, nothing global.
+    assert.ok(preview.files.every((f) => f.rel.startsWith('.agent/')),
+      'generic destinations must stay under .agent/');
+    assert.ok(preview.files.some(
+      (f) => /^\.agent\/skills\/[^/]+\/SKILL\.md$/.test(f.rel)));
+    assert.ok(preview.files.some(
+      (f) => /^\.agent\/agents\/[^/]+\.md$/.test(f.rel)));
+    const first = applyActivation(ctx, { host: 'generic' });
+    assert.ok(first.applied > 0);
+    assert.ok(exists(dir, '.agent/skills'));
+    assert.ok(exists(dir, '.agent/agents'));
+    const second = applyActivation(ctx, { host: 'generic' });
+    assert.equal(second.applied, 0);
+  } finally { cleanup(dir); }
+});
+
+test('generic MCP fragment is a disabled stdio scaffold', () => {
+  const dir = makeTempDir('gmcp');
+  try {
+    const config = createConfig(dir,
+      { ...DEFAULT_ANSWERS, hosts: ['generic'] }, {});
+    const cfgAbs = path.join(dir, CFG);
+    const rendered = renderAdapters(config, {
+      projectRoot: dir, configPath: cfgAbs,
+      instructionsPath: path.join(dir, 'instructions.md'),
+      serverPath: path.join(dir, 'server.mjs'),
+    });
+    const mcp = rendered.files.find(
+      (f) => /generic-mcp\.json$/.test(f.relativePath));
+    assert.ok(mcp, 'generic-mcp.json must be emitted');
+    const doc = JSON.parse(mcp.content);
+    // Contract: stdio shape, disabled:true forces manual opt-in merge,
+    // note discloses the scaffold status.
+    assert.equal(doc.mcpServers.scopegrain.type, 'stdio');
+    assert.equal(doc.mcpServers.scopegrain.command, 'node');
+    assert.equal(doc.mcpServers.scopegrain.disabled, true);
+    assert.match(doc.note, /scaffold|manual/i);
+  } finally { cleanup(dir); }
 });

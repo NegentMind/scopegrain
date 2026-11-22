@@ -8,7 +8,9 @@ kind: guide
 > (`en/native-hosts.md`). La version en ingles prevalece.
 
 Scopegrain comparte procedimientos canonicos y snapshots de proyecto entre
-cinco hosts documentados, mas un host provisional admitido (Hermes). Los
+cinco hosts documentados, mas un host provisional admitido (Hermes) y un
+adaptador de reserva `generic` no certificado (scaffold para hosts MCP
+stdio sin adaptador dedicado). Los
 archivos nativos son puentes delgados, no implementaciones mantenidas de
 forma independiente. El namespace `scopegrain-` evita reemplazar built-ins.
 
@@ -98,6 +100,31 @@ de YAML 1.2, de modo que puede revisarse contra la forma YAML
 documentada) con `enabled: false`. Todas las raices de Hermes son rutas
 globales bajo `~/.hermes/`; el harness nunca las escribe — ver el
 contrato de activacion abajo.
+
+## Adaptador `generic` (scaffold no certificado)
+
+`generic` es el adaptador de reserva para hosts capaces de MCP por stdio
+que no tienen adaptador dedicado. NO esta certificado contra ningun
+producto: ningun host real reclama las raices `.agent/` — son una
+convencion local de proyecto que el propietario debe apuntar
+manualmente. Su contrato de salida:
+
+- Puentes de skills y comandos en `.agent/skills/<nombre>/SKILL.md`
+  (`commandFormat: 'skill'` — los comandos se proyectan como skills).
+- Puentes de agentes en `.agent/agents/<nombre>.md` — markdown plano
+  sin frontmatter.
+- Fragmento MCP `integrations/generic-mcp.json` con la forma JSON stdio
+  comun: `{note, mcpServers.scopegrain:{type:'stdio', command:'node',
+  args, disabled:true}}`. El `disabled:true` fuerza el opt-in: el
+  fragmento se fusiona a mano tras revision; el harness nunca escribe
+  config de host.
+- La etiqueta `invocation: 'workflow NAME'` es una convencion
+  documental dentro del texto de los puentes; nada la hace cumplir.
+
+`host activate --host generic --apply` materializa las raices `.agent/`
+bajo el proyecto, create-only y sin escrituras globales — igual que
+cualquier otro host. Sin piloto: no existe certificacion de que ningun
+binario descubra o haga cumplir estas raices.
 
 ## Permisos y modelos
 
@@ -232,6 +259,41 @@ interrupcion/reanudacion, recuperacion sin repetir efectos y limpieza
 solo de la configuracion propia aprobada. Conservar transcripts,
 versiones reales, logs y diffs completos. El exito en un host o
 superficie no certifica a otro.
+
+### Procedimiento de certificacion de piloto
+
+Procedimiento manual por host/superficie. Es una accion del owner: la
+ejecucion requiere un host real instalado y aprobacion explicita de
+cualquier herramienta, modelo, red o costo asociado.
+
+1. **Preparacion aislada.** Proyecto fixture nuevo (no el repo de
+   desarrollo): `scopegrain init`, catalogo proyectado, `host activate
+   --host <H> [--surface S] --apply`. Registrar versiones reales del
+   host, del runtime `node` y del OS en la evidencia.
+2. **Descubrimiento.** Sesion fresca del host real: verificar que las
+   skills/puentes aparecen sin pasos manuales no documentados, que el
+   namespace `scopegrain-` no colisiona con built-ins y que el fragmento
+   MCP carga el servidor (o permanece deshabilitado si el fragmento lo
+   declara).
+3. **Invocacion.** Ejecutar al menos una skill `scopegrain-*` y una
+   herramienta MCP de solo lectura (p. ej. `scopegrain_status`);
+   verificar salida correcta contra el estado del fixture.
+4. **Denegaciones.** En rol de solo lectura intentar una operacion de
+   escritura nativa y una via MCP de terceros: ambas deben fallar o
+   pedir aprobacion — documentar el alcance real (la denegacion nativa
+   no aísla efectos MCP externos, ver el piloto Antigravity).
+5. **Interrupcion y reanudacion.** Cortar una operacion a mitad y
+   reanudar: sin repeticion de efectos, sin estado corrupto.
+6. **Limpieza.** Desactivar y borrar solo la configuracion aprobada del
+   fixture; verificar que no quedan rastros en config global del host.
+7. **Evidencia.** Conservar transcript completo, diffs de archivos
+   escritos, versiones y logs. Registrar el resultado en este documento
+   (Estado) con fecha — un host/superficie certificado no implica
+   ningun otro.
+
+Criterio de certificado: los 7 pasos ejecutados con evidencia archivada.
+Criterio de fallo: cualquier paso sin verificar deja el host/superficie
+como "sin piloto" — nunca "certificado parcial".
 
 ## Fuentes
 

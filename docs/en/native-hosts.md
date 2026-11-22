@@ -5,7 +5,9 @@ kind: guide
 # Native Host Projections
 
 Scopegrain shares canonical procedures and project snapshots across five
-documented hosts, plus one admitted provisional host (Hermes). Native
+documented hosts, plus one admitted provisional host (Hermes) and an
+uncertified `generic` fallback adapter (scaffold for stdio MCP hosts
+without a dedicated adapter). Native
 files are thin bridges, not independently maintained implementations.
 The `scopegrain-` namespace avoids replacing built-ins.
 
@@ -87,6 +89,30 @@ The companion fragment `integrations/hermes-mcp.json` wraps a
 so it can be reviewed against the documented YAML shape) with
 `enabled: false`. All Hermes roots are global paths under `~/.hermes/`;
 the harness never writes them — see the activation contract below.
+
+## `generic` Adapter (Uncertified Scaffold)
+
+`generic` is the fallback adapter for stdio MCP-capable hosts without a
+dedicated adapter. It is NOT certified against any product: no real host
+claims the `.agent/` roots — they are a project-local convention the
+owner must point at manually. Its output contract:
+
+- Skill and command bridges at `.agent/skills/<name>/SKILL.md`
+  (`commandFormat: 'skill'` — commands project as skills).
+- Agent bridges at `.agent/agents/<name>.md` — plain markdown, no
+  frontmatter.
+- MCP fragment `integrations/generic-mcp.json` in the common stdio JSON
+  shape: `{note, mcpServers.scopegrain:{type:'stdio', command:'node',
+  args, disabled:true}}`. The `disabled:true` forces opt-in: the
+  fragment is merged by hand after review; the harness never writes host
+  configuration.
+- The `invocation: 'workflow NAME'` label is a documentation convention
+  inside bridge text; nothing enforces it.
+
+`host activate --host generic --apply` materializes the `.agent/` roots
+under the project, create-only and without global writes — like any
+other host. No pilot: there is no certification that any binary
+discovers or enforces these roots.
 
 ## Permissions And Models
 
@@ -202,6 +228,40 @@ unapproved MCP/network effects, delegation, interruption/resumption,
 recovery without repeating effects and cleanup of only approved owned
 configuration. Keep transcripts, actual versions, logs and full diffs.
 Success on one host or surface does not certify another.
+
+### Pilot certification procedure
+
+Manual per host/surface. It is an owner action: execution requires a
+real installed host and explicit approval of any associated tool,
+model, network or cost.
+
+1. **Isolated setup.** Fresh fixture project (not the development
+   repo): `scopegrain init`, projected catalog, `host activate
+   --host <H> [--surface S] --apply`. Record real versions of the host,
+   the `node` runtime and the OS in the evidence.
+2. **Discovery.** Fresh session of the real host: verify the
+   skills/bridges appear without undocumented manual steps, the
+   `scopegrain-` namespace does not collide with built-ins, and the MCP
+   fragment loads the server (or stays disabled when the fragment says
+   so).
+3. **Invocation.** Run at least one `scopegrain-*` skill and one
+   read-only MCP tool (e.g. `scopegrain_status`); verify output
+   against the fixture state.
+4. **Denials.** In a read-only role attempt one native write operation
+   and one third-party MCP call: both must fail or request approval —
+   document the real scope (native denial does not isolate external
+   MCP effects, see the Antigravity pilot).
+5. **Interruption and resumption.** Cut an operation mid-flight and
+   resume: no repeated effects, no corrupt state.
+6. **Cleanup.** Deactivate and remove only the approved fixture
+   configuration; verify no traces remain in global host config.
+7. **Evidence.** Keep the full transcript, diffs of written files,
+   versions and logs. Record the result in this document (Status) with
+   date — one certified host/surface implies none of the others.
+
+Certified criterion: all 7 steps executed with archived evidence.
+Failure criterion: any unverified step leaves the host/surface as
+"without pilot" — never "partially certified".
 
 ## Sources
 
