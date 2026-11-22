@@ -4,12 +4,14 @@
 // semantics for metadata-less V3 and fail-closed bounds for V1/V4+.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkMethodology, evaluateMethodology }
+import { checkMethodology, evaluateMethodology, evaluateTaskActions }
   from '../src/core/methodology.mjs';
+import { transitionTask, updateTaskMeta } from '../src/core/transition.mjs';
+import { prepareOutcomeEvidence } from '../src/core/outcomes.mjs';
 import { createTask, getTask, taskFilePath } from '../src/core/tasks.mjs';
 import fs from 'node:fs';
 import {
-  approve, assessment, formalFixture,
+  approve, assessment, formalFixture, seedState,
 } from './methodology-fixtures.mjs';
 import { bootstrappedCtx, cleanup } from './helpers.mjs';
 
@@ -135,5 +137,88 @@ test('schemaVersion 4 fails closed with METHODOLOGY_REQUIRED', () => {
     assert.equal(r.allowed, false);
     assert.ok(r.issues.some((i) => i.code === 'METHODOLOGY_REQUIRED'
       && i.message.includes('V2 or V3')), JSON.stringify(r.issues));
+  } finally { cleanup(f.dir); }
+});
+
+// The defect's real path: a V2 member of a formal plan upgraded to V3
+// via task meta. static projection excludes V3 fields, so the upgrade
+// keeps digests/approvals valid — and must not trip membership checks.
+test('V3 member of a V2 formal plan passes membership check', () => {
+  const f = formalFixture({ mini: false });
+  try {
+    f.ctx.config.methodology = 'organic-sdd';
+    const member = getTask(f.ctx, f.formalPlan.tasks[0].id);
+    const upgraded = updateTaskMeta(f.ctx, { id: member.id,
+      expectedRevision: member.revision, set: { type: 'feature' } });
+    assert.equal(upgraded.schemaVersion, 3);
+    f.task = getTask(f.ctx, member.id);
+    const r = query(f);
+    assert.ok(!r.issues.some((i) => i.code === 'PLAN_MEMBERSHIP_INVALID'),
+      JSON.stringify(r.issues));
+  } finally { cleanup(f.dir); }
+});
+
+// Outcome evidence: a V3 formal task in REVIEW produces it; a V3 record
+// without the formal pair is still rejected.
+test('prepareOutcomeEvidence accepts V3 formal, rejects V3 without pair', () => {
+  const f = formalFixture();
+  try {
+    f.ctx.config.methodology = 'organic-sdd';
+    const seeded = seedState(f, f.task, 'REVIEW');
+    const upgraded = updateTaskMeta(f.ctx, { id: seeded.id,
+      expectedRevision: seeded.revision, set: { type: 'feature' } });
+    assert.equal(upgraded.schemaVersion, 3);
+    assert.equal(getTask(f.ctx, seeded.id).state, 'REVIEW');
+    const p = prepareOutcomeEvidence(f.ctx, { taskId: seeded.id,
+      title: 'V3 outcome', body: 'declared fixture outcome' });
+    assert.ok(p.artifact && p.file);
+  } finally { cleanup(f.dir); }
+});
+
+// The review blocker: a governed task with empty scope loses 'edit'.
+// The shared predicate must remove it for V3 exactly as for V2, while a
+// metadata-less V3 in manual mode keeps it.
+test('governed V3 with empty scope loses edit like V2', () => {
+  const f = bootstrappedCtx();
+  try {
+    f.ctx.config.methodology = 'organic-sdd';
+    const v3 = createTask(f.ctx, { title: 'V3 empty scope', contract: 'C',
+      authorContext: 'fixture-author', scope: [],
+      methodology: assessment(), type: 'feature' });
+    const v2 = createTask(f.ctx, { title: 'V2 empty scope', contract: 'C',
+      authorContext: 'fixture-author', scope: [],
+      methodology: assessment() });
+    for (const t of [v3, v2]) {
+      transitionTask(f.ctx, { id: t.id, to: 'ACT', expectedRevision: 0 });
+      const { permitted } =
+        evaluateTaskActions(f.ctx, getTask(f.ctx, t.id));
+      assert.ok(!permitted.includes('edit'),
+        `schemaVersion ${t.schemaVersion} must lose edit`);
+    }
+  } finally { cleanup(f.dir); }
+});
+
+test('metadata-less V3 in manual mode keeps edit', () => {
+  const f = bootstrappedCtx();
+  try {
+    f.ctx.config.methodology = 'manual';
+    const t = createTask(f.ctx, { title: 'V3 bare edit', contract: 'C',
+      authorContext: 'fixture-author', scope: [], type: 'ops' });
+    transitionTask(f.ctx, { id: t.id, to: 'ACT', expectedRevision: 0 });
+    const { permitted } =
+      evaluateTaskActions(f.ctx, getTask(f.ctx, t.id));
+    assert.ok(permitted.includes('edit'));
+  } finally { cleanup(f.dir); }
+});
+
+test('V3 without formal pair cannot produce outcome evidence', () => {
+  const f = bootstrappedCtx();
+  try {
+    f.ctx.config.methodology = 'manual';
+    f.task = createTask(f.ctx, { title: 'V3 bare outcome', contract: 'C',
+      authorContext: 'fixture-author', scope: [], type: 'ops' });
+    assert.throws(() => prepareOutcomeEvidence(f.ctx, {
+      taskId: f.task.id, title: 'x', body: 'y' }),
+      /not a formal/);
   } finally { cleanup(f.dir); }
 });

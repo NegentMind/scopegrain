@@ -866,7 +866,7 @@ export function createOwnedPlanStore(ctx, options) {
             || member.designId.toLowerCase() !== current.designId.toLowerCase()
             || member.planKey !== key) {
           throw err('PLAN_MEMBERSHIP_INVALID',
-            `member '${t.key}' lacks matching V2 formal refs`);
+            `member '${t.key}' lacks matching V2/V3 formal refs`);
         }
         for (const r of member.scenarioRefs) {
           union.add(`${r.requirementId}/${r.scenarioId}`);

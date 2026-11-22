@@ -32,7 +32,7 @@ const PROCESS_BOUNDARY = new RegExp(
 // Global so replace() strips every excluded call on a line, not just the
 // first — a line like `db.exec(q); spawn(c)` must still flag `spawn`.
 const PROCESS_EXCLUDE =
-  /(?:re\.exec|regexp\.exec|db\.exec|sql\.exec|conn\.exec|\.execSql|\.execQuery)/gi;
+  /(?:\b(?:re|regexp|db|sql|conn)\.exec|\.execSql|\.execQuery)/gi;
 
 const SHEBANG = /^#!/;
 // Any odd octal digit in the last three positions means an execute bit is
@@ -56,7 +56,8 @@ export function parseUnifiedDiff(text) {
     const m = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
     if (m) {
       cur = { path: m[2], oldPath: m[1], oldMode: null, newMode: null,
-        added: 0, removed: 0, addedLines: [], binary: false };
+        added: 0, removed: 0, addedLines: [], binary: false,
+        malformed: false };
       files.push(cur);
       inHunk = false;
       continue;
@@ -78,6 +79,12 @@ export function parseUnifiedDiff(text) {
         cur.path = line.slice(10).trim();
       } else if (line.startsWith('rename from ')) {
         cur.oldPath = line.slice(12).trim();
+      } else if ((line.startsWith('+') && !line.startsWith('+++'))
+          || (line.startsWith('-') && !line.startsWith('---'))) {
+        // Content-shaped lines outside any hunk mean the diff is malformed
+        // (e.g. an empty line ended hunk tracking) — they cannot prove
+        // passive, so the file is marked undecidable.
+        cur.malformed = true;
       }
       continue;
     }
@@ -154,6 +161,10 @@ export function classifyRisk(parsed) {
     if (f.binary) {
       reasons.push(reason('undecidable', f.path,
         'binary content cannot be inspected'));
+    }
+    if (f.malformed) {
+      reasons.push(reason('undecidable', f.path,
+        'diff lines outside any hunk — malformed input'));
     }
     const hit = f.addedLines.find((l) =>
       PROCESS_BOUNDARY.test(l.replace(PROCESS_EXCLUDE, '')));

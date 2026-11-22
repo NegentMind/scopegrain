@@ -53,7 +53,7 @@ function loadMember(ctx, ref, candidate, issues) {
   return t;
 }
 
-// task is a validated V2 candidate; static fields must be unchanged.
+// task is a validated V2/V3 candidate; static fields must be unchanged.
 export function collectFormalBindings(ctx, task) {
   const issues = [];
   if (task === null || typeof task !== 'object' || Array.isArray(task)
@@ -123,7 +123,7 @@ export function collectFormalBindings(ctx, task) {
           || member.designId.toLowerCase() !== plan.designId?.toLowerCase()
           || member.planKey !== plan.key) {
         issues.push(issue('PLAN_MEMBERSHIP_INVALID',
-          `${label} lacks matching V2 formal refs`));
+          `${label} lacks matching V2/V3 formal refs`));
       }
       const refs = validateAssignment(ctx, member, spec, label,
         'PLAN_MEMBERSHIP_INVALID', issues);

@@ -221,6 +221,16 @@ test('docs/INSTALL without extension is passive', () => {
   assert.equal(r.risk, 'passive');
 });
 
+// Content-shaped lines outside any hunk mark the file malformed —
+// undecidable, never passive.
+test('lines outside hunk are undecidable', () => {
+  const d = 'diff --git a/docs/x.md b/docs/x.md\n--- a/docs/x.md\n'
+    + '+++ b/docs/x.md\n@@ -1,1 +1,2 @@\n ctx\n\n+#!/bin/sh\n';
+  const r = classifyRisk(parseUnifiedDiff(d));
+  assert.equal(r.risk, 'high');
+  assert.ok(r.reasons.some((x) => x.signal === 'undecidable'));
+});
+
 // Module purity: no fs/child_process imports anywhere in the source.
 test('classifier module imports no fs or child_process', async () => {
   const src = (await import('node:fs'))

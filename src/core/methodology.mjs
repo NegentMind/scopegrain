@@ -151,22 +151,25 @@ function checkOutcome(ctx, task, b, verification, previousRevision, issues) {
     canonicalDigest(report), issues);
 }
 
+// V3 records preserve the methodology metadata and formal refs that V2
+// carries (transition.mjs keeps them through meta updates). A task
+// "carries" methodology metadata when it is V2, or V3 with an assessment
+// or the formal specId+designId pair — metadata-less V3 records (e.g.
+// V1-upgraded) stay on the manual route in manual mode.
+function carriesMethodologyMetadata(task) {
+  return task.schemaVersion === 2
+    || (task.schemaVersion === 3
+        && (task.methodology !== null
+            || (typeof task.specId === 'string'
+                && typeof task.designId === 'string')));
+}
+
 // Internal seam: supplied task is already validated (stored or prospective).
 // Static fields of a prospective transition have not changed.
 export function evaluateMethodology(ctx, task,
     { to = 'ACT', previousRevision = task.revision } = {}) {
   const mode = validateMethodologyMode(ctx.config.methodology, 'config.methodology');
-  // V3 records preserve the methodology metadata and formal refs that V2
-  // carries (transition.mjs keeps them through meta updates). A task
-  // "carries" methodology metadata when it is V2, or V3 with an assessment
-  // or the formal specId+designId pair — metadata-less V3 records (e.g.
-  // V1-upgraded) stay on the manual route in manual mode.
-  const carriesMethodology = task.schemaVersion === 2
-    || (task.schemaVersion === 3
-        && (task.methodology !== null
-            || (typeof task.specId === 'string'
-                && typeof task.designId === 'string')));
-  const enforced = mode !== 'manual' || carriesMethodology;
+  const enforced = mode !== 'manual' || carriesMethodologyMetadata(task);
   const issues = [];
   const result = (route) => ({
     mode, enforced, allowed: issues.length === 0, route,
@@ -294,6 +297,6 @@ export function evaluateTaskActions(ctx, task) {
   const methodology = evaluateMethodology(ctx, task);
   const permitted = actionsFor(task.state).filter((action) =>
     action !== 'edit' || (methodology.allowed
-      && !(task.schemaVersion === 2 && task.scope.length === 0)));
+      && !(carriesMethodologyMetadata(task) && task.scope.length === 0)));
   return { permitted, methodology };
 }

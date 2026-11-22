@@ -2330,9 +2330,9 @@ async function cmdAssess(flags) {
     if (under || over) {
       envelope.discrepancy = { declared_risk: dr, derived_tier: derived,
         direction: under ? 'under-declared' : 'over-declared' };
-    } else if (dr === null || dr === 'unknown') {
-      // No comparable risk claim in the declaration — report it rather
-      // than silently treating it as consistent.
+    } else if (dr !== 'contained' && dr !== 'named') {
+      // null, 'unknown' or any out-of-schema value carries no comparable
+      // risk claim — report it rather than treating it as consistent.
       envelope.discrepancy = { declared_risk: dr, derived_tier: derived,
         direction: 'uncomparable' };
     }
