@@ -37,7 +37,13 @@ test('every command-spec flag exists in the global parser sets', () => {
   const globals = new Set([...setLiteral('VALUE_FLAGS'),
     ...setLiteral('BOOL_FLAGS'), ...setLiteral('REJECTED_FLAGS')]);
   const missing = [];
-  for (const m of CLI_SRC.matchAll(/flags:\s*\[([^\]]*)\]/g)) {
+  // Spec literals (`flags: [...]`) plus the workflow-alias flag set —
+  // both are validated by parseArgs before dispatch.
+  const alias = /const WORKFLOW_ALIAS_FLAGS = \[([\s\S]*?)\]/.exec(CLI_SRC);
+  assert.ok(alias, 'WORKFLOW_ALIAS_FLAGS must exist in cli.mjs');
+  const sources = [...CLI_SRC.matchAll(/flags:\s*\[([^\]]*)\]/g),
+    alias];
+  for (const m of sources) {
     for (const f of m[1].matchAll(/'(--[a-z][a-z-]*)'/g)) {
       if (!globals.has(f[1])) missing.push(f[1]);
     }

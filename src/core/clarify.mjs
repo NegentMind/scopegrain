@@ -14,8 +14,11 @@ import { getSpecification } from './specifications.mjs';
 
 const DATE_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
-const dirRel = (ctx, specId) =>
-  `${ctx.configDir}/clarifications/${specId.toLowerCase()}`;
+const dirRel = (ctx, specId) => {
+  const base = ctx.configDir === '.' ? 'clarifications'
+    : `${ctx.configDir}/clarifications`;
+  return `${base}/${specId.toLowerCase()}`;
+};
 
 // input: {specId, date?, entries:[{question, answer}]}
 // Validates the input and builds the session record plus its target

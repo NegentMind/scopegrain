@@ -201,7 +201,7 @@ export function buildActivation(ctx, { host, surface, installRoot } = {}) {
   const seen = new Set();
   for (let i = applyable.length - 1; i >= 0; i -= 1) {
     const f = applyable[i];
-    const key = `${f.rel}${f.content.toString('base64')}`;
+    const key = `${f.rel} ${Buffer.from(f.content).toString('base64')}`;
     if (seen.has(key)) applyable.splice(i, 1);
     else seen.add(key);
   }

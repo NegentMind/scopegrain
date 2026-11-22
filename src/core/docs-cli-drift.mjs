@@ -194,13 +194,21 @@ function tokens(s) {
 }
 
 // Credits a real verb when a code span's longest verb prefix matches.
+// Alternation notation expands here too (`task create|list` credits
+// both) so an inline span cannot sink verbs into `undocumented`.
 function creditSpan(span, verbs, referenced) {
   const tok = tokens(span);
   if (tok.length === 0) return;
-  if (tok.length >= 2 && verbs.has(`${tok[0]} ${tok[1]}`)) {
-    referenced.add(`${tok[0]} ${tok[1]}`);
-  } else if (verbs.has(tok[0])) {
-    referenced.add(tok[0]);
+  const second = tok.length >= 2 ? expandAlternates(tok[1]) : [null];
+  for (const a of expandAlternates(tok[0])) {
+    let paired = false;
+    for (const b of second) {
+      if (b !== null && verbs.has(`${a} ${b}`)) {
+        referenced.add(`${a} ${b}`);
+        paired = true;
+      }
+    }
+    if (!paired && verbs.has(a)) referenced.add(a);
   }
 }
 
@@ -217,7 +225,9 @@ function expandAlternates(word) {
   const sep = Math.max(left.lastIndexOf('-'), left.lastIndexOf('/'),
     left.lastIndexOf('.'), left.lastIndexOf('_'));
   const prefix = sep >= 0 ? left.slice(0, sep + 1) : '';
-  return [left, ...parts.slice(1).map((p) => prefix + p)];
+  return [left, ...parts.slice(1)
+    .map((p) => (prefix !== '' && p.startsWith(prefix) ? p : prefix + p))
+    .filter((s) => s !== '')];
 }
 
 function creditInvocation(args, verbs, firstWords, referenced, stale) {

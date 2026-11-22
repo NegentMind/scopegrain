@@ -74,6 +74,7 @@ export function parseUnifiedDiff(text) {
     }
     if (!cur) continue;
     if (line.startsWith('@@ ')) {
+      cur.seenHunk = true;
       const h = HUNK_RE.exec(line);
       if (h) {
         closeHunk();
@@ -89,7 +90,14 @@ export function parseUnifiedDiff(text) {
       continue;
     }
     if (!hunk) {
-      if (line.startsWith('old mode ')) cur.oldMode = line.slice(9).trim();
+      if (line.startsWith('--- ') || line.startsWith('+++ ')) {
+        // Exactly one '--- a/' and one '+++ b/' header per file, always
+        // before the first hunk. A repeat — or one smuggled past the
+        // hunk boundary — is malformed, never silently skipped.
+        const k = line[0] === '-' ? 'hdrOld' : 'hdrNew';
+        cur[k] = (cur[k] ?? 0) + 1;
+        if (cur.seenHunk === true || cur[k] > 1) cur.malformed = true;
+      } else if (line.startsWith('old mode ')) cur.oldMode = line.slice(9).trim();
       else if (line.startsWith('new mode ')) {
         cur.newMode = line.slice(10).trim();
       } else if (line.startsWith('new file mode ')) {
@@ -125,6 +133,9 @@ export function parseUnifiedDiff(text) {
       hunk.gotOld += 1;
       hunk.gotNew += 1;
     } else if (!line.startsWith('\\')) {
+      // Anything else (a bare empty line included) ends the hunk.
+      // git's emitter never writes an unmarked blank line inside one,
+      // so treating it as truncation is the fail-closed choice.
       closeHunk();
     }
   }

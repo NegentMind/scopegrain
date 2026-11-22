@@ -13,8 +13,8 @@ import { hasManagedSection } from '../core/managed-section.mjs';
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
-export function hostManifest(ctx, { host, installRoot } = {}) {
-  const plan = buildActivation(ctx, { host, installRoot });
+export function hostManifest(ctx, { host, surface, installRoot } = {}) {
+  const plan = buildActivation(ctx, { host, surface, installRoot });
   const generated = [];
   for (const f of plan.applyable) {
     const buf = Buffer.isBuffer(f.content) ? f.content

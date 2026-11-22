@@ -539,8 +539,8 @@ const COMMANDS = {
     usage: 'host activate --project PATH --host NAME [--surface X] [--apply]',
   },
   'host manifest': {
-    flags: ['--project', '--config', '--host'], pos: 0,
-    usage: 'host manifest --project PATH --host NAME',
+    flags: ['--project', '--config', '--host', '--surface'], pos: 0,
+    usage: 'host manifest --project PATH --host NAME [--surface X]',
   },
   'helper install': {
     flags: ['--project', '--config', '--input'], pos: 0,
@@ -2447,7 +2447,9 @@ async function cmdHost(sub, flags) {
   if (sub === 'manifest') {
     const { hostManifest } = await import('./hosts/host-manifest.mjs');
     const ctx = lifecycleCtx(flags);
-    return hostManifest(ctx, { host: requireFlag(flags, '--host') });
+    const options = { host: requireFlag(flags, '--host') };
+    if (Object.hasOwn(flags, '--surface')) options.surface = flags['--surface'];
+    return hostManifest(ctx, options);
   }
   const { applyActivation, prepareActivation } = await import('./hosts/activation.mjs');
   const options = { host: requireFlag(flags, '--host') };
@@ -2731,6 +2733,10 @@ export function defaultIO() {
   // raises EPIPE on the next write — exit cleanly instead of crashing
   // with an unhandled 'error' event. Other stream errors still throw.
   process.stdout.on('error', (e) => {
+    if (e && e.code === 'EPIPE') process.exit(0);
+    throw e;
+  });
+  process.stderr.on('error', (e) => {
     if (e && e.code === 'EPIPE') process.exit(0);
     throw e;
   });

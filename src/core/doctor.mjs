@@ -30,7 +30,8 @@ const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals',
   'activity'];
 const POLICY_FILES = [
   'workflow.json', 'operation-limits.json', 'methodology.json',
-  'onboarding-defaults.json',
+  'onboarding-defaults.json', 'native-adapters.json',
+  'native-variants.json',
 ];
 
 const REQUIRED_TEMPLATES = [
@@ -746,7 +747,7 @@ export function runDoctor(ctx, opts = {}) {
                 bad.push(`${label}: ${divergent.slice(0, 5).join(', ')}`);
               }
             } catch (e) {
-              bad.push(`${label}: ${e.code ?? e.message}`);
+              bad.push(`${label}: ${e.code ?? 'ERROR'}: ${e.message}`);
             }
           }
         }
