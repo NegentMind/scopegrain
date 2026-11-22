@@ -10,7 +10,7 @@ import {
   validateBundle, registerExtension, registerPreset, listRegistry,
   setExtensionState, installBundle, presetLayers, mountBundle,
   unmountBundle, uninstallBundle, removeExtension, removePreset,
-  selfTestDist,
+  selfTestDist, readDistJournal,
   loadMounted,
 } from '../src/core/distribution.mjs';
 import { createTask } from '../src/core/tasks.mjs';
@@ -638,5 +638,42 @@ test('E7 deterministic packaging: byte-identical across runs, sorted, fixed meta
       (e) => e.code === 'INVALID_PATH' || e.code === 'PATH_TRAVERSAL'
         || e.code !== undefined);
     fs.writeFileSync(path.join(dir, 'pack-src/link-target.md'), 'T');
+  } finally { cleanup(dir); }
+});
+
+test('dist journal reader: entries, filters, tail, CAS chain, corrupt lines', () => {
+  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  try {
+    registerExtension(ctx, { id: 'jr1', version: '1.0.0',
+      source: { uri: 'file://e' } });
+    setExtensionState(ctx, 'jr1', 'disabled');
+    const j = readDistJournal(ctx);
+    assert.equal(j.chain, 'valid');
+    assert.equal(j.entries.length, 2);
+    assert.equal(readDistJournal(ctx, { registry: 'extensions' })
+      .entries.length, 2);
+    assert.equal(readDistJournal(ctx, { registry: 'presets' })
+      .entries.length, 0);
+    assert.equal(readDistJournal(ctx, { op: 'extension-state' })
+      .entries.length, 1);
+    assert.equal(readDistJournal(ctx, { id: 'jr1' }).entries.length, 2);
+    assert.equal(readDistJournal(ctx, { tail: 1 }).entries[0].op,
+      'extension-state');
+    // A trailing corrupt line is reported, never fatal.
+    fs.appendFileSync(
+      path.join(dir, ctx.configDir, 'dist-journal.jsonl'), 'not-json\n');
+    const j2 = readDistJournal(ctx);
+    assert.equal(j2.corrupt.length, 1);
+    assert.equal(j2.entries.length, 2);
+    // Tampered trail: rewrite one previousSha256 -> chain reports broken.
+    const jp = path.join(dir, ctx.configDir, 'dist-journal.jsonl');
+    const lines = fs.readFileSync(jp, 'utf8').trim().split('\n')
+      .filter((x) => { try { JSON.parse(x); return true; }
+        catch { return false; } })
+      .map((x) => JSON.parse(x));
+    lines[1].previousSha256 = 'ff'.repeat(32);
+    fs.writeFileSync(jp,
+      lines.map((x) => JSON.stringify(x)).join('\n') + '\n');
+    assert.equal(readDistJournal(ctx).chain, 'broken@2');
   } finally { cleanup(dir); }
 });

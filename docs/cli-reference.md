@@ -493,6 +493,13 @@ rastro en `dist-journal.jsonl` (CAS por `previousSha256`/`newSha256`);
 con workspace enrolado la escritura del registro pasa ademas por el
 kernel del journal (`journaled: true`).
 
+`dist journal --project PATH [--tail N] [--registry R] [--op O] [--id I]`
+lee esa traza de forma acotada: devuelve `{entries, corrupt, chain}`
+donde `chain` verifica la propiedad CAS por archivo
+(`previousSha256[n] == newSha256[n-1]` del mismo `rel`) — `valid`,
+`broken@<revision>` o `empty`. Lineas corruptas se reportan en
+`corrupt`, nunca abortan la lectura.
+
 ### policy/hooks.json — ejemplo declarativo
 
 ```json

@@ -435,6 +435,11 @@ const COMMANDS = {
     flags: ['--project', '--config'], pos: 0,
     usage: 'dist selftest --project PATH',
   },
+  'dist journal': {
+    flags: ['--project', '--config', '--tail', '--registry', '--op', '--id'],
+    pos: 0,
+    usage: 'dist journal --project PATH [--tail N] [--registry R] [--op O] [--id I]',
+  },
   'dist pack': {
     flags: ['--project', '--config', '--source', '--out'], pos: 0,
     usage: 'dist pack --project PATH --source DIR --out FILE',
@@ -1358,6 +1363,15 @@ async function cmdDist(sub, rest, flags) {
   }
   if (sub === 'selftest') {
     return d.selfTestDist(ctx);
+  }
+  if (sub === 'journal') {
+    return d.readDistJournal(ctx, {
+      tail: flags['--tail'] === undefined ? null
+        : Number(flags['--tail']),
+      registry: flags['--registry'] ?? null,
+      op: flags['--op'] ?? null,
+      id: flags['--id'] ?? null,
+    });
   }
   if (sub === 'pack') {
     const { packDirectory } = await import('./core/packaging.mjs');

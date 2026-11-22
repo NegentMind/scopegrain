@@ -321,6 +321,63 @@ function distJournalAppend(ctx, entry, state) {
   fs.appendFileSync(abs, line);
 }
 
+// Bounded reader for the mutation trail. Parse is tolerant (corrupt lines
+// are reported, never fatal); filters narrow by registry/op/id; `chain`
+// verifies the per-file CAS property — each entry's previousSha256 must
+// equal the newest earlier newSha256 for the same rel (or be null when
+// that file was first written). tail keeps only the newest N entries.
+export function readDistJournal(ctx,
+    { tail = null, registry = null, op = null, id = null } = {}) {
+  const abs = distJournalAbs(ctx);
+  const st = lstatOrNull(abs);
+  if (!st) {
+    return Object.freeze({ entries: [], corrupt: [], chain: 'empty' });
+  }
+  if (st.isSymbolicLink() || !st.isFile()) {
+    throw err('INVALID_PATH', 'dist journal is not a regular file');
+  }
+  const l = readFileLimited(abs, DIST_JOURNAL_MAX * 2);
+  if (l.exceeded) {
+    throw err('DOCUMENT_TOO_LARGE', 'dist journal exceeds read bound');
+  }
+  const entries = [];
+  const corrupt = [];
+  decodeUtf8Strict(l.content, 'MALFORMED', DIST_JOURNAL_REL)
+    .split('\n').forEach((line, i) => {
+      if (!line.trim()) return;
+      try {
+        entries.push(JSON.parse(line));
+      } catch {
+        corrupt.push({ line: i + 1 });
+      }
+    });
+  // Per-rel CAS chain: each write's previousSha256 must equal the most
+  // recent earlier newSha256 for that file (null for a first write).
+  const newest = new Map();
+  let chainBroken = null;
+  for (const e of entries) {
+    if (typeof e?.rel !== 'string' || !Number.isSafeInteger(e?.revision)) {
+      continue; // shape-tolerant: only real entries chain
+    }
+    const prev = newest.get(e.rel) ?? null;
+    if (e.previousSha256 !== prev) {
+      chainBroken = chainBroken ?? e.revision;
+    }
+    newest.set(e.rel, e.newSha256 ?? null);
+  }
+  let out = entries;
+  if (registry) out = out.filter((e) => e.registry === registry);
+  if (op) out = out.filter((e) => e.op === op);
+  if (id) out = out.filter((e) => e.id === id);
+  if (Number.isSafeInteger(tail) && tail >= 0) out = out.slice(-tail);
+  return Object.freeze({
+    entries: Object.freeze(out),
+    corrupt: Object.freeze(corrupt),
+    chain: entries.length === 0 ? 'empty'
+      : chainBroken === null ? 'valid' : `broken@${chainBroken}`,
+  });
+}
+
 // Best-effort bound workspace for the opt-in journaled path: a project
 // without an enrolled workspace (or with no areas) simply writes locally;
 // the dist journal still records the mutation with journaled:false.
