@@ -18,6 +18,11 @@ export const KNOWN_HOSTS = [
   'claude', 'codex', 'opencode', 'devin', 'antigravity', 'hermes',
   'generic',
 ];
+// Hosts that read the root AGENTS.md rules entrypoint. Antigravity's
+// documented rules surfaces include AGENTS.md; generic is the scaffold
+// for MCP-stdio hosts and follows the same universal convention.
+export const AGENTS_MD_HOSTS = new Set(
+  ['codex', 'opencode', 'devin', 'antigravity', 'generic']);
 export const LOCALES = ['es', 'en'];
 export const PATH_KEYS = [
   'plans', 'tasks', 'reports', 'research', 'decisions', 'memory', 'state',
@@ -197,7 +202,7 @@ export function generatedFilePaths(configRel, hosts) {
     prefix + '.gitignore',
     prefix + 'integrations/gitignore-proposal.txt',
   ];
-  if (hosts.some((h) => h === 'codex' || h === 'opencode' || h === 'devin')) {
+  if (hosts.some((h) => AGENTS_MD_HOSTS.has(h))) {
     files.push('AGENTS.md');
   }
   if (hosts.includes('claude')) {

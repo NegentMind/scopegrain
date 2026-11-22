@@ -122,6 +122,21 @@ test('claude-only project gets CLAUDE.md without AGENTS.md', () => {
   } finally { cleanup(dir); }
 });
 
+// Antigravity reads AGENTS.md as a documented rules surface and generic
+// follows the universal convention — a project scoped to either must
+// still receive the root rules entrypoint (regression: AGENTS_HOSTS
+// excluded both and silently skipped session-start instructions).
+for (const host of ['antigravity', 'generic']) {
+  test(`${host}-only project still gets AGENTS.md`, () => {
+    const dir = makeTempDir(`init-${host}`);
+    try {
+      const prepared = prepareInit({ projectRoot: dir,
+        answers: { ...VALID_ANSWERS, hosts: [host] } });
+      assert.ok(prepared.files.some((f) => f.rel === 'AGENTS.md'));
+    } finally { cleanup(dir); }
+  });
+}
+
 test('config filename colliding with generated siblings is blocked', () => {
   const dir = makeTempDir('init-collide');
   try {

@@ -10,6 +10,7 @@ import {
   portableKey, resolveInside, toCanonicalRelative,
 } from './paths.mjs';
 import {
+  AGENTS_MD_HOSTS,
   assertAnswersMatchConfig,
   assertNoCollisions, configDirOf, createConfig,
   loadConfig, resolveConfigPath, validateAnswers,
@@ -26,7 +27,7 @@ const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const INSTALL_ROOT = path.resolve(MODULE_DIR, '..', '..');
 const TEMPLATES_DIR = path.join(INSTALL_ROOT, 'templates');
 const SERVER_PATH = path.join(INSTALL_ROOT, 'src', 'mcp', 'server.mjs');
-const AGENTS_HOSTS = new Set(['codex', 'opencode', 'devin']);
+const AGENTS_HOSTS = AGENTS_MD_HOSTS;
 
 export function templateDir(installRoot = INSTALL_ROOT) {
   return path.join(installRoot, 'templates');

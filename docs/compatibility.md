@@ -13,7 +13,7 @@ certifica comportamiento equivalente entre productos.
 | Codex | `AGENTS.md` (raiz) | `integrations/codex-mcp.toml` (`[mcp_servers.scopegrain]`) | Documental; el proyecto requiere trust en Codex |
 | OpenCode V2 | `AGENTS.md` (raiz) | `integrations/opencode-mcp.json` (`mcp.servers.scopegrain`, `disabled:true`) | Documental; sin certificacion nativa |
 | Devin Local/CLI | `AGENTS.md` (raiz) | `integrations/devin-mcp.json` (`mcpServers.scopegrain` sin `type`) y `.devin/mcp_config.json` generado por `host activate` (v3000.3+) | Piloto certificado en sesion real de Local (2026-11-17); Devin Cloud no se considera equivalente |
-| Google Antigravity | Propuestas App/CLI e IDE diferenciadas | `integrations/antigravity-mcp.json` y `.agents/mcp_config.json` generado por `host activate` | Piloto App/CLI certificado en sesion real (2026-11-19); IDE sin piloto ni agentes asumidos |
+| Google Antigravity | Propuestas App/CLI e IDE diferenciadas; `host activate` requiere `--surface app-cli|ide` (variantes `selectionRequired`) | `integrations/antigravity-mcp.json` (propuesta deshabilitada de fusion manual) y `.agents/mcp_config.json` con rutas absolutas machine-local generado por `host activate --surface ... --apply` | Piloto App/CLI certificado en sesion real (2026-11-19); IDE sin piloto ni agentes asumidos |
 
 ## Notas por fuente
 
