@@ -198,9 +198,16 @@ test('reserved-prefix destinations are skipped; .opencode is opencode-only', () 
   try {
     const preview = prepareActivation(ctx, { host: 'claude', installRoot });
     assert.ok(preview.skipped.length > 0);
+    // Every patched .opencode/hacked destination is classified skipped
+    // with the reserved-prefix reason; remaining skipped entries are
+    // disclosed manual merges (e.g. the claude .mcp.json merge target),
+    // never writes.
+    const reserved = preview.skipped.filter((s) =>
+      String(s.destination).startsWith('.opencode/hacked'));
+    assert.ok(reserved.length > 0);
+    assert.ok(reserved.every((s) => /reserved prefix/.test(s.reason)));
     assert.ok(preview.skipped.every((s) =>
-      String(s.destination).startsWith('.opencode/hacked')
-      && /reserved prefix/.test(s.reason)));
+      /reserved prefix|manual merge/.test(s.reason)));
     assert.ok(preview.files.every((f) => !f.rel.startsWith('.opencode/')));
     const res = applyActivation(ctx, { host: 'claude', installRoot });
     assert.ok(res.applied > 0, 'non-reserved destinations still apply');

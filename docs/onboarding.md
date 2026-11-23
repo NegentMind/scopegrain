@@ -35,8 +35,14 @@ la **autoridad operativa del proyecto** (nivel workspace):
   `.tasksystem/config.json`). Una vez inicializado un proyecto, el runtime
   lee **100% del workspace** y nunca mezcla cambios globales.
 
-Orden estricto de precedencia durante `init`:
+Orden estricto de precedencia durante `init` (respuestas efectivas):
 `workspace existente > --answers FILE > senales del repo (hosts) > config global de usuario > policy/onboarding-defaults.json`.
+El nivel "senales del repo" se consume solo en la via no interactiva
+(`--defaults`); el asistente interactivo propone por pregunta desde
+`workspace existente > config global de usuario > defaults autorados`
+(nombre del directorio, lista completa de hosts, propuestas de policy)
+y deja la deteccion a `inspect`/`investigate` — las sugerencias nunca
+se imponen sobre una respuesta humana.
 
 ```powershell
 scopegrain config path

@@ -38,8 +38,14 @@ operational authority**:
   legacy `.tasksystem/config.json`). Once a project is initialized, runtime
   operations read **100% from the workspace** and never merge global changes.
 
-Strict precedence during `init`:
+Strict precedence during `init` (effective answers):
 `existing workspace > --answers FILE > repo host signals > global user config > policy/onboarding-defaults.json`.
+The "repo host signals" tier is consumed only on the non-interactive
+path (`--defaults`); the interactive wizard proposes per-question
+defaults from `existing workspace > global user config > authored
+defaults` (directory name, the full host list, policy proposals) and
+leaves detection to `inspect`/`investigate` — suggestions never
+override a human answer.
 
 ```powershell
 scopegrain config path

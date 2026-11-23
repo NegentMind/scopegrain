@@ -258,12 +258,15 @@ test('opencode MCP fragment is a declared manual-merge target', () => {
     'the alternative project config name is disclosed');
   // The fragment is a bootstrap artifact: no projected native file claims it.
   assert.ok(!files.some((f) => f.rel === entry.source));
-  // Scoped to opencode in this pilot: claude/codex share the same asymmetry
-  // but are deliberately untouched here.
+  // Claude/codex share the same asymmetry and now declare it too: each
+  // carries exactly its own disclosed mcp merge target, nothing more.
   const { activationPlan: others } = renderNativeAdapters(
     cfg(['claude', 'codex']),
     { configRel: CFG_REL, projectRoot: makeTempDir('x') });
-  assert.ok(!others.entries.some((e) => e.kind === 'mcp'));
+  assert.deepEqual(
+    others.entries.filter((e) => e.kind === 'mcp')
+      .map((e) => `${e.host}:${e.destination}`).sort(),
+    ['claude:.mcp.json', 'codex:.codex/config.toml']);
 });
 
 test('opencode emits only the V2 proposal in bootstrap', () => {
