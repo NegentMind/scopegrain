@@ -117,3 +117,66 @@ test('gitattributes pins -text for every snapshot payload inside cfgDir', () => 
     assert.ok(!fs.existsSync(`${dir}/.gitattributes`));
   } finally { cleanup(dir); }
 });
+
+test('stat-fingerprint cache: stat-changing write forces re-verification', () => {
+  const { dir, ctx } = bootstrappedCtx();
+  try {
+    // First load populates the per-process verified cache.
+    loadWorkspaceCatalog(ctx);
+    const f = `${dir}/.tasksystem/commands/plan-work.md`;
+    const orig = fs.readFileSync(f);
+    // A different-size write changes the stat tuple: fingerprint differs,
+    // the cache misses and the eager pass catches the tamper.
+    fs.writeFileSync(f, orig + 'TAMPERED-BYTES\n');
+    assert.throws(() => loadWorkspaceCatalog(ctx),
+      (e) => e.code === 'RESOURCE_INTEGRITY_MISMATCH');
+    fs.writeFileSync(f, orig);
+    // Restored bytes verify again.
+    loadWorkspaceCatalog(ctx);
+  } finally { cleanup(dir); }
+});
+
+test('stat-preserving byte edit escapes the eager pass but not delivery', () => {
+  const { dir, ctx } = bootstrappedCtx();
+  try {
+    const f = `${dir}/.tasksystem/commands/plan-work.md`;
+    const orig = fs.readFileSync(f);
+    // Pin an exact whole-ms timestamp first — utimesSync round-trips it
+    // losslessly, so the forged write below can restore the same tuple.
+    const fixed = new Date(1700000000000);
+    fs.utimesSync(f, fixed, fixed);
+    loadWorkspaceCatalog(ctx); // populate cache
+    // Forged bytes with identical size AND restored mtime: the declared
+    // TOCTOU limitation — the stat fingerprint cannot see it.
+    fs.writeFileSync(f, Buffer.alloc(orig.length, 'X'));
+    fs.utimesSync(f, fixed, fixed);
+    const cat = loadWorkspaceCatalog(ctx); // cache hit: no throw
+    // getResource re-hashes served bytes — delivery still fails closed.
+    assert.throws(() => getResource('command', 'plan-work', { catalog: cat }),
+      (e) => e.code === 'RESOURCE_INTEGRITY_MISMATCH');
+    fs.writeFileSync(f, orig);
+    fs.utimesSync(f, fixed, fixed);
+  } finally { cleanup(dir); }
+});
+
+test('mounted entries are covered by the stat fingerprint', () => {
+  const { dir, ctx } = bootstrappedCtx();
+  try {
+    const bundleRel = '.tasksystem/bundles/b1/skills/x/SKILL.md';
+    fs.mkdirSync(`${dir}/.tasksystem/bundles/b1/skills/x`, { recursive: true });
+    const body = Buffer.from('# mounted skill\n', 'utf8');
+    fs.writeFileSync(`${dir}/${bundleRel}`, body);
+    fs.writeFileSync(`${dir}/.tasksystem/mounted-catalog.json`,
+      JSON.stringify({ schemaVersion: 1, entries: [{
+        kind: 'skill', id: 'x', bundle: 'b1',
+        path: 'bundles/b1/skills/x/SKILL.md',
+        sha256: sha(body),
+      }] }) + '\n');
+    const cat = loadWorkspaceCatalog(ctx); // populates cache
+    assert.equal(cat.mounted, 1);
+    // Tampering a mounted file changes its stat tuple -> re-verify -> fail.
+    fs.writeFileSync(`${dir}/${bundleRel}`, '# mounted skill TAMPERED\n');
+    assert.throws(() => loadWorkspaceCatalog(ctx),
+      (e) => e.code === 'RESOURCE_INTEGRITY_MISMATCH');
+  } finally { cleanup(dir); }
+});
