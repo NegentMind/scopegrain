@@ -7,7 +7,8 @@
 // separate wave — this test defines the ground truth).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hooksFor, loadHooksPolicy } from '../src/core/hooks-policy.mjs';
+import { applyPreActionHooks, hooksFor, loadHooksPolicy }
+  from '../src/core/hooks-policy.mjs';
 import { cleanup, makeTempDir, writeJson } from './helpers.mjs';
 
 function installWithHooks(doc) {
@@ -20,14 +21,15 @@ test('missing policy file means empty hooks, not an error', () => {
   const root = installWithHooks(undefined);
   try {
     assert.deepEqual(loadHooksPolicy({ installRoot: root }),
-      { before: {}, after: {} });
+      { before: {}, after: {}, preAction: [] });
     assert.deepEqual(hooksFor('anything', { installRoot: root }),
       { before: [], after: [] });
   } finally { cleanup(root); }
 });
 
 test('shipped policy/hooks.json parses as the canonical empty policy', () => {
-  assert.deepEqual(loadHooksPolicy(), { before: {}, after: {} });
+  assert.deepEqual(loadHooksPolicy(),
+    { before: {}, after: {}, preAction: [] });
 });
 
 test('real phase-first shape loads; globals precede command-specific hooks', () => {
@@ -108,6 +110,7 @@ test('document shape is validated: schemaVersion 1 and object hooks', () => {
   for (const doc of [
     { schemaVersion: 2, hooks: {} },
     { schemaVersion: 1, hooks: [] },
+    { schemaVersion: 1, hooks: {}, surprise: true }, // unknown top key
     null,
   ]) {
     const root = installWithHooks(doc);
@@ -116,4 +119,152 @@ test('document shape is validated: schemaVersion 1 and object hooks', () => {
         (e) => e.code === 'POLICY_MALFORMED', JSON.stringify(doc));
     } finally { cleanup(root); }
   }
+});
+
+// --- preAction: bounded executable layer -------------------------------------
+// Design contract: `when` conditions are closed keys over task metadata,
+// `then` is a declared enum effect (block | require-gate | record). The
+// evaluator is pure data — no argv, no scripts, no side effects. `block`
+// prunes from permitted (enforced); `require-gate` flags (advisory);
+// `record` annotates only.
+
+function installWithPreAction(preAction) {
+  return installWithHooks({ schemaVersion: 1, hooks: {}, preAction });
+}
+
+const TASK = { id: 't', state: 'ACT', scope: ['a', 'b'],
+  skills: ['contract-execution'] };
+
+test('preAction is optional; a missing or empty list leaves actions untouched', () => {
+  for (const doc of [
+    { schemaVersion: 1, hooks: {} },
+    { schemaVersion: 1, hooks: {}, preAction: [] },
+  ]) {
+    const root = installWithHooks(doc);
+    try {
+      const r = applyPreActionHooks(TASK, ['read', 'edit'],
+        { installRoot: root });
+      assert.deepEqual(r, { permitted: ['read', 'edit'], applied: [],
+        gated: [] });
+    } finally { cleanup(root); }
+  }
+});
+
+test('preAction schema is closed: malformed entries fail POLICY_MALFORMED', () => {
+  const bad = [
+    'not-an-object',
+    { when: { action: 'edit' }, then: 'block' }, // missing id
+    { id: 'BAD ID', when: { action: 'edit' }, then: 'block' },
+    { id: 'x', then: 'block' }, // missing when
+    { id: 'x', when: {}, then: 'block' }, // missing when.action
+    { id: 'x', when: { action: 'edit' } }, // missing then
+    { id: 'x', when: { action: 'edit' }, then: 'exec' }, // enum closed
+    { id: 'x', when: { action: 'edit' }, then: 'block',
+      command: 'rm -rf /' }, // unknown key — no argv ever
+    { id: 'x', when: { action: 'edit', shell: 'x' }, then: 'block' },
+    { id: 'x', when: { action: 'edit', stateIn: [] }, then: 'block' },
+    { id: 'x', when: { action: 'edit', stateIn: ['act'] }, then: 'block' },
+    { id: 'x', when: { action: 'edit', scopeOver: -1 }, then: 'block' },
+    { id: 'x', when: { action: 'edit', scopeOver: 1.5 }, then: 'block' },
+    { id: 'x', when: { action: 'edit', skillsMissing: 'no' },
+      then: 'block' },
+    { id: 'x', when: { action: 'edit' }, then: 'block', reason: 5 },
+  ];
+  for (const entry of bad) {
+    const root = installWithPreAction([entry]);
+    try {
+      assert.throws(() => loadHooksPolicy({ installRoot: root }),
+        (e) => e.code === 'POLICY_MALFORMED', JSON.stringify(entry));
+    } finally { cleanup(root); }
+  }
+});
+
+test('preAction.block prunes the action from permitted and is traced', () => {
+  const root = installWithPreAction([
+    { id: 'no-verify-in-act', when: { action: 'verify', stateIn: ['ACT'] },
+      then: 'block', reason: 'verify only from VERIFY' },
+  ]);
+  try {
+    const r = applyPreActionHooks(TASK, ['read', 'edit', 'verify'],
+      { installRoot: root });
+    assert.deepEqual(r.permitted, ['read', 'edit']);
+    assert.deepEqual(r.gated, []);
+    assert.deepEqual(r.applied,
+      [{ id: 'no-verify-in-act', action: 'verify', effect: 'block',
+        reason: 'verify only from VERIFY' }]);
+    // Same hook does not match in a different state.
+    const other = applyPreActionHooks({ ...TASK, state: 'VERIFY' },
+      ['read', 'verify'], { installRoot: root });
+    assert.deepEqual(other.permitted, ['read', 'verify']);
+    assert.deepEqual(other.applied, []);
+  } finally { cleanup(root); }
+});
+
+test('preAction.require-gate keeps the action but flags it on gated', () => {
+  const root = installWithPreAction([
+    { id: 'gate-large-scope', when: { action: 'edit', scopeOver: 1 },
+      then: 'require-gate', reason: 'scope above 1 needs approval' },
+  ]);
+  try {
+    const r = applyPreActionHooks(TASK, ['read', 'edit'],
+      { installRoot: root });
+    assert.deepEqual(r.permitted, ['read', 'edit']); // not pruned
+    assert.deepEqual(r.gated, [{ action: 'edit', hook: 'gate-large-scope',
+      reason: 'scope above 1 needs approval' }]);
+    // scopeOver is strict: scope.length === 1 does not match > 1.
+    const small = applyPreActionHooks({ ...TASK, scope: ['a'] },
+      ['edit'], { installRoot: root });
+    assert.deepEqual(small.gated, []);
+  } finally { cleanup(root); }
+});
+
+test('preAction.record annotates without restricting; wildcard matches all', () => {
+  const root = installWithPreAction([
+    { id: 'audit-all', when: { action: '*' }, then: 'record',
+      reason: 'trace' },
+  ]);
+  try {
+    const r = applyPreActionHooks(TASK, ['read', 'edit'],
+      { installRoot: root });
+    assert.deepEqual(r.permitted, ['read', 'edit']);
+    assert.deepEqual(r.gated, []);
+    assert.deepEqual(r.applied.map((a) => a.action), ['read', 'edit']);
+  } finally { cleanup(root); }
+});
+
+test('preAction.skillsMissing matches when the task lacks any listed skill', () => {
+  const root = installWithPreAction([
+    { id: 'need-capabilities',
+      when: { action: 'edit',
+        skillsMissing: ['contract-execution', 'verify-evidence'] },
+      then: 'require-gate' },
+  ]);
+  try {
+    // TASK has contract-execution but lacks verify-evidence → matches.
+    const hit = applyPreActionHooks(TASK, ['edit'], { installRoot: root });
+    assert.equal(hit.gated.length, 1);
+    // Task holding both skills → no match.
+    const miss = applyPreActionHooks(
+      { ...TASK, skills: ['contract-execution', 'verify-evidence'] },
+      ['edit'], { installRoot: root });
+    assert.deepEqual(miss.gated, []);
+    // Task without the field at all → treated as empty skill set.
+    const bare = applyPreActionHooks({ id: 't', state: 'ACT', scope: [] },
+      ['edit'], { installRoot: root });
+    assert.equal(bare.gated.length, 1);
+  } finally { cleanup(root); }
+});
+
+test('block wins over require-gate when multiple hooks match one action', () => {
+  const root = installWithPreAction([
+    { id: 'g', when: { action: 'edit' }, then: 'require-gate' },
+    { id: 'b', when: { action: 'edit' }, then: 'block' },
+  ]);
+  try {
+    const r = applyPreActionHooks(TASK, ['read', 'edit'],
+      { installRoot: root });
+    assert.deepEqual(r.permitted, ['read']);
+    // Both effects are still declared on the trace — nothing silent.
+    assert.deepEqual(r.applied.map((a) => a.id), ['g', 'b']);
+  } finally { cleanup(root); }
 });

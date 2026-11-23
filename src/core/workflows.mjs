@@ -125,11 +125,16 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     available: true, taskCheck: null,
     authenticatesEvidence: false, interceptsNativeTools: false,
   };
+  let actionHooks = null;
   if (opts.taskId !== undefined) {
     task = getTask(ctx, opts.taskId);
     const effective = evaluateTaskActions(ctx, task);
     allowedActions = effective.permitted;
     methodology.taskCheck = effective.methodology;
+    // Bounded pre-action hook trace: `applied` lists every hook that
+    // matched (block/record/require-gate), `gated` flags actions the host
+    // must obtain approval for before exercising — declared, never silent.
+    actionHooks = effective.actionHooks;
   }
   // Task-typed routing: skills declared on the task record auto-include
   // into the packet's skills bucket. Ids that do not resolve are reported
@@ -323,6 +328,7 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     resourceRoot: ctx.configDir,
     task,
     allowedActions,
+    actionHooks,
     methodology,
     capabilities: {
       executesProjectCommands: limits.executesProjectCommands,

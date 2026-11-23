@@ -98,7 +98,7 @@ test('no-task envelope uses selected mode; existing complete packet document cap
   } finally { cleanup(f.dir); }
 });
 
-test('revoked approval filters BOTH workflow edit and five-field checkAction', () => {
+test('revoked approval filters BOTH workflow edit and checkAction', () => {
   const f = formalFixture({ full: true });
   try {
     transitionTask(f.ctx, { id: f.task.id, to: 'ACT', expectedRevision: 0 });
@@ -108,8 +108,12 @@ test('revoked approval filters BOTH workflow edit and five-field checkAction', (
     const before = snapshot(f.dir);
     const p = buildWorkflowPacket(f.ctx, opts);
     const check = checkAction(f.ctx, f.task.id, 'edit');
+    // The checkAction surface is pinned: the five original fields plus
+    // the bounded pre-action hook trace (`actionHooks`; `gate` only when
+    // the queried action is gated).
     assert.deepEqual(Object.keys(check).sort(),
-      ['action', 'allowed', 'id', 'permitted', 'state']);
+      ['action', 'actionHooks', 'allowed', 'id', 'permitted', 'state']);
+    assert.deepEqual(check.actionHooks, { applied: [], gated: [] });
     assert.equal(check.allowed, false);
     assert.ok(!p.allowedActions.includes('edit'));
     assert.deepEqual(p.allowedActions, check.permitted);

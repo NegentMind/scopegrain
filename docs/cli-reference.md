@@ -571,13 +571,40 @@ la distribucion sigue siendo local-only — no hay feed remoto.
 
 ```json
 {"schemaVersion": 1,
- "hooks": {"*": {"before_": [{"id": "log", "description": "aviso"}]},
-           "implement-task": {"after_": [{"id": "check",
+ "hooks": {"before": {"*": [{"id": "log", "description": "aviso"}]},
+           "after": {"implement-task": [{"id": "check",
              "description": "verificar"}]}}}
 ```
 
-Los hooks se proyectan en `packet.hooks` como datos consultivos para el
-host; el harness nunca los ejecuta.
+La forma real es `{hooks: {before|after: {<commandId>|'*': [{id, description,
+command?}]}}}`: fase primero, comando despues — la inversa produce
+`POLICY_MALFORMED`. Cada entrada requiere `id` + `description`; `command`
+es opcional.
+
+Los hooks `before`/`after` se proyectan en `packet.hooks` como datos
+consultivos para el host; el harness nunca los ejecuta.
+
+La clave opcional `preAction` es la capa ejecutable acotada: condiciones
+`when` cerradas sobre metadatos de la tarea, evaluadas por el runtime
+dentro de `evaluateTaskActions`, con efectos declarados — `block` poda la
+accion del conjunto permitido (denegacion real), `require-gate` la mantiene
+pero la marca en `gated` (el host debe obtener aprobacion), `record` solo
+anota. Nunca argv ni scripts: condiciones y efectos son datos.
+
+```json
+{"schemaVersion": 1, "hooks": {},
+ "preAction": [{"id": "gate-large-scope",
+   "when": {"action": "edit", "scopeOver": 9},
+   "then": "require-gate",
+   "reason": "scope above 9 needs approval"}]}
+```
+
+`when.action` es una accion o `*`; `when.stateIn` lista de estados;
+`when.scopeOver` entero (estricto `>` sobre `task.scope.length`);
+`when.skillsMissing` lista de skills — coincide si la tarea carece de
+alguna. Las entradas que coinciden quedan trazadas en
+`packet.actionHooks.applied` y `task check-action`/`scopegrain_check_action`
+exponen `actionHooks` + `gate`.
 
 ## Configuracion global, version, progreso de olas y VantaDB L3
 

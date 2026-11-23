@@ -4,6 +4,15 @@
 // workflow packet. Hooks are data — descriptions of pre/post actions a
 // host may honor; the harness never executes them, matching the
 // non-executing posture of command bodies.
+//
+// The optional `preAction` list is the bounded EXECUTABLE layer: closed
+// `when` conditions over task metadata evaluated by the runtime inside
+// evaluateTaskActions, with effects limited to a declared enum —
+//   block        action removed from permitted (enforced deny)
+//   require-gate action stays permitted but is flagged on `gated`
+//                (advisory: the host must obtain approval before using it)
+//   record       audit annotation only — no restriction
+// Never argv, never scripts: conditions and effects are data.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,6 +25,10 @@ const INSTALL_ROOT = path.resolve(
 const POLICY_REL = 'policy/hooks.json';
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const PHASES = new Set(['before', 'after']);
+const PRE_ACTION_EFFECTS = new Set(['block', 'require-gate', 'record']);
+const PRE_ACTION_WHEN_KEYS = new Set(
+  ['action', 'stateIn', 'scopeOver', 'skillsMissing']);
+const STATE_RE = /^[A-Z]+$/;
 
 let cached = null;
 
@@ -34,6 +47,11 @@ export function loadHooksPolicy({ installRoot = INSTALL_ROOT } = {}) {
       || doc.hooks === null || typeof doc.hooks !== 'object'
       || Array.isArray(doc.hooks)) {
     throw err('POLICY_MALFORMED', `${POLICY_REL} has invalid shape`);
+  }
+  for (const k of Object.keys(doc)) {
+    if (!['schemaVersion', 'hooks', 'preAction'].includes(k)) {
+      throw err('POLICY_MALFORMED', `${POLICY_REL} has unknown key '${k}'`);
+    }
   }
   const out = { before: {}, after: {} };
   for (const phase of Object.keys(doc.hooks)) {
@@ -72,8 +90,76 @@ export function loadHooksPolicy({ installRoot = INSTALL_ROOT } = {}) {
       });
     }
   }
-  if (installRoot === INSTALL_ROOT) cached = out;
-  return out;
+  // Optional bounded executable layer: declarative pre-action hooks.
+  const preAction = [];
+  if (doc.preAction !== undefined) {
+    if (!Array.isArray(doc.preAction)) {
+      throw err('POLICY_MALFORMED', `${POLICY_REL}.preAction must be an array`);
+    }
+    for (const [i, h] of doc.preAction.entries()) {
+      const at = `${POLICY_REL}.preAction[${i}]`;
+      if (h === null || typeof h !== 'object' || Array.isArray(h)) {
+        throw err('POLICY_MALFORMED', `${at} must be an object`);
+      }
+      for (const k of Object.keys(h)) {
+        if (!['id', 'when', 'then', 'reason'].includes(k)) {
+          throw err('POLICY_MALFORMED', `${at} has unknown key '${k}'`);
+        }
+      }
+      if (typeof h.id !== 'string' || !ID_RE.test(h.id)) {
+        throw err('POLICY_MALFORMED', `${at} has invalid id`);
+      }
+      if (!PRE_ACTION_EFFECTS.has(h.then)) {
+        throw err('POLICY_MALFORMED',
+          `${at}.then must be one of ${[...PRE_ACTION_EFFECTS].join('|')}`);
+      }
+      if (h.reason !== undefined && typeof h.reason !== 'string') {
+        throw err('POLICY_MALFORMED', `${at}.reason must be a string`);
+      }
+      const w = h.when;
+      if (w === null || typeof w !== 'object' || Array.isArray(w)) {
+        throw err('POLICY_MALFORMED', `${at}.when must be an object`);
+      }
+      for (const k of Object.keys(w)) {
+        if (!PRE_ACTION_WHEN_KEYS.has(k)) {
+          throw err('POLICY_MALFORMED',
+            `${at}.when has unknown key '${k}'`);
+        }
+      }
+      // Action names are policy-declared slugs (all current ones match
+      // ID_RE); `*` is the wildcard. Reject anything else so a typo can
+      // never silently widen or narrow a rule.
+      if (typeof w.action !== 'string'
+          || (w.action !== '*' && !ID_RE.test(w.action))) {
+        throw err('POLICY_MALFORMED',
+          `${at}.when.action must be '*' or an action-name slug`);
+      }
+      if (w.stateIn !== undefined
+          && (!Array.isArray(w.stateIn) || w.stateIn.length === 0
+            || !w.stateIn.every((s) => typeof s === 'string'
+              && STATE_RE.test(s)))) {
+        throw err('POLICY_MALFORMED',
+          `${at}.when.stateIn must be a non-empty task-state array`);
+      }
+      if (w.scopeOver !== undefined
+          && (!Number.isInteger(w.scopeOver) || w.scopeOver < 0)) {
+        throw err('POLICY_MALFORMED',
+          `${at}.when.scopeOver must be a non-negative integer`);
+      }
+      if (w.skillsMissing !== undefined
+          && (!Array.isArray(w.skillsMissing)
+            || !w.skillsMissing.every((s) => typeof s === 'string'
+              && s.trim() !== ''))) {
+        throw err('POLICY_MALFORMED',
+          `${at}.when.skillsMissing must be a string array`);
+      }
+      preAction.push({ id: h.id, when: w, then: h.then,
+        reason: h.reason ?? null });
+    }
+  }
+  const result = { ...out, preAction };
+  if (installRoot === INSTALL_ROOT) cached = result;
+  return result;
 }
 
 // Hooks applying to a command id: global '*' first, then command-specific.
@@ -84,4 +170,46 @@ export function hooksFor(commandId, { installRoot = INSTALL_ROOT } = {}) {
     ...(policy[phase][commandId] ?? []),
   ];
   return { before: pick('before'), after: pick('after') };
+}
+
+function preActionMatches(w, task, action) {
+  if (w.action !== '*' && w.action !== action) return false;
+  if (w.stateIn !== undefined && !w.stateIn.includes(task.state)) {
+    return false;
+  }
+  if (w.scopeOver !== undefined
+      && !(Array.isArray(task.scope) && task.scope.length > w.scopeOver)) {
+    return false;
+  }
+  if (w.skillsMissing !== undefined) {
+    const have = new Set(Array.isArray(task.skills) ? task.skills : []);
+    if (!w.skillsMissing.some((s) => !have.has(s))) return false;
+  }
+  return true;
+}
+
+// Evaluates declarative pre-action hooks over the already-permitted
+// action set. `block` prunes (real enforcement); `require-gate` flags;
+// `record` annotates. Everything lands on the trace — never silent.
+export function applyPreActionHooks(task, permitted, { installRoot } = {}) {
+  const hooks = loadHooksPolicy({ installRoot }).preAction;
+  if (hooks.length === 0) {
+    return { permitted: [...permitted], applied: [], gated: [] };
+  }
+  const kept = [];
+  const applied = [];
+  const gated = [];
+  for (const action of permitted) {
+    let drop = false;
+    for (const h of hooks) {
+      if (!preActionMatches(h.when, task, action)) continue;
+      applied.push({ id: h.id, action, effect: h.then, reason: h.reason });
+      if (h.then === 'block') drop = true;
+      if (h.then === 'require-gate') {
+        gated.push({ action, hook: h.id, reason: h.reason });
+      }
+    }
+    if (!drop) kept.push(action);
+  }
+  return { permitted: kept, applied, gated };
 }

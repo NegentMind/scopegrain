@@ -13,6 +13,7 @@ import { getTask } from './tasks.mjs';
 import { validateReview, validateVerification } from './evidence.mjs';
 import { resolveInside } from './paths.mjs';
 import { actionsFor, loadMethodologyPolicy } from './policy.mjs';
+import { applyPreActionHooks } from './hooks-policy.mjs';
 
 const INPUT_KEYS = new Set(['taskId', 'to', 'outcomeEvidenceId']);
 const UUID_RE =
@@ -298,8 +299,13 @@ export function checkMethodology(ctx, input) {
 
 export function evaluateTaskActions(ctx, task) {
   const methodology = evaluateMethodology(ctx, task);
-  const permitted = actionsFor(task.state).filter((action) =>
+  const statePermitted = actionsFor(task.state).filter((action) =>
     action !== 'edit' || (methodology.allowed
       && !(carriesMethodologyMetadata(task) && task.scope.length === 0)));
-  return { permitted, methodology };
+  // Bounded declarative pre-action hooks (policy/hooks.json `preAction`):
+  // `block` prunes, `require-gate` flags, `record` annotates — applied
+  // AFTER the state/methodology floor, never a bypass of it.
+  const hooks = applyPreActionHooks(task, statePermitted);
+  return { permitted: hooks.permitted, methodology,
+    actionHooks: { applied: hooks.applied, gated: hooks.gated } };
 }

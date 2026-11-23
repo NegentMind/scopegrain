@@ -571,13 +571,39 @@ local-only — there is no remote feed.
 
 ```json
 {"schemaVersion": 1,
- "hooks": {"*": {"before_": [{"id": "log", "description": "aviso"}]},
-           "implement-task": {"after_": [{"id": "check",
-             "description": "verificar"}]}}}
+ "hooks": {"before": {"*": [{"id": "log", "description": "notice"}]},
+           "after": {"implement-task": [{"id": "check",
+             "description": "verify"}]}}}
 ```
 
-Hooks are projected into `packet.hooks` as advisory data for the host;
-the harness never executes them.
+The real shape is `{hooks: {before|after: {<commandId>|'*': [{id, description,
+command?}]}}}`: phase first, command second — the inverse produces
+`POLICY_MALFORMED`. Each entry requires `id` + `description`; `command`
+is optional.
+
+`before`/`after` hooks are projected into `packet.hooks` as advisory data
+for the host; the harness never executes them.
+
+The optional `preAction` key is the bounded executable layer: closed
+`when` conditions over task metadata, evaluated by the runtime inside
+`evaluateTaskActions`, with declared effects — `block` prunes the action
+from the permitted set (real denial), `require-gate` keeps it but flags
+it on `gated` (the host must obtain approval), `record` only annotates.
+Never argv, never scripts: conditions and effects are data.
+
+```json
+{"schemaVersion": 1, "hooks": {},
+ "preAction": [{"id": "gate-large-scope",
+   "when": {"action": "edit", "scopeOver": 9},
+   "then": "require-gate",
+   "reason": "scope above 9 needs approval"}]}
+```
+
+`when.action` is an action name or `*`; `when.stateIn` a task-state list;
+`when.scopeOver` an integer (strict `>` over `task.scope.length`);
+`when.skillsMissing` a skill list — matches if the task lacks any.
+Matching entries are traced on `packet.actionHooks.applied` and
+`task check-action`/`scopegrain_check_action` expose `actionHooks` + `gate`.
 
 ## Global user config, version, wave progress and VantaDB L3
 

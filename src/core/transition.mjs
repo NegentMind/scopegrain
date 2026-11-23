@@ -482,13 +482,18 @@ export function checkAction(ctx, taskId, action) {
     throw err('INVALID_ACTION', `unknown action '${String(action)}'`);
   }
   const task = getTask(ctx, taskId);
-  const { permitted } = evaluateTaskActions(ctx, task);
+  const { permitted, actionHooks } = evaluateTaskActions(ctx, task);
+  const gate = actionHooks.gated.find((g) => g.action === action) ?? null;
   return {
     id: task.id,
     state: task.state,
     action,
     allowed: permitted.includes(action),
     permitted,
+    // Bounded pre-action hook trace: entries that matched this task's
+    // permitted set, plus the gate flag when this action is gated.
+    actionHooks,
+    ...(gate ? { gate } : {}),
   };
 }
 
