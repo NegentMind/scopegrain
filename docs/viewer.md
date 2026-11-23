@@ -100,6 +100,7 @@ parametros de query desconocidos 400.
 | `GET /api/sessions` / `GET /api/sessions/:id` | sesiones acotadas + `resumeContext` (tarea vinculada, presupuesto, comando de reanudacion) |
 | `GET /api/approvals` / `GET /api/approvals/:id` | cola HITL de aprobaciones y detalle con respuestas/scope/digest |
 | `GET /api/catalog` | catalogo de recursos del workspace y verificacion por hash |
+| `GET /api/catalog/:kind/:id` | cuerpo del archivo proyectado de una entrada (confinado al configDir, acotado, `sha256` incluido); resuelve aliases |
 | `GET /api/verify` | comandos de verificacion descubiertos y aprobados |
 | `GET /api/vantadb` | estado de enrolamiento VantaDB (sin spawnear binario) |
 | `GET /api/workflow` | maquina de estados canonica y transiciones permitidas |

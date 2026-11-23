@@ -93,6 +93,7 @@ any path return 405; unknown paths 404; unknown query parameters 400.
 | `GET /api/sessions` / `GET /api/sessions/:id` | bounded sessions + `resumeContext` (linked task, budget bar, CLI resume command) |
 | `GET /api/approvals` / `GET /api/approvals/:id` | HITL approval queue and answer/revocation detail |
 | `GET /api/catalog` | workspace resource catalog and hash verification |
+| `GET /api/catalog/:kind/:id` | projected file body of a catalog entry (confined to configDir, bounded, `sha256` included); resolves aliases |
 | `GET /api/verify` | discovered and approved verification commands |
 | `GET /api/vantadb` | VantaDB enrollment status (never spawns binary) |
 | `GET /api/workflow` | canonical state machine and allowed transitions |

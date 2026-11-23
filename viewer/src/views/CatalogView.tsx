@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
@@ -54,11 +54,38 @@ function Bindings({ entry }: { entry: CatalogEntry }) {
   );
 }
 
+function DocPanel({ kind, id }: { kind: string; id: string }) {
+  const t = useT();
+  const { data, loading, error, reload } = useApi(
+    () => api.catalogDoc(kind, id),
+    [kind, id],
+  );
+  if (loading) return <ListSkeleton />;
+  if (error) return <ErrorBox error={error} onRetry={reload} />;
+  if (!data?.doc) {
+    return <EmptyBox>{t('catalog.docMissing')}</EmptyBox>;
+  }
+  const d = data.doc;
+  return (
+    <div className="space-y-1.5">
+      <div className="font-mono text-xs text-muted-foreground">
+        {d.path} · {d.bytes} B
+        {d.sha256 ? ` · sha256:${d.sha256.slice(0, 12)}…` : ''}
+        {d.truncated ? ` · ${t('catalog.docTruncated')}` : ''}
+      </div>
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs">
+        {d.body}
+      </pre>
+    </div>
+  );
+}
+
 export function CatalogView() {
   const t = useT();
   const { data, loading, error, reload } = useApi(() => api.catalog());
   const [kind, setKind] = useState<string>('command');
   const [q, setQ] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
 
   const entries = useMemo(() => {
     const list = data?.catalog?.entries?.[kind] ?? [];
@@ -120,33 +147,52 @@ export function CatalogView() {
             </TableHeader>
             <TableBody>
               {entries.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge variant="outline" className="font-mono">{e.id}</Badge>
-                      {(e.modes ?? []).map((m) => (
-                        <Badge
-                          key={m}
-                          variant="secondary"
-                          className="font-mono text-xs"
+                <Fragment key={e.id}>
+                  <TableRow>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpen(open === e.id ? null : e.id)}
+                          aria-expanded={open === e.id}
+                          title={t('catalog.viewDoc')}
                         >
-                          {m}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    <div>{e.description}</div>
-                    {e.path ? (
-                      <div className="mt-0.5 font-mono text-xs opacity-70">
-                        {e.path}
+                          <Badge variant="outline" className="font-mono">
+                            {e.id}
+                          </Badge>
+                        </button>
+                        {(e.modes ?? []).map((m) => (
+                          <Badge
+                            key={m}
+                            variant="secondary"
+                            className="font-mono text-xs"
+                          >
+                            {m}
+                          </Badge>
+                        ))}
                       </div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    <Bindings entry={e} />
-                  </TableCell>
-                </TableRow>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      <div>{e.description}</div>
+                      {e.path ? (
+                        <div className="mt-0.5 font-mono text-xs opacity-70">
+                          {e.path}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <Bindings entry={e} />
+                    </TableCell>
+                  </TableRow>
+                  {open === e.id ? (
+                    <TableRow>
+                      <TableCell colSpan={3}>
+                        <DocPanel kind={kind} id={e.id} />
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </Fragment>
               ))}
             </TableBody>
           </Table>

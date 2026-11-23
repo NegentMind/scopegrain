@@ -589,6 +589,9 @@ export const api = {
   approval: (id: string) =>
     request<{ approval: ApprovalRecord }>(`/api/approvals/${encodeURIComponent(id)}`),
   catalog: () => request<CatalogResponse>('/api/catalog'),
+  catalogDoc: (kind: string, id: string) =>
+    request<CatalogDocResponse>(
+      `/api/catalog/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`),
   verify: () => request<VerifyResponse>('/api/verify'),
   vantadb: () => request<VantaDBResponse>('/api/vantadb'),
   workflow: () => request<WorkflowResponse>('/api/workflow'),
@@ -690,6 +693,20 @@ export interface CatalogResponse {
     truncated?: boolean | null;
     aliases: CatalogAlias[];
   };
+}
+
+export interface CatalogDocResponse {
+  doc: {
+    kind: string;
+    id: string;
+    path: string;
+    sha256: string | null;
+    body: string;
+    truncated?: boolean | null;
+    bytes: number;
+    updatedAt: string;
+  } | null;
+  entry?: { kind: string; id: string; path: string | null };
 }
 
 export interface VerifyCommand {

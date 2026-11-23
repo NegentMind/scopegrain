@@ -146,6 +146,8 @@ const ROUTES = [
     handler: (q, _url, p) => q.approval(p.id) },
   { pattern: ['api', 'catalog'], query: [],
     handler: (q) => q.catalog() },
+  { pattern: ['api', 'catalog', ':kind', ':id'], query: [],
+    handler: (q, _url, p) => q.catalogDoc(p.kind, p.id) },
   { pattern: ['api', 'verify'], query: [],
     handler: (q) => q.verifyCommands() },
   { pattern: ['api', 'vantadb'], query: [],

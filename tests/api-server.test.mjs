@@ -389,6 +389,37 @@ test('catalog groups entries by kind and exposes dep bindings', async () => {
   }
 });
 
+test('catalog doc endpoint serves the projected entry body', async () => {
+  const f = baseFixture();
+  const body = 'Prompt body\nsecond line\n';
+  const sha = crypto.createHash('sha256').update(body).digest('hex');
+  writeFile(f.dir, '.tasksystem/prompts/demo-prompt.md', body);
+  writeJson(f.dir, '.tasksystem/catalog.json', {
+    schemaVersion: 2,
+    entries: [
+      { kind: 'prompt', id: 'demo-prompt', path: 'prompts/demo-prompt.md',
+        description: 'Demo prompt', sha256: sha },
+    ],
+  });
+  const srv = await serve(f);
+  try {
+    const res = await srv.get('/api/catalog/prompt/demo-prompt');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.doc.id, 'demo-prompt');
+    assert.equal(res.body.doc.body, body);
+    assert.equal(res.body.doc.sha256, sha);
+    const missing = await srv.get('/api/catalog/prompt/nope');
+    assert.equal(missing.status, 404);
+    const badId = await srv.get('/api/catalog/prompt/Bad..Id');
+    assert.equal(badId.status, 400);
+    const traversal = await srv.get('/api/catalog/rule/..%2Fsecret');
+    assert.ok(traversal.status === 400 || traversal.status === 404);
+  } finally {
+    await srv.close();
+    cleanup(f.dir);
+  }
+});
+
 test('unenrolled project reports null workspace and 404 scoped endpoints', async () => {
   const f = baseFixture();
   const srv = await serve(f);

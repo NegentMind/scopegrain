@@ -1003,6 +1003,56 @@ export function createApiQueries(ctx) {
       truncated: dropped > 0 || null, aliases: c.aliases ?? {} } };
   }
 
+  const CATALOG_ID_RE = /^[a-z0-9][a-z0-9-]{0,120}$/;
+
+  // Body of a catalog entry's projected file (configDir/<entry.path>). The
+  // served bytes are the hash-pinned projection, not the canonical source.
+  function catalogDoc(kind, id) {
+    if (!CATALOG_ID_RE.test(id)) {
+      throw err('INVALID_ID', 'catalog entry id must be a lowercase slug');
+    }
+    const c = loadWorkspaceCatalog(ctx);
+    const entries = c.entries ?? [];
+    let entry = entries.find((e) => e.kind === kind && e.id === id);
+    if (!entry) {
+      const alias = (c.aliases ?? []).find(
+        (a) => a.kind === kind && a.id === id && a.target);
+      if (alias) {
+        entry = entries.find(
+          (e) => e.kind === kind && e.id === alias.target);
+      }
+    }
+    if (!entry?.path) {
+      throw err('NOT_FOUND', `catalog entry not found: ${kind}/${id}`);
+    }
+    const configDir = ctx.configDir === '.'
+      ? ctx.projectRoot
+      : resolveInside(ctx.projectRoot, ctx.configDir, 'config directory');
+    const file = resolveInside(configDir, entry.path, 'catalog doc');
+    const st = lstatOrNull(file);
+    if (!st) {
+      return { doc: null,
+        entry: { kind, id: entry.id, path: entry.path } };
+    }
+    if (st.isSymbolicLink() || !st.isFile()) {
+      throw err('SYMLINK_REJECTED',
+        `catalog doc may not be a link: ${kind}/${id}`);
+    }
+    const limited = readFileLimited(file, loadLimits().maxDocumentBytes);
+    const text = decodeUtf8Strict(limited.content, 'catalog doc');
+    const cut = truncateString(text, LIMITS.maxBodyChars);
+    return {
+      doc: {
+        kind, id: entry.id, path: entry.path,
+        sha256: entry.sha256 ?? null,
+        body: cut.value,
+        truncated: cut.truncated || limited.exceeded || null,
+        bytes: st.size,
+        updatedAt: st.mtime.toISOString(),
+      },
+    };
+  }
+
   function verifyCommands() {
     const { store, commands } = listVerifyCommands(ctx);
     const page = commands.slice(0, LIMITS.maxListLimit);
@@ -1034,7 +1084,8 @@ export function createApiQueries(ctx) {
     planDocs, planDoc, artifactDocs, artifactDoc,
     artifacts, artifact, journalOperations, journalOperation, captures,
     memory, goals, metrics, reports, report,
-    sessions, session, approvals, approval, catalog, verifyCommands,
+    sessions, session, approvals, approval, catalog, catalogDoc,
+    verifyCommands,
     vantadb, workflow,
   });
 }
