@@ -35,7 +35,9 @@ import {
   StateBadge,
 } from '@/components/StatusBits';
 
-const LOGS: MemoryLogName[] = ['lessons', 'outcomes', 'progress', 'goals'];
+const LOGS: MemoryLogName[] = [
+  'lessons', 'outcomes', 'progress', 'activity', 'goals',
+];
 
 function at(e: Record<string, unknown>): string {
   return typeof e.at === 'string' ? e.at.slice(0, 19).replace('T', ' ') : '';
@@ -194,14 +196,15 @@ function EntriesTable({
             ) : (
               <>
                 <TableCell>
-                  {str(e.action) ? (
+                  {(str(e.action) ?? str(e.kind)) ? (
                     <Badge variant="secondary" className="font-mono text-xs">
-                      {str(e.action)}
+                      {str(e.action) ?? str(e.kind)}
                     </Badge>
                   ) : null}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {str(e.text) ?? str(e.detail) ?? str(e.summary) ?? ''}
+                  {str(e.text) ?? str(e.detail) ?? str(e.summary)
+                    ?? str(e.title) ?? ''}
                 </TableCell>
               </>
             )}

@@ -4,6 +4,7 @@
 // artifacts, journal operations and owned captures.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -17,7 +18,7 @@ import { prepareWorkspace } from '../src/core/workspaces.mjs';
 import { createCaptureStore } from '../src/core/captures.mjs';
 import { createApiServer } from '../src/api/server.mjs';
 import {
-  VALID_ANSWERS, cleanup, makeTempDir, writeJson,
+  VALID_ANSWERS, cleanup, makeTempDir, writeFile, writeJson,
 } from './helpers.mjs';
 
 const CONFIG_REL = '.tasksystem/config.json';
@@ -334,6 +335,54 @@ test('captures surface ownership proof and drift', async () => {
     assert.equal(drifted.status, 'drifted');
     assert.equal(drifted.ownershipConfirmed, false);
     assert.equal(drifted.error.code, 'CAPTURE_SOURCE_CHANGED');
+  } finally {
+    await srv.close();
+    cleanup(f.dir);
+  }
+});
+
+// The workspace catalog snapshot (configDir/catalog.json, schemaVersion 2)
+// is hash-pinned: fixture files carry their real sha256 so the verified
+// load succeeds, including a command with prompt/skill bindings.
+test('catalog groups entries by kind and exposes dep bindings', async () => {
+  const f = baseFixture();
+  const bodies = {
+    'commands/demo-cmd.md': '# Demo command\n',
+    'prompts/demo-prompt.md': 'Prompt body\n',
+    'skills/demo-skill.md': 'Skill body\n',
+  };
+  const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+  for (const [rel, content] of Object.entries(bodies)) {
+    writeFile(f.dir, `.tasksystem/${rel}`, content);
+  }
+  writeJson(f.dir, '.tasksystem/catalog.json', {
+    schemaVersion: 2,
+    entries: [
+      { kind: 'command', id: 'demo-cmd', path: 'commands/demo-cmd.md',
+        description: 'Demo command', modes: ['default'],
+        prompts: ['demo-prompt'], skills: ['demo-skill'],
+        sha256: sha(bodies['commands/demo-cmd.md']) },
+      { kind: 'prompt', id: 'demo-prompt', path: 'prompts/demo-prompt.md',
+        description: 'Demo prompt',
+        sha256: sha(bodies['prompts/demo-prompt.md']) },
+      { kind: 'skill', id: 'demo-skill', path: 'skills/demo-skill.md',
+        description: 'Demo skill',
+        sha256: sha(bodies['skills/demo-skill.md']) },
+    ],
+  });
+  const srv = await serve(f);
+  try {
+    const res = await srv.get('/api/catalog');
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body.catalog.counts,
+      { command: 1, prompt: 1, skill: 1 });
+    const cmd = res.body.catalog.entries.command[0];
+    assert.equal(cmd.id, 'demo-cmd');
+    assert.equal(cmd.path, 'commands/demo-cmd.md');
+    assert.deepEqual(cmd.modes, ['default']);
+    assert.deepEqual(cmd.prompts, ['demo-prompt']);
+    assert.deepEqual(cmd.skills, ['demo-skill']);
+    assert.equal(res.body.catalog.entries.prompt[0].id, 'demo-prompt');
   } finally {
     await srv.close();
     cleanup(f.dir);

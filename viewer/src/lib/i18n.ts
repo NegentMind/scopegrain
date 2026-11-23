@@ -267,6 +267,13 @@ const DICT: Record<Locale, Record<string, string>> = {
     'catalog.kind.reference': 'References',
     'catalog.kind.profile': 'Profiles',
     'catalog.kind.mcp': 'MCP',
+    'catalog.bindings': 'Bindings',
+    'catalog.dep.agents': 'agents',
+    'catalog.dep.skills': 'skills',
+    'catalog.dep.rules': 'rules',
+    'catalog.dep.references': 'references',
+    'catalog.dep.prompts': 'prompts',
+    'catalog.dep.mcps': 'mcps',
     'system.lifecycle': 'Lifecycle',
     'system.lifecycleDesc': 'C0 workflow policy with live task counts per state.',
     'system.pipeline': 'Pipeline states',
@@ -319,7 +326,7 @@ const DICT: Record<Locale, Record<string, string>> = {
     'nav.captures.desc':
       'Typed notes with journal-verified provenance and drift detection.',
     'nav.memory.desc':
-      'Operational worklogs: lessons, outcomes, progress and goals.',
+      'Operational worklogs: lessons, outcomes, progress, activity and goals.',
     'nav.goals.desc': 'Recorded project goals and their linked tasks.',
     'nav.sessions.desc':
       'Bounded agent sessions with resumable handoff context.',
@@ -641,6 +648,13 @@ const DICT: Record<Locale, Record<string, string>> = {
     'catalog.kind.reference': 'Referencias',
     'catalog.kind.profile': 'Perfiles',
     'catalog.kind.mcp': 'MCP',
+    'catalog.bindings': 'Vinculaciones',
+    'catalog.dep.agents': 'agentes',
+    'catalog.dep.skills': 'skills',
+    'catalog.dep.rules': 'reglas',
+    'catalog.dep.references': 'referencias',
+    'catalog.dep.prompts': 'prompts',
+    'catalog.dep.mcps': 'mcps',
     'system.lifecycle': 'Ciclo de vida',
     'system.lifecycleDesc': 'Política C0 con conteo de tareas en vivo por estado.',
     'system.pipeline': 'Estados del pipeline',
@@ -693,7 +707,7 @@ const DICT: Record<Locale, Record<string, string>> = {
     'nav.captures.desc':
       'Notas tipadas con provenance verificada contra el diario y detección de drift.',
     'nav.memory.desc':
-      'Worklogs operativos: lecciones, resultados, progreso y metas.',
+      'Worklogs operativos: lecciones, resultados, progreso, actividad y metas.',
     'nav.goals.desc': 'Metas registradas del proyecto y sus tareas enlazadas.',
     'nav.sessions.desc':
       'Sesiones de agente acotadas con contexto de handoff reanudable.',

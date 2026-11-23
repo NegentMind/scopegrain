@@ -11,7 +11,11 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from '@/components/ui/toggle-group';
-import { api } from '@/lib/api';
+import {
+  api,
+  type CatalogDepKey,
+  type CatalogEntry,
+} from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useT } from '@/lib/i18n';
 import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
@@ -19,6 +23,36 @@ import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
 const KIND_ORDER = [
   'command', 'agent', 'skill', 'prompt', 'rule', 'reference', 'profile', 'mcp',
 ];
+
+const DEP_KEYS: CatalogDepKey[] = [
+  'agents', 'skills', 'rules', 'references', 'prompts', 'mcps',
+];
+
+function Bindings({ entry }: { entry: CatalogEntry }) {
+  const t = useT();
+  const groups = DEP_KEYS.filter(
+    (dk) => Array.isArray(entry[dk]) && entry[dk]!.length > 0,
+  );
+  if (groups.length === 0) {
+    return <span className="text-muted-foreground">{t('common.none')}</span>;
+  }
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      {groups.map((dk) => (
+        <span key={dk} className="inline-flex flex-wrap items-center gap-1">
+          <span className="text-xs text-muted-foreground">
+            {t(`catalog.dep.${dk}`)}:
+          </span>
+          {entry[dk]!.map((id) => (
+            <Badge key={id} variant="secondary" className="font-mono text-xs">
+              {id}
+            </Badge>
+          ))}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export function CatalogView() {
   const t = useT();
@@ -32,7 +66,8 @@ export function CatalogView() {
     if (!needle) return list;
     return list.filter((e) =>
       e.id.toLowerCase().includes(needle)
-      || e.description.toLowerCase().includes(needle));
+      || e.description.toLowerCase().includes(needle)
+      || (e.path ?? '').toLowerCase().includes(needle));
   }, [data, kind, q]);
 
   if (loading) return <ListSkeleton />;
@@ -80,16 +115,36 @@ export function CatalogView() {
               <TableRow>
                 <TableHead className="w-64">{t('common.id')}</TableHead>
                 <TableHead>{t('common.description')}</TableHead>
+                <TableHead className="w-[38%]">{t('catalog.bindings')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {entries.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell>
-                    <Badge variant="outline" className="font-mono">{e.id}</Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="outline" className="font-mono">{e.id}</Badge>
+                      {(e.modes ?? []).map((m) => (
+                        <Badge
+                          key={m}
+                          variant="secondary"
+                          className="font-mono text-xs"
+                        >
+                          {m}
+                        </Badge>
+                      ))}
+                    </div>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {e.description}
+                    <div>{e.description}</div>
+                    {e.path ? (
+                      <div className="mt-0.5 font-mono text-xs opacity-70">
+                        {e.path}
+                      </div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>
+                    <Bindings entry={e} />
                   </TableCell>
                 </TableRow>
               ))}
