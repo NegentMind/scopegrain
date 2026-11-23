@@ -73,3 +73,50 @@ Bounded append-only JSONL logs; `memory add --log X --input FILE`,
 `metrics --project P` aggregates the store on read: counts by state,
 backlog, type, priority and disposition; verification pass/first-try
 rates; close-time p50/p95/p99; per-skill outcome rates.
+
+## Markdown-table backlog schema (when the project keeps a table backlog)
+
+If the owner keeps backlogs as markdown tables (one file or several named
+backlogs), use a single canonical row schema for every task table. Ten
+columns, in this order:
+
+`| ID | Severity | Finding | File:line | Effort | Priority | Status | Description | Relations | Dependencies |`
+
+| Column | Content | Vocabulary |
+|---|---|---|
+| **ID** | `` `PREFIX-NN` `` backticked in the first cell | Backticking lets tooling parse rows deterministically. Prefixes come from the project's registered taxonomy (e.g. `FIND-*` for derived findings); ad-hoc prefixes are prohibited — register them first |
+| **Severity** | Impact if NOT resolved | `🔴 Critical` · `🟠 High` · `🟡 Medium` · `🟢 Low` · `ℹ️ Info` · `—` (n/a: features, decisions, minor debt) |
+| **Finding** | Short bold title, one line | — |
+| **File:line** | Exact location | `path:line`; several separated by ` · `; `—` if n/a |
+| **Effort** | Work estimate | `🟢 1h` · `🟡 1d` · `🟠 2-3d` · `🔴 1-2wk` (or explicit ranges) |
+| **Priority** | Order of attack | `🔴 High` · `🟠 Medium` · `🟡 Low` · `🟢 Nice-to-have` · `🔵 Future` · `⬜ Unprioritized` (or a `P0..P3` tier where used) |
+| **Status** | Current situation | `🆕 Pending` (optional `(YYYY-MM-DD)`) · `⏳ In progress` · `⏸️ Blocked: <reason>` · `🧊 Icebox` · `🔮 Future: <trigger>` · `❌ Discarded: <reason>`. **`✅` does not exist in active tables**: a completed row is REMOVED (recorded in the progress log; removed-unresolved rows go to a history file) |
+| **Description** | Context: problem → action → result; absorbs former extra columns as labeled fragments (`Type: … · Source: …`) | — |
+| **Relations** | Traceability and links | `Origin: <plan#task · commit · report · audit>` · `Source: <research/report>` · `See: <IDs>` · `Supersedes: <ID>` · `Duplicate of: <ID>` · `Owner: <agent/human>` |
+| **Dependencies** | Blocks / prerequisites | `Dep: <ID>` · `Requires: <condition>` · `—` |
+
+### Row rules
+
+1. One row = one task/finding, in ONE backlog only (no duplication across
+   files; cross-reference with `See:`).
+2. A column with no data → `—`, never an empty cell (deterministic render
+   and parse).
+3. Pipes inside cell content are escaped `\|`.
+4. Summary tables (exec summaries, close-out notes, completed migration
+   logs) are NOT task tables — outside this schema.
+
+### Example rows
+
+**Finding:**
+``| `FIND-213` | 🟠 High | **Thread-local pool grows unbounded** | `src/index/search/pool.rs` | 🟡 1d | 🟠 Medium | 🆕 Pending | The pool grows without limit under many search threads; drop doesn't reclaim retained buffers. | Origin: audit 2026-09-30 | — |``
+
+**Phase task:**
+``| `SCH-09` | — | **Confidence: scheduled revalidation** | `src/sdk/…` | 🟠 2-3d | 🔴 High | 🆕 Pending | 🎯 OP: … · OS: … | Origin: external audit | Dep: SCH-04 |``
+
+**Future row:**
+``| `FUT-24` | — | **Deterministic seed in index build** | `src/index/ivf.rs` | 🟡 1d | 🔵 Future | 🔮 Future: use case | Randomized init without a fixed seed → non-reproducible indexes. | Origin: audit | — |``
+
+**Business row (human):**
+``| `BIZ-16` | — | **Sign binaries (code-signing cert)** | — | 🟠 2-3d + cost | 🟠 Medium | 🆕 Pending | Cert + signing step in release + checksums. | Owner: owner | Dep: certificate |``
+
+<!-- Referencias cruzadas: → ver definition-of-done.md, task-system.md, research-modules.md -->
