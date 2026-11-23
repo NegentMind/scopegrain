@@ -62,6 +62,37 @@ Task arrives
     └── Deploying/launching? ───────────→ shipping-and-launch
 ```
 
+## Capability declaration (mandatory, once per phase)
+
+Choosing capabilities silently is not selection — it is guessing. Before
+the first mutating action of a task (and again on every phase change),
+emit this block so the choice is auditable and correctable:
+
+```
+DECLARED CAPABILITIES
+task-type:   <core-logic|interface|docs|research|ops|release|mixed>
+phase:       <clarify|spec|plan|implement|test|review|ship|debug|handoff>
+skills:      [<id>, ...]          — bodies read before acting
+references:  [<id>, ...]          — consulted as needed
+mcps/tools:  [<id>, ...]          — only entries actually available
+unavailable: [<id> — reason]      — degraded explicitly, never fabricated
+rationale:   one line per non-obvious pick
+```
+
+Rules:
+
+1. Emit it before the first edit/command, not after — a declaration made
+   post-hoc cannot be corrected in time.
+2. Keep it the smallest set that covers the current phase. Loading the
+   whole catalog is a failure of this skill, not thoroughness.
+3. On a phase transition (plan → implement → test → review), re-emit
+   with the delta — do not silently carry stale selections.
+4. Record the final set in `task.skills` at close; it feeds the
+   outcomes loop used to route future tasks.
+5. When the runtime eventually supplies bindings automatically, this
+   block becomes the verification that the auto-selection was right —
+   the declaration stays either way.
+
 ## Core Operating Behaviors
 
 These apply at all times, across all skills. Non-negotiable.
@@ -194,6 +225,8 @@ acting — then verify per their own procedures.
 
 ## Verification
 
+- [ ] A `DECLARED CAPABILITIES` block was emitted before the first
+      mutating action and re-emitted on every phase change.
 - [ ] The selected set is the smallest that covers the task's phases —
       not the whole catalog.
 - [ ] Every selected entry was checked for activation status, scope and

@@ -55,6 +55,9 @@ Before the first edit:
 
 - **Auto-classify** the task type from the affected paths (core logic,
   interface/binding, docs, mixed) and load the matching skills and checks.
+  Emit the `DECLARED CAPABILITIES` block from `select-capabilities`
+  before the first edit — a selection not declared is a selection not
+  made, and it lets the owner correct a wrong route before it costs work.
 - **Confirm the gap is real:** referenced files and symbols exist; the
   described behavior is not already implemented; docs match the code.
 - **Map the blast radius:** callers, callees, implications — does anything

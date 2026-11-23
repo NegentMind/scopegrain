@@ -67,7 +67,10 @@ When a task enters execution:
    architecture, security, performance, docs, research, chaos, release,
    multi-agent).
 3. **Select capabilities** — choose the skills/procedures the delegated
-   role will need, per catalog discipline.
+   role will need, per catalog discipline, and state the expected
+   `DECLARED CAPABILITIES` in the brief. The delegate confirms or
+   corrects it before acting; it is part of the delegation contract,
+   not an internal note.
 4. **Resolve the task record** — create it if missing (type detection →
    blast radius → research if ambiguous → atomic steps); if it exists,
    read where it stopped.
