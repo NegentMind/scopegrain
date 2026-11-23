@@ -4,7 +4,13 @@ import remarkGfm from 'remark-gfm';
 // Read-only markdown rendering with theme-consistent element overrides.
 // react-markdown emits React elements (no dangerouslySetInnerHTML) and
 // ignores raw HTML in the source, so untrusted doc content stays inert.
-export function Markdown({ children }: { children: string }) {
+export function Markdown({
+  children,
+  onInternalLink,
+}: {
+  children: string;
+  onInternalLink?: (href: string) => boolean;
+}) {
   return (
     <div className="text-sm leading-relaxed">
       <ReactMarkdown
@@ -32,6 +38,9 @@ export function Markdown({ children }: { children: string }) {
               href={href}
               target="_blank"
               rel="noreferrer"
+              onClick={(ev) => {
+                if (href && onInternalLink?.(href)) ev.preventDefault();
+              }}
               className="font-medium text-primary underline underline-offset-4"
             >
               {children}

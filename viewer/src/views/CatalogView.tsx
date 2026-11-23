@@ -16,6 +16,8 @@ import {
   type CatalogDepKey,
   type CatalogEntry,
 } from '@/lib/api';
+import { buildDocIndex, resolveDocRef } from '@/lib/docIndex';
+import { Markdown } from '@/components/Markdown';
 import { useApi } from '@/lib/useApi';
 import { useT } from '@/lib/i18n';
 import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
@@ -28,7 +30,13 @@ const DEP_KEYS: CatalogDepKey[] = [
   'agents', 'skills', 'rules', 'references', 'prompts', 'mcps',
 ];
 
-function Bindings({ entry }: { entry: CatalogEntry }) {
+function Bindings({
+  entry,
+  onNavigate,
+}: {
+  entry: CatalogEntry;
+  onNavigate?: (kind: string, id: string) => void;
+}) {
   const t = useT();
   const groups = DEP_KEYS.filter(
     (dk) => Array.isArray(entry[dk]) && entry[dk]!.length > 0,
@@ -44,9 +52,19 @@ function Bindings({ entry }: { entry: CatalogEntry }) {
             {t(`catalog.dep.${dk}`)}:
           </span>
           {entry[dk]!.map((id) => (
-            <Badge key={id} variant="secondary" className="font-mono text-xs">
-              {id}
-            </Badge>
+            <button
+              key={id}
+              type="button"
+              title={t('catalog.viewDoc')}
+              onClick={() => onNavigate?.(dk.slice(0, -1), id)}
+            >
+              <Badge
+                variant="secondary"
+                className="font-mono text-xs hover:bg-accent"
+              >
+                {id}
+              </Badge>
+            </button>
           ))}
         </span>
       ))}
@@ -54,7 +72,15 @@ function Bindings({ entry }: { entry: CatalogEntry }) {
   );
 }
 
-function DocPanel({ kind, id }: { kind: string; id: string }) {
+function DocPanel({
+  kind,
+  id,
+  onInternalLink,
+}: {
+  kind: string;
+  id: string;
+  onInternalLink?: (href: string) => boolean;
+}) {
   const t = useT();
   const { data, loading, error, reload } = useApi(
     () => api.catalogDoc(kind, id),
@@ -73,9 +99,9 @@ function DocPanel({ kind, id }: { kind: string; id: string }) {
         {d.sha256 ? ` · sha256:${d.sha256.slice(0, 12)}…` : ''}
         {d.truncated ? ` · ${t('catalog.docTruncated')}` : ''}
       </div>
-      <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs">
-        {d.body}
-      </pre>
+      <div className="max-h-[32rem] overflow-auto rounded-md border bg-muted/30 p-4">
+        <Markdown onInternalLink={onInternalLink}>{d.body}</Markdown>
+      </div>
     </div>
   );
 }
@@ -86,6 +112,29 @@ export function CatalogView() {
   const [kind, setKind] = useState<string>('command');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+
+  const docIndex = useMemo(
+    () => buildDocIndex(data?.catalog?.entries ?? {}),
+    [data],
+  );
+
+  const navigateDoc = (targetKind: string, id: string) => {
+    setKind(targetKind);
+    setQ('');
+    setOpen(id);
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`catalog-row-${id}`)
+        ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  };
+
+  const handleInternalLink = (href: string): boolean => {
+    const ref = resolveDocRef(href, docIndex);
+    if (!ref) return false;
+    navigateDoc(ref.kind, ref.id);
+    return true;
+  };
 
   const entries = useMemo(() => {
     const list = data?.catalog?.entries?.[kind] ?? [];
@@ -148,7 +197,7 @@ export function CatalogView() {
             <TableBody>
               {entries.map((e) => (
                 <Fragment key={e.id}>
-                  <TableRow>
+                  <TableRow id={`catalog-row-${e.id}`}>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <button
@@ -182,13 +231,17 @@ export function CatalogView() {
                       ) : null}
                     </TableCell>
                     <TableCell>
-                      <Bindings entry={e} />
+                      <Bindings entry={e} onNavigate={navigateDoc} />
                     </TableCell>
                   </TableRow>
                   {open === e.id ? (
                     <TableRow>
                       <TableCell colSpan={3}>
-                        <DocPanel kind={kind} id={e.id} />
+                        <DocPanel
+                          kind={kind}
+                          id={e.id}
+                          onInternalLink={handleInternalLink}
+                        />
                       </TableCell>
                     </TableRow>
                   ) : null}
