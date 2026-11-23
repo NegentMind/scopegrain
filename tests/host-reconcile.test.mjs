@@ -16,7 +16,7 @@ import {
   bootstrappedCtx, cleanup, DEFAULT_ANSWERS, exists, readJson, writeFile,
 } from './helpers.mjs';
 
-const CFG = '.tasksystem/config.json';
+const CFG = '.scopegrain/config.json';
 
 test('activation plan declares claude and codex MCP merge targets', () => {
   const { dir, ctx } = bootstrappedCtx();
@@ -153,7 +153,7 @@ test('doctor host-merge-targets: pending, stale and diverged literals', () => {
 
     // Correct merge (fragment bytes copied verbatim): ok.
     const fragment = fs.readFileSync(
-      path.join(dir, '.tasksystem/integrations/claude-mcp.json'), 'utf8');
+      path.join(dir, '.scopegrain/integrations/claude-mcp.json'), 'utf8');
     writeFile(dir, '.mcp.json', fragment);
     report = runDoctor(ctx);
     check = report.checks.find((c) => c.name === 'host-merge-targets');

@@ -29,7 +29,7 @@ const GOOD = {
 
 function ctxFixture() {
   const dir = makeTempDir('plans');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   const ctx = resolveContext({ project: dir });
   return { dir, ctx };

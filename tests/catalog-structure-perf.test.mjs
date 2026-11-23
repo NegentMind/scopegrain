@@ -18,14 +18,14 @@ import { applyPlan } from '../src/core/bootstrap.mjs';
 import { prepareWorkspace } from '../src/core/workspaces.mjs';
 import { bootstrappedCtx, cleanup, writeFile } from './helpers.mjs';
 
-const FP_REL = '.tasksystem/state/cache/catalog-fingerprint.json';
+const FP_REL = '.scopegrain/state/cache/catalog-fingerprint.json';
 const CATALOG_MJS = new URL('../src/core/catalog.mjs', import.meta.url).href;
 
 function probe(dir, extra = '') {
   const script = `
 import { loadWorkspaceCatalog, getResource }
   from ${JSON.stringify(CATALOG_MJS)};
-const ctx = { projectRoot: ${JSON.stringify(dir)}, configDir: '.tasksystem' };
+const ctx = { projectRoot: ${JSON.stringify(dir)}, configDir: '.scopegrain' };
 try {
   const cat = loadWorkspaceCatalog(ctx);
   let serve = null;
@@ -50,7 +50,7 @@ test('verified fingerprint persists and is honored by a fresh process', () => {
     assert.ok(fs.existsSync(fpAbs), 'fingerprint file must be written');
     const doc = JSON.parse(fs.readFileSync(fpAbs, 'utf8'));
     assert.equal(doc.schemaVersion, 1);
-    assert.equal(doc.configDir, path.resolve(dir, '.tasksystem'));
+    assert.equal(doc.configDir, path.resolve(dir, '.scopegrain'));
     assert.equal(typeof doc.fingerprint, 'string');
     assert.ok(doc.fingerprint.length > 64);
     // A fresh process reuses it: catalog resolves, hash-verified label.
@@ -82,7 +82,7 @@ test('stat-changing tamper invalidates the persisted fingerprint', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
     loadWorkspaceCatalog(ctx); // persist fingerprint F1
-    const f = `${dir}/.tasksystem/commands/plan-work.md`;
+    const f = `${dir}/.scopegrain/commands/plan-work.md`;
     const orig = fs.readFileSync(f);
     fs.writeFileSync(f, Buffer.concat([orig, Buffer.from('X')])); // size+
     const out = probe(dir);
@@ -95,7 +95,7 @@ test('stat-changing tamper invalidates the persisted fingerprint', () => {
 test('stat-preserving tamper skips only the eager pass — delivery fails', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
-    const f = `${dir}/.tasksystem/commands/plan-work.md`;
+    const f = `${dir}/.scopegrain/commands/plan-work.md`;
     const orig = fs.readFileSync(f);
     const fixed = new Date(1700000000000);
     fs.utimesSync(f, fixed, fixed);
@@ -118,7 +118,7 @@ test('structureStatus debounce serves a cached answer inside the window', () => 
     const first = structureStatus(ctx, { debounceMs: 60_000 });
     assert.equal(first.cached, undefined);
     assert.equal(typeof first.stale, 'boolean');
-    const cacheRel = '.tasksystem/state/cache/structure-status.json';
+    const cacheRel = '.scopegrain/state/cache/structure-status.json';
     assert.ok(fs.existsSync(path.join(dir, ...cacheRel.split('/'))));
     const second = structureStatus(ctx, { debounceMs: 60_000 });
     assert.equal(second.cached, true);

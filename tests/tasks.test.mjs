@@ -17,7 +17,7 @@ import {
 function setup() {
   const dir = makeTempDir('tasks');
   const config = createConfig(dir, VALID_ANSWERS, {});
-  writeJson(dir, '.tasksystem/config.json', config);
+  writeJson(dir, '.scopegrain/config.json', config);
   const ctx = resolveContext({ project: dir });
   const task = createTask(ctx, {
     title: 'T', contract: 'C', authorContext: 'author-ctx', scope: ['src/x'],
@@ -152,7 +152,7 @@ test('scope entries that cross a symlink are rejected at create', (t) => {
   const dir = makeTempDir('tasks-link');
   try {
     const config = createConfig(dir, VALID_ANSWERS, {});
-    writeJson(dir, '.tasksystem/config.json', config);
+    writeJson(dir, '.scopegrain/config.json', config);
     writeJson(dir, 'real/package.json', { name: 'x' });
     const ctx = resolveContext({ project: dir });
     let made = false;

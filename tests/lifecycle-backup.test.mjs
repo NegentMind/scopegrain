@@ -27,8 +27,8 @@ const DISCOVERY = { schemaVersion: 1, stacks: [], evidence: [] };
 function seeded({ discovery = true } = {}) {
   const { dir, ctx } = configuredCtx();
   enroll(ctx);
-  if (discovery) writeJson(dir, '.tasksystem/discovery.json', DISCOVERY);
-  writeFile(dir, '.tasksystem/plans/p1.json', '{}');
+  if (discovery) writeJson(dir, '.scopegrain/discovery.json', DISCOVERY);
+  writeFile(dir, '.scopegrain/plans/p1.json', '{}');
   writeFile(dir, 'notes.txt', 'not backed up');
   return { dir, ctx };
 }
@@ -44,19 +44,19 @@ test('backup preview hashes every exported entry, writes nothing', () => {
     assert.equal(preview.mode, 'dry-run');
     assert.equal(preview.destination, 'backups/b1');
     const rels = preview.entries.map((e) => e.rel);
-    assert.ok(rels.includes('.tasksystem/config.json'));
-    assert.ok(rels.includes('.tasksystem/discovery.json')); // config sibling
-    assert.ok(rels.includes('.tasksystem/state/workspace.json'));
-    assert.ok(rels.includes('.tasksystem/plans/p1.json'));
+    assert.ok(rels.includes('.scopegrain/config.json'));
+    assert.ok(rels.includes('.scopegrain/discovery.json')); // config sibling
+    assert.ok(rels.includes('.scopegrain/state/workspace.json'));
+    assert.ok(rels.includes('.scopegrain/plans/p1.json'));
     assert.ok(!rels.includes('notes.txt')); // outside declared paths
     for (const e of preview.entries) {
       assert.match(e.sha256, /^[0-9a-f]{64}$/);
       assert.ok(Number.isSafeInteger(e.bytes) && e.bytes >= 0);
     }
     // sha is the real file hash
-    const cfg = preview.entries.find((e) => e.rel === '.tasksystem/config.json');
+    const cfg = preview.entries.find((e) => e.rel === '.scopegrain/config.json');
     assert.equal(cfg.sha256, sha(
-      fs.readFileSync(path.join(dir, '.tasksystem/config.json'))));
+      fs.readFileSync(path.join(dir, '.scopegrain/config.json'))));
   } finally { cleanup(dir); }
 });
 
@@ -81,16 +81,16 @@ test('backup destination validation rejects unsafe and overlapping paths', () =>
       (e) => e.code === 'INVALID_PATH');
     // inside a scanned source dir -> self-inclusion rejected
     assert.throws(
-      () => prepareBackup(ctx, { destination: '.tasksystem/state/inside' }),
+      () => prepareBackup(ctx, { destination: '.scopegrain/state/inside' }),
       (e) => e.code === 'BACKUP_DESTINATION_OVERLAP');
     // ancestor of sources rejected too
-    assert.throws(() => prepareBackup(ctx, { destination: '.tasksystem' }),
+    assert.throws(() => prepareBackup(ctx, { destination: '.scopegrain' }),
       (e) => e.code === 'BACKUP_DESTINATION_OVERLAP');
     // sibling of sources inside the harness dir is legal
-    const ok = prepareBackup(ctx, { destination: '.tasksystem/backups/b1' });
-    assert.equal(ok.destination, '.tasksystem/backups/b1');
+    const ok = prepareBackup(ctx, { destination: '.scopegrain/backups/b1' });
+    assert.equal(ok.destination, '.scopegrain/backups/b1');
     assert.equal(ok.mode, 'dry-run');
-    assert.ok(!exists(dir, '.tasksystem/backups/b1')); // still nothing written
+    assert.ok(!exists(dir, '.scopegrain/backups/b1')); // still nothing written
   } finally { cleanup(dir); }
 });
 
@@ -100,20 +100,20 @@ test('backup apply writes a self-describing bundle, create-only', () => {
     const res = applyBackup(ctx, { destination: 'backups/b1' });
     assert.equal(res.mode, 'applied');
     assert.ok(exists(dir, 'backups/b1/manifest.json'));
-    assert.ok(exists(dir, 'backups/b1/files/.tasksystem/config.json'));
-    assert.ok(exists(dir, 'backups/b1/files/.tasksystem/discovery.json'));
-    assert.ok(exists(dir, 'backups/b1/files/.tasksystem/state/workspace.json'));
-    assert.ok(exists(dir, 'backups/b1/files/.tasksystem/plans/p1.json'));
+    assert.ok(exists(dir, 'backups/b1/files/.scopegrain/config.json'));
+    assert.ok(exists(dir, 'backups/b1/files/.scopegrain/discovery.json'));
+    assert.ok(exists(dir, 'backups/b1/files/.scopegrain/state/workspace.json'));
+    assert.ok(exists(dir, 'backups/b1/files/.scopegrain/plans/p1.json'));
     const manifest = readJson(dir, 'backups/b1/manifest.json');
     assert.equal(manifest.schemaVersion, 1);
     assert.equal(manifest.kind, 'scopegrain-backup');
-    assert.equal(manifest.source.configRel, '.tasksystem/config.json');
+    assert.equal(manifest.source.configRel, '.scopegrain/config.json');
     assert.ok(manifest.entries.some(
-      (e) => e.rel === '.tasksystem/discovery.json'));
+      (e) => e.rel === '.scopegrain/discovery.json'));
     // payload bytes identical to sources
     assert.ok(fs.readFileSync(
-      path.join(dir, 'backups/b1/files/.tasksystem/config.json'))
-      .equals(fs.readFileSync(path.join(dir, '.tasksystem/config.json'))));
+      path.join(dir, 'backups/b1/files/.scopegrain/config.json'))
+      .equals(fs.readFileSync(path.join(dir, '.scopegrain/config.json'))));
     // every manifest entry matches the payload hash
     for (const e of manifest.entries) {
       const payload = fs.readFileSync(
@@ -138,28 +138,28 @@ test('an absent discovery.json is a skipped source, never a bundle gap', () => {
   try {
     const preview = prepareBackup(ctx, { destination: 'backups/b1' });
     assert.ok(!preview.entries.some(
-      (e) => e.rel === '.tasksystem/discovery.json'));
+      (e) => e.rel === '.scopegrain/discovery.json'));
     assert.ok(preview.issues.some((i) =>
       i.code === 'BACKUP_SOURCE_SKIPPED'
-      && i.rel === '.tasksystem/discovery.json'));
+      && i.rel === '.scopegrain/discovery.json'));
     // Bundle still exports and restores the rest.
     const res = applyBackup(ctx, { destination: 'backups/b1' });
     assert.equal(res.mode, 'applied');
-    assert.ok(exists(dir, 'backups/b1/files/.tasksystem/config.json'));
+    assert.ok(exists(dir, 'backups/b1/files/.scopegrain/config.json'));
   } finally { cleanup(dir); }
 });
 
 test('backup records symlinked entries as issues, never follows links', () => {
   const { dir, ctx } = seeded();
   try {
-    writeFile(dir, '.tasksystem/plans/real.json', '{}');
+    writeFile(dir, '.scopegrain/plans/real.json', '{}');
     const linked = trySymlink(
       path.join(dir, 'notes.txt'),
-      path.join(dir, '.tasksystem/plans/link.txt'), 'file');
+      path.join(dir, '.scopegrain/plans/link.txt'), 'file');
     if (!linked) return; // platform denied symlink creation
     const preview = prepareBackup(ctx, { destination: 'backups/b1' });
-    assert.ok(!preview.entries.some((e) => e.rel === '.tasksystem/plans/link.txt'));
-    assert.ok(preview.issues.some((i) => i.rel === '.tasksystem/plans/link.txt'));
+    assert.ok(!preview.entries.some((e) => e.rel === '.scopegrain/plans/link.txt'));
+    assert.ok(preview.issues.some((i) => i.rel === '.scopegrain/plans/link.txt'));
   } finally { cleanup(dir); }
 });
 
@@ -177,29 +177,29 @@ test('restore preview classifies create/skip/conflict, apply restores only creat
     assert.ok(preview.entries.every((e) => e.action === 'skip'
       && e.reason === 'identical'));
 
-    fs.rmSync(path.join(dir, '.tasksystem/plans/p1.json'));
-    fs.rmSync(path.join(dir, '.tasksystem/discovery.json'));
-    writeFile(dir, '.tasksystem/config.json', '{"tampered":true}');
+    fs.rmSync(path.join(dir, '.scopegrain/plans/p1.json'));
+    fs.rmSync(path.join(dir, '.scopegrain/discovery.json'));
+    writeFile(dir, '.scopegrain/config.json', '{"tampered":true}');
     const p2 = prepareRestore(dir, 'backups/b1');
-    assert.equal(p2.entries.find((e) => e.rel === '.tasksystem/plans/p1.json')
+    assert.equal(p2.entries.find((e) => e.rel === '.scopegrain/plans/p1.json')
       .action, 'create');
     assert.equal(p2.entries.find(
-      (e) => e.rel === '.tasksystem/discovery.json').action, 'create');
-    assert.equal(p2.entries.find((e) => e.rel === '.tasksystem/config.json')
+      (e) => e.rel === '.scopegrain/discovery.json').action, 'create');
+    assert.equal(p2.entries.find((e) => e.rel === '.scopegrain/config.json')
       .action, 'conflict');
 
     const res = applyRestore(dir, 'backups/b1');
     assert.equal(res.mode, 'applied');
-    assert.ok(res.restored.includes('.tasksystem/plans/p1.json'));
-    assert.ok(res.restored.includes('.tasksystem/discovery.json'));
-    assert.ok(res.conflicts.some((c) => c.rel === '.tasksystem/config.json'));
+    assert.ok(res.restored.includes('.scopegrain/plans/p1.json'));
+    assert.ok(res.restored.includes('.scopegrain/discovery.json'));
+    assert.ok(res.conflicts.some((c) => c.rel === '.scopegrain/config.json'));
     // conflict never merged/overwritten
     assert.equal(fs.readFileSync(
-      path.join(dir, '.tasksystem/config.json'), 'utf8'), '{"tampered":true}');
+      path.join(dir, '.scopegrain/config.json'), 'utf8'), '{"tampered":true}');
     assert.equal(fs.readFileSync(
-      path.join(dir, '.tasksystem/plans/p1.json'), 'utf8'), '{}');
+      path.join(dir, '.scopegrain/plans/p1.json'), 'utf8'), '{}');
     assert.deepEqual(
-      readJson(dir, '.tasksystem/discovery.json'), DISCOVERY);
+      readJson(dir, '.scopegrain/discovery.json'), DISCOVERY);
   } finally { cleanup(dir); }
 });
 
@@ -208,16 +208,16 @@ test('restore skips tampered payloads and self-referential entries', () => {
   try {
     applyBackup(ctx, { destination: 'backups/b1' });
     // tamper one payload in the bundle
-    writeFile(dir, 'backups/b1/files/.tasksystem/plans/p1.json', 'corrupted');
-    fs.rmSync(path.join(dir, '.tasksystem/plans/p1.json'));
+    writeFile(dir, 'backups/b1/files/.scopegrain/plans/p1.json', 'corrupted');
+    fs.rmSync(path.join(dir, '.scopegrain/plans/p1.json'));
     const preview = prepareRestore(dir, 'backups/b1');
     const entry = preview.entries.find(
-      (e) => e.rel === '.tasksystem/plans/p1.json');
+      (e) => e.rel === '.scopegrain/plans/p1.json');
     assert.equal(entry.action, 'skip');
     assert.equal(entry.reason, 'payload-hash-mismatch');
     const res = applyRestore(dir, 'backups/b1');
-    assert.ok(!res.restored.includes('.tasksystem/plans/p1.json'));
-    assert.ok(!exists(dir, '.tasksystem/plans/p1.json'));
+    assert.ok(!res.restored.includes('.scopegrain/plans/p1.json'));
+    assert.ok(!exists(dir, '.scopegrain/plans/p1.json'));
 
     // crafted manifest entry targeting inside the bundle -> self-referential
     const payload = Buffer.from('payload');
@@ -225,7 +225,7 @@ test('restore skips tampered payloads and self-referential entries', () => {
     writeJson(dir, 'backups/b2/manifest.json', {
       schemaVersion: 1, kind: 'scopegrain-backup',
       createdAt: '2026-11-17T00:00:00.000Z',
-      source: { configRel: '.tasksystem/config.json' },
+      source: { configRel: '.scopegrain/config.json' },
       entries: [{
         rel: 'backups/b2/files/evil',
         sha256: sha(payload), bytes: payload.length,

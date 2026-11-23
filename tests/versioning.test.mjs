@@ -40,11 +40,11 @@ test('versioning field is optional, all-or-none, booleans only', () => {
 
 test('gitignore covers only unversioned in-workspace categories', () => {
   const files = buildVersioningFiles({
-    configDir: '.tasksystem',
+    configDir: '.scopegrain',
     paths: DEFAULT_ANSWERS.paths,
     versioning: { ...ALL_VERSIONING_FALSE, tasks: true, reports: true, reviews: true },
   });
-  const gi = files.find((f) => f.rel === '.tasksystem/.gitignore');
+  const gi = files.find((f) => f.rel === '.scopegrain/.gitignore');
   assert.ok(gi);
   assert.ok(gi.content.includes('/plans/'));
   assert.ok(gi.content.includes('/research/'));
@@ -63,23 +63,23 @@ test('nested reviews override patterns follow the spec exactly', () => {
   const paths = { ...DEFAULT_ANSWERS.paths };
   // local reports + shared reviews: /reports/* then !/reports/reviews/
   const localReports = buildVersioningFiles({
-    configDir: '.tasksystem', paths,
+    configDir: '.scopegrain', paths,
     versioning: { ...ALL_VERSIONING_FALSE, reviews: true },
-  }).find((f) => f.rel === '.tasksystem/.gitignore');
+  }).find((f) => f.rel === '.scopegrain/.gitignore');
   assert.ok(localReports.content.includes('/reports/*'));
   assert.ok(localReports.content.includes('!/reports/reviews/'));
   // shared reports + local reviews: ignore only /reports/reviews/
   const localReviews = buildVersioningFiles({
-    configDir: '.tasksystem', paths,
+    configDir: '.scopegrain', paths,
     versioning: { ...ALL_VERSIONING_FALSE, reports: true },
-  }).find((f) => f.rel === '.tasksystem/.gitignore');
+  }).find((f) => f.rel === '.scopegrain/.gitignore');
   assert.ok(localReviews.content.includes('/reports/reviews/'));
   assert.ok(!localReviews.content.includes('/reports/*'));
 });
 
 test('outside-workspace paths land in the proposal, root never touched', () => {
   const files = buildVersioningFiles({
-    configDir: '.tasksystem',
+    configDir: '.scopegrain',
     paths: VALID_ANSWERS.paths, // custom docs/agent paths
     versioning: ALL_VERSIONING_FALSE,
   });
@@ -103,19 +103,19 @@ test('init applies versioning files; root .gitignore untouched', () => {
   try {
     writeJson(dir, 'package.json', { name: 'x' });
     const prepared = prepareInit({
-      projectRoot: dir, configRel: '.tasksystem/config.json', answers: {
+      projectRoot: dir, configRel: '.scopegrain/config.json', answers: {
         ...DEFAULT_ANSWERS,
         versioning: { ...ALL_VERSIONING_FALSE, tasks: true },
       },
     });
     const rels = prepared.files.map((f) => f.rel);
-    assert.ok(rels.includes('.tasksystem/.gitignore'));
-    assert.ok(rels.includes('.tasksystem/integrations/gitignore-proposal.txt'));
-    assert.ok(rels.includes('.tasksystem/catalog.json'));
-    assert.ok(rels.some((r) => r.startsWith('.tasksystem/commands/')));
+    assert.ok(rels.includes('.scopegrain/.gitignore'));
+    assert.ok(rels.includes('.scopegrain/integrations/gitignore-proposal.txt'));
+    assert.ok(rels.includes('.scopegrain/catalog.json'));
+    assert.ok(rels.some((r) => r.startsWith('.scopegrain/commands/')));
     assert.ok(!rels.includes('.gitignore'));
     applyPlan(dir, prepared.files);
-    const gi = fs.readFileSync(`${dir}/.tasksystem/.gitignore`, 'utf8');
+    const gi = fs.readFileSync(`${dir}/.scopegrain/.gitignore`, 'utf8');
     assert.ok(gi.includes('/plans/'));
     assert.ok(!gi.includes('/tasks/'));
     assert.ok(!exists(dir, '.gitignore'));
@@ -125,16 +125,16 @@ test('init applies versioning files; root .gitignore untouched', () => {
 test('old config without versioning loads and re-inits as no-op', () => {
   const dir = makeTempDir('oldcfg');
   try {
-    applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.tasksystem/config.json',
+    applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.scopegrain/config.json',
       answers: VALID_ANSWERS }).files);
-    const cfg = readJson(dir, '.tasksystem/config.json');
+    const cfg = readJson(dir, '.scopegrain/config.json');
     delete cfg.versioning; // simulate a pre-versioning config file
-    writeJson(dir, '.tasksystem/config.json', cfg);
+    writeJson(dir, '.scopegrain/config.json', cfg);
     const { config } = loadConfig(dir);
     assert.deepEqual(config.versioning, ALL_VERSIONING_FALSE);
     const second = prepareInit({ projectRoot: dir, answers: VALID_ANSWERS });
     assert.equal(
-      second.files.find((f) => f.rel === '.tasksystem/config.json').action,
+      second.files.find((f) => f.rel === '.scopegrain/config.json').action,
       'noop');
   } finally { cleanup(dir); }
 });
@@ -150,7 +150,7 @@ test('custom explicit paths remain valid with versioning enabled', () => {
 
 test('machine-local host destinations land in the root proposal', () => {
   const files = buildVersioningFiles({
-    configDir: '.tasksystem',
+    configDir: '.scopegrain',
     paths: DEFAULT_ANSWERS.paths,
     versioning: { ...ALL_VERSIONING_FALSE },
     machineLocalPaths: [
@@ -158,7 +158,7 @@ test('machine-local host destinations land in the root proposal', () => {
       '.devin/mcp_config.json',
       '.devin/mcp_config.json',
       '.devin/config.json',
-      '.tasksystem/cache/local.json',
+      '.scopegrain/cache/local.json',
     ],
   });
   const prop = files.find((f) => f.rel.includes('gitignore-proposal'));
@@ -167,7 +167,7 @@ test('machine-local host destinations land in the root proposal', () => {
   assert.ok(prop.content.includes('/.devin/config.json'));
   assert.equal(prop.content.match(/\/\.devin\/mcp_config\.json/g).length, 1,
     'duplicate destinations are deduplicated');
-  const gi = files.find((f) => f.rel === '.tasksystem/.gitignore');
+  const gi = files.find((f) => f.rel === '.scopegrain/.gitignore');
   // A machine-local destination inside the config dir is covered by the
   // nested .gitignore instead of the root proposal.
   assert.ok(gi.content.includes('/cache/local.json'));

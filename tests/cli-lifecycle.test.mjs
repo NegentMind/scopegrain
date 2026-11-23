@@ -17,7 +17,7 @@ import {
   writeJson,
 } from './helpers.mjs';
 
-const CONFIG_REL = '.tasksystem/config.json';
+const CONFIG_REL = '.scopegrain/config.json';
 const MISSING_DIR = path.join('definitely', 'not', 'a-project-xyz');
 
 async function call(args) {
@@ -167,7 +167,7 @@ test('adopt previews bindings, then --apply enrolls the workspace only', async (
     assert.equal(applied.output.applied, true);
     assert.deepEqual(applied.output.actions.map((a) => a.action),
       ['workspace-enrollment']);
-    assert.ok(exists(f.dir, '.tasksystem/state/workspace.json'));
+    assert.ok(exists(f.dir, '.scopegrain/state/workspace.json'));
 
     // Already enrolled: nothing left to bind.
     const again = await call(['adopt', '--project', f.dir, '--apply']);
@@ -223,7 +223,7 @@ test('update previews then creates harness files only, never config', async () =
     assert.equal(applied.code, 0);
     assert.equal(applied.output.mode, 'applied');
     assert.ok(applied.output.created > 0);
-    assert.ok(exists(f.dir, '.tasksystem/instructions.md'));
+    assert.ok(exists(f.dir, '.scopegrain/instructions.md'));
     assert.ok(!applied.output.files.includes(CONFIG_REL));
 
     const after = await call(['update', '--project', f.dir]);
@@ -237,8 +237,8 @@ test('update --reconcile rewrites a diverged generated file via CLI', async () =
   try {
     await call(['update', '--project', f.dir, '--apply']);
     const before = fs.readFileSync(
-      path.join(f.dir, '.tasksystem/instructions.md'), 'utf8');
-    fs.writeFileSync(path.join(f.dir, '.tasksystem/instructions.md'),
+      path.join(f.dir, '.scopegrain/instructions.md'), 'utf8');
+    fs.writeFileSync(path.join(f.dir, '.scopegrain/instructions.md'),
       'user edited');
     fs.writeFileSync(path.join(f.dir, 'CLAUDE.md'), 'foreign edit');
 
@@ -247,17 +247,17 @@ test('update --reconcile rewrites a diverged generated file via CLI', async () =
     assert.equal(dry.code, 0);
     const marks = Object.fromEntries(
       dry.output.conflicts.map((c) => [c.path, c.reconcile]));
-    assert.equal(marks['.tasksystem/instructions.md'], true);
+    assert.equal(marks['.scopegrain/instructions.md'], true);
     assert.equal(marks['CLAUDE.md'], false);
 
     const applied = await call(
       ['update', '--project', f.dir, '--reconcile', '--apply']);
     assert.equal(applied.code, 0);
     assert.ok(applied.output.reconciled.some(
-      (r) => r.path === '.tasksystem/instructions.md'));
+      (r) => r.path === '.scopegrain/instructions.md'));
     assert.ok(applied.output.conflicts.some((c) => c.path === 'CLAUDE.md'));
     assert.equal(fs.readFileSync(
-      path.join(f.dir, '.tasksystem/instructions.md'), 'utf8'), before);
+      path.join(f.dir, '.scopegrain/instructions.md'), 'utf8'), before);
     assert.equal(fs.readFileSync(path.join(f.dir, 'CLAUDE.md'), 'utf8'),
       'foreign edit');
   } finally { cleanup(f.dir); }
@@ -268,10 +268,10 @@ test('update --reconcile rewrites a diverged generated file via CLI', async () =
 test('backup --apply exports a manifest bundle; restore recreates only missing files', async () => {
   const f = configFixture();
   try {
-    writeJson(f.dir, '.tasksystem/plans/p1.json', { key: 'p1' });
-    writeJson(f.dir, '.tasksystem/state/note.json', { n: 1 });
+    writeJson(f.dir, '.scopegrain/plans/p1.json', { key: 'p1' });
+    writeJson(f.dir, '.scopegrain/state/note.json', { n: 1 });
     const overlap = await call(
-      ['backup', '--project', f.dir, '--to', '.tasksystem/state/inside']);
+      ['backup', '--project', f.dir, '--to', '.scopegrain/state/inside']);
     assert.equal(overlap.code, 1);
     assert.equal(overlap.output.code, 'BACKUP_DESTINATION_OVERLAP');
 
@@ -281,7 +281,7 @@ test('backup --apply exports a manifest bundle; restore recreates only missing f
     assert.equal(dry.output.status, 'absent');
     const rels = dry.output.entries.map((e) => e.rel);
     assert.ok(rels.includes(CONFIG_REL));
-    assert.ok(rels.includes('.tasksystem/plans/p1.json'));
+    assert.ok(rels.includes('.scopegrain/plans/p1.json'));
     assert.ok(!exists(f.dir, 'backups/b1')); // preview writes nothing
 
     const applied = await call(
@@ -289,26 +289,26 @@ test('backup --apply exports a manifest bundle; restore recreates only missing f
     assert.equal(applied.code, 0);
     assert.equal(applied.output.mode, 'applied');
     assert.ok(exists(f.dir, 'backups/b1/manifest.json'));
-    assert.ok(exists(f.dir, 'backups/b1/files/.tasksystem/plans/p1.json'));
+    assert.ok(exists(f.dir, 'backups/b1/files/.scopegrain/plans/p1.json'));
 
     // Remove one source; restore must classify it create and rebuild it.
-    fs.unlinkSync(path.join(f.dir, '.tasksystem/plans/p1.json'));
+    fs.unlinkSync(path.join(f.dir, '.scopegrain/plans/p1.json'));
     const rdry = await call(
       ['restore', '--project', f.dir, '--from', 'backups/b1']);
     assert.equal(rdry.code, 0);
     assert.equal(rdry.output.mode, 'dry-run');
     const entry = rdry.output.entries
-      .find((e) => e.rel === '.tasksystem/plans/p1.json');
+      .find((e) => e.rel === '.scopegrain/plans/p1.json');
     assert.equal(entry.action, 'create');
     assert.ok(rdry.output.entries.some((e) => e.action === 'skip'
       && e.reason === 'identical'));
-    assert.ok(!exists(f.dir, '.tasksystem/plans/p1.json'));
+    assert.ok(!exists(f.dir, '.scopegrain/plans/p1.json'));
 
     const rapplied = await call(
       ['restore', '--project', f.dir, '--from', 'backups/b1', '--apply']);
     assert.equal(rapplied.code, 0);
-    assert.ok(rapplied.output.restored.includes('.tasksystem/plans/p1.json'));
-    assert.deepEqual(readJson(f.dir, '.tasksystem/plans/p1.json'), { key: 'p1' });
+    assert.ok(rapplied.output.restored.includes('.scopegrain/plans/p1.json'));
+    assert.deepEqual(readJson(f.dir, '.scopegrain/plans/p1.json'), { key: 'p1' });
   } finally { cleanup(f.dir); }
 });
 
@@ -320,8 +320,8 @@ test('uninstall deletes harness bytes and leaves tampered files behind', async (
     // Materialize the generated tree via update --apply first.
     const up = await call(['update', '--project', f.dir, '--apply']);
     assert.equal(up.code, 0);
-    writeJson(f.dir, '.tasksystem/plans/user-plan.json', { key: 'mine' });
-    fs.writeFileSync(path.join(f.dir, '.tasksystem/instructions.md'),
+    writeJson(f.dir, '.scopegrain/plans/user-plan.json', { key: 'mine' });
+    fs.writeFileSync(path.join(f.dir, '.scopegrain/instructions.md'),
       'user edited');
 
     const dry = await call(['uninstall', '--project', f.dir]);
@@ -329,20 +329,20 @@ test('uninstall deletes harness bytes and leaves tampered files behind', async (
     assert.equal(dry.output.mode, 'dry-run');
     const candRels = dry.output.candidates.map((c) => c.rel);
     assert.ok(candRels.includes(CONFIG_REL));
-    assert.ok(!candRels.includes('.tasksystem/plans/user-plan.json'));
+    assert.ok(!candRels.includes('.scopegrain/plans/user-plan.json'));
     assert.ok(dry.output.leftBehind
-      .some((l) => l.rel === '.tasksystem/instructions.md'));
+      .some((l) => l.rel === '.scopegrain/instructions.md'));
 
     const applied = await call(['uninstall', '--project', f.dir, '--apply']);
     assert.equal(applied.code, 0);
     assert.equal(applied.output.mode, 'applied');
     assert.ok(applied.output.deleted.includes(CONFIG_REL));
     assert.ok(applied.output.leftBehind
-      .some((l) => l.rel === '.tasksystem/instructions.md'));
+      .some((l) => l.rel === '.scopegrain/instructions.md'));
     // Tampered and user files survive untouched.
     assert.equal(fs.readFileSync(
-      path.join(f.dir, '.tasksystem/instructions.md'), 'utf8'), 'user edited');
-    assert.ok(exists(f.dir, '.tasksystem/plans/user-plan.json'));
+      path.join(f.dir, '.scopegrain/instructions.md'), 'utf8'), 'user edited');
+    assert.ok(exists(f.dir, '.scopegrain/plans/user-plan.json'));
     assert.ok(!exists(f.dir, CONFIG_REL));
   } finally { cleanup(f.dir); }
 });
@@ -366,7 +366,7 @@ test('investigate reports suggestions; --save writes the record create-only', as
     assert.equal(saved.code, 0);
     assert.equal(saved.output.research.saved, true);
     assert.match(saved.output.research.path,
-      /^\.tasksystem\/research\/semantic-[0-9a-f]{16}\.json$/);
+      /^\.scopegrain\/research\/semantic-[0-9a-f]{16}\.json$/);
     const record = readJson(f.dir, saved.output.research.path);
     assert.equal(record.schemaVersion, 1);
     assert.equal(record.suggestions.name.value, 'probe-project');

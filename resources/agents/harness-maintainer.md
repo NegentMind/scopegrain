@@ -113,5 +113,5 @@ Before auditing, verify:
 - `select-capabilities` — catalog discipline for resource claims.
 
 References: `references/skills-engineering.md`,
-`references/reference-maintenance.md`, `references/task-system.md`,
+`references/reference-maintenance.md`, `references/task-domain.md`,
 `manifest.json` (canonical catalog — read, never edit).

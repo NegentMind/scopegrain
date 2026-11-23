@@ -16,7 +16,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 test('snapshot tampering blocks resource delivery', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
-    const f = `${dir}/.tasksystem/commands/plan-work.md`;
+    const f = `${dir}/.scopegrain/commands/plan-work.md`;
     const orig = fs.readFileSync(f);
     fs.writeFileSync(f, 'TAMPERED\n');
     assert.throws(() => loadWorkspaceCatalog(ctx),
@@ -34,14 +34,14 @@ test('snapshot tampering blocks resource delivery', () => {
 test('project without snapshot fails structurally', () => {
   const { dir } = bootstrappedCtx();
   try {
-    fs.rmSync(`${dir}/.tasksystem/catalog.json`);
+    fs.rmSync(`${dir}/.scopegrain/catalog.json`);
     assert.throws(() => loadWorkspaceCatalog(ctxStub(dir)),
       (e) => e.code === 'WORKSPACE_CATALOG_MISSING');
   } finally { cleanup(dir); }
 });
 
 function ctxStub(dir) {
-  return { projectRoot: dir, configDir: '.tasksystem' };
+  return { projectRoot: dir, configDir: '.scopegrain' };
 }
 
 test('installation change does not alter project resources', () => {
@@ -109,7 +109,7 @@ test('packet labels snapshot authority + policy digest, budget enforced', () => 
 test('gitattributes pins -text for every snapshot payload inside cfgDir', () => {
   const { dir } = bootstrappedCtx();
   try {
-    const gi = fs.readFileSync(`${dir}/.tasksystem/.gitattributes`, 'utf8');
+    const gi = fs.readFileSync(`${dir}/.scopegrain/.gitattributes`, 'utf8');
     assert.ok(gi.startsWith(
       '# Preserve generated harness bytes; root project attributes are unchanged.\n'));
     assert.ok(gi.includes('"/catalog.json" -text'));
@@ -123,7 +123,7 @@ test('stat-fingerprint cache: stat-changing write forces re-verification', () =>
   try {
     // First load populates the per-process verified cache.
     loadWorkspaceCatalog(ctx);
-    const f = `${dir}/.tasksystem/commands/plan-work.md`;
+    const f = `${dir}/.scopegrain/commands/plan-work.md`;
     const orig = fs.readFileSync(f);
     // A different-size write changes the stat tuple: fingerprint differs,
     // the cache misses and the eager pass catches the tamper.
@@ -139,7 +139,7 @@ test('stat-fingerprint cache: stat-changing write forces re-verification', () =>
 test('stat-preserving byte edit escapes the eager pass but not delivery', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
-    const f = `${dir}/.tasksystem/commands/plan-work.md`;
+    const f = `${dir}/.scopegrain/commands/plan-work.md`;
     const orig = fs.readFileSync(f);
     // Pin an exact whole-ms timestamp first — utimesSync round-trips it
     // losslessly, so the forged write below can restore the same tuple.
@@ -162,11 +162,11 @@ test('stat-preserving byte edit escapes the eager pass but not delivery', () => 
 test('mounted entries are covered by the stat fingerprint', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
-    const bundleRel = '.tasksystem/bundles/b1/skills/x/SKILL.md';
-    fs.mkdirSync(`${dir}/.tasksystem/bundles/b1/skills/x`, { recursive: true });
+    const bundleRel = '.scopegrain/bundles/b1/skills/x/SKILL.md';
+    fs.mkdirSync(`${dir}/.scopegrain/bundles/b1/skills/x`, { recursive: true });
     const body = Buffer.from('# mounted skill\n', 'utf8');
     fs.writeFileSync(`${dir}/${bundleRel}`, body);
-    fs.writeFileSync(`${dir}/.tasksystem/mounted-catalog.json`,
+    fs.writeFileSync(`${dir}/.scopegrain/mounted-catalog.json`,
       JSON.stringify({ schemaVersion: 1, entries: [{
         kind: 'skill', id: 'x', bundle: 'b1',
         path: 'bundles/b1/skills/x/SKILL.md',

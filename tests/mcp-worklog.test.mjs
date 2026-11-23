@@ -15,7 +15,7 @@ async function setup() {
   const { createMCPTools } = await import('../src/mcp/server.mjs');
   const { z } = await import('zod');
   const dir = makeTempDir('mcp-worklog');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   const { resolveContext } = await import('../src/core/context.mjs');
   const ctx = resolveContext({ project: dir });

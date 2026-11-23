@@ -20,7 +20,7 @@ import { VALID_ANSWERS, cleanup, makeTempDir, writeJson } from './helpers.mjs';
 function setup() {
   const dir = makeTempDir('tasks-v3');
   const config = createConfig(dir, VALID_ANSWERS, {});
-  writeJson(dir, '.tasksystem/config.json', config);
+  writeJson(dir, '.scopegrain/config.json', config);
   return { dir, ctx: resolveContext({ project: dir }) };
 }
 
@@ -222,7 +222,7 @@ test('worklog append/read: lessons, outcomes, progress', () => {
     assert.throws(() => appendWorklog(ctx, 'nope', {}),
       (e) => e.code === 'INVALID_ARGS');
     // entries actually land under paths.memory
-    const memDir = path.join(dir, '.tasksystem', 'memory');
+    const memDir = path.join(dir, '.scopegrain', 'memory');
     assert.ok(fs.existsSync(path.join(memDir, 'lessons.jsonl')));
     assert.ok(fs.existsSync(path.join(memDir, 'progress.jsonl')));
   } finally { cleanup(dir); }

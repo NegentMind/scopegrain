@@ -261,7 +261,7 @@ test('task lifecycle through the CLI', async () => {
 test('doctor reports needs-attention before bootstrap files exist', async () => {
   const dir = makeTempDir('cli-doctor');
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, { fingerprint: 'x', stacks: [], evidence: [] }));
     const io = fakeIO();
     assert.equal(await run(['doctor', '--project', dir], io), 0);

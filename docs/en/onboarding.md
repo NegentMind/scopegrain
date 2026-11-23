@@ -12,7 +12,7 @@ Node.js 22 or later. No dependencies need to be installed to use the
 CLI; the MCP server does require the dependencies declared in
 `package.json` (a prior `npm install`, at the owner's discretion).
 
-Options to make `scopegrain` (alias `tasksystem`) available:
+Options to make the `scopegrain` binary available:
 
 ```powershell
 # From a local clone (links `scopegrain` globally on PATH):
@@ -34,8 +34,8 @@ operational authority**:
   `SCOPEGRAIN_USER_CONFIG=none` to disable). Holds onboarding defaults only
   (`locale`, `hosts`, `methodology`, `versioning`). Rejects permissions,
   verification commands and project paths.
-- **Workspace config (authoritative):** `.scopegrain/config.json` (or
-  legacy `.tasksystem/config.json`). Once a project is initialized, runtime
+- **Workspace config (authoritative):** `.scopegrain/config.json`. Once
+  a project is initialized, runtime
   operations read **100% from the workspace** and never merge global changes.
 
 Strict precedence during `init` (effective answers):
@@ -143,7 +143,7 @@ Without `--apply`, `workspace init` only presents a plan and its IDs are
 not reserved. To choose areas, `--input FILE` accepts a JSON file such
 as `{"areas":[{"key":"api","name":"API"}]}`; without input the `project`
 area is proposed with the current project name. The descriptor is
-stored at `paths.state/workspace.json`, including a legacy or custom
+stored at `paths.state/workspace.json`, including a custom
 state path. `show` does not create it.
 
 If it already exists, an empty request or one with the same areas by key
@@ -193,9 +193,7 @@ connect VantaDB, journal, synchronization or MCP authorization.
   projects.
 - Config outside the default path: `--config "relative/path/config.json"`
   in `init` (interactive question or flag) and in later commands.
-- Without `--config`, `.scopegrain/config.json` is used, or the legacy
-  `.tasksystem/config.json` file if it is the only config present. If
-  both entries exist, `CONFIG_AMBIGUOUS` requires explicit selection.
+- Without `--config`, `.scopegrain/config.json` is used.
   A missing or invalid explicit selection does not fall back to another
   config; directories without a `config.json` entry do not count as
   config.

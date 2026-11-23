@@ -98,7 +98,7 @@ test('index persists under state/cache and round-trips', () => {
   try {
     const idx = scanStructure(dir);
     const rel = writeStructureIndex(ctx, idx);
-    assert.equal(rel, '.tasksystem/state/cache/structure-index.json');
+    assert.equal(rel, '.scopegrain/state/cache/structure-index.json');
     assert.ok(exists(dir, rel));
     const back = readStructureIndex(ctx);
     assert.equal(back.fingerprint, idx.fingerprint);
@@ -117,7 +117,7 @@ test('index persists under state/cache and round-trips', () => {
 test('malformed index fails closed', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
-    writeFile(dir, '.tasksystem/state/cache/structure-index.json', '{bad');
+    writeFile(dir, '.scopegrain/state/cache/structure-index.json', '{bad');
     assert.throws(() => readStructureIndex(ctx),
       (e) => e.code === 'STRUCTURE_MALFORMED');
   } finally { cleanup(dir); }
@@ -130,14 +130,14 @@ test('CLI: scan previews, --apply persists, status reports freshness', async () 
     assert.equal(await run(['structure', 'scan', '--project', dir], io1), 0);
     const preview = JSON.parse(io1.out.stdout.at(-1));
     assert.equal(preview.mode, 'preview');
-    assert.equal(exists(dir, '.tasksystem/state/cache/structure-index.json'), false);
+    assert.equal(exists(dir, '.scopegrain/state/cache/structure-index.json'), false);
 
     const io2 = fakeIO();
     assert.equal(await run(
       ['structure', 'scan', '--project', dir, '--apply'], io2), 0);
     const applied = JSON.parse(io2.out.stdout.at(-1));
     assert.equal(applied.mode, 'applied');
-    assert.ok(exists(dir, '.tasksystem/state/cache/structure-index.json'));
+    assert.ok(exists(dir, '.scopegrain/state/cache/structure-index.json'));
 
     const io3 = fakeIO();
     assert.equal(await run(['structure', 'status', '--project', dir], io3), 0);

@@ -228,6 +228,6 @@ thresholds).
   decisions.
 
 References: `references/orchestration-patterns.md`,
-`references/task-system.md`, `references/definition-of-done.md`,
+`references/task-domain.md`, `references/definition-of-done.md`,
 `references/backlog-format.md`, `rules/human-decisions.md`,
 `rules/methodology.md`, `rules/evidence.md`.

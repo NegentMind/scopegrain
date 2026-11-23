@@ -93,4 +93,4 @@ and navigation.
 - [ ] When no index exists, source search + caller inspection is the
       fallback — a weaker guarantee, say so.
 
-<!-- Cross-references: → see architecture.md, mcp-tools.md, task-system.md -->
+<!-- Cross-references: → see architecture.md, mcp-tools.md, task-domain.md -->

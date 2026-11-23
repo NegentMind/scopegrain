@@ -326,7 +326,7 @@ test('custom --config controls typed records, tasks, approval and methodology bi
     assert.ok(fs.existsSync(path.join(f.dir, 'custom/tasks', `${t.id}.json`)));
     assert.ok(fs.existsSync(path.join(f.dir, 'custom/plans/specs', `${spec.id}.json`)));
     assert.ok(fs.existsSync(path.join(f.dir, 'custom/decisions/approvals', `${a.id}.json`)));
-    assert.equal(fs.existsSync(path.join(f.dir, '.tasksystem/tasks', `${t.id}.json`)), false);
+    assert.equal(fs.existsSync(path.join(f.dir, '.scopegrain/tasks', `${t.id}.json`)), false);
     await approve(f, 'design', design.id);
     await approve(f, 'task', t.id);
     let current = await advance(f, t, 'ACT');
@@ -537,7 +537,7 @@ test('complete formal CLI flow uses applied IDs and actual transitions, not synt
     assert.equal((await readonly(f, ['methodology', 'check', task.id])).allowed, true);
     task = await advance(f, task, 'ACT');
     // Stored command/result strings and reviewer names are synthetic declared
-    // fixture evidence only; TaskSystem does NOT run/authenticate them.
+    // fixture evidence only; Scopegrain does NOT run/authenticate them.
     const declared = verification();
     task = await advance(f, task, 'VERIFY', { verification: declared });
     task = await advance(f, task, 'EVALUATE', { review: fresh(task) });

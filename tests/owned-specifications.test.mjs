@@ -43,8 +43,8 @@ const SPEC = {
 
 function specIn(overrides = {}) { return { ...SPEC, ...overrides }; }
 
-function fixture({ plans = 'docs/agent/plans', state = '.tasksystem/state',
-  configRel = '.tasksystem/config.json' } = {}) {
+function fixture({ plans = 'docs/agent/plans', state = '.scopegrain/state',
+  configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('ownedspec');
   const answers = { ...VALID_ANSWERS,
     paths: { ...VALID_ANSWERS.paths, plans, state } };

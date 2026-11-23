@@ -91,7 +91,7 @@ test('secrets, node_modules, legacy and hidden dirs are skipped', () => {
   try {
     writeJson(dir, 'node_modules/pkg/package.json', { name: 'p' });
     writeJson(dir, 'legacy/old/package.json', { name: 'o' });
-    writeJson(dir, '.tasksystem/state/package.json', { name: 's' });
+    writeJson(dir, '.scopegrain/state/package.json', { name: 's' });
     writeJson(dir, '.scopegrain/state/package.json', { name: 'n' });
     writeFile(dir, '.env', 'SECRET=1\n');
     writeJson(dir, '.hidden/package.json', { name: 'h' });

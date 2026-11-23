@@ -48,8 +48,8 @@ test('modes round-trip through disk config + resolveContext', () => {
     for (const m of ['manual', 'organic-sdd', 'sdd']) {
       const cfg = createConfig(ctx.projectRoot,
         validateAnswers({ ...DEFAULT_ANSWERS, methodology: m }), {});
-      writeJson(dir, '.tasksystem/config.json', cfg);
-      const loaded = loadConfig(dir, '.tasksystem/config.json');
+      writeJson(dir, '.scopegrain/config.json', cfg);
+      const loaded = loadConfig(dir, '.scopegrain/config.json');
       assert.equal(loaded.config.methodology, m);
       const c2 = resolveContext({ project: dir });
       assert.equal(c2.config.methodology, m);
@@ -59,7 +59,7 @@ test('modes round-trip through disk config + resolveContext', () => {
     const cfg = createConfig(ctx.projectRoot,
       validateAnswers(DEFAULT_ANSWERS), {});
     delete cfg.methodology;
-    const rel = '.tasksystem/config.json';
+    const rel = '.scopegrain/config.json';
     writeJson(dir, rel, cfg);
     const before = fs.readFileSync(`${dir}/${rel}`);
     const loaded = loadConfig(dir, rel);
@@ -73,8 +73,8 @@ test('modes round-trip through disk config + resolveContext', () => {
 test('legacy no-op: prepareInit sees manual; apply preserves cfg+discovery bytes', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
-    const cfgRel = '.tasksystem/config.json';
-    const discRel = '.tasksystem/discovery.json';
+    const cfgRel = '.scopegrain/config.json';
+    const discRel = '.scopegrain/discovery.json';
     // Remove methodology from stored config, preserving formatted bytes.
     const cfg = JSON.parse(fs.readFileSync(`${dir}/${cfgRel}`, 'utf8'));
     if (cfg.methodology !== undefined) {
@@ -90,7 +90,7 @@ test('legacy no-op: prepareInit sees manual; apply preserves cfg+discovery bytes
       paths: cfg.paths, versioning: cfg.versioning,
     };
     const prepared = prepareInit({ projectRoot: dir,
-      configRel: '.tasksystem/config.json', answers: matching });
+      configRel: '.scopegrain/config.json', answers: matching });
     assert.equal(prepared.config.methodology, 'manual');
     const applied = applyPlan(dir, prepared.files);
     assert.equal(applied.created, 0);
@@ -104,7 +104,7 @@ test('mode conflict: absent-manual answers vs organic config -> INIT_CONFLICT', 
   try {
     const organic = createConfig(ctx.projectRoot,
       validateAnswers({ ...DEFAULT_ANSWERS, methodology: 'organic-sdd' }), {});
-    const rel = '.tasksystem/config.json';
+    const rel = '.scopegrain/config.json';
     writeJson(dir, rel, organic);
     const before = fs.readFileSync(`${dir}/${rel}`);
     assert.throws(() => assertAnswersMatchConfig(DEFAULT_ANSWERS, organic),
@@ -181,9 +181,9 @@ test('policy/methodology.json projects verbatim into generated set + attrs', () 
   const { dir, ctx } = bootstrappedCtx();
   try {
     const src = fs.readFileSync('policy/methodology.json');
-    const dest = fs.readFileSync(`${dir}/.tasksystem/policy/methodology.json`);
+    const dest = fs.readFileSync(`${dir}/.scopegrain/policy/methodology.json`);
     assert.ok(dest.equals(src));
-    const attrs = fs.readFileSync(`${dir}/.tasksystem/.gitattributes`, 'utf8');
+    const attrs = fs.readFileSync(`${dir}/.scopegrain/.gitattributes`, 'utf8');
     assert.ok(attrs.includes('policy/methodology.json'));
   } finally { cleanup(dir); }
 });
@@ -225,13 +225,13 @@ test('oversized template -> TEMPLATE_TOO_LARGE before any product write', () => 
     fs.writeFileSync(`${tplDir}/project-instructions.md`,
       'x'.repeat(loadLimits().maxDocumentBytes + 8));
     assert.throws(() => buildInitPlan({
-      projectRoot: dir, configRel: '.tasksystem/config.json',
+      projectRoot: dir, configRel: '.scopegrain/config.json',
       config: createConfig(dir, validateAnswers(DEFAULT_ANSWERS), {}),
       discovery: { stacks: [], commands: [], evidence: [], fingerprint: '' },
       templatesDir: tplDir }),
       (e) => e.code === 'TEMPLATE_TOO_LARGE'
         && e.message.includes('project-instructions'));
-    assert.equal(fs.existsSync(`${dir}/.tasksystem`), false);
+    assert.equal(fs.existsSync(`${dir}/.scopegrain`), false);
   } finally { cleanup(dir); cleanup(tplDir); }
 });
 

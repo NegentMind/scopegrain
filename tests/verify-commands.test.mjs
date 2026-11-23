@@ -132,7 +132,7 @@ test('verify add rejects invalid commands and requires --command', async () => {
     assert.equal(await run(['verify', 'add', '--project', dir,
       '--command', 'npm test && rm -rf .', '--apply'], io2), 1);
     assert.equal(lastErr(io2).code, 'INVALID_VERIFY_COMMAND');
-    assert.ok(!exists(dir, '.tasksystem/state/verify-commands.json'));
+    assert.ok(!exists(dir, '.scopegrain/state/verify-commands.json'));
   } finally { cleanup(dir); }
 });
 

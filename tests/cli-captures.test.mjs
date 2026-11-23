@@ -15,8 +15,8 @@ import { prepareWorkspace } from '../src/core/workspaces.mjs';
 import { VALID_ANSWERS, cleanup, fakeIO, makeTempDir, writeJson }
   from './helpers.mjs';
 
-function fixture({ memory = '.tasksystem/memory', state = '.tasksystem/state',
-  configRel = '.tasksystem/config.json' } = {}) {
+function fixture({ memory = '.scopegrain/memory', state = '.scopegrain/state',
+  configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('cli-captures');
   const answers = { ...VALID_ANSWERS,
     paths: { ...VALID_ANSWERS.paths, memory, state } };
@@ -159,7 +159,7 @@ test('custom config and paths are honored without writing default directories', 
     assert.equal(applied.output.sourceRel.startsWith('x/mem/captures/'), true);
     assert.equal(applied.output.ownershipRel.startsWith(
       'y/state/record-ownership/capture/'), true);
-    assert.equal(fs.existsSync(path.join(f.dir, '.tasksystem/memory')), false);
+    assert.equal(fs.existsSync(path.join(f.dir, '.scopegrain/memory')), false);
     assert.equal(fs.existsSync(path.join(f.dir, '.scopegrain')), false);
     const shown = await call(['capture', 'show', applied.output.record.id,
       '--project', f.dir, '--config', f.configRel]);

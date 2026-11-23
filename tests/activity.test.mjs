@@ -22,7 +22,7 @@ import { setActiveTask } from '../src/core/active.mjs';
 
 function fixture(methodology = 'manual') {
   const dir = makeTempDir('activity');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, { ...VALID_ANSWERS, methodology }, {}));
   fs.mkdirSync(path.join(dir, '.git', 'hooks'), { recursive: true });
   // getActiveTask reads the real process env: a leaked SCOPEGRAIN_TASK
@@ -33,7 +33,7 @@ function fixture(methodology = 'manual') {
 
 test('hooks install refuses a .git gitdir pointer escaping the project', () => {
   const dir = makeTempDir('activity-gitdir');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, { ...VALID_ANSWERS }, {}));
   // A crafted pointer must not redirect hook writes outside the root.
   fs.writeFileSync(path.join(dir, '.git'), 'gitdir: ../../elsewhere\n');
@@ -158,7 +158,7 @@ test('recordActivity survives a corrupt active pointer (linkWarning)', () => {
     // An unreadable reference must degrade to an unlinked entry — the
     // evidence is still written (evidence beats linkage).
     fs.writeFileSync(
-      path.join(dir, '.tasksystem', 'active-task'), 'not-a-task\n');
+      path.join(dir, '.scopegrain', 'active-task'), 'not-a-task\n');
     const r = recordActivity(ctx, { title: 'still recorded', ref: 'cafe' });
     assert.equal(r.created, false);
     assert.equal(r.taskId, null);
@@ -277,7 +277,7 @@ test('CLI: activity record dry-run writes nothing, --apply persists', async () =
 test('oversized worklog rotates the segment into memory/archive, append survives', () => {
   const { dir, ctx } = fixture();
   try {
-    const memoryDir = path.join(dir, '.tasksystem', 'memory');
+    const memoryDir = path.join(dir, '.scopegrain', 'memory');
     fs.mkdirSync(memoryDir, { recursive: true });
     const logFile = path.join(memoryDir, 'progress.jsonl');
     const taskId = '123e4567-e89b-42d3-a456-426614174000';
@@ -310,7 +310,7 @@ test('oversized worklog rotates the segment into memory/archive, append survives
 test('oversized worklog reads a bounded tail of newest entries only', () => {
   const { dir, ctx } = fixture();
   try {
-    const memoryDir = path.join(dir, '.tasksystem', 'memory');
+    const memoryDir = path.join(dir, '.scopegrain', 'memory');
     fs.mkdirSync(memoryDir, { recursive: true });
     const logFile = path.join(memoryDir, 'lessons.jsonl');
     const pad = 'y'.repeat(1024);

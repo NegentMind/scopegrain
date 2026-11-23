@@ -35,7 +35,7 @@ function note(overrides = {}) {
 function ownership(overrides = {}) {
   return {
     schemaVersion: 1, sourceKind: 'capture', recordId: N, sourceRevision: 0,
-    sourceRel: '.tasksystem/memory/captures/66666666-6666-6666-6666-666666666666.json',
+    sourceRel: '.scopegrain/memory/captures/66666666-6666-6666-6666-666666666666.json',
     sourceHash: HASH, operationId: O, scope: scope(),
     createdAt: '2026-11-16T10:00:00.000Z', ...overrides,
   };

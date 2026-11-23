@@ -21,7 +21,7 @@ import {
 
 function fixture() {
   const dir = makeTempDir('sess');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   const ctx = resolveContext({ project: dir });
   const task = createTask(ctx, {
@@ -40,7 +40,7 @@ test('create is opt-in; limit required and bounded', () => {
   const { dir, ctx, task } = fixture();
   try {
     const p = prepareSession(ctx, { taskId: task.id, limit: 5 });
-    assert.ok(!exists(dir, '.tasksystem/state/sessions'));
+    assert.ok(!exists(dir, '.scopegrain/state/sessions'));
     for (const bad of [{ taskId: task.id }, { taskId: task.id, limit: 0 },
       { taskId: task.id, limit: 10001 }, { taskId: task.id, limit: 'x' },
       { taskId: 'nope', limit: 3 }, { taskId: task.id, limit: 3, bogus: 1 }]) {
@@ -190,7 +190,7 @@ test('resume returns actual state and remaining budget without mutation', () => 
     assert.equal(r.usage.used, 1);
     assert.equal(r.usage.remaining, 3);
     assert.equal(r.usage.measures, 'explicitly-recorded-operations-only');
-    assert.equal(r.recovery.reference, 'references/task-system.md');
+    assert.equal(r.recovery.reference, 'references/task-domain.md');
     assert.ok(fs.readFileSync(sessionFileAbs(ctx, s.id)).equals(before));
   } finally { cleanup(dir); }
 });

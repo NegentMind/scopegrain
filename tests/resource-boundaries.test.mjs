@@ -27,10 +27,10 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 function makeV1Workspace() {
   const fixture = bootstrappedCtx();
   const manifest = JSON.parse(fs.readFileSync(
-    `${fixture.dir}/.tasksystem/catalog.json`, 'utf8'));
+    `${fixture.dir}/.scopegrain/catalog.json`, 'utf8'));
   manifest.schemaVersion = 1;
   for (const entry of manifest.entries) delete entry.sha256;
-  writeJson(fixture.dir, '.tasksystem/catalog.json', manifest);
+  writeJson(fixture.dir, '.scopegrain/catalog.json', manifest);
   return fixture;
 }
 
@@ -48,10 +48,10 @@ test('V1 snapshot: load warns, diagnose legacy, restore UNPINNED', () => {
       kind: 'command', id: 'plan-work', expectedCurrentHash: null,
     }), (e) => e.code === 'RESOURCE_UNPINNED');
     const snapshot = JSON.parse(fs.readFileSync(
-      `${dir}/.tasksystem/catalog.json`, 'utf8'));
+      `${dir}/.scopegrain/catalog.json`, 'utf8'));
     snapshot.entries.find((e) => e.id === 'plan-work').sha256 =
-      sha(fs.readFileSync(`${dir}/.tasksystem/commands/plan-work.md`));
-    writeJson(dir, '.tasksystem/catalog.json', snapshot);
+      sha(fs.readFileSync(`${dir}/.scopegrain/commands/plan-work.md`));
+    writeJson(dir, '.scopegrain/catalog.json', snapshot);
     assert.throws(() => prepareResourceRestore(ctx, {
       kind: 'command', id: 'plan-work', expectedCurrentHash: null,
     }), (e) => e.code === 'RESOURCE_UNPINNED');
@@ -61,7 +61,7 @@ test('V1 snapshot: load warns, diagnose legacy, restore UNPINNED', () => {
 test('aggregate packet overflow -> CONTEXT_TOO_LARGE', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
-    const cfg = `${dir}/.tasksystem`;
+    const cfg = `${dir}/.scopegrain`;
     const catPath = `${cfg}/catalog.json`;
     const snap = JSON.parse(fs.readFileSync(catPath, 'utf8'));
     // Enlarge many command bodies; recalc each entry sha so the manifest
@@ -85,10 +85,10 @@ test('aggregate packet overflow -> CONTEXT_TOO_LARGE', () => {
 test('cached getResource rejects after configDir junction swap', (t) => {
   const { dir, ctx } = bootstrappedCtx();
   const sibling = `${dir}-sibling`;
-  fs.cpSync(`${dir}/.tasksystem`, sibling, { recursive: true });
+  fs.cpSync(`${dir}/.scopegrain`, sibling, { recursive: true });
   const cat = loadWorkspaceCatalog(ctx);
-  fs.rmSync(`${dir}/.tasksystem`, { recursive: true });
-  if (!trySymlink(sibling, `${dir}/.tasksystem`)) {
+  fs.rmSync(`${dir}/.scopegrain`, { recursive: true });
+  if (!trySymlink(sibling, `${dir}/.scopegrain`)) {
     fs.rmSync(sibling, { recursive: true });
     return t.skip('symlinks unsupported');
   }
@@ -97,7 +97,7 @@ test('cached getResource rejects after configDir junction swap', (t) => {
     (e) => e.code === 'SYMLINK_REJECTED');
   assert.throws(() => loadWorkspaceCatalog(ctx),
     (e) => e.code === 'SYMLINK_REJECTED');
-  fs.rmSync(`${dir}/.tasksystem`, { recursive: true });
+  fs.rmSync(`${dir}/.scopegrain`, { recursive: true });
   fs.rmSync(sibling, { recursive: true });
   cleanup(dir);
 });
@@ -175,7 +175,7 @@ test('packet dedupes resources cited by both alias and canonical id', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
     const snapshot = JSON.parse(fs.readFileSync(
-      `${dir}/.tasksystem/catalog.json`, 'utf8'));
+      `${dir}/.scopegrain/catalog.json`, 'utf8'));
     snapshot.aliases.push({
       kind: 'skill', id: 'test-skill-alias', target: 'context-engineering',
     });
@@ -183,7 +183,7 @@ test('packet dedupes resources cited by both alias and canonical id', () => {
       (e) => e.kind === 'command' && e.id === 'plan-work');
     command.skills = [...(command.skills ?? []),
       'test-skill-alias', 'context-engineering'];
-    writeJson(dir, '.tasksystem/catalog.json', snapshot);
+    writeJson(dir, '.scopegrain/catalog.json', snapshot);
     const p = buildWorkflowPacket(ctx, { command: 'pipeline' });
     const ids = p.resources.skills.map((r) => `${r.kind}/${r.id}`);
     assert.equal(new Set(ids).size, ids.length);
@@ -195,11 +195,11 @@ test('existing file + expectedCurrentHash null -> CONFLICT, no write', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
     const before = fs.readFileSync(
-      `${dir}/.tasksystem/commands/plan-work.md`);
+      `${dir}/.scopegrain/commands/plan-work.md`);
     assert.throws(() => prepareResourceRestore(ctx, {
       kind: 'command', id: 'plan-work', expectedCurrentHash: null,
     }), (e) => e.code === 'RESOURCE_RESTORE_CONFLICT');
-    assert.ok(fs.readFileSync(`${dir}/.tasksystem/commands/plan-work.md`)
+    assert.ok(fs.readFileSync(`${dir}/.scopegrain/commands/plan-work.md`)
       .equals(before));
   } finally { cleanup(dir); }
 });
@@ -207,7 +207,7 @@ test('existing file + expectedCurrentHash null -> CONFLICT, no write', () => {
 test('metadata-only find works with a missing profile body', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
-    fs.rmSync(`${dir}/.tasksystem/profiles/web.json`);
+    fs.rmSync(`${dir}/.scopegrain/profiles/web.json`);
     const r = findResources(ctx, { kind: 'profile' });
     assert.ok(r.entries.length > 0);
     assert.equal(r.integrity, 'not-checked');
@@ -228,7 +228,7 @@ test('installed body with wrong SHA -> RESOURCE_VERSION_UNAVAILABLE', () => {
       aliases: [],
     }));
     fs.writeFileSync(`${fake}/resources/commands/plan-work.md`, 'WRONG\n');
-    fs.rmSync(`${dir}/.tasksystem/commands/plan-work.md`);
+    fs.rmSync(`${dir}/.scopegrain/commands/plan-work.md`);
     assert.throws(() => prepareResourceRestore(ctx, {
       kind: 'command', id: 'plan-work', expectedCurrentHash: null,
     }, { installRoot: fake }),
@@ -297,7 +297,7 @@ test('native variants: missing surfaces and empty hosts rejected', () => {
   writeJson(dir, 'resources/manifest.json', manifest);
   const cfg = createConfig(dir,
     { ...DEFAULT_ANSWERS, hosts: ['opencode'] }, {});
-  const options = { configRel: '.tasksystem/config.json', installRoot: dir };
+  const options = { configRel: '.scopegrain/config.json', installRoot: dir };
   assert.ok(renderNativeAdapters(cfg, options).files.length > 0,
     'fixture must reach variant validation before introducing malformed data');
   const variant = { id: 'v9', selectionRequired: true, emitAgents: true,
@@ -380,7 +380,7 @@ test('missing installed canonical command is VERSION_UNAVAILABLE', () => {
       { kind: 'reference', id: 'unrelated',
         path: 'resources/references/unrelated.md', description: 'Unrelated' },
     ], aliases: [] });
-    fs.rmSync(`${dir}/.tasksystem/commands/plan-work.md`);
+    fs.rmSync(`${dir}/.scopegrain/commands/plan-work.md`);
     assert.throws(() => prepareResourceRestore(ctx, {
       kind: 'command', id: 'plan-work', expectedCurrentHash: null,
     }, { installRoot: fake }), (e) => e.code === 'RESOURCE_VERSION_UNAVAILABLE');

@@ -13,7 +13,7 @@ const MAX_MANIFEST_BYTES = 128 * 1024;
 
 const EXCLUDED_DIRS = new Set([
   '.git', 'node_modules', 'vendor', '.venv', 'venv', 'target', 'dist',
-  'build', 'coverage', 'legacy', '.tasksystem', '.scopegrain',
+  'build', 'coverage', 'legacy', '.scopegrain',
   // 'provenance' is the local-only retired-resource archive, not live
   // project source; '.tmp' is test scratch — neither may shape stacks,
   // evidence or the fingerprint.

@@ -64,22 +64,22 @@ test('loadConfig validates version, types and unknown keys', () => {
   const dir = makeTempDir('cfg2');
   try {
     const good = createConfig(dir, VALID_ANSWERS, {});
-    writeJson(dir, '.tasksystem/config.json', good);
+    writeJson(dir, '.scopegrain/config.json', good);
     const { config, configPath } = loadConfig(dir);
-    assert.equal(configPath, '.tasksystem/config.json');
+    assert.equal(configPath, '.scopegrain/config.json');
     assert.equal(config.project.name, 'fixture-project');
 
-    writeJson(dir, '.tasksystem/config.json', { ...good, schemaVersion: 2 });
+    writeJson(dir, '.scopegrain/config.json', { ...good, schemaVersion: 2 });
     assert.throws(() => loadConfig(dir), (e) => e.code === 'CONFIG_VERSION');
-    writeJson(dir, '.tasksystem/config.json', { ...good, typo: true });
+    writeJson(dir, '.scopegrain/config.json', { ...good, typo: true });
     assert.throws(() => loadConfig(dir), (e) => e.code === 'UNKNOWN_KEY');
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       { ...good, project: { name: 'x', root: '/abs' } });
     assert.throws(() => loadConfig(dir), (e) => e.code === 'INVALID_VALUE');
-    writeJson(dir, '.tasksystem/config.json', { bad: '{' });
+    writeJson(dir, '.scopegrain/config.json', { bad: '{' });
     assert.throws(() => loadConfig(dir), (e) =>
       e.code === 'UNKNOWN_KEY' || e.code === 'INVALID_ANSWERS');
-    writeJson(dir, '.tasksystem/config.json', good);
+    writeJson(dir, '.scopegrain/config.json', good);
   } finally { cleanup(dir); }
 });
 
@@ -87,7 +87,7 @@ test('loadConfig rejects missing and non-file configs', () => {
   const dir = makeTempDir('cfg3');
   try {
     assert.throws(() => loadConfig(dir), (e) => e.code === 'CONFIG_NOT_FOUND');
-    writeFile(dir, '.tasksystem/config.json', '{broken');
+    writeFile(dir, '.scopegrain/config.json', '{broken');
     assert.throws(() => loadConfig(dir), (e) => e.code === 'MALFORMED_JSON');
   } finally { cleanup(dir); }
 });
@@ -96,23 +96,23 @@ test('intake block is optional and validates the mode enum', () => {
   const dir = makeTempDir('cfg-intake');
   try {
     const good = createConfig(dir, VALID_ANSWERS, {});
-    writeJson(dir, '.tasksystem/config.json', good);
+    writeJson(dir, '.scopegrain/config.json', good);
     // Absent -> safe default, never activates implicitly.
     assert.deepEqual(loadConfig(dir).config.intake, { mode: 'off' });
     for (const mode of ['off', 'capture', 'suggest', 'auto']) {
-      writeJson(dir, '.tasksystem/config.json',
+      writeJson(dir, '.scopegrain/config.json',
         { ...good, intake: { mode } });
       assert.equal(loadConfig(dir).config.intake.mode, mode);
     }
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       { ...good, intake: { mode: 'always' } });
     assert.throws(() => loadConfig(dir), (e) => e.code === 'INVALID_VALUE');
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       { ...good, intake: { mode: 'off', extra: true } });
     assert.throws(() => loadConfig(dir), (e) => e.code === 'UNKNOWN_KEY');
-    writeJson(dir, '.tasksystem/config.json', { ...good, intake: 'auto' });
+    writeJson(dir, '.scopegrain/config.json', { ...good, intake: 'auto' });
     assert.throws(() => loadConfig(dir), (e) => e.code === 'INVALID_VALUE');
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       { ...good, intake: { other: 'off' } });
     assert.throws(() => loadConfig(dir), (e) => e.code === 'UNKNOWN_KEY');
   } finally { cleanup(dir); }

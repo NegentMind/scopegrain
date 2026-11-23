@@ -35,8 +35,8 @@ const SHA = (content) =>
   crypto.createHash('sha256').update(content).digest('hex');
 const json = (value) => JSON.stringify(value, null, 2) + '\n';
 
-function fixture({ tasks = 'docs/agent/tasks', state = '.tasksystem/state',
-  configRel = '.tasksystem/config.json' } = {}) {
+function fixture({ tasks = 'docs/agent/tasks', state = '.scopegrain/state',
+  configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('ownedtask');
   const answers = { ...VALID_ANSWERS,
     paths: { ...VALID_ANSWERS.paths, tasks, state } };
@@ -129,7 +129,7 @@ test('store is frozen with prepare/create/get/transition; options and ctx valida
   } finally { cleanup(f.dir); }
   const bare = makeTempDir('ownedtask-bare');
   try {
-    writeJson(bare, '.tasksystem/config.json',
+    writeJson(bare, '.scopegrain/config.json',
       createConfig(bare, VALID_ANSWERS, {}));
     const ctx = resolveContext({ project: bare });
     assert.throws(() => createOwnedTaskStore(ctx, { areaIds: [crypto.randomUUID()] }),

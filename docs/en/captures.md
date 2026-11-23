@@ -112,7 +112,7 @@ Placeholders (`<workspace-area-id>`, the example UUID) must be replaced
 with real IDs returned by `workspace show` and by
 `capture create --apply`/`capture show`.
 
-(`tasksystem` remains a compatible alias.) `--input` is a path in the
+`--input` is a path in the
 current working directory, not relative to the project. `--config REL`
 selects an explicit configuration; memory and state paths are inherited
 from that configuration, never written by default. Without `--apply`,

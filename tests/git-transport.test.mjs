@@ -16,17 +16,17 @@ import {
 test('.gitattributes covers every configDir file plus itself, root skipped', () => {
   const dir = makeTempDir('ga');
   try {
-    const plan = prepareInit({ projectRoot: dir, configRel: '.tasksystem/config.json',
+    const plan = prepareInit({ projectRoot: dir, configRel: '.scopegrain/config.json',
       answers: DEFAULT_ANSWERS });
-    const attrs = plan.files.find((f) => f.rel === '.tasksystem/.gitattributes');
+    const attrs = plan.files.find((f) => f.rel === '.scopegrain/.gitattributes');
     assert.ok(attrs);
     const text = attrs.content.toString('utf8');
     assert.ok(text.startsWith(
       '# Preserve generated harness bytes; root project attributes are unchanged.\n'));
     const rules = text.split('\n').filter((l) => l.endsWith(' -text'));
     for (const f of plan.files) {
-      if (!f.rel.startsWith('.tasksystem/') || f.rel.endsWith('.gitattributes')) continue;
-      const rel = f.rel.slice('.tasksystem/'.length);
+      if (!f.rel.startsWith('.scopegrain/') || f.rel.endsWith('.gitattributes')) continue;
+      const rel = f.rel.slice('.scopegrain/'.length);
       const needle = `"/${rel.replace(/([\\*?\[\]])/g, '\\$1')}" -text`;
       assert.ok(rules.includes(needle), `missing rule for ${rel}`);
     }
@@ -98,7 +98,7 @@ test('doctor: root AGENTS/CLAUDE EOL-insensitive; managed edit is not', () => {
 test('payload file converted to CRLF still mismatches the pin', () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
-    const f = `${dir}/.tasksystem/commands/plan-work.md`;
+    const f = `${dir}/.scopegrain/commands/plan-work.md`;
     const orig = fs.readFileSync(f);
     fs.writeFileSync(f, orig.toString('latin1').replace(/\n/g, '\r\n'));
     assert.throws(() => loadWorkspaceCatalog(ctx),

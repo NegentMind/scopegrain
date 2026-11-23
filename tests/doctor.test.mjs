@@ -13,7 +13,7 @@ import {
 
 function bootstrapped() {
   const dir = makeTempDir('doctor');
-  applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.tasksystem/config.json',
+  applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.scopegrain/config.json',
     answers: VALID_ANSWERS }).files);
   const ctx = resolveContext({ project: dir });
   return { dir, ctx };
@@ -35,7 +35,7 @@ test('freshly initialized project reports ready', () => {
 test('corrupt or divergent integration fragment is needs-attention', () => {
   const { dir, ctx } = bootstrapped();
   try {
-    writeFile(dir, '.tasksystem/integrations/claude-mcp.json', '{corrupt');
+    writeFile(dir, '.scopegrain/integrations/claude-mcp.json', '{corrupt');
     const report = runDoctor(ctx);
     assert.equal(report.status, 'needs-attention');
     assert.ok(report.warnings.some((w) => w.includes('claude-mcp.json')));
@@ -64,7 +64,7 @@ test('adding a lockfile after init changes fingerprint presence', () => {
   const dir = makeTempDir('doctor-lock');
   try {
     writeJson(dir, 'package.json', { name: 'x', scripts: { test: 't' } });
-    applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.tasksystem/config.json',
+    applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.scopegrain/config.json',
       answers: VALID_ANSWERS }).files);
     const ctx = resolveContext({ project: dir });
     assert.equal(runDoctor(ctx).changedDiscovery, false);
@@ -76,20 +76,20 @@ test('adding a lockfile after init changes fingerprint presence', () => {
 test('missing or corrupt discovery.json is needs-attention, never repaired', () => {
   const { dir, ctx } = bootstrapped();
   try {
-    fs.rmSync(path.join(dir, '.tasksystem', 'discovery.json'));
+    fs.rmSync(path.join(dir, '.scopegrain', 'discovery.json'));
     assert.equal(runDoctor(ctx).status, 'needs-attention');
     assert.ok(runDoctor(ctx).warnings.some((w) => w.startsWith('discovery')));
-    assert.ok(!exists(dir, '.tasksystem/discovery.json')); // doctor never writes
-    writeFile(dir, '.tasksystem/discovery.json', '{corrupt');
+    assert.ok(!exists(dir, '.scopegrain/discovery.json')); // doctor never writes
+    writeFile(dir, '.scopegrain/discovery.json', '{corrupt');
     const report = runDoctor(ctx);
     assert.equal(report.status, 'needs-attention');
     assert.ok(report.warnings.some((w) => w.includes('malformed JSON')));
     for (const raw of ['null', '[]', '"record"', 'false', '1']) {
-      writeFile(dir, '.tasksystem/discovery.json', raw);
+      writeFile(dir, '.scopegrain/discovery.json', raw);
       assert.equal(runDoctor(ctx).status, 'needs-attention');
     }
     // Fingerprint mismatch also surfaces.
-    writeFile(dir, '.tasksystem/discovery.json',
+    writeFile(dir, '.scopegrain/discovery.json',
       JSON.stringify({ schemaVersion: 1, fingerprint: 'different' }));
     const r2 = runDoctor(ctx);
     assert.ok(r2.warnings.some((w) => w.includes('fingerprint')));
@@ -99,7 +99,7 @@ test('missing or corrupt discovery.json is needs-attention, never repaired', () 
 test('operational checks: malformed worklog line fails', () => {
   const { dir, ctx } = bootstrapped();
   try {
-    writeFile(dir, '.tasksystem/memory/progress.jsonl',
+    writeFile(dir, '.scopegrain/memory/progress.jsonl',
       '{"ok":true}\nnot-json\n');
     const report = runDoctor(ctx);
     assert.equal(report.status, 'needs-attention');
@@ -111,7 +111,7 @@ test('operational checks: malformed worklog line fails', () => {
 test('operational checks: malformed verify store fails', () => {
   const { dir, ctx } = bootstrapped();
   try {
-    writeFile(dir, '.tasksystem/state/verify-commands.json', '{corrupt');
+    writeFile(dir, '.scopegrain/state/verify-commands.json', '{corrupt');
     const report = runDoctor(ctx);
     assert.equal(report.status, 'needs-attention');
     assert.ok(report.warnings.some((w) => w.startsWith('verify-store')));
@@ -121,7 +121,7 @@ test('operational checks: malformed verify store fails', () => {
 test('operational checks: malformed session record fails', () => {
   const { dir, ctx } = bootstrapped();
   try {
-    writeFile(dir, '.tasksystem/state/sessions/abc.json', '[]');
+    writeFile(dir, '.scopegrain/state/sessions/abc.json', '[]');
     const report = runDoctor(ctx);
     assert.equal(report.status, 'needs-attention');
     assert.ok(report.warnings.some((w) => w.startsWith('sessions')));
@@ -131,7 +131,7 @@ test('operational checks: malformed session record fails', () => {
 test('operational checks: malformed journal outbox entry fails', () => {
   const { dir, ctx } = bootstrapped();
   try {
-    writeFile(dir, '.tasksystem/state/journal/outbox/x.json', 'oops');
+    writeFile(dir, '.scopegrain/state/journal/outbox/x.json', 'oops');
     const report = runDoctor(ctx);
     assert.equal(report.status, 'needs-attention');
     assert.ok(report.warnings.some(
@@ -142,7 +142,7 @@ test('operational checks: malformed journal outbox entry fails', () => {
 test('operational checks: malformed vantadb enrollment fails', () => {
   const { dir, ctx } = bootstrapped();
   try {
-    writeFile(dir, '.tasksystem/vantadb.json',
+    writeFile(dir, '.scopegrain/vantadb.json',
       JSON.stringify({ backendId: 'vantadb' })); // no schemaVersion
     const report = runDoctor(ctx);
     assert.equal(report.status, 'needs-attention');
@@ -169,7 +169,7 @@ test('operational checks: stale lock with dead pid warns', () => {
   const { dir, ctx } = bootstrapped();
   try {
     // 99999999 exceeds the Windows pid space; provably dead on any OS.
-    writeFile(dir, '.tasksystem/state/journal/.lock',
+    writeFile(dir, '.scopegrain/state/journal/.lock',
       '{"t":"x","pid":99999999,"at":0}\n');
     const report = runDoctor(ctx);
     const check = report.checks.find((c) => c.name === 'stale-locks');
@@ -177,7 +177,7 @@ test('operational checks: stale lock with dead pid warns', () => {
     assert.equal(check.severity, 'warning'); // auto-reclaimable, not fatal
     assert.ok(check.detail.includes('dead pid'));
     // Still a foreign file: doctor never deletes locks.
-    assert.ok(exists(dir, '.tasksystem/state/journal/.lock'));
+    assert.ok(exists(dir, '.scopegrain/state/journal/.lock'));
   } finally { cleanup(dir); }
 });
 
@@ -279,7 +279,7 @@ test('operational checks: mcp-deps, viewer-build, and user-artifacts', async () 
     assert.ok(artOk && artOk.ok);
 
     // Valid context.md + valid JSON user artifact stay green.
-    writeFile(dir, '.tasksystem/context.md', '# Notes\n');
+    writeFile(dir, '.scopegrain/context.md', '# Notes\n');
     writeJson(dir, 'docs/agent/tasks/valid-task.json', { id: 'ok' });
     const withValid = runDoctor(ctx);
     const artValid = withValid.checks.find((c) => c.name === 'user-artifacts');

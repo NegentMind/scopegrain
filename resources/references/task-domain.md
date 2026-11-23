@@ -25,9 +25,9 @@ not activate a host or reconnect an MCP.
 
 ---
 
-## Agent × task-system integration (documenting the contract)
+## Agent × Scopegrain integration (documenting the contract)
 
-When a project wires several agents/personas to a task system, keep a single
+When a project wires several agents/personas to Scopegrain, keep a single
 shared reference for the integration contract instead of duplicating it in
 every agent file. Each agent's file holds a one-line pointer here. The
 contract records:
@@ -35,7 +35,7 @@ contract records:
 | Piece | What to record |
 |---|---|
 | Active prompts/workflows | Where the canonical procedure files live (plan, task, iteration loop) |
-| Tool surface | Which task-system tools exist (next-task, verify, discover, classify, enforce-state, session tracking) and which are read vs. mutation |
+| Tool surface | Which Scopegrain tools exist (next-task, verify, discover, classify, enforce-state, session tracking) and which are read vs. mutation |
 | State machine | The lifecycle states and the invalid transitions, with the file that defines them |
 | Per-type workflows | The workflow definition per work type (bug-fix, feature, refactor, research, …) |
 | Enforcement | Where per-state tool allow/deny and pre-call checks are actually enforced |
@@ -51,7 +51,7 @@ agent's permission block, aligned with this table.
 | Server | Use? | Purpose |
 |---|---|---|
 | code-graph / semantic index | ✅ per role | Symbol resolution, call paths, blast radius |
-| task system | ✅ | State, verify, skills, budgets |
+| Scopegrain | ✅ | State, verify, skills, budgets |
 | web research | per role | Multi-engine search, URL extraction |
 | browser automation | per role | Visual verification (usually ❌ for orchestrator roles) |
 | build/lint tool servers | per role | Often ❌ when the terminal covers it (context cost) |

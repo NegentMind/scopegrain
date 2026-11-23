@@ -35,7 +35,7 @@ const PLAN = {
 
 function fixture() {
   const dir = makeTempDir('tpr');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   const ctx = resolveContext({ project: dir });
   const ws = prepareWorkspace(ctx, { areas: [{ key: 'p', name: 'P' }] });
@@ -123,7 +123,7 @@ test('context assembles the session-start packet read-only', async () => {
 test('context tokenEstimate measures post-cap userContext content only', async () => {
   const { dir } = fixture();
   try {
-    writeFile(dir, '.tasksystem/context.md', 'a'.repeat(33 * 1024));
+    writeFile(dir, '.scopegrain/context.md', 'a'.repeat(33 * 1024));
     const io = fakeIO();
     assert.equal(await run(['context', '--project', dir], io), 0);
     const out = JSON.parse(io.out.stdout.at(-1));

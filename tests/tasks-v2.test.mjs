@@ -250,7 +250,7 @@ test('getter validates OWN record only: spec deleted -> task still reads', () =>
     const { task, file } = prepareTask(ctx, taskIn({
       specId: spec.id, designId: design.id }));
     applyPlan(dir, [file]);
-    fs.rmSync(`${dir}/.tasksystem/plans/specs/${spec.id}.json`);
+    fs.rmSync(`${dir}/.scopegrain/plans/specs/${spec.id}.json`);
     const stored = getTask(ctx, task.id); // no live FK check on read
     assert.equal(stored.specId, spec.id);
   } finally { cleanup(dir); }
@@ -307,7 +307,7 @@ test('stored V2 coherence: null-methodology-no-refs and sdd-classified light', (
     const { task, file } = prepareTask(ctx, taskIn({
       specId: spec.id, designId: design.id }));
     applyPlan(dir, [file]);
-    const rel = `.tasksystem/tasks/${task.id}.json`;
+    const rel = `.scopegrain/tasks/${task.id}.json`;
     const good = JSON.parse(fs.readFileSync(`${dir}/${rel}`, 'utf8'));
     // methodology:null + null refs -> impossible V2 record.
     const m1 = JSON.parse(JSON.stringify(good));
@@ -339,7 +339,7 @@ test('stored V2 field types: planKey nonstring, bad scenario ids, unsafe rev', (
     const { task, file } = prepareTask(ctx, taskIn({
       specId: spec.id, designId: design.id, planKey: 'k' }));
     applyPlan(dir, [file]);
-    const rel = `.tasksystem/tasks/${task.id}.json`;
+    const rel = `.scopegrain/tasks/${task.id}.json`;
     const good = JSON.parse(fs.readFileSync(`${dir}/${rel}`, 'utf8'));
     const mutate = (fn, frag) => {
       const m = JSON.parse(JSON.stringify(good));
@@ -372,7 +372,7 @@ test('stored V2 strict: missing field or V1-with-fields -> malformed', () => {
     const { task, file } = prepareTask(ctx, taskIn({
       specId: spec.id, designId: design.id }));
     applyPlan(dir, [file]);
-    const rel = `.tasksystem/tasks/${task.id}.json`;
+    const rel = `.scopegrain/tasks/${task.id}.json`;
     const good = JSON.parse(fs.readFileSync(`${dir}/${rel}`, 'utf8'));
     for (const k of ['methodology', 'specId', 'designId', 'planKey',
       'scenarioRefs']) {
@@ -395,7 +395,7 @@ test('stored V2 strict: missing field or V1-with-fields -> malformed', () => {
 test('prepareTask is read-only: invalid writes nothing; valid creates none', () => {
   const { dir, ctx } = bootstrappedMiniCtx();
   try {
-    const tasksDir = `${dir}/.tasksystem/tasks`;
+    const tasksDir = `${dir}/.scopegrain/tasks`;
     const before = fs.existsSync(tasksDir)
       ? fs.readdirSync(tasksDir).length : 0;
     assert.throws(() => prepareTask(ctx, taskIn({ bogus: 1 })),

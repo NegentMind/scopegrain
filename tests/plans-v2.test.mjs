@@ -120,7 +120,7 @@ test('stored V2 plan requires refs; V1 forbids them; prepare is read-only', () =
       key: 'p1', title: 'P', authorContext: 'a',
       specId: spec.id, designId: design.id, tasks: [T1, T2] });
     applyPlan(dir, files);
-    const rel = '.tasksystem/plans/p1.json';
+    const rel = '.scopegrain/plans/p1.json';
     const good = JSON.parse(fs.readFileSync(`${dir}/${rel}`, 'utf8'));
     const m = JSON.parse(JSON.stringify(good));
     delete m.specId; delete m.designId;
@@ -146,7 +146,7 @@ test('stored V2 plan requires refs; V1 forbids them; prepare is read-only', () =
     applyPlan(dir, f2);
     for (const f of f2) assert.equal(fs.existsSync(f.abs), true);
     // Invalid prepare writes no files or dirs.
-    const plansDir = `${dir}/.tasksystem/plans`;
+    const plansDir = `${dir}/.scopegrain/plans`;
     const before = fs.readdirSync(plansDir).sort();
     assert.throws(() => preparePlan(ctx, {
       key: 'bad', title: 'P', authorContext: 'a',

@@ -13,7 +13,7 @@ requests implicitly.
 Load `clarify-intent`, `organic-driven-development` and
 `planning-and-task-breakdown` for the classification; an ambiguous
 request is asked, not guessed (`prompts/decision-request`). Task record
-semantics: `references/task-system`. Governing rules: `rules/workflow`,
+semantics: `references/task-domain`. Governing rules: `rules/workflow`,
 `rules/methodology`, `rules/human-decisions`. Role: `lead`.
 
 ## Step 1 — Classify the request

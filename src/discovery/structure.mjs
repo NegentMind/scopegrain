@@ -34,7 +34,7 @@ const SKIP_DIRS = new Set([
   'node_modules', 'vendor', 'target', 'dist', 'build', 'coverage',
   'out', 'bin-debug', 'obj', '__pycache__', '.pytest_cache', 'venv',
   '.venv', 'env', 'Pods', 'DerivedData', '.next', '.nuxt', '.output',
-  '.turbo', '.cache', '.parcel-cache', '.scopegrain', '.tasksystem',
+  '.turbo', '.cache', '.parcel-cache', '.scopegrain',
   'legacy', 'tmp', 'temp', '.tmp',
 ]);
 

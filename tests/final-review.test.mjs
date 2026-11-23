@@ -25,7 +25,7 @@ import {
 
 function ctxFixture() {
   const dir = makeTempDir('fr');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   return { dir, ctx: resolveContext({ project: dir }) };
 }
@@ -61,7 +61,7 @@ test('A: append before previous last event fails shape, bytes intact', () => {
         (e) => e.code === 'SESSION_MALFORMED', fn.name);
     }
     assert.ok(fs.readFileSync(file).equals(before));
-    const leftovers = fs.readdirSync(`${dir}/.tasksystem/state/sessions`)
+    const leftovers = fs.readdirSync(`${dir}/.scopegrain/state/sessions`)
       .filter((n) => n.includes('.tmp') || n.endsWith('.lock'));
     assert.deepEqual(leftovers, []);
   } finally { cleanup(dir); }

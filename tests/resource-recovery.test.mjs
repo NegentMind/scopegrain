@@ -11,7 +11,7 @@ import {
 import { trySymlink } from './helpers.mjs';
 import { bootstrappedCtx, cleanup } from './helpers.mjs';
 
-const target = '.tasksystem/commands/plan-work.md';
+const target = '.scopegrain/commands/plan-work.md';
 
 function hashOf(f) {
   return crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
@@ -78,9 +78,9 @@ test('version-unavailable when install SHA differs; link/sentinel rejected', (t)
     const orig = fs.readFileSync(abs);
     // Foreign file where the resource should be.
     fs.rmSync(abs);
-    fs.mkdirSync(`${dir}/.tasksystem/foreign`, { recursive: true });
-    fs.writeFileSync(`${dir}/.tasksystem/foreign/x`, 'x');
-    if (trySymlink(`${dir}/.tasksystem/foreign`, abs)) {
+    fs.mkdirSync(`${dir}/.scopegrain/foreign`, { recursive: true });
+    fs.writeFileSync(`${dir}/.scopegrain/foreign/x`, 'x');
+    if (trySymlink(`${dir}/.scopegrain/foreign`, abs)) {
       assert.throws(() => prepareResourceRestore(ctx, {
         kind: 'command', id: 'plan-work', expectedCurrentHash: null,
       }), (e) => e.code === 'RESOURCE_RESTORE_CONFLICT');

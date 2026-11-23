@@ -46,10 +46,10 @@ adoption writes nothing.
 }
 ```
 
-- `configRel` is the resolved config (`.scopegrain/config.json` or
-  `.tasksystem/config.json`); `options.config` forces an explicit
+- `configRel` is the resolved config (`.scopegrain/config.json`);
+  `options.config` forces an explicit
   path. Without a valid config it stays `null` with an issue
-  (`CONFIG_NOT_FOUND`, `CONFIG_AMBIGUOUS`, `MALFORMED_JSON`, ...).
+  (`CONFIG_NOT_FOUND`, `CONFIG_VERSION`, `MALFORMED_JSON`, ...).
 - `config` summarizes `{name, locale, hosts, methodology, paths}`
   when the config loads.
 - `workspace` summarizes `{rel, workspaceId, revision, areas}` when

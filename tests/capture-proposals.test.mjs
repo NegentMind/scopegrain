@@ -26,8 +26,8 @@ const json = (value) => JSON.stringify(value, null, 2) + '\n';
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-function fixture({ state = '.tasksystem/state', memory = '.tasksystem/memory',
-  configRel = '.tasksystem/config.json' } = {}) {
+function fixture({ state = '.scopegrain/state', memory = '.scopegrain/memory',
+  configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('proposals');
   const answers = { ...VALID_ANSWERS,
     paths: { ...VALID_ANSWERS.paths, state, memory } };

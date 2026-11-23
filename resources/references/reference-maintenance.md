@@ -156,4 +156,4 @@ non-trivial tasks.
 | Capability scanning | CI-time static scan of agent-tool risks |
 | Fork/join | Parallel branches rejoining on all/any completion |
 
-<!-- Cross-references: → see skills-engineering.md, orchestration-patterns.md, task-system.md, quality-floor.md -->
+<!-- Cross-references: → see skills-engineering.md, orchestration-patterns.md, task-domain.md, quality-floor.md -->

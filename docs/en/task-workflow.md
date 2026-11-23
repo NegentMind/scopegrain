@@ -185,7 +185,7 @@ of aborting the packet.
 ## Operational memory, goals and metrics
 
 Bounded append-only JSONL logs under `paths.memory`
-(`.scopegrain/memory/`; the legacy `.tasksystem/` path remains honored):
+(`.scopegrain/memory/`):
 `lessons` (durable learnings), `outcomes`
 (ok/fail per skills used), `progress` (advance archive — written
 automatically when a task reaches CLOSE), `goals` (meta-level objectives;

@@ -15,7 +15,7 @@ import {
   destroyLifecycleInstall, lifecycleInstallRoot,
 } from './helpers/lifecycle-fixture.mjs';
 
-const CFG_REL = '.tasksystem/config.json';
+const CFG_REL = '.scopegrain/config.json';
 
 after(() => destroyLifecycleInstall());
 
@@ -29,14 +29,14 @@ test('selected hosts project native files; absent hosts generate none', () => {
   const claudeOnly = renderNativeAdapters(
     cfg(['claude']), { configRel: CFG_REL });
   assert.ok(claudeOnly.files.every((f) =>
-    f.rel.startsWith('.tasksystem/integrations/native/claude/')));
+    f.rel.startsWith('.scopegrain/integrations/native/claude/')));
   assert.ok(!claudeOnly.files.some((f) => f.rel.includes('/codex/')));
   // Every catalog skill+command+agent produces a bridge for each host.
   const claudeSkills = all.files.filter((f) =>
     f.rel.includes('/claude/.claude/skills/'));
   assert.ok(claudeSkills.length >= 24 + 13, 'skills + command-as-skill');
   for (const f of all.files) {
-    assert.ok(f.rel.startsWith('.tasksystem/integrations/native/'));
+    assert.ok(f.rel.startsWith('.scopegrain/integrations/native/'));
     assert.ok(!f.content.includes('{{'), `unexpanded var in ${f.rel}`);
     assert.ok(!f.content.toString('utf8').includes('!`'));
   }
@@ -275,20 +275,20 @@ test('opencode emits only the V2 proposal in bootstrap', () => {
     const plan = prepareInit({ projectRoot: dir, configRel: CFG_REL,
       answers: DEFAULT_ANSWERS });
     const rels = plan.files.map((f) => f.rel);
-    assert.ok(rels.includes('.tasksystem/integrations/opencode-mcp.json'));
-    assert.ok(!rels.includes('.tasksystem/integrations/opencode-v1-mcp.json'));
+    assert.ok(rels.includes('.scopegrain/integrations/opencode-mcp.json'));
+    assert.ok(!rels.includes('.scopegrain/integrations/opencode-v1-mcp.json'));
     assert.ok(rels.includes(
-      '.tasksystem/integrations/native/activation-plan.json'));
+      '.scopegrain/integrations/native/activation-plan.json'));
     applyPlan(dir, plan.files);
     const v2 = JSON.parse(fs.readFileSync(
-      `${dir}/.tasksystem/integrations/opencode-mcp.json`, 'utf8'));
+      `${dir}/.scopegrain/integrations/opencode-mcp.json`, 'utf8'));
     assert.equal(v2.mcp.servers.scopegrain.type, 'local');
     assert.equal(v2.mcp.servers.scopegrain.disabled, true);
-    assert.ok(!exists(dir, '.tasksystem/integrations/opencode-v1-mcp.json'));
+    assert.ok(!exists(dir, '.scopegrain/integrations/opencode-v1-mcp.json'));
     const ap = JSON.parse(fs.readFileSync(
-      `${dir}/.tasksystem/integrations/native/activation-plan.json`, 'utf8'));
+      `${dir}/.scopegrain/integrations/native/activation-plan.json`, 'utf8'));
     assert.equal(ap.activation, 'manual-review-only');
-    // No host roots written anywhere outside .tasksystem.
+    // No host roots written anywhere outside .scopegrain.
     assert.ok(!exists(dir, '.claude'));
     assert.ok(!exists(dir, '.codex'));
     assert.ok(!exists(dir, '.opencode'));
@@ -333,9 +333,9 @@ test('policy files project verbatim under cfgDir/policy', () => {
     const plan = prepareInit({ projectRoot: dir, configRel: CFG_REL,
       answers: DEFAULT_ANSWERS });
     const wf = plan.files.find(
-      (f) => f.rel === '.tasksystem/policy/workflow.json');
+      (f) => f.rel === '.scopegrain/policy/workflow.json');
     const lim = plan.files.find(
-      (f) => f.rel === '.tasksystem/policy/operation-limits.json');
+      (f) => f.rel === '.scopegrain/policy/operation-limits.json');
     assert.ok(wf && lim);
     assert.equal(wf.content.toString('utf8'),
       fs.readFileSync('policy/workflow.json', 'utf8'));

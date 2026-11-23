@@ -36,10 +36,10 @@ const FAKE_SERVER = fileURLToPath(
 
 function fixture(tag = 'rehydration', storagePath) {
   const dir = makeTempDir(tag);
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   const ctx = resolveContext({ project: dir,
-    config: '.tasksystem/config.json' });
+    config: '.scopegrain/config.json' });
   const prepared = prepareWorkspace(ctx, {
     areas: [{ key: 'alpha', name: 'Alpha' }],
   });
@@ -177,10 +177,10 @@ test('project rehydration is cross-session and isolated per project on shared st
 test('enrolled project without a workspace degrades before any spawn', async () => {
   const dir = makeTempDir('rehydration-noworkspace');
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, {}));
     const ctx = resolveContext({ project: dir,
-      config: '.tasksystem/config.json' });
+      config: '.scopegrain/config.json' });
     const c = enroll(dir);
     saveVantaDBConfig(ctx, c);
     let spawns = 0;

@@ -22,7 +22,7 @@ import {
   VALID_ANSWERS, cleanup, makeTempDir, writeFile, writeJson,
 } from './helpers.mjs';
 
-const CONFIG_REL = '.tasksystem/config.json';
+const CONFIG_REL = '.scopegrain/config.json';
 
 function baseFixture() {
   const dir = makeTempDir('api');
@@ -363,9 +363,9 @@ test('catalog groups entries by kind and exposes dep bindings', async () => {
   };
   const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
   for (const [rel, content] of Object.entries(bodies)) {
-    writeFile(f.dir, `.tasksystem/${rel}`, content);
+    writeFile(f.dir, `.scopegrain/${rel}`, content);
   }
-  writeJson(f.dir, '.tasksystem/catalog.json', {
+  writeJson(f.dir, '.scopegrain/catalog.json', {
     schemaVersion: 2,
     entries: [
       { kind: 'command', id: 'demo-cmd', path: 'commands/demo-cmd.md',
@@ -403,8 +403,8 @@ test('catalog doc endpoint serves the projected entry body', async () => {
   const f = baseFixture();
   const body = 'Prompt body\nsecond line\n';
   const sha = crypto.createHash('sha256').update(body).digest('hex');
-  writeFile(f.dir, '.tasksystem/prompts/demo-prompt.md', body);
-  writeJson(f.dir, '.tasksystem/catalog.json', {
+  writeFile(f.dir, '.scopegrain/prompts/demo-prompt.md', body);
+  writeJson(f.dir, '.scopegrain/catalog.json', {
     schemaVersion: 2,
     entries: [
       { kind: 'prompt', id: 'demo-prompt', path: 'prompts/demo-prompt.md',
@@ -438,8 +438,8 @@ function writableCatalogFixture() {
   const f = baseFixture();
   const body = 'Prompt body\nsecond line\n';
   const sha = crypto.createHash('sha256').update(body).digest('hex');
-  writeFile(f.dir, '.tasksystem/prompts/demo-prompt.md', body);
-  writeJson(f.dir, '.tasksystem/catalog.json', {
+  writeFile(f.dir, '.scopegrain/prompts/demo-prompt.md', body);
+  writeJson(f.dir, '.scopegrain/catalog.json', {
     schemaVersion: 2,
     entries: [
       { kind: 'prompt', id: 'demo-prompt', path: 'prompts/demo-prompt.md',
@@ -449,13 +449,13 @@ function writableCatalogFixture() {
   return { ...f, body, sha };
 }
 
-const PROMPT_FILE = '.tasksystem/prompts/demo-prompt.md';
+const PROMPT_FILE = '.scopegrain/prompts/demo-prompt.md';
 const sha256Of = (s) =>
   crypto.createHash('sha256').update(s).digest('hex');
 const readDoc = (dir) =>
   fs.readFileSync(path.join(dir, ...PROMPT_FILE.split('/')), 'utf8');
 const readManifest = (dir) => JSON.parse(
-  fs.readFileSync(path.join(dir, '.tasksystem/catalog.json'), 'utf8'));
+  fs.readFileSync(path.join(dir, '.scopegrain/catalog.json'), 'utf8'));
 
 test('PUT catalog doc without --allow-write is 403 WRITE_DISABLED', async () => {
   const f = writableCatalogFixture();

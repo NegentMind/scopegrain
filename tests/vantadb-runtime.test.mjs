@@ -29,8 +29,8 @@ const FAKE_SERVER = fileURLToPath(
 
 function fixture() {
   const dir = makeTempDir('vantadb-runtime');
-  writeJson(dir, '.tasksystem/config.json', createConfig(dir, VALID_ANSWERS, {}));
-  const ctx = resolveContext({ project: dir, config: '.tasksystem/config.json' });
+  writeJson(dir, '.scopegrain/config.json', createConfig(dir, VALID_ANSWERS, {}));
+  const ctx = resolveContext({ project: dir, config: '.scopegrain/config.json' });
   const prepared = prepareWorkspace(ctx, {
     areas: [{ key: 'alpha', name: 'Alpha' }, { key: 'beta', name: 'Beta' }],
   });
@@ -168,13 +168,13 @@ test('config save/load round-trip; absent, malformed and invalid fail closed', (
     assert.deepEqual(loaded, c);
     assert.equal(Object.isFrozen(loaded), true);
 
-    writeJson(f.dir, '.tasksystem/vantadb.json', { schemaVersion: 1, extra: true });
+    writeJson(f.dir, '.scopegrain/vantadb.json', { schemaVersion: 1, extra: true });
     assert.throws(() => loadVantaDBConfig(f.ctx),
       (e) => e.code === 'VANTADB_CONFIG_MALFORMED');
-    writeJson(f.dir, '.tasksystem/vantadb.json', { ...c, backendId: 'other' });
+    writeJson(f.dir, '.scopegrain/vantadb.json', { ...c, backendId: 'other' });
     assert.throws(() => loadVantaDBConfig(f.ctx),
       (e) => e.code === 'VANTADB_CONFIG_MALFORMED');
-    writeJson(f.dir, '.tasksystem/vantadb.json', { ...c, binaryPath: 'rel/x' });
+    writeJson(f.dir, '.scopegrain/vantadb.json', { ...c, binaryPath: 'rel/x' });
     assert.throws(() => loadVantaDBConfig(f.ctx),
       (e) => e.code === 'VANTADB_CONFIG_MALFORMED');
     assert.throws(() => saveVantaDBConfig(f.ctx, { ...c, version: 'latest' }),
@@ -182,18 +182,18 @@ test('config save/load round-trip; absent, malformed and invalid fail closed', (
 
     // Binary trust: a versioned config must never select in-repo bytes
     // to execute, nor an arbitrarily named executable.
-    writeJson(f.dir, '.tasksystem/vantadb.json',
+    writeJson(f.dir, '.scopegrain/vantadb.json',
       { ...c, binaryPath: path.join(f.dir, 'payload', 'vantadb-server') });
     assert.throws(() => loadVantaDBConfig(f.ctx),
       (e) => e.code === 'VANTADB_BINARY_UNTRUSTED');
-    writeJson(f.dir, '.tasksystem/vantadb.json',
+    writeJson(f.dir, '.scopegrain/vantadb.json',
       { ...c, binaryPath: path.join(path.dirname(f.dir), 'evil.exe') });
     assert.throws(() => loadVantaDBConfig(f.ctx),
       (e) => e.code === 'VANTADB_BINARY_UNTRUSTED');
     assert.throws(() => saveVantaDBConfig(f.ctx,
       { ...c, binaryPath: path.join(f.dir, 'vantadb-server') }),
       (e) => e.code === 'VANTADB_BINARY_UNTRUSTED');
-    writeJson(f.dir, '.tasksystem/vantadb.json',
+    writeJson(f.dir, '.scopegrain/vantadb.json',
       { ...c, binarySha256: 'not-hex' });
     assert.throws(() => loadVantaDBConfig(f.ctx),
       (e) => e.code === 'VANTADB_CONFIG_MALFORMED');
@@ -568,7 +568,7 @@ test('vantaDBSyncPersona projects proved preference/decision captures to L3 idem
     });
     // Unproved raw capture file must never be adopted.
     const fakeUuid = crypto.randomUUID();
-    writeJson(f.dir, `.tasksystem/memory/captures/${fakeUuid}.json`, {
+    writeJson(f.dir, `.scopegrain/memory/captures/${fakeUuid}.json`, {
       schemaVersion: 1, kind: 'scopegrain.capture', id: fakeUuid,
       category: 'preference', title: 'Forged', summary: 'No ownership proof',
     });

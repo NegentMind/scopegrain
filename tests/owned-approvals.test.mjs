@@ -39,7 +39,7 @@ const SPEC = {
 };
 
 function fixture({ decisions = 'docs/agent/decisions',
-  state = '.tasksystem/state', configRel = '.tasksystem/config.json' } = {}) {
+  state = '.scopegrain/state', configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('ownedapp');
   const answers = { ...VALID_ANSWERS,
     paths: { ...VALID_ANSWERS.paths, decisions, state } };
@@ -133,7 +133,7 @@ test('unenrolled workspace and stale bindings are denied', () => {
   const dir = makeTempDir('ownedapp-nowork');
   try {
     const answers = { ...VALID_ANSWERS };
-    writeJson(dir, '.tasksystem/config.json', createConfig(dir, answers, {}));
+    writeJson(dir, '.scopegrain/config.json', createConfig(dir, answers, {}));
     const ctx = resolveContext({ project: dir });
     assert.throws(() => createOwnedApprovalStore(ctx,
       { areaIds: [crypto.randomUUID()] }),

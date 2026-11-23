@@ -1,8 +1,9 @@
 # Scopegrain: contrato de implementacion
 
 Estado: aprobado como base de trabajo por la solicitud de crear el proyecto.
-Scopegrain es el nombre del producto; TaskSystem se conserva como nombre
-tecnico por compatibilidad. Esto no concede una licencia de redistribucion.
+Scopegrain es el nombre del producto y de toda la superficie tecnica; la
+identidad tecnica anterior quedo retirada. Esto no concede una licencia de
+redistribucion.
 
 Este contrato documenta el nucleo inicial y sus invariantes. Las extensiones
 vigentes se especifican en [workflows](workflows.md),
@@ -65,7 +66,7 @@ inspectProject(projectRoot) devuelve {schemaVersion:1, stacks:[], evidence:[],
 commands:[], fingerprint, warnings:[]}. No writes ni shell ni red.
 Recorrido por carpetas: profundidad maxima 4, maximo 1000 entradas; excluir
 .git, node_modules, vendor, .venv, venv, target, dist, build, coverage, legacy,
-.tasksystem, .scopegrain y nombres que comiencen por punto excepto .github.
+.scopegrain y nombres que comiencen por punto excepto .github.
 Nunca seguir symlinks/junctions. No leer .env, llaves ni credenciales.
 Leer solamente manifiestos de lista permitida con limite de 128 KiB:
 package.json, Cargo.toml, pyproject.toml, go.mod, pom.xml, composer.json,
@@ -120,9 +121,8 @@ a false en todas las categorias para compatibilidad.
 locale solo es es o en; hosts conocidos, no duplicados, al menos uno.
 Validar tipos, version y claves; rechazar desconocidas en las respuestas y
 en la configuracion para no ignorar errores tipograficos.
-Config predeterminada .scopegrain/config.json; si solo existe la config
-legacy .tasksystem/config.json, se selecciona sin migrar. Ambas entradas
-requieren --config explicito; una ruta explicita no hace fallback.
+Config predeterminada .scopegrain/config.json; una ruta alternativa
+requiere --config explicito y una ruta explicita no hace fallback.
 --config es relativo al project root. No guardar rutas absolutas al proyecto
 en config compartida.
 loadConfig(projectRoot,configPath) valida sin mutar.

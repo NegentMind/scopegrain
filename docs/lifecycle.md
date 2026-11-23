@@ -42,10 +42,10 @@ escribe nada.
 }
 ```
 
-- `configRel` es la config resuelta (`.scopegrain/config.json` o
-  `.tasksystem/config.json`); `options.config` fuerza una ruta explicita.
+- `configRel` es la config resuelta (`.scopegrain/config.json`);
+  `options.config` fuerza una ruta explicita.
   Sin config valida queda en `null` con un issue (`CONFIG_NOT_FOUND`,
-  `CONFIG_AMBIGUOUS`, `MALFORMED_JSON`, ...).
+  `MALFORMED_JSON`, `CONFIG_VERSION`, ...).
 - `config` resume `{name, locale, hosts, methodology, paths}` cuando la
   config carga.
 - `workspace` resume `{rel, workspaceId, revision, areas}` cuando existe

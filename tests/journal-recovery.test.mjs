@@ -20,8 +20,8 @@ import { VALID_ANSWERS, cleanup, makeTempDir, trySymlink, writeFile, writeJson }
 
 function fixture() {
   const dir = makeTempDir('journal-recovery');
-  writeJson(dir, '.tasksystem/config.json', createConfig(dir, VALID_ANSWERS, {}));
-  const ctx = resolveContext({ project: dir, config: '.tasksystem/config.json' });
+  writeJson(dir, '.scopegrain/config.json', createConfig(dir, VALID_ANSWERS, {}));
+  const ctx = resolveContext({ project: dir, config: '.scopegrain/config.json' });
   const prepared = prepareWorkspace(ctx, {
     areas: [{ key: 'alpha', name: 'Alpha' }, { key: 'beta', name: 'Beta' }],
   });
@@ -29,7 +29,7 @@ function fixture() {
   const [a, b] = prepared.workspace.areas.map((area) => area.id);
   return { dir, ctx, a, b, bound: bindWorkspace(ctx, { areaIds: [a, b] }),
     alpha: bindWorkspace(ctx, { areaIds: [a] }),
-    journal: path.join(dir, '.tasksystem/state/journal') };
+    journal: path.join(dir, '.scopegrain/state/journal') };
 }
 
 function change(areaIds, id, content = `content-${id}`) {
@@ -400,7 +400,7 @@ test('conflicting decisions and malformed metadata fail without further writes',
       if (variant === 'index') fs.writeFileSync(index(f, r), '{}');
       if (variant === 'ack-prepared') {
         fs.unlinkSync(operationFile(f, r, 'commit.json'));
-        writeJson(f.dir, `.tasksystem/state/journal/operations/${r.operationId}/acks/${e.eventId}.json`,
+        writeJson(f.dir, `.scopegrain/state/journal/operations/${r.operationId}/acks/${e.eventId}.json`,
           { schemaVersion: 1, operationId: r.operationId, eventId: e.eventId, evidence: evidence(e) });
       }
       const snapshot = path.join(f.dir, ...e.snapshotRef.split('/'));
@@ -454,7 +454,7 @@ test('all scopes, authentic binding, stale roots and stored snapshots are requir
     assert.throws(() => recoverJournalOperation({ ...f.bound }, r.operationId, o),
       (e) => e.code === 'SCOPE_DENIED');
     assert.deepEqual(tree(f.dir), before);
-    const metadata = path.join(f.dir, '.tasksystem/state/workspace.json');
+    const metadata = path.join(f.dir, '.scopegrain/state/workspace.json');
     const value = JSON.parse(fs.readFileSync(metadata));
     value.revision += 1;
     fs.writeFileSync(metadata, JSON.stringify(value));

@@ -14,7 +14,7 @@ import { fakeIO } from './helpers.mjs';
 test('report save persists a doctor snapshot; list enumerates newest-first', async () => {
   const dir = makeTempDir('cli-report');
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, {}));
     const io = fakeIO();
     const code = await run(['report', 'save', '--project', dir], io);

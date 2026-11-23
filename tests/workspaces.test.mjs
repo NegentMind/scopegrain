@@ -21,7 +21,7 @@ const TWO_AREAS = {
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-function fixture({ state = '.tasksystem/state', configRel = '.tasksystem/config.json' } = {}) {
+function fixture({ state = '.scopegrain/state', configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('workspace');
   const answers = { ...VALID_ANSWERS, paths: { ...VALID_ANSWERS.paths, state } };
   writeJson(dir, configRel, createConfig(dir, answers, {}));
@@ -68,7 +68,7 @@ test('read and preview are read-only; default creation persists distinct stable 
   const { dir, ctx, configRel } = fixture();
   try {
     const before = snapshot(dir);
-    assert.equal(workspaceFileRel(ctx), '.tasksystem/state/workspace.json');
+    assert.equal(workspaceFileRel(ctx), '.scopegrain/state/workspace.json');
     assert.throws(() => getWorkspace(ctx), (e) => e.code === 'WORKSPACE_NOT_FOUND');
     const preview = prepareWorkspace(ctx);
     assert.deepEqual(snapshot(dir), before);
@@ -83,14 +83,14 @@ test('read and preview are read-only; default creation persists distinct stable 
     assert.equal(new Date(preview.workspace.createdAt).toISOString(),
       preview.workspace.createdAt);
     assert.equal(preview.file.rel, workspaceFileRel(ctx));
-    assert.equal(preview.file.abs, path.join(dir, '.tasksystem', 'state', 'workspace.json'));
+    assert.equal(preview.file.abs, path.join(dir, '.scopegrain', 'state', 'workspace.json'));
     assert.equal(applyPlan(dir, [preview.file]).created, 1);
     assert.deepEqual(getWorkspace(ctx), preview.workspace);
     assert.deepEqual(fs.readFileSync(path.join(dir, configRel)), before[configRel]);
   } finally { cleanup(dir); }
 });
 
-test('legacy custom state, matching sets and default no-op preserve exact bytes from one read', () => {
+test('custom state, matching sets and default no-op preserve exact bytes from one read', () => {
   const { dir, ctx, configRel } = fixture({ state: 'custom-state' });
   try {
     const original = create(ctx, TWO_AREAS);
@@ -121,7 +121,6 @@ test('legacy custom state, matching sets and default no-op preserve exact bytes 
     assert.deepEqual(Buffer.from(defaultNoop.file.content), bytes);
     assert.deepEqual(snapshot(dir), before);
     assert.ok(fs.existsSync(path.join(dir, configRel)));
-    assert.equal(fs.existsSync(path.join(dir, '.scopegrain')), false);
   } finally { cleanup(dir); }
 });
 
@@ -171,7 +170,7 @@ test('input shape is closed, plain and requires valid unique areas', () => {
     const area = Object.assign(Object.create(null), { key: 'a', name: 'A' });
     const input = Object.assign(Object.create(null), { areas: [area] });
     assert.equal(prepareWorkspace(ctx, input).workspace.areas[0].key, 'a');
-    assert.equal(fs.existsSync(path.join(dir, '.tasksystem', 'state')), false);
+    assert.equal(fs.existsSync(path.join(dir, '.scopegrain', 'state')), false);
   } finally { cleanup(dir); }
 });
 
@@ -517,7 +516,7 @@ test('metadata leaf and state ancestor links are rejected', (t) => {
   const target = makeTempDir('workspace-link-target');
   try {
     const targetFile = writeFile(target, 'workspace.json', '{}');
-    const state = path.join(dir, '.tasksystem', 'state');
+    const state = path.join(dir, '.scopegrain', 'state');
     fs.mkdirSync(state);
     const file = path.join(state, 'workspace.json');
     if (!trySymlink(targetFile, file, 'file')) {
@@ -606,7 +605,7 @@ test('workspace path follows state and rejects traversal and links', () => {
   } finally { cleanup(dir); }
 });
 
-test('CLI preview, apply, show, noop and mismatch preserve legacy config', async () => {
+test('CLI preview, apply, show, noop and mismatch preserve config bytes', async () => {
   const { dir, ctx, configRel } = fixture();
   const inputDir = makeTempDir('workspace-input');
   try {
@@ -644,47 +643,46 @@ test('CLI preview, apply, show, noop and mismatch preserve legacy config', async
     assert.equal(mismatch.body.error.code, 'WORKSPACE_CONFLICT');
     assert.deepEqual(snapshot(dir), after);
     assert.deepEqual(fs.readFileSync(path.join(dir, configRel)), configBytes);
-    assert.equal(fs.existsSync(path.join(dir, '.scopegrain')), false);
   } finally { cleanup(dir); cleanup(inputDir); }
 });
 
-test('CLI and binding use the .scopegrain state without creating legacy paths', async () => {
-  const { dir, ctx } = fixture({
-    state: '.scopegrain/state', configRel: '.scopegrain/config.json',
+test('CLI and binding use the configured state without creating default paths', async () => {
+  const { dir, ctx, configRel } = fixture({
+    state: 'custom/state', configRel: 'custom/config.json',
   });
   try {
     const before = snapshot(dir);
-    const preview = await cli(['workspace', 'init', '--project', dir]);
+    const preview = await cli(['workspace', 'init', '--project', dir,
+      '--config', configRel]);
     assert.equal(preview.code, 0);
     assert.equal(preview.body.mode, 'dry-run');
-    assert.equal(preview.body.files[0].path, '.scopegrain/state/workspace.json');
+    assert.equal(preview.body.files[0].path, 'custom/state/workspace.json');
     assert.deepEqual(snapshot(dir), before);
-    const applied = await cli(['workspace', 'init', '--project', dir, '--apply']);
+    const applied = await cli(['workspace', 'init', '--project', dir,
+      '--config', configRel, '--apply']);
     assert.equal(applied.code, 0);
     assert.equal(applied.body.created, 1);
-    const shown = await cli(['workspace', 'show', '--project', dir]);
+    const shown = await cli(['workspace', 'show', '--project', dir,
+      '--config', configRel]);
     assert.equal(shown.code, 0);
     assert.deepEqual(shown.body, applied.body.workspace);
     const bound = bindWorkspace(ctx, { areaIds: [shown.body.areas[0].id] });
     assert.deepEqual(authorizeScope(bound, scope(shown.body)).areaIds,
       [shown.body.areas[0].id]);
     assert.equal(resolveWorkspaceRepository(bound, shown.body.repositoryId), ctx.projectRoot);
-    assert.equal(workspaceFileRel(ctx), '.scopegrain/state/workspace.json');
-    assert.equal(fs.existsSync(path.join(dir, '.tasksystem')), false);
+    assert.equal(workspaceFileRel(ctx), 'custom/state/workspace.json');
+    assert.equal(fs.existsSync(path.join(dir, '.scopegrain')), false);
   } finally { cleanup(dir); }
 });
 
-test('CLI explicit --config selects the legacy project despite ambiguous defaults', async () => {
-  const { dir, ctx, configRel } = fixture();
+test('CLI explicit --config selects a non-default project config', async () => {
+  const { dir, ctx, configRel } = fixture({ configRel: 'custom/config.json' });
   try {
-    const current = writeJson(dir, '.scopegrain/config.json',
-      createConfig(dir, VALID_ANSWERS, {}));
-    const currentBytes = fs.readFileSync(current);
-    const legacyBytes = fs.readFileSync(path.join(dir, configRel));
+    const configBytes = fs.readFileSync(path.join(dir, configRel));
     const before = snapshot(dir);
-    const ambiguous = await cli(['workspace', 'init', '--project', dir, '--apply']);
-    assert.equal(ambiguous.code, 1);
-    assert.equal(ambiguous.body.error.code, 'CONFIG_AMBIGUOUS');
+    const missing = await cli(['workspace', 'init', '--project', dir, '--apply']);
+    assert.equal(missing.code, 1);
+    assert.equal(missing.body.error.code, 'CONFIG_NOT_FOUND');
     assert.deepEqual(snapshot(dir), before);
     const created = await cli(['workspace', 'init', '--project', dir,
       '--config', configRel, '--apply']);
@@ -693,9 +691,7 @@ test('CLI explicit --config selects the legacy project despite ambiguous default
     const shown = await cli(['workspace', 'show', '--project', dir, '--config', configRel]);
     assert.equal(shown.code, 0);
     assert.deepEqual(shown.body, getWorkspace(ctx));
-    assert.deepEqual(fs.readFileSync(current), currentBytes);
-    assert.deepEqual(fs.readFileSync(path.join(dir, configRel)), legacyBytes);
-    assert.equal(fs.existsSync(path.join(dir, '.scopegrain/state')), false);
+    assert.deepEqual(fs.readFileSync(path.join(dir, configRel)), configBytes);
   } finally { cleanup(dir); }
 });
 

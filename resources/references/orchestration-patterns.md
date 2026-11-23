@@ -281,4 +281,4 @@ Add a new entry only after:
 Premature catalog entries become aspirational documentation that no one
 follows.
 
-<!-- Cross-references: → see ship-runbook.md, skills-engineering.md, task-system.md -->
+<!-- Cross-references: → see ship-runbook.md, skills-engineering.md, task-domain.md -->

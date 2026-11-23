@@ -16,7 +16,7 @@ const BASE_FILES = {
   'agents/lead.md': '# lead\n',
   'skills/s1/SKILL.md': '# s1\n',
   'rules/safety.md': '# safety\n',
-  'references/task-system.md': '# ref\n',
+  'references/task-domain.md': '# ref\n',
   'profiles/core.json': JSON.stringify({
     schemaVersion: 1, id: 'core', description: 'd',
     skills: [], rules: [], references: [],
@@ -35,14 +35,14 @@ const ENTRIES = [
   { kind: 'command', id: 'pipeline', path: 'commands/pipeline.md',
     description: 'd', modes: ['plan'],
     agents: ['lead'], skills: ['s1'], rules: ['safety'],
-    references: ['task-system'] },
+    references: ['task-domain'] },
   { kind: 'agent', id: 'lead', path: 'agents/lead.md', description: 'd' },
   { kind: 'skill', id: 's1', path: 'skills/s1/SKILL.md', description: 'd' },
   { kind: 'skill', id: 'project-onboarding',
     path: 'templates/skills/project-onboarding/SKILL.md', description: 'd' },
   { kind: 'rule', id: 'safety', path: 'rules/safety.md', description: 'd' },
-  { kind: 'reference', id: 'task-system',
-    path: 'references/task-system.md', description: 'd' },
+  { kind: 'reference', id: 'task-domain',
+    path: 'references/task-domain.md', description: 'd' },
   { kind: 'profile', id: 'core', path: 'profiles/core.json', description: 'd' },
 ];
 

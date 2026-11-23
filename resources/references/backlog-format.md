@@ -119,4 +119,4 @@ columns, in this order:
 **Business row (human):**
 ``| `BIZ-16` | — | **Sign binaries (code-signing cert)** | — | 🟠 2-3d + cost | 🟠 Medium | 🆕 Pending | Cert + signing step in release + checksums. | Owner: owner | Dep: certificate |``
 
-<!-- Cross-references: → see definition-of-done.md, task-system.md, research-modules.md -->
+<!-- Cross-references: → see definition-of-done.md, task-domain.md, research-modules.md -->

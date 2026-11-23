@@ -32,7 +32,7 @@ test('unsafe, reserved and Windows-hostile paths are rejected', () => {
 test('canonical relative paths accepted; Unicode and backslashes kept', () => {
   assert.equal(assertDestination('docs/agent/plans'), 'docs/agent/plans');
   assert.equal(assertDestination('docs\\agent\\plans'), 'docs/agent/plans');
-  assert.equal(assertDestination('.tasksystem/memory'), '.tasksystem/memory');
+  assert.equal(assertDestination('.scopegrain/memory'), '.scopegrain/memory');
   assert.equal(assertDestination('docs/españa/planes'), 'docs/españa/planes');
   assert.equal(assertDestination('日本語/ファイル'), '日本語/ファイル');
 });

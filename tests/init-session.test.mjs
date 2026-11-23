@@ -14,7 +14,7 @@ import {
   VALID_ANSWERS, cleanup, exists, makeTempDir, readJson, writeJson,
 } from './helpers.mjs';
 
-const STATE = '.tasksystem/state';
+const STATE = '.scopegrain/state';
 const FILE_REL = `${STATE}/init-session.json`;
 
 function paths(dir, stateDir = STATE) {

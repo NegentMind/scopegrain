@@ -165,7 +165,7 @@ test('journal recover apply creates receipt and unlocks later writes', async () 
       const receipt = path.join(f.journal, 'operations', r.operationId, 'recovery.json');
       assert.equal(JSON.parse(fs.readFileSync(receipt)).action, action);
       assert.equal(applyJournaledCreation(f.bound, [change(f, 'next')]).status, 'committed');
-      assert.equal(fs.existsSync(path.join(f.dir, '.tasksystem')), false);
+      assert.equal(fs.existsSync(path.join(f.dir, '.scopegrain')), false);
     } finally { cleanup(f.dir); }
   }
 });

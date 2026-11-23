@@ -109,26 +109,26 @@ test:smoke` → 215 pass, 0 fail. `doctor` keeps 438 failures: 436
 | OpenCode V2 native pilot (this repo + fixture) | Fresh `opencode v2.3.2` session, 2026-11-23 | 15 subagents and 44 skills from `.opencode/` (74 visible IDs after de-duplicating against `.agents/skills`, with `.opencode/skills` winning precedence); `/scopegrain-status` expanded in the TUI composer; `scopegrain` MCP with 33 tools (27 read-only, 6 local-write) and `scopegrain_status`/`catalog_list`/`list_tasks` invoked live; the read-only role blocked `edit`/`shell` by tool absence and left external MCP writers reachable; interruption/resumption repeated no effects and duplicated no counter (session file byte-identical); cleanup left no global traces (sha256 of `~/.config/opencode/opencode.json` unchanged) |
 | Remaining host pilots | Pending | Claude, Codex, the Antigravity IDE surface and Hermes not certified |
 
-Local logs preserved under `.tasksystem/verification/organic-sdd/`:
+Local logs preserved under `.scopegrain/verification/organic-sdd/`:
 `c2d1-green-final.log`, `c2d2-green-final.log`, their causal REDs and
 complete diffs. They are Git-ignored; they do not automatically
 accompany a clone. The full CLI/MCP run output is in
-`.tasksystem/verification/publication-cli-mcp-1794188607.log`, also
+`.scopegrain/verification/publication-cli-mcp-1794188607.log`, also
 ignored and not automatically included in a public clone.
 The initial full run, the focused repair and the later full run are,
-respectively, in `.tasksystem/verification/publication-full-suite-1794189732.log`,
-`.tasksystem/verification/publication-review-corrections-1794190234.log` and
-`.tasksystem/verification/publication-full-suite-recheck-1794190295.log`.
+respectively, in `.scopegrain/verification/publication-full-suite-1794189732.log`,
+`.scopegrain/verification/publication-review-corrections-1794190234.log` and
+`.scopegrain/verification/publication-full-suite-recheck-1794190295.log`.
 These logs also remain ignored and do not accompany a public clone.
 
 The focused foundation run was executed manually by the owner; its
-summary is in `.tasksystem/verification/scopegrain-foundation-owner-results.md`
+summary is in `.scopegrain/verification/scopegrain-foundation-owner-results.md`
 and does not record Node/npm versions. The initial full run and the
 four-file reproduction are in
-`.tasksystem/verification/scopegrain-foundation-full-suite-1794250002.log` and
-`.tasksystem/verification/scopegrain-foundation-four-file-repro-1794250596.log`.
+`.scopegrain/verification/scopegrain-foundation-full-suite-1794250002.log` and
+`.scopegrain/verification/scopegrain-foundation-four-file-repro-1794250596.log`.
 The authorized serial full run is in
-`.tasksystem/verification/scopegrain-foundation-serial-full-suite-1794255293.log`.
+`.scopegrain/verification/scopegrain-foundation-serial-full-suite-1794255293.log`.
 These files are local, ignored and do not accompany a public clone.
 
 Workspace identity was verified separately from foundation. The initial
@@ -137,7 +137,7 @@ added permanent invalidation of stale bindings and `dev`/`ino`
 comparisons with BigInt. Its four regressions failed before the change;
 the final focused run passed 25 tests. A C2-E help filter passed one
 test in a separate run; it is not summed with the other runs.
-The logs are `.tasksystem/verification/scopegrain-workspaces-green-final-1794257535.log`,
+The logs are `.scopegrain/verification/scopegrain-workspaces-green-final-1794257535.log`,
 `scopegrain-workspaces-rework-red-1794258058.log`,
 `scopegrain-workspaces-rework-green-final-1794258101.log` and
 `scopegrain-workspaces-help-1794257497.log` under the same folder.
@@ -150,7 +150,7 @@ scopes. Review found that an active reservation without an index could
 look like an empty queue. Three read regressions failed before the fix;
 the final focused run passed 29 tests. The earlier compatibility run
 passed 66 tests and is not summed with the final one. Local logs are
-`.tasksystem/verification/scopegrain-journal-green-complete-1794262437.log`,
+`.scopegrain/verification/scopegrain-journal-green-complete-1794262437.log`,
 `scopegrain-journal-listing-red-1794263030.log` and
 `scopegrain-journal-listing-green-1794263051.log` under the same folder.
 The initial RED for missing module is kept separately in
@@ -166,9 +166,9 @@ verified separately via
 `node --test --test-concurrency=1 tests/vantadb-projection.test.mjs tests/mcp.test.mjs`.
 The run passed 28 tests with no failures, skips or cancellations, exit
 0 and a duration of 19369.9938 ms. The local log is
-`.tasksystem/verification/2026-11-16-vantadb-projection-green-1794801914.log`;
+`.scopegrain/verification/2026-11-16-vantadb-projection-green-1794801914.log`;
 the initial RED for missing module remains in
-`.tasksystem/verification/scopegrain-vantadb-projection-red-1794264898.log`.
+`.scopegrain/verification/scopegrain-vantadb-projection-red-1794264898.log`.
 These logs are ignored and do not automatically accompany a clone.
 Verified: all-of scopes, snapshots and chunks, typed MCP responses,
 conflicts, lost responses, readback, lease and recoverable local ACK.
@@ -182,9 +182,9 @@ via the plan's scoped gate:
 `node --test --test-concurrency=1 tests/journal-recovery.test.mjs tests/cli-journal.test.mjs tests/journal.test.mjs tests/vantadb-projection.test.mjs tests/cli.test.mjs`.
 The run passed 83 tests with no failures, skips or cancellations, exit
 0 and a duration of 59222.3097 ms. The local log is
-`.tasksystem/verification/2026-11-16-journal-recovery-rework-green-1794803352.log`.
+`.scopegrain/verification/2026-11-16-journal-recovery-rework-green-1794803352.log`.
 The review RED reproduced four failures before the fix in
-`.tasksystem/verification/2026-11-16-journal-recovery-rework-red-1794803301.log`
+`.scopegrain/verification/2026-11-16-journal-recovery-rework-red-1794803301.log`
 and the initial RED for missing exports is in
 `2026-11-16-journal-recovery-red-1794802852.log`; the intermediate
 79-test gate and these runs are not summed together or with other runs.
@@ -207,7 +207,7 @@ capture plan) was verified separately on Node.js v26.8.1 via
 `node --test --test-concurrency=1 tests/journal.test.mjs tests/journal-recovery.test.mjs tests/vantadb-projection.test.mjs`.
 The run passed 74 tests with no failures, skips or cancellations, exit
 0 and a duration of 18901.9009 ms. The local log is
-`.tasksystem/verification/2026-11-16-record-seam-green-1794804847.log`
+`.scopegrain/verification/2026-11-16-record-seam-green-1794804847.log`
 and the RED for missing export is in
 `2026-11-16-record-seam-red-1794804797.log`. The regressions cover the
 shared frozen identity, invalid callbacks, initial noop and noop
@@ -221,7 +221,7 @@ separately on Node.js v26.8.1 via
 `node --test --test-concurrency=1 tests/capture-data.test.mjs`.
 The run passed 9 tests with no failures, skips or cancellations, exit
 0 and a duration of 140.4566 ms. The local log is
-`.tasksystem/verification/2026-11-16-capture-data-green-1794805218.log`
+`.scopegrain/verification/2026-11-16-capture-data-green-1794805218.log`
 and the RED for missing module is in
 `2026-11-16-capture-data-red-1794805181.log`. They are pure validators:
 they do not assert persistence, activated capture or proven ownership.
@@ -232,7 +232,7 @@ was verified separately on Node.js v26.8.1 via
 `node --test --test-concurrency=1 tests/captures.test.mjs tests/capture-data.test.mjs tests/journal.test.mjs`.
 The run passed 60 tests with no failures, skips or cancellations, exit
 0 and a duration of 6693.1538 ms. The local log is
-`.tasksystem/verification/2026-11-16-captures-rework-green-1794806444.log`
+`.scopegrain/verification/2026-11-16-captures-rework-green-1794806444.log`
 and the rework RED with 16 passing and exactly 2 regressions is in
 `2026-11-16-captures-rework-red-1794806425.log`. Those regressions
 reproduced two defects before the fix: `prepare` returned previews
@@ -249,7 +249,7 @@ on Node.js v26.8.1 with the final 8-file focused gate:
 `node --test --test-concurrency=1 tests/capture-data.test.mjs tests/captures.test.mjs tests/cli-captures.test.mjs tests/journal.test.mjs tests/journal-recovery.test.mjs tests/vantadb-projection.test.mjs tests/cli-journal.test.mjs tests/cli.test.mjs`.
 The run passed 121 tests with no failures, skips or cancellations, exit
 0 and a duration of 22355.7746 ms. The local log is
-`.tasksystem/verification/2026-11-16-final8-green-1794807260.log` and
+`.scopegrain/verification/2026-11-16-final8-green-1794807260.log` and
 the previous RED (0 passing, 7 failures for unknown command) is in
 `2026-11-16-cli-captures-red-1794807224.log`. The gate includes the
 existing in-memory projection MCP tests; it does not certify native or
@@ -264,7 +264,7 @@ After the focused gate, the authorized full suite was run once via
 `node --test --test-concurrency=1 tests/*.test.mjs` on Node.js v26.8.1
 and npm 11.6.0. It passed 673 tests with no failures, skips or
 cancellations, exit 0 and a duration of 322695.5689 ms; the full log is
-in `.tasksystem/verification/2026-11-16-integral-npmtest-1794807643.log`.
+in `.scopegrain/verification/2026-11-16-integral-npmtest-1794807643.log`.
 It is the full-run reference of the CLI captures block, not a rerun of
 the 121 gate or a certification of CI, native execution or host
 conformance; earlier counts are not summed with it.
@@ -274,12 +274,12 @@ creation proof with captures, without altering the legacy writers.
 Review detected the loss of the `sourceHash` string-type guard: the RED
 reproduced the undue acceptance of an array before restoring it. The
 causal control is in
-`.tasksystem/verification/2026-11-16-ownedspec-hashguard-red-1794812682.log`
+`.scopegrain/verification/2026-11-16-ownedspec-hashguard-red-1794812682.log`
 (8 pass, 1 fail); the post-review run passed 35 tests with no failures,
 skips or cancellations, exit 0 and 4441.2723 ms, via
 `node --test --test-concurrency=1 tests/record-ownership-data.test.mjs tests/capture-data.test.mjs tests/owned-specifications.test.mjs`.
 Its log is
-`.tasksystem/verification/2026-11-16-ownedspec-rework-green-1794812910.log`.
+`.scopegrain/verification/2026-11-16-ownedspec-rework-green-1794812910.log`.
 The initial 79-test gate predates that fix; the sets are different and
 their counts are not summed.
 
@@ -287,7 +287,7 @@ After the complete review, a single full run was executed with serial
 `npm test`, Node.js v26.8.1 and npm 11.6.0: 699 pass, 0 fail, 0
 skipped, 0 cancelled, exit 0 and 1354533.5285 ms. It is that core
 block's reference. The full log, including versions and real output, is
-in `.tasksystem/verification/2026-11-16-integral-npmtest-1794813511.log`.
+in `.scopegrain/verification/2026-11-16-integral-npmtest-1794813511.log`.
 Those are 26 new cases in the two ownership files, included in the 699
 tests, not additional to them. The full run had no retries.
 In that block the store was opt-in and core-only; there was no
@@ -301,9 +301,9 @@ confirmed that `readInputFile` accepted a `0xff` byte inside
 `originalRequest` and persisted U+FFFD in a legacy artifact. The common
 reader was fixed: byte limit, exact UTF8 roundtrip and then parsing,
 without banning valid U+FFFD or normalizing the text. The repro is in
-`.tasksystem/verification/2026-11-16-cli-utf8-repro-1794815485.log`.
+`.scopegrain/verification/2026-11-16-cli-utf8-repro-1794815485.log`.
 The initial RED is kept in
-`.tasksystem/verification/2026-11-16-cli-owned-task1-red.log`: it
+`.scopegrain/verification/2026-11-16-cli-owned-task1-red.log`: it
 included a fixture failure for a reserved path, fixed before GREEN, in
 addition to the then-missing mode failures and UTF8 loss. The error
 expectation for an unknown UUID was reconciled with the core's
@@ -314,7 +314,7 @@ The focused gate passed 97 tests, 0 failures, skips or cancellations,
 exit 0 and 60057.2735 ms:
 `node --test --test-concurrency=1 tests/cli-utf8.test.mjs tests/cli-owned-specifications.test.mjs tests/cli-captures.test.mjs tests/cli-methodology.test.mjs`.
 Its full log is in
-`.tasksystem/verification/2026-11-16-owned-spec-cli-green-1794816091.log`.
+`.scopegrain/verification/2026-11-16-owned-spec-cli-green-1794816091.log`.
 
 After reviewing all tests, source and documentation, and a second
 review in a separate context with no findings requiring changes, the
@@ -322,7 +322,7 @@ code was frozen and a single serial `npm test` full run was executed:
 770 pass, 0 fail, 0 skipped, 0 cancelled, exit 0 and 510701.96 ms,
 Node.js v26.8.1 and npm 11.6.0. The raw log with versions, command,
 outputs and real code is
-`.tasksystem/verification/2026-11-16-owned-spec-cli-integral-1794816546.log`.
+`.scopegrain/verification/2026-11-16-owned-spec-cli-integral-1794816546.log`.
 The whitespace check with `cr-at-eol` scoped to the process also ended
 with exit 0, without writing Git config. There were no retries, filters
 or suite omissions; the focused run is not summed with the total.
@@ -340,26 +340,26 @@ responsibility. The complete review was also performed in a separate
 context, including the literal diff and the four new files.
 
 The behavioral CLI RED finished with 23 tests, 4 pass and 19 fail, exit
-1: `.tasksystem/verification/owned-formal-task1-cli-red-20261117-041450-4162.log`.
+1: `.scopegrain/verification/owned-formal-task1-cli-red-20261117-041450-4162.log`.
 The core RED of
-`.tasksystem/verification/owned-formal-task1-core-red-20261117-041534-2777.log`
+`.scopegrain/verification/owned-formal-task1-core-red-20261117-041534-2777.log`
 includes rejection of the new kinds and load failure for missing
 modules; that load failure does not demonstrate behavior of a store
 that did not exist yet.
 
 The first targeted ten-file run finished with 195 tests, 191 pass and
 4 fail, no skips or cancellations, exit 1:
-`.tasksystem/verification/2026-11-17-owned-formal-green-1794903811.log`.
+`.scopegrain/verification/2026-11-17-owned-formal-green-1794903811.log`.
 The four fixture expectations assumed a present source after a
 companion failure, but the existing rollback removed the files created
 in that scenario. Correcting the presence expectation did not change
 the kernel or weaken the ownership proof. A first rerun of the two new
 files still had 41 pass and 2 fail from remaining structural
 expectations:
-`.tasksystem/verification/2026-11-17-owned-formal-rerun-1794904101.log`.
+`.scopegrain/verification/2026-11-17-owned-formal-rerun-1794904101.log`.
 After fixing them, those two files passed 43 tests with no failures,
 skips or cancellations, exit 0:
-`.tasksystem/verification/2026-11-17-owned-formal-rerun2-1794904138.log`.
+`.scopegrain/verification/2026-11-17-owned-formal-rerun2-1794904138.log`.
 The other eight files did not change and were not repeated; the
 combination of those runs is not presented as a single green 195-test
 run.
@@ -369,12 +369,12 @@ test does not depend on its success. The check of both snapshots and
 their hashes was added after the fixture rollback. The only file with
 new assertions was repeated: 20 pass, 0 fail, 0 skipped, 0 cancelled
 and exit 0:
-`.tasksystem/verification/2026-11-17-owned-formal-rework-1794904550.log`.
+`.scopegrain/verification/2026-11-17-owned-formal-rework-1794904550.log`.
 
 With source and tests frozen, the single final `npm test` full run
 finished with 813 pass, 0 fail, 0 skipped and 0 cancelled, exit 0,
 620603.4447 ms, Node.js v26.8.1 and npm 11.6.0:
-`.tasksystem/verification/2026-11-17-owned-formal-integral-1794904701.log`.
+`.scopegrain/verification/2026-11-17-owned-formal-integral-1794904701.log`.
 The log preserves versions, command, stdout/stderr and
 `NPM_TEST_EXIT=0`. The full run had no retries, filters or omissions;
 earlier runs are not summed with its total. These logs and the private
@@ -392,9 +392,9 @@ the process. The proxy rejected credentialless requests with 401 in
 both sessions. The observed records contain no vectors. The
 missing-model path was deliberate: `StrictUnavailable` does not prove
 models are absent on the machine nor certify semantic recovery.
-The log is `.tasksystem/verification/2026-11-16-native-probe-1794808334.log`;
+The log is `.scopegrain/verification/2026-11-16-native-probe-1794808334.log`;
 the raw responses are in
-`.tasksystem/verification/2026-11-16-native-mcp-5a2e5113-1b51-41f7-a7b9-86a19526e666.json`.
+`.scopegrain/verification/2026-11-16-native-mcp-5a2e5113-1b51-41f7-a7b9-86a19526e666.json`.
 The recipe, database and evidence are private and ignored; they do not
 accompany a clone. No public integration was activated and VantaDB was
 not modified; no real content was used either. This pilot is not summed
@@ -409,9 +409,9 @@ auto-embed of `memory_put` returned `fallback:false`, and a vector384
 was persisted. The explicit-model call correctly rejected that absent
 runtime. Automatic native activation remains blocked; no workaround was
 applied and VantaDB was not modified. Private log:
-`.tasksystem/verification/2026-11-16-embedding-probe-1794810035.log`;
+`.scopegrain/verification/2026-11-16-embedding-probe-1794810035.log`;
 responses:
-`.tasksystem/verification/2026-11-16-native-embedding-46c95621-1f91-4eab-99bb-31839b70a884.json`.
+`.scopegrain/verification/2026-11-16-native-embedding-46c95621-1f91-4eab-99bb-31839b70a884.json`.
 This test is not a recovery benchmark and is not summed with the full
 run.
 
@@ -426,7 +426,7 @@ describes `--test-concurrency`, and the
 describes event 2004 and its diagnostic limits.
 
 The script's filtered regression failed before changing it, as recorded
-in `.tasksystem/verification/scopegrain-foundation-concurrency-red-1794255277.log`;
+in `.scopegrain/verification/scopegrain-foundation-concurrency-red-1794255277.log`;
 that filter is not a complete suite. The current script is
 `node --test --test-concurrency=1 tests/*.test.mjs`.
 
@@ -460,7 +460,7 @@ not been tested yet.
 ## Historic Gate Of The Portable Expansion
 
 Execution recorded on 2026-11-07 (UTC). Local evidence:
-`.tasksystem/verification/final-gate/`.
+`.scopegrain/verification/final-gate/`.
 
 | Check | Observed result |
 | --- | --- |
@@ -473,7 +473,7 @@ Execution recorded on 2026-11-07 (UTC). Local evidence:
 | Fixture implementation and verification | `node --test sum.test.mjs` actually executed, exit 0 |
 | Evidence and review | Verification with real log; synthetic declared review, only to test the schema |
 | CAS and budget | Obsolete revision and exceeded operation rejected; resume with real state and usage |
-| Seven artifact types | Under `.tasksystem/`, reviews in reports/reviews; no docs/ created |
+| Seven artifact types | Under `.scopegrain/`, reviews in reports/reviews; no docs/ created |
 | Catalog and projections | 111 resources and proposal sources existing on disk |
 | Fixture Git preferences | Nested ignore per selection; root `.gitignore` intact |
 | MCP with real stdio transport | 13 read-only tools; catalog, workflow, plan, artifact and session queries |
@@ -484,7 +484,7 @@ Evidence files:
 - `smoke-report.json` and `smoke.log`: fixture checks.
 - `smoke.mjs`: one-off verification script, not part of the runtime.
 - `node-version.txt` and `npm-version.txt`: observed versions.
-- `project/.tasksystem/reports/sum-test-runner.log`: output of the
+- `project/.scopegrain/reports/sum-test-runner.log`: output of the
   fixture's real test; the execution was explicitly authorized, not
   started by discovering the script in the manifest.
 
@@ -606,8 +606,8 @@ without privilege.
 From the Scopegrain root:
 
 ```powershell
-node .\bin\tasksystem.mjs --help
-node .\bin\tasksystem.mjs inspect --project .
+node .\bin\scopegrain.mjs --help
+node .\bin\scopegrain.mjs inspect --project .
 ```
 
 For the `init` dry-run plan use a pre-created empty fixture (on this
@@ -617,7 +617,7 @@ content):
 
 ```powershell
 mkdir .\tests\.tmp\humo-vacio
-node .\bin\tasksystem.mjs init --project .\tests\.tmp\humo-vacio --answers .\examples\answers.json
+node .\bin\scopegrain.mjs init --project .\tests\.tmp\humo-vacio --answers .\examples\answers.json
 ```
 
 It prints the plan without writing anything.
@@ -629,9 +629,9 @@ real project or on this repo:
 
 ```powershell
 mkdir .\tests\.tmp\humo-proyecto
-node .\bin\tasksystem.mjs init --project .\tests\.tmp\humo-proyecto --answers .\examples\answers.json --apply
-node .\bin\tasksystem.mjs doctor --project .\tests\.tmp\humo-proyecto
-node .\bin\tasksystem.mjs task list --project .\tests\.tmp\humo-proyecto
+node .\bin\scopegrain.mjs init --project .\tests\.tmp\humo-proyecto --answers .\examples\answers.json --apply
+node .\bin\scopegrain.mjs doctor --project .\tests\.tmp\humo-proyecto
+node .\bin\scopegrain.mjs task list --project .\tests\.tmp\humo-proyecto
 ```
 
 `examples/answers.json` selects `organic-sdd`. Do not use metadata-less

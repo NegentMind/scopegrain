@@ -431,7 +431,7 @@ export function resumeSession(ctx, id) {
       tokenUsage: tokenUsageSummary(session),
     },
     resourceRoot: ctx.configDir,
-    recovery: { reference: 'references/task-system.md' },
+    recovery: { reference: 'references/task-domain.md' },
   };
 }
 
@@ -905,7 +905,7 @@ export function createOwnedSessionStore(ctx, options) {
         tokenUsage: tokenUsageSummary(session),
       },
       resourceRoot,
-      recovery: { reference: 'references/task-system.md' },
+      recovery: { reference: 'references/task-domain.md' },
       ownership: proven.ownership,
       locator: proven.locator,
     };

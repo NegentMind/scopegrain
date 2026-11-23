@@ -41,7 +41,7 @@ function targetOf(ctx, kind, artifactKind, id) {
 function makeApproval(ctx, dir, kind, artifactKind, id) {
   const { target } = targetOf(ctx, kind, artifactKind, id);
   const p = prepareApproval(ctx, { target });
-  const abs = `${dir}/.tasksystem/decisions/approvals/${p.approval.id}.json`;
+  const abs = `${dir}/.scopegrain/decisions/approvals/${p.approval.id}.json`;
   if (fs.existsSync(abs)) return getApproval(ctx, p.approval.id);
   applyPlan(dir, [p.file]);
   return p.approval;
@@ -53,7 +53,7 @@ function answer(id, rev, digest, extra = {}) {
 }
 
 function absOf(dir, approvalId) {
-  return `${dir}/.tasksystem/decisions/approvals/${approvalId}.json`;
+  return `${dir}/.scopegrain/decisions/approvals/${approvalId}.json`;
 }
 
 test('prepare: pending, id=digest, locale question, scope from spec', () => {
@@ -215,9 +215,9 @@ test('stale revision/digest fail before any write', () => {
       'f'.repeat(64))), (e) => e.code === 'APPROVAL_STALE_TARGET');
     assert.ok(fs.readFileSync(rel).equals(before));
     const specStored = JSON.parse(fs.readFileSync(
-      `${dir}/.tasksystem/plans/specs/${spec.id}.json`, 'utf8'));
+      `${dir}/.scopegrain/plans/specs/${spec.id}.json`, 'utf8'));
     specStored.references = ['docs/x.md'];
-    writeJson(dir, `.tasksystem/plans/specs/${spec.id}.json`, specStored);
+    writeJson(dir, `.scopegrain/plans/specs/${spec.id}.json`, specStored);
     assert.throws(() => answerApproval(ctx, answer(a.id, 0, a.target.digest)),
       (e) => e.code === 'APPROVAL_STALE_TARGET'
         || e.code === 'APPROVAL_MALFORMED');
@@ -229,7 +229,7 @@ test('malformed shape: id!=digest, scope/options/history tamper', () => {
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
-    const rel = `.tasksystem/decisions/approvals/${a.id}.json`;
+    const rel = `.scopegrain/decisions/approvals/${a.id}.json`;
     const good = JSON.parse(fs.readFileSync(`${dir}/${rel}`, 'utf8'));
     const mutate = (fn) => {
       const m = JSON.parse(JSON.stringify(good));
@@ -262,7 +262,7 @@ test('malformed history and back-clock fail; bytes preserved', () => {
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
-    const rel = `.tasksystem/decisions/approvals/${a.id}.json`;
+    const rel = `.scopegrain/decisions/approvals/${a.id}.json`;
     const future = { ...a, createdAt: '2999-01-01T00:00:00.000Z',
       updatedAt: '2999-01-01T00:00:00.000Z',
       history: [{ ...a.history[0], at: '2999-01-01T00:00:00.000Z' }] };
@@ -286,9 +286,9 @@ test('preview answer is read-only; file carries rel; no writes', () => {
     assert.equal(previous.status, 'pending');
     assert.equal(next.status, 'approved');
     assert.equal(file.rel,
-      `.tasksystem/decisions/approvals/${a.id}.json`);
+      `.scopegrain/decisions/approvals/${a.id}.json`);
     assert.equal(file.abs,
-      path.resolve(dir, '.tasksystem/decisions/approvals',
+      path.resolve(dir, '.scopegrain/decisions/approvals',
         `${a.id}.json`));
     assert.ok(file.content.includes('"approved"'));
     assert.ok(fs.readFileSync(abs).equals(before)); // nothing written
@@ -504,7 +504,7 @@ test('extended-ISO-year history compares numerically (not lexically)', () => {
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
-    const rel = `.tasksystem/decisions/approvals/${a.id}.json`;
+    const rel = `.scopegrain/decisions/approvals/${a.id}.json`;
     // '+010000' extended year parses finite; numeric compare still works.
     const future = { ...a,
       createdAt: '+010000-01-01T00:00:00.000Z',
@@ -531,7 +531,7 @@ test('task/plan digests: progress stable; scope/contract/deps change them', () =
     // Ordinary progress (state/revision/history) must NOT change the digest.
     assert.equal(before.target.digest, after.target.digest);
     // A contract/scope edit changes it (rewrite stored record, still valid).
-    const taskFile = `${dir}/.tasksystem/tasks/${task.id}.json`;
+    const taskFile = `${dir}/.scopegrain/tasks/${task.id}.json`;
     const stored = JSON.parse(fs.readFileSync(taskFile, 'utf8'));
     stored.scope = ['src/other'];
     stored.contract = 'different contract';
@@ -548,7 +548,7 @@ test('task/plan digests: progress stable; scope/contract/deps change them', () =
     const tid = p.plan.tasks.find((t) => t.key === 't1').id;
     transitionTask(ctx, { id: tid, to: 'ACT', expectedRevision: 0 });
     assert.equal(targetOf(ctx, 'plan', null, 'p1').target.digest, d1);
-    const planFile = `${dir}/.tasksystem/plans/p1.json`;
+    const planFile = `${dir}/.scopegrain/plans/p1.json`;
     const plan = JSON.parse(fs.readFileSync(planFile, 'utf8'));
     plan.tasks.find((t) => t.key === 't2').dependsOn = [];
     fs.writeFileSync(planFile, JSON.stringify(plan, null, 2) + '\n');

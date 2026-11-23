@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  DEFAULT_CONFIG_PATH, DEFAULT_PATH_PROPOSALS, LEGACY_CONFIG_PATH,
+  DEFAULT_CONFIG_PATH, DEFAULT_PATH_PROPOSALS,
   createConfig, loadConfig, resolveConfigPath,
 } from '../src/core/config.mjs';
 import { resolveContext } from '../src/core/context.mjs';
@@ -36,7 +36,6 @@ function tree(root, prefix = '') {
 
 test('new defaults use .scopegrain for config and all artifact paths', () => {
   assert.equal(DEFAULT_CONFIG_PATH, '.scopegrain/config.json');
-  assert.equal(LEGACY_CONFIG_PATH, '.tasksystem/config.json');
   assert.deepEqual(DEFAULT_PATH_PROPOSALS, currentAnswers.paths);
   const dir = makeTempDir('foundation-default');
   try {
@@ -58,19 +57,24 @@ test('new defaults use .scopegrain for config and all artifact paths', () => {
   } finally { cleanup(dir); }
 });
 
-test('legacy selection preserves config and discovery bytes without migration', () => {
+test('a config at a non-default path is never auto-selected', () => {
   const dir = makeTempDir('foundation-legacy');
   try {
     applyPlan(dir, prepareInit({
-      projectRoot: dir, configRel: LEGACY_CONFIG_PATH, answers: VALID_ANSWERS,
+      projectRoot: dir, configRel: 'custom/config.json', answers: VALID_ANSWERS,
     }).files);
     const before = tree(dir);
-    assert.equal(resolveConfigPath(dir), LEGACY_CONFIG_PATH);
-    assert.equal(loadConfig(dir).configPath, LEGACY_CONFIG_PATH);
-    assert.equal(buildInitPlan({ projectRoot: dir, config: loadConfig(dir).config,
-      discovery: {} }).configRel, LEGACY_CONFIG_PATH);
-    const plan = prepareInit({ projectRoot: dir, answers: VALID_ANSWERS });
-    assert.equal(plan.configRel, LEGACY_CONFIG_PATH);
+    assert.equal(resolveConfigPath(dir), DEFAULT_CONFIG_PATH);
+    assert.throws(() => loadConfig(dir), (e) => e.code === 'CONFIG_NOT_FOUND');
+    assert.equal(loadConfig(dir, 'custom/config.json').configPath,
+      'custom/config.json');
+    assert.equal(buildInitPlan({ projectRoot: dir,
+      configRel: 'custom/config.json',
+      config: loadConfig(dir, 'custom/config.json').config,
+      discovery: {} }).configRel, 'custom/config.json');
+    const plan = prepareInit({ projectRoot: dir, answers: VALID_ANSWERS,
+      configRel: 'custom/config.json' });
+    assert.equal(plan.configRel, 'custom/config.json');
     assert.ok(plan.files.every((file) => file.action === 'noop'));
     assert.equal(applyPlan(dir, plan.files).created, 0);
     assert.deepEqual(tree(dir), before);
@@ -78,27 +82,24 @@ test('legacy selection preserves config and discovery bytes without migration', 
   } finally { cleanup(dir); }
 });
 
-test('entries determine ambiguity without fallback by validity', () => {
+test('config resolution has no fallback beyond the default path', () => {
   const dir = makeTempDir('foundation-selection');
   try {
     const config = createConfig(dir, VALID_ANSWERS, {});
-    fs.mkdirSync(path.join(dir, '.tasksystem'));
+    fs.mkdirSync(path.join(dir, '.scopegrain'));
     assert.equal(resolveConfigPath(dir), DEFAULT_CONFIG_PATH);
     writeJson(dir, DEFAULT_CONFIG_PATH, config);
     assert.equal(resolveContext({ project: dir }).configPath, DEFAULT_CONFIG_PATH);
-    writeFile(dir, LEGACY_CONFIG_PATH, '{invalid');
-    assert.throws(() => loadConfig(dir), (e) => e.code === 'CONFIG_AMBIGUOUS');
-    assert.equal(loadConfig(dir, DEFAULT_CONFIG_PATH).configPath, DEFAULT_CONFIG_PATH);
-    assert.throws(() => loadConfig(dir, LEGACY_CONFIG_PATH),
+    writeFile(dir, 'other/config.json', '{invalid');
+    assert.equal(loadConfig(dir).configPath, DEFAULT_CONFIG_PATH);
+    assert.throws(() => loadConfig(dir, 'other/config.json'),
       (e) => e.code === 'MALFORMED_JSON');
-    writeJson(dir, LEGACY_CONFIG_PATH, config);
-    assert.throws(() => resolveContext({ project: dir }),
-      (e) => e.code === 'CONFIG_AMBIGUOUS');
-    assert.equal(resolveContext({ project: dir, config: LEGACY_CONFIG_PATH }).configPath,
-      LEGACY_CONFIG_PATH);
+    writeJson(dir, 'other/config.json', config);
+    assert.equal(resolveContext({ project: dir, config: 'other/config.json' }).configPath,
+      'other/config.json');
     writeFile(dir, DEFAULT_CONFIG_PATH, '{invalid');
-    assert.throws(() => loadConfig(dir), (e) => e.code === 'CONFIG_AMBIGUOUS');
-    assert.equal(loadConfig(dir, LEGACY_CONFIG_PATH).configPath, LEGACY_CONFIG_PATH);
+    assert.throws(() => loadConfig(dir), (e) => e.code === 'MALFORMED_JSON');
+    assert.equal(loadConfig(dir, 'other/config.json').configPath, 'other/config.json');
     assert.throws(() => loadConfig(dir, 'missing/config.json'),
       (e) => e.code === 'CONFIG_NOT_FOUND');
     for (const invalid of ['', 0, false, {}]) {
@@ -116,8 +117,6 @@ test('config directory entry is not silently skipped', () => {
   try {
     fs.mkdirSync(path.join(dir, '.scopegrain', 'config.json'), { recursive: true });
     assert.throws(() => loadConfig(dir), (e) => e.code === 'CONFIG_NOT_FILE');
-    writeJson(dir, LEGACY_CONFIG_PATH, createConfig(dir, VALID_ANSWERS, {}));
-    assert.throws(() => loadConfig(dir), (e) => e.code === 'CONFIG_AMBIGUOUS');
   } finally { cleanup(dir); }
 });
 
@@ -137,39 +136,40 @@ test('config file links are rejected', (t) => {
   } finally { cleanup(dir); cleanup(target); }
 });
 
-test('linked legacy ancestor is rejected unless a different config is explicit', (t) => {
+test('linked config ancestor is rejected at load', (t) => {
   const dir = makeTempDir('foundation-ancestor');
   const target = makeTempDir('foundation-ancestor-target');
   try {
     const config = createConfig(dir, currentAnswers, {});
     writeJson(target, 'config.json', config);
-    writeJson(dir, DEFAULT_CONFIG_PATH, config);
-    if (!trySymlink(target, path.join(dir, '.tasksystem'))) {
+    if (!trySymlink(target, path.join(dir, '.scopegrain'))) {
       t.skip('directory junctions unavailable');
       return;
     }
-    assert.throws(() => resolveConfigPath(dir), (e) => e.code === 'SYMLINK_REJECTED');
-    assert.throws(() => loadConfig(dir, LEGACY_CONFIG_PATH),
+    assert.throws(() => loadConfig(dir), (e) => e.code === 'SYMLINK_REJECTED');
+    assert.throws(() => loadConfig(dir, DEFAULT_CONFIG_PATH),
       (e) => e.code === 'SYMLINK_REJECTED');
-    assert.equal(loadConfig(dir, DEFAULT_CONFIG_PATH).configPath, DEFAULT_CONFIG_PATH);
   } finally { cleanup(dir); cleanup(target); }
 });
 
 test('non-directory ancestor is not silently skipped', () => {
   const dir = makeTempDir('foundation-ancestor-file');
   try {
-    writeJson(dir, DEFAULT_CONFIG_PATH, createConfig(dir, currentAnswers, {}));
-    writeFile(dir, '.tasksystem', 'not a directory');
+    writeJson(dir, 'custom/config.json', createConfig(dir, { ...currentAnswers,
+      paths: Object.fromEntries(Object.keys(currentAnswers.paths)
+        .map((k) => [k, `custom/${k}`])) }, {}));
+    writeFile(dir, '.scopegrain', 'not a directory');
     assert.throws(() => loadConfig(dir), (e) => e.code === 'FILE_ANCESTOR');
-    assert.equal(loadConfig(dir, DEFAULT_CONFIG_PATH).configPath, DEFAULT_CONFIG_PATH);
+    assert.equal(loadConfig(dir, 'custom/config.json').configPath,
+      'custom/config.json');
   } finally { cleanup(dir); }
 });
 
-test('interactive init selects legacy answers and ambiguity asks nothing', async () => {
+test('interactive init selects existing config and never asks twice', async () => {
   const dir = makeTempDir('foundation-tty');
   try {
     applyPlan(dir, prepareInit({
-      projectRoot: dir, configRel: LEGACY_CONFIG_PATH, answers: VALID_ANSWERS,
+      projectRoot: dir, configRel: DEFAULT_CONFIG_PATH, answers: VALID_ANSWERS,
     }).files);
     // Interactive init persists a resumable wizard session under the default
     // state dir; exclude it from no-write assertions.
@@ -179,28 +179,28 @@ test('interactive init selects legacy answers and ambiguity asks nothing', async
     const io = fakeIO({ tty: true });
     assert.equal(await run(['init', '--project', dir], io), 0);
     assert.equal(io.out.asked.find((a) => a.label === 'Ruta de configuracion').def,
-      LEGACY_CONFIG_PATH);
+      DEFAULT_CONFIG_PATH);
     assert.equal(io.out.asked.find((a) => a.label === 'Nombre del proyecto').def,
       VALID_ANSWERS.name);
     assert.deepEqual(noSession(tree(dir)), before);
-    writeJson(dir, DEFAULT_CONFIG_PATH, createConfig(dir, currentAnswers, {}));
-    const ambiguous = noSession(tree(dir));
-    const io2 = fakeIO({ tty: true });
-    assert.equal(await run(['init', '--project', dir], io2), 1);
-    assert.equal(JSON.parse(io2.out.stderr[0]).error.code, 'CONFIG_AMBIGUOUS');
-    assert.deepEqual(io2.out.asked, []);
-    assert.deepEqual(noSession(tree(dir)), ambiguous);
-    const explicit = fakeIO({ tty: true });
-    assert.equal(await run(['init', '--project', dir, '--config',
-      LEGACY_CONFIG_PATH], explicit), 0);
-    assert.equal(explicit.out.asked.find((a) => a.label === 'Ruta de configuracion').def,
-      LEGACY_CONFIG_PATH);
-    assert.deepEqual(noSession(tree(dir)), ambiguous);
-    const input = writeJson(dir, 'answers.json', VALID_ANSWERS);
+    // An explicit --config selects the config at that path; init on a
+    // project already initialized there is a true no-op.
+    const dir2 = makeTempDir('foundation-tty-custom');
+    try {
+      applyPlan(dir2, prepareInit({ projectRoot: dir2,
+        configRel: 'custom/config.json', answers: VALID_ANSWERS }).files);
+      const explicit = fakeIO({ tty: true });
+      assert.equal(await run(['init', '--project', dir2, '--config',
+        'custom/config.json'], explicit), 0);
+      assert.equal(explicit.out.asked.find((a) => a.label === 'Ruta de configuracion').def,
+        'custom/config.json');
+    } finally { cleanup(dir2); }
+    const input = writeJson(dir, 'answers.json',
+      { ...VALID_ANSWERS, name: 'divergent-name' });
     const beforeJson = noSession(tree(dir));
     const io3 = fakeIO();
     assert.equal(await run(['init', '--project', dir, '--answers', input], io3), 1);
-    assert.equal(JSON.parse(io3.out.stderr[0]).error.code, 'CONFIG_AMBIGUOUS');
+    assert.equal(JSON.parse(io3.out.stderr[0]).error.code, 'INIT_CONFLICT');
     assert.deepEqual(noSession(tree(dir)), beforeJson);
   } finally { cleanup(dir); }
 });
@@ -232,9 +232,9 @@ test('old V1/V2 manifest and attributes conflict without changing bytes', () => 
   try {
     const answers = { ...VALID_ANSWERS, hosts: ['opencode'] };
     applyPlan(dir, prepareInit({
-      projectRoot: dir, configRel: LEGACY_CONFIG_PATH, answers,
+      projectRoot: dir, configRel: DEFAULT_CONFIG_PATH, answers,
     }).files);
-    const manifest = path.join(dir, '.tasksystem/integrations/native/activation-plan.json');
+    const manifest = path.join(dir, '.scopegrain/integrations/native/activation-plan.json');
     const old = JSON.parse(fs.readFileSync(manifest, 'utf8'));
     const v2 = old.entries.find((entry) => entry.host === 'opencode');
     old.entries.push({ ...v2, variant: 'v1', selectionRequired: true });
@@ -242,23 +242,22 @@ test('old V1/V2 manifest and attributes conflict without changing bytes', () => 
       if (entry.host === 'opencode') entry.selectionRequired = true;
     }
     fs.writeFileSync(manifest, JSON.stringify(old, null, 2) + '\n');
-    fs.appendFileSync(path.join(dir, '.tasksystem/.gitattributes'),
+    fs.appendFileSync(path.join(dir, '.scopegrain/.gitattributes'),
       '"/integrations/opencode-v1-mcp.json" -text\n');
-    writeFile(dir, '.tasksystem/integrations/opencode-v1-mcp.json', '{"legacy":true}\n');
+    writeFile(dir, '.scopegrain/integrations/opencode-v1-mcp.json', '{"legacy":true}\n');
     const before = tree(dir);
     assert.throws(() => prepareInit({ projectRoot: dir, answers }),
       (e) => e.code === 'PLAN_CONFLICT'
         && e.conflicts.some((c) => c.path.endsWith('activation-plan.json'))
         && e.conflicts.some((c) => c.path.endsWith('.gitattributes')));
     assert.deepEqual(tree(dir), before);
-    assert.equal(fs.existsSync(path.join(dir, '.scopegrain')), false);
   } finally { cleanup(dir); }
 });
 
 test('discovery excludes both operational directories', () => {
   const dir = makeTempDir('foundation-discovery');
   try {
-    writeJson(dir, '.tasksystem/package.json', { name: 'legacy' });
+    writeJson(dir, '.scopegrain/package.json', { name: 'legacy' });
     writeJson(dir, '.scopegrain/package.json', { name: 'current' });
     writeJson(dir, 'package.json', { name: 'project' });
     const result = inspectProject(dir);
@@ -273,7 +272,7 @@ test('both entrypoints delegate to the shared CLI and preserve package metadata'
   // stays out of the manifest until the release direction is decided.
   assert.deepEqual(pkg.bin, {
     scopegrain: 'bin/scopegrain.mjs',
-    tasksystem: 'bin/tasksystem.mjs',
+    scopegrain: 'bin/scopegrain.mjs',
   });
   // provenance is deliberately excluded from the package (FIND-026): the
   // archive is local-only pending provenance/license review, so it must
@@ -284,7 +283,7 @@ test('both entrypoints delegate to the shared CLI and preserve package metadata'
     'CHANGELOG.md', 'AUTHORS', 'NOTICE',
   ]);
   assert.equal(pkg.license, 'Apache-2.0');
-  for (const entry of ['./bin/scopegrain.mjs', './bin/tasksystem.mjs']) {
+  for (const entry of ['./bin/scopegrain.mjs', './bin/scopegrain.mjs']) {
     const content = fs.readFileSync(new URL(`../${entry}`, import.meta.url), 'utf8');
     assert.match(content, /import \{ run, defaultIO \} from '\.\.\/src\/cli\.mjs'/);
     assert.match(content, /process\.exitCode = await run\(process\.argv\.slice\(2\), defaultIO\(\)\)/);
@@ -293,7 +292,7 @@ test('both entrypoints delegate to the shared CLI and preserve package metadata'
   assert.equal(await run(['--help'], io), 0);
   const help = JSON.parse(io.out.stdout[0]);
   assert.ok(help.usage.startsWith('scopegrain '));
-  assert.ok(help.notes.some((note) => note.includes('tasksystem')));
+  assert.ok(help.notes.some((note) => note.includes('scopegrain')));
 });
 
 test('MCP context uses the same selector without connecting a transport', async (t) => {
@@ -308,12 +307,11 @@ test('MCP context uses the same selector without connecting a transport', async 
   const dir = makeTempDir('foundation-mcp');
   try {
     const config = createConfig(dir, VALID_ANSWERS, {});
-    writeJson(dir, LEGACY_CONFIG_PATH, config);
-    const legacy = await createMCPServer({ project: dir });
-    assert.equal(legacy.ctx.configPath, LEGACY_CONFIG_PATH);
+    writeJson(dir, 'custom/config.json', config);
+    const custom = await createMCPServer(
+      { project: dir, config: 'custom/config.json' });
+    assert.equal(custom.ctx.configPath, 'custom/config.json');
     writeJson(dir, DEFAULT_CONFIG_PATH, config);
-    await assert.rejects(createMCPServer({ project: dir }),
-      (e) => e.code === 'CONFIG_AMBIGUOUS');
     const explicit = await createMCPServer({ project: dir, config: DEFAULT_CONFIG_PATH });
     assert.equal(explicit.ctx.configPath, DEFAULT_CONFIG_PATH);
   } finally { cleanup(dir); }

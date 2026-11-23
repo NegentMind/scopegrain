@@ -4,7 +4,6 @@ legacy/opencode/
 .env.*
 !.env.example
 tests/.tmp/
-.tasksystem/
 .scopegrain/
 *.log
 

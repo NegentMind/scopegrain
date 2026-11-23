@@ -140,7 +140,7 @@
         "workflow"
       ],
       "references": [
-        "task-system"
+        "task-domain"
       ],
       "prompts": [
         "decision-request",
@@ -186,7 +186,7 @@
         "graph-investigation",
         "orchestration-patterns",
         "research-modules",
-        "task-system"
+        "task-domain"
       ],
       "prompts": [
         "decision-request",
@@ -284,7 +284,7 @@
         "evidence"
       ],
       "references": [
-        "task-system"
+        "task-domain"
       ],
       "prompts": [
         "decision-request",
@@ -1440,8 +1440,8 @@
     },
     {
       "kind": "reference",
-      "id": "task-system",
-      "path": "resources/references/task-system.md",
+      "id": "task-domain",
+      "path": "resources/references/task-domain.md",
       "description": "Task lifecycle, plans and preserved continuation state."
     },
     {

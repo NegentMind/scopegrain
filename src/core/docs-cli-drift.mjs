@@ -178,10 +178,10 @@ export function docFilesFor(projectRoot) {
 // `node ...bin/x.mjs` and `./bin/x.mjs` are invocations; a bare
 // `bin/x.mjs` mention is a FILE reference (architecture tree listings),
 // not a command claim.
-const NODE_BIN_RE = /\bnode[ \t]+\S*bin[\\/](?:scopegrain|tasksystem)\.mjs\b[ \t]+([^\n`]*)/g;
-const DOT_BIN_RE = /^\.[\\/]bin[\\/](?:scopegrain|tasksystem)\.mjs\b[ \t]+(.*)$/;
+const NODE_BIN_RE = /\bnode[ \t]+\S*bin[\\/]scopegrain\.mjs\b[ \t]+([^\n`]*)/g;
+const DOT_BIN_RE = /^\.[\\/]bin[\\/]scopegrain\.mjs\b[ \t]+(.*)$/;
 const SPAN_RE = /`([^`\n]+)`/g;
-const SPAN_INVOKE_RE = /^(?:scopegrain|tasksystem)\s+(\S.*)$/;
+const SPAN_INVOKE_RE = /^scopegrain\s+(\S.*)$/;
 // Pure-uppercase tokens (UUID, OPERATION, PATH) are doc placeholders, not
 // command candidates; lowercase aliases like 'pipeline' keep matching.
 const PLACEHOLDER_RE = /^[A-Z0-9_]+$/;

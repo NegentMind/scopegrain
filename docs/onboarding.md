@@ -9,7 +9,7 @@ Node.js 22 o posterior. No hace falta instalar dependencias para usar el
 CLI; el servidor MCP si requiere las dependencias declaradas en
 `package.json` (`npm install` previo, bajo decision del propietario).
 
-Opciones de instalacion del binario `scopegrain` (alias `tasksystem`):
+Opciones de instalacion del binario `scopegrain`:
 
 ```powershell
 # Desde un clon local (hace `scopegrain` disponible globalmente en PATH):
@@ -31,8 +31,8 @@ la **autoridad operativa del proyecto** (nivel workspace):
   `SCOPEGRAIN_USER_CONFIG=none` para ignorarla). Solo guarda defaults de
   onboarding (`locale`, `hosts`, `methodology`, `versioning`). Rechaza
   permisos, comandos de verificacion o rutas absolutas de proyecto.
-- **Workspace (autoritativa):** `.scopegrain/config.json` (o legacy
-  `.tasksystem/config.json`). Una vez inicializado un proyecto, el runtime
+- **Workspace (autoritativa):** `.scopegrain/config.json`. Una vez
+  inicializado un proyecto, el runtime
   lee **100% del workspace** y nunca mezcla cambios globales.
 
 Orden estricto de precedencia durante `init` (respuestas efectivas):
@@ -139,7 +139,7 @@ Sin `--apply`, `workspace init` solo presenta un plan y sus IDs no quedan
 reservados. Para elegir areas, `--input FILE` acepta un archivo JSON como
 `{"areas":[{"key":"api","name":"API"}]}`; sin input se propone el area
 `project` con el nombre actual del proyecto. El descriptor se guarda en `paths.state/workspace.json`,
-incluida una ruta de estado legacy o personalizada. `show` no lo crea.
+incluida una ruta de estado personalizada. `show` no lo crea.
 
 Si ya existe, una solicitud vacia o con las mismas areas por clave y nombre
 conserva sus bytes; una especificacion distinta produce `WORKSPACE_CONFLICT`.
@@ -186,9 +186,7 @@ Este bloque no conecta VantaDB, journal, sincronizacion o autorizacion MCP.
   huesped.
 - Config fuera de la ruta por defecto: `--config "ruta/relativa/config.json"`
   en `init` (pregunta interactiva o flag) y en los comandos posteriores.
-- Sin `--config`, se usa `.scopegrain/config.json`, o el archivo legacy
-  `.tasksystem/config.json` si es la unica config presente. Si existen ambas
-  entradas, `CONFIG_AMBIGUOUS` exige seleccion explicita. Una seleccion
+- Sin `--config`, se usa `.scopegrain/config.json`. Una seleccion
   explicita ausente o invalida no recurre a otra config; directorios sin
   entrada `config.json` no cuentan como config.
 - Las rutas de artefactos son relativas al proyecto; no se aceptan destinos

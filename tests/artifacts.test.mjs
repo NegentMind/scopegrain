@@ -15,7 +15,7 @@ import {
 
 function ctxFixture() {
   const dir = makeTempDir('art');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   return { dir, ctx: resolveContext({ project: dir }) };
 }
@@ -32,8 +32,8 @@ test('kind destinations follow configured paths; review nests in reports', () =>
     assert.equal(artifactDirRel(ctx, 'spec'), 'docs/agent/plans/specs');
     assert.equal(artifactDirRel(ctx, 'report'), 'docs/agent/reports');
     assert.equal(artifactDirRel(ctx, 'review'), 'docs/agent/reports/reviews');
-    assert.equal(artifactDirRel(ctx, 'lesson'), '.tasksystem/memory/lessons');
-    assert.equal(artifactDirRel(ctx, 'handoff'), '.tasksystem/memory/handoffs');
+    assert.equal(artifactDirRel(ctx, 'lesson'), '.scopegrain/memory/lessons');
+    assert.equal(artifactDirRel(ctx, 'handoff'), '.scopegrain/memory/handoffs');
     assert.throws(() => artifactDirRel(ctx, 'nope'),
       (e) => e.code === 'INVALID_KIND');
   } finally { cleanup(dir); }

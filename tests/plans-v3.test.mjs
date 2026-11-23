@@ -19,7 +19,7 @@ import {
 
 function ctxFixture() {
   const dir = makeTempDir('plans-v3');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   return { dir, ctx: resolveContext({ project: dir }) };
 }

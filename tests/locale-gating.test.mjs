@@ -128,7 +128,7 @@ test('task create flag form previews; --apply persists', async () => {
     assert.equal(dry.mode, 'dry-run');
     assert.equal(dry.applied, false);
     assert.equal(dry.task.state, 'PLAN');
-    const tasksDir = path.join(dir, '.tasksystem', 'tasks');
+    const tasksDir = path.join(dir, '.scopegrain', 'tasks');
     assert.equal(fs.readdirSync(tasksDir).length, 0);
     const io2 = fakeIO();
     assert.equal(await run(['task', 'create', '--project', dir,
@@ -197,7 +197,7 @@ test('goal create and memory add dry-run without --apply', async () => {
     await run(['memory', 'add', '--project', dir, '--log', 'lessons',
       '--input', path.join(dir, 'lesson.json')], io5);
     assert.equal(JSON.parse(io5.out.stdout.at(-1)).mode, 'dry-run');
-    const lessonsAbs = path.join(dir, '.tasksystem', 'memory',
+    const lessonsAbs = path.join(dir, '.scopegrain', 'memory',
       'lessons.jsonl');
     assert.equal(fs.existsSync(lessonsAbs), false);
     const io6 = fakeIO();

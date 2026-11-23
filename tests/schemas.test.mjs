@@ -191,8 +191,8 @@ function conform(name, value, label) {
 
 function workspaceFixture() {
   const dir = makeTempDir('schemas');
-  writeJson(dir, '.tasksystem/config.json', createConfig(dir, VALID_ANSWERS, {}));
-  const ctx = resolveContext({ project: dir, config: '.tasksystem/config.json' });
+  writeJson(dir, '.scopegrain/config.json', createConfig(dir, VALID_ANSWERS, {}));
+  const ctx = resolveContext({ project: dir, config: '.scopegrain/config.json' });
   const prepared = prepareWorkspace(ctx, {
     areas: [{ key: 'alpha', name: 'Alpha' }, { key: 'beta', name: 'Beta' }],
   });

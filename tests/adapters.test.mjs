@@ -18,10 +18,10 @@ function setup(hosts) {
   const config = createConfig(dir, { ...VALID_ANSWERS, hosts }, {});
   const projectRoot = path.resolve(dir);
   const serverPath = path.join(projectRoot, 'tool dir', 'server.mjs');
-  const configAbs = path.join(projectRoot, '.tasksystem', 'config.json');
+  const configAbs = path.join(projectRoot, '.scopegrain', 'config.json');
   const out = renderAdapters(config, {
     projectRoot, configPath: configAbs,
-    instructionsPath: path.join(projectRoot, '.tasksystem', 'instructions.md'),
+    instructionsPath: path.join(projectRoot, '.scopegrain', 'instructions.md'),
     serverPath,
   });
   return { dir, out, serverPath, projectRoot, configAbs };
@@ -51,7 +51,7 @@ test('all fragments carry abs server/root and RELATIVE --config', () => {
       assert.equal(args[2], projectRoot);
       assert.ok(path.isAbsolute(args[2]), `${f.host} project absolute`);
       assert.equal(args[3], '--config');
-      assert.equal(args[4], '.tasksystem/config.json');
+      assert.equal(args[4], '.scopegrain/config.json');
       assert.ok(!path.isAbsolute(args[4]), `${f.host} config relative`);
     }
   } finally { cleanup(dir); }
@@ -61,14 +61,14 @@ test('rendered args of every host resolve via resolveContext', () => {
   const { dir, out, projectRoot } = setup(ALL_HOSTS);
   try {
     const config = createConfig(projectRoot, VALID_ANSWERS, {});
-    writeJson(dir, '.tasksystem/config.json', config);
+    writeJson(dir, '.scopegrain/config.json', config);
     for (const f of out.files) {
       const args = argsOf(f.content);
       const ctx = resolveContext({
         project: args[args.indexOf('--project') + 1],
         config: args[args.indexOf('--config') + 1],
       });
-      assert.equal(ctx.configPath, '.tasksystem/config.json', f.host);
+      assert.equal(ctx.configPath, '.scopegrain/config.json', f.host);
       assert.equal(ctx.projectRoot, projectRoot, f.host);
     }
   } finally { cleanup(dir); }

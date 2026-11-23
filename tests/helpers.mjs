@@ -49,8 +49,8 @@ export const VALID_ANSWERS = {
     reports: 'docs/agent/reports',
     research: 'docs/agent/research',
     decisions: 'docs/agent/decisions',
-    memory: '.tasksystem/memory',
-    state: '.tasksystem/state',
+    memory: '.scopegrain/memory',
+    state: '.scopegrain/state',
   },
 };
 
@@ -83,13 +83,13 @@ export function trySymlink(target, linkPath, type = 'junction') {
 export const DEFAULT_ANSWERS = {
   ...VALID_ANSWERS,
   paths: {
-    plans: '.tasksystem/plans',
-    tasks: '.tasksystem/tasks',
-    reports: '.tasksystem/reports',
-    research: '.tasksystem/research',
-    decisions: '.tasksystem/decisions',
-    memory: '.tasksystem/memory',
-    state: '.tasksystem/state',
+    plans: '.scopegrain/plans',
+    tasks: '.scopegrain/tasks',
+    reports: '.scopegrain/reports',
+    research: '.scopegrain/research',
+    decisions: '.scopegrain/decisions',
+    memory: '.scopegrain/memory',
+    state: '.scopegrain/state',
   },
 };
 
@@ -134,7 +134,7 @@ export function bootstrappedCtx(answers) {
   if (!entry) {
     const dir = makeTempDir('boottpl');
     const plan = prepareInit({ projectRoot: dir,
-      configRel: '.tasksystem/config.json',
+      configRel: '.scopegrain/config.json',
       answers: resolved });
     applyPlan(dir, plan.files);
     entry = { dir, plan };
@@ -147,7 +147,7 @@ export function bootstrappedCtx(answers) {
   // the integrations subtree before handing the fixture out.
   const tplEsc = JSON.stringify(entry.dir).slice(1, -1);
   const dirEsc = JSON.stringify(dir).slice(1, -1);
-  const integ = path.join(dir, '.tasksystem', 'integrations');
+  const integ = path.join(dir, '.scopegrain', 'integrations');
   if (fs.existsSync(integ)) {
     const walk = (d) => {
       for (const e of fs.readdirSync(d, { withFileTypes: true })) {
@@ -174,7 +174,7 @@ export function bootstrappedMiniCtx(answers) {
   const resolved = answers ?? { ...DEFAULT_ANSWERS, hosts: ['claude'] };
   const dir = makeTempDir('mini');
   const config = createConfig(dir, resolved, {});
-  writeJson(dir, '.tasksystem/config.json', config);
+  writeJson(dir, '.scopegrain/config.json', config);
   for (const rel of Object.values(config.paths)) {
     fs.mkdirSync(path.join(dir, ...rel.split('/')), { recursive: true });
   }

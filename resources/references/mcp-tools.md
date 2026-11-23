@@ -86,4 +86,4 @@ index exists, normal tools are the answer.
 A server marked "don't use" for a given role is a context-saving decision:
 the tool exists but its cost exceeds its value for that role.
 
-<!-- Cross-references: → see graph-investigation.md, task-system.md, skills-engineering.md -->
+<!-- Cross-references: → see graph-investigation.md, task-domain.md, skills-engineering.md -->

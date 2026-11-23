@@ -37,7 +37,7 @@ function normalizeHref(href: string): string {
     .replace(/^(\.\.\/)+/, '')
     .replace(/^\.\//, '')
     .replace(/^\//, '')
-    .replace(/^(resources|\.scopegrain|\.tasksystem)\//, '');
+    .replace(/^(resources|\.scopegrain)\//, '');
 }
 
 // Resolves a body link to a catalog entry: exact projected path first,

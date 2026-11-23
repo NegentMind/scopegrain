@@ -14,7 +14,6 @@ paquete separado con toolchain propio.
 
 ```text
 bin/scopegrain.mjs        Entrada del binario; delega en src/cli.mjs
-bin/tasksystem.mjs        Alias compatible; delega en src/cli.mjs
 src/cli.mjs               Parser de comandos (incl. ciclo de vida, investigate, host activate, capture proposals/review, view) y flujos interactivos; IO inyectable
 src/core/errors.mjs       Errores {code, message} (TaskError)
 src/core/fsx.mjs          Helpers sincronicos de filesystem
@@ -103,9 +102,8 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
 
 - Toda ruta de proyecto viene de `--project` o de la configuracion cargada;
   nada se deriva ascendiendo desde la instalacion.
-- Sin `--config`, la seleccion reconoce `.scopegrain/config.json` y la
-  config legacy `.tasksystem/config.json`; dos entradas producen
-  `CONFIG_AMBIGUOUS`. Una seleccion explicita no hace fallback.
+- Sin `--config`, la seleccion usa `.scopegrain/config.json`. Una
+  seleccion explicita ausente o invalida no hace fallback.
 - Un descriptor en `paths.state/workspace.json` identifica un unico
   `projectRoot`, proyecto, repositorio logico y areas. Se crea solo mediante
   enrolamiento explicito, independiente de bootstrap y config V1. Un binding
@@ -307,7 +305,7 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
 - **Descubrimiento:** profundidad <=4, <=1000 entradas, manifiestos <=128
   KiB de una lista permitida; sin seguir enlaces; carpetas puntuales
   excluidas (`.git`, `node_modules`, `vendor`, `.venv`, `venv`, `target`,
-  `dist`, `build`, `coverage`, `legacy`, `.tasksystem`, `.scopegrain`, y todo
+  `dist`, `build`, `coverage`, `legacy`, `.scopegrain`, `.scopegrain`, y todo
   nombre que comience por punto salvo `.github`).
 - **Fingerprint:** sha256 sobre el arreglo ordenado de
   `JSON.stringify([ruta, tamano, contenido])` por manifiesto admitido, mas

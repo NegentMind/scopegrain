@@ -15,8 +15,8 @@ import { VALID_ANSWERS, cleanup, makeTempDir, writeJson } from './helpers.mjs';
 
 function fixture() {
   const dir = makeTempDir('vantadb-projection');
-  writeJson(dir, '.tasksystem/config.json', createConfig(dir, VALID_ANSWERS, {}));
-  const ctx = resolveContext({ project: dir, config: '.tasksystem/config.json' });
+  writeJson(dir, '.scopegrain/config.json', createConfig(dir, VALID_ANSWERS, {}));
+  const ctx = resolveContext({ project: dir, config: '.scopegrain/config.json' });
   const prepared = prepareWorkspace(ctx, {
     areas: [{ key: 'alpha', name: 'Alpha' }, { key: 'beta', name: 'Beta' }],
   });
@@ -24,7 +24,7 @@ function fixture() {
   const [a, b] = prepared.workspace.areas.map((area) => area.id);
   return { dir, ctx, a, b, bound: bindWorkspace(ctx, { areaIds: [a, b] }),
     alpha: bindWorkspace(ctx, { areaIds: [a] }),
-    journal: path.join(dir, '.tasksystem/state/journal') };
+    journal: path.join(dir, '.scopegrain/state/journal') };
 }
 
 function change(areaIds, recordId, content) {
@@ -577,7 +577,7 @@ test('tampered snapshot and stale binding stop remote delivery', async () => {
       } else {
         b.invoke = async (request) => {
           const response = await original(request);
-          const metadata = path.join(f.dir, '.tasksystem/state/workspace.json');
+          const metadata = path.join(f.dir, '.scopegrain/state/workspace.json');
           const workspace = JSON.parse(fs.readFileSync(metadata));
           workspace.revision += 1;
           fs.writeFileSync(metadata, JSON.stringify(workspace));

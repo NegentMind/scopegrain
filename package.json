@@ -26,8 +26,7 @@
     "node": ">=22"
   },
   "bin": {
-    "scopegrain": "bin/scopegrain.mjs",
-    "tasksystem": "bin/tasksystem.mjs"
+    "scopegrain": "bin/scopegrain.mjs"
   },
   "files": [
     "bin",

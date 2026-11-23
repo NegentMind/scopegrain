@@ -467,36 +467,35 @@ test('custom config/plans/state are honored without creating default directories
     assert.deepEqual(shown.record, applied.record);
     assert.deepEqual(shown.ownership.scope, scope(f));
     assert.equal(fs.existsSync(path.join(f.dir, '.scopegrain')), false);
-    assert.equal(fs.existsSync(path.join(f.dir, '.tasksystem')), false);
   } finally { cleanup(f.dir); }
 });
 
-test('legacy config discovery supports explicit owned creation without creating current config', async () => {
-  const f = fixture({ plans: '.tasksystem/plans', state: '.tasksystem/state',
-    configRel: '.tasksystem/config.json' });
+test('default config discovery supports owned creation without --config', async () => {
+  const f = fixture();
   try {
     const created = await create(f, input(f), true);
     assert.equal(created.ownershipConfirmed, true);
-    assert.equal(created.sourceRel, `.tasksystem/plans/specs/${created.record.id}.json`);
+    assert.equal(created.sourceRel, `.scopegrain/plans/specs/${created.record.id}.json`);
     const shown = await readonly(f.dir, args(f,
       ['specification', 'show', created.record.id, '--owned']));
     assert.deepEqual(shown.record, created.record);
-    assert.equal(fs.existsSync(path.join(f.dir, '.scopegrain')), false);
   } finally { cleanup(f.dir); }
 });
 
-test('ambiguous configs require explicit --config and missing explicit config never falls back', async () => {
+test('commands resolve the default config and missing explicit config never falls back', async () => {
   const f = fixture();
   try {
-    writeJson(f.dir, '.tasksystem/config.json', f.ctx.config);
     const file = input(f);
+    const preview = await create(f, file);
+    assert.equal(preview.sourceRel, `.scopegrain/plans/specs/${preview.record.id}.json`);
+    assert.equal((await readonly(f.dir, args(f,
+      ['specification', 'show', UNKNOWN, '--owned']), 1)).code,
+      'OWNED_SPEC_NOT_FOUND');
     for (const command of [
       ['specification', 'create', '--owned', '--input', file],
       ['specification', 'create', '--owned', '--input', file, '--apply'],
       ['specification', 'show', UNKNOWN, '--owned'],
     ]) {
-      assert.equal((await readonly(f.dir, args(f, command), 1)).code,
-        'CONFIG_AMBIGUOUS');
       assert.equal((await readonly(f.dir,
         [...args(f, command), '--config', 'missing/config.json'], 1)).code,
       'CONFIG_NOT_FOUND');

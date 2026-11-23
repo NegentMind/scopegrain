@@ -11,21 +11,21 @@ import {
 } from './helpers.mjs';
 
 function prepareInit(options) {
-  return prepareLegacyInit({ configRel: '.tasksystem/config.json', ...options });
+  return prepareLegacyInit({ configRel: '.scopegrain/config.json', ...options });
 }
 
 const GEN = [
-  '.tasksystem/config.json',
-  '.tasksystem/instructions.md',
-  '.tasksystem/discovery.json',
-  '.tasksystem/task-contract.md',
-  '.tasksystem/integrations/claude-mcp.json',
-  '.tasksystem/integrations/codex-mcp.toml',
-  '.tasksystem/integrations/opencode-mcp.json',
-  '.tasksystem/integrations/devin-mcp.json',
-  '.tasksystem/skills/project-onboarding/SKILL.md',
-  '.tasksystem/skills/contract-execution/SKILL.md',
-  '.tasksystem/skills/independent-review/SKILL.md',
+  '.scopegrain/config.json',
+  '.scopegrain/instructions.md',
+  '.scopegrain/discovery.json',
+  '.scopegrain/task-contract.md',
+  '.scopegrain/integrations/claude-mcp.json',
+  '.scopegrain/integrations/codex-mcp.toml',
+  '.scopegrain/integrations/opencode-mcp.json',
+  '.scopegrain/integrations/devin-mcp.json',
+  '.scopegrain/skills/project-onboarding/SKILL.md',
+  '.scopegrain/skills/contract-execution/SKILL.md',
+  '.scopegrain/skills/independent-review/SKILL.md',
   'AGENTS.md',
   'CLAUDE.md',
 ];
@@ -36,11 +36,11 @@ test('prepareInit is a pure dry-run: nothing is written', () => {
     const prepared = prepareInit({ projectRoot: dir, answers: VALID_ANSWERS });
     const rels = prepared.files.map((f) => f.rel);
     for (const rel of GEN) assert.ok(rels.includes(rel), `${rel} planned`);
-    assert.ok(rels.includes('.tasksystem/catalog.json'));
-    assert.ok(rels.includes('.tasksystem/.gitignore'));
-    assert.ok(rels.includes('.tasksystem/integrations/gitignore-proposal.txt'));
-    assert.ok(rels.some((r) => r.startsWith('.tasksystem/commands/')));
-    assert.ok(rels.some((r) => r.startsWith('.tasksystem/skills/')));
+    assert.ok(rels.includes('.scopegrain/catalog.json'));
+    assert.ok(rels.includes('.scopegrain/.gitignore'));
+    assert.ok(rels.includes('.scopegrain/integrations/gitignore-proposal.txt'));
+    assert.ok(rels.some((r) => r.startsWith('.scopegrain/commands/')));
+    assert.ok(rels.some((r) => r.startsWith('.scopegrain/skills/')));
     for (const rel of rels) assert.ok(!exists(dir, rel), `${rel} must not exist`);
   } finally { cleanup(dir); }
 });
@@ -52,16 +52,16 @@ test('apply creates all files; re-run on empty project is a true no-op', () => {
     const result = applyPlan(dir, first.files);
     assert.equal(result.created, first.files.length);
     for (const rel of GEN) assert.ok(exists(dir, rel), `${rel} must exist`);
-    const config = readJson(dir, '.tasksystem/config.json');
+    const config = readJson(dir, '.scopegrain/config.json');
     assert.equal(config.project.name, 'fixture-project');
-    const before = fs.readFileSync(`${dir}/.tasksystem/discovery.json`);
-    const cfgBefore = fs.readFileSync(`${dir}/.tasksystem/config.json`);
+    const before = fs.readFileSync(`${dir}/.scopegrain/discovery.json`);
+    const cfgBefore = fs.readFileSync(`${dir}/.scopegrain/config.json`);
     const second = prepareInit({ projectRoot: dir, answers: VALID_ANSWERS });
     assert.ok(second.files.every((f) => f.action === 'noop'));
     const r2 = applyPlan(dir, second.files);
     assert.equal(r2.created, 0);
-    assert.ok(fs.readFileSync(`${dir}/.tasksystem/discovery.json`).equals(before));
-    assert.ok(fs.readFileSync(`${dir}/.tasksystem/config.json`).equals(cfgBefore));
+    assert.ok(fs.readFileSync(`${dir}/.scopegrain/discovery.json`).equals(before));
+    assert.ok(fs.readFileSync(`${dir}/.scopegrain/config.json`).equals(cfgBefore));
   } finally { cleanup(dir); }
 });
 
@@ -73,7 +73,7 @@ test('generated entrypoint and instructions carry the intake pointer', () => {
     assert.match(agents, /Request intake/);
     assert.match(agents, /intake\.mode/);
     const instructions =
-      fs.readFileSync(`${dir}/.tasksystem/instructions.md`, 'utf8');
+      fs.readFileSync(`${dir}/.scopegrain/instructions.md`, 'utf8');
     assert.match(instructions, /Request intake/);
     assert.match(instructions, /bookkeeping, not implementation authority/);
   } finally { cleanup(dir); }
@@ -84,14 +84,14 @@ test('re-init preserves custom formatting and approved commands', () => {
   try {
     applyPlan(dir, prepareInit({ projectRoot: dir, answers: VALID_ANSWERS }).files);
     // User edits config: custom whitespace AND approved verification entry.
-    const custom = '{\n"schemaVersion":1,"project":{"name":"fixture-project","root":"."},\n"locale":"es","hosts":["claude","codex","opencode","devin"],\n"paths":{"plans":"docs/agent/plans","tasks":"docs/agent/tasks","reports":"docs/agent/reports","research":"docs/agent/research","decisions":"docs/agent/decisions","memory":".tasksystem/memory","state":".tasksystem/state"},\n"verification":{"mode":"manual","commands":[{"command":"npm test","cwd":".","approved":true}]},\n"discovery":{"fingerprint":"%F%","stacks":[],"evidence":[]}\n}\n';
-    const stored = readJson(dir, '.tasksystem/config.json');
+    const custom = '{\n"schemaVersion":1,"project":{"name":"fixture-project","root":"."},\n"locale":"es","hosts":["claude","codex","opencode","devin"],\n"paths":{"plans":"docs/agent/plans","tasks":"docs/agent/tasks","reports":"docs/agent/reports","research":"docs/agent/research","decisions":"docs/agent/decisions","memory":".scopegrain/memory","state":".scopegrain/state"},\n"verification":{"mode":"manual","commands":[{"command":"npm test","cwd":".","approved":true}]},\n"discovery":{"fingerprint":"%F%","stacks":[],"evidence":[]}\n}\n';
+    const stored = readJson(dir, '.scopegrain/config.json');
     const withFp = custom.replace('%F%', stored.discovery.fingerprint);
-    writeFile(dir, '.tasksystem/config.json', withFp);
+    writeFile(dir, '.scopegrain/config.json', withFp);
     const second = prepareInit({ projectRoot: dir, answers: VALID_ANSWERS });
-    const cfgFile = second.files.find((f) => f.rel === '.tasksystem/config.json');
+    const cfgFile = second.files.find((f) => f.rel === '.scopegrain/config.json');
     assert.equal(cfgFile.action, 'noop');
-    const kept = readJson(dir, '.tasksystem/config.json');
+    const kept = readJson(dir, '.scopegrain/config.json');
     assert.equal(kept.verification.commands[0].approved, true);
   } finally { cleanup(dir); }
 });
@@ -192,8 +192,8 @@ test('symlink introduced after prepare is caught by apply-time preflight', (t) =
       writeFile(target, 'x.txt', 'x');
       let made = false;
       try {
-        fs.mkdirSync(path.join(dir, '.tasksystem'), { recursive: true });
-        fs.symlinkSync(target, path.join(dir, '.tasksystem', 'integrations'), 'junction');
+        fs.mkdirSync(path.join(dir, '.scopegrain'), { recursive: true });
+        fs.symlinkSync(target, path.join(dir, '.scopegrain', 'integrations'), 'junction');
         made = true;
       } catch (e) {
         if (['EPERM', 'EACCES', 'ENOTSUP', 'ENOSYS'].includes(e.code)) {
@@ -214,16 +214,16 @@ test('deleted discovery.json is recreated on re-init while config stays', () => 
   const dir = makeTempDir('init-rediscovery');
   try {
     applyPlan(dir, prepareInit({ projectRoot: dir, answers: VALID_ANSWERS }).files);
-    const cfgBefore = fs.readFileSync(`${dir}/.tasksystem/config.json`);
-    fs.rmSync(path.join(dir, '.tasksystem', 'discovery.json'));
+    const cfgBefore = fs.readFileSync(`${dir}/.scopegrain/config.json`);
+    fs.rmSync(path.join(dir, '.scopegrain', 'discovery.json'));
     const second = prepareInit({ projectRoot: dir, answers: VALID_ANSWERS });
-    const dFile = second.files.find((f) => f.rel === '.tasksystem/discovery.json');
-    const cFile = second.files.find((f) => f.rel === '.tasksystem/config.json');
+    const dFile = second.files.find((f) => f.rel === '.scopegrain/discovery.json');
+    const cFile = second.files.find((f) => f.rel === '.scopegrain/config.json');
     assert.equal(dFile.action, 'create');
     assert.equal(cFile.action, 'noop'); // config bytes preserved
     applyPlan(dir, second.files);
-    assert.ok(exists(dir, '.tasksystem/discovery.json'));
-    assert.ok(fs.readFileSync(`${dir}/.tasksystem/config.json`).equals(cfgBefore));
+    assert.ok(exists(dir, '.scopegrain/discovery.json'));
+    assert.ok(fs.readFileSync(`${dir}/.scopegrain/config.json`).equals(cfgBefore));
   } finally { cleanup(dir); }
 });
 
@@ -239,7 +239,7 @@ test('short writes still produce complete files; zero progress rolls back', () =
     } finally {
       fs.writeSync = orig;
     }
-    const written = fs.readFileSync(`${dir}/.tasksystem/config.json`);
+    const written = fs.readFileSync(`${dir}/.scopegrain/config.json`);
     const expected = Buffer.isBuffer(prepared.files[0].content)
       ? prepared.files[0].content : Buffer.from(prepared.files[0].content);
     assert.ok(written.equals(expected));
@@ -254,7 +254,7 @@ test('short writes still produce complete files; zero progress rolls back', () =
       } finally {
         fs.writeSync = orig;
       }
-      assert.ok(!exists(dir2, '.tasksystem/config.json'));
+      assert.ok(!exists(dir2, '.scopegrain/config.json'));
       assert.ok(!exists(dir2, 'AGENTS.md'));
     } finally { cleanup(dir2); }
   } finally { cleanup(dir); }
@@ -281,7 +281,7 @@ test('mid-write failure rolls back only files created by this operation', () => 
     }
     // The unrelated file survives; every file this operation created is gone.
     assert.ok(exists(dir, 'keep-me.txt'));
-    assert.ok(!exists(dir, '.tasksystem/config.json'));
+    assert.ok(!exists(dir, '.scopegrain/config.json'));
     assert.ok(!exists(dir, 'AGENTS.md'));
   } finally { cleanup(dir); }
 });

@@ -22,8 +22,8 @@ import { VALID_ANSWERS, cleanup, makeTempDir, readJson, trySymlink, writeFile,
 const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 const json = (value) => JSON.stringify(value, null, 2) + '\n';
 
-function fixture({ state = '.tasksystem/state', memory = '.tasksystem/memory',
-  configRel = '.tasksystem/config.json' } = {}) {
+function fixture({ state = '.scopegrain/state', memory = '.scopegrain/memory',
+  configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('captures');
   const answers = { ...VALID_ANSWERS, paths: { ...VALID_ANSWERS.paths, state, memory } };
   writeJson(dir, configRel, createConfig(dir, answers, {}));
@@ -709,7 +709,7 @@ test('custom memory/state paths are honored and default directories are not crea
     assert.equal(created.ownershipRel,
       `meta/state/record-ownership/capture/${created.record.id}.json`);
     assert.equal(fs.existsSync(path.join(f.dir, 'data/memory/captures')), true);
-    assert.equal(fs.existsSync(path.join(f.dir, '.tasksystem/memory')), false);
+    assert.equal(fs.existsSync(path.join(f.dir, '.scopegrain/memory')), false);
     assert.equal(store.get(created.record.id).isCurrentSource, true);
   } finally { cleanup(f.dir); }
 });

@@ -31,7 +31,7 @@ const SHA = (content) =>
   crypto.createHash('sha256').update(content).digest('hex');
 const AREAS = [{ key: 'alpha', name: 'Alpha' }, { key: 'beta', name: 'Beta' }];
 
-function fixture({ state = '.tasksystem/state', configRel = '.tasksystem/config.json' } = {}) {
+function fixture({ state = '.scopegrain/state', configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('owned-workspace');
   const answers = { ...VALID_ANSWERS, paths: { ...VALID_ANSWERS.paths, state } };
   writeJson(dir, configRel, createConfig(dir, answers, {}));
@@ -174,13 +174,13 @@ test('construction and inputs are closed, scoped and enrollment-bound', () => {
 test('a store requires existing enrollment and never creates the descriptor', () => {
   const dir = makeTempDir('owned-workspace-bare');
   try {
-    writeJson(dir, '.tasksystem/config.json', createConfig(dir, VALID_ANSWERS, {}));
-    const ctx = resolveContext({ project: dir, config: '.tasksystem/config.json' });
+    writeJson(dir, '.scopegrain/config.json', createConfig(dir, VALID_ANSWERS, {}));
+    const ctx = resolveContext({ project: dir, config: '.scopegrain/config.json' });
     assert.throws(() => createOwnedWorkspaceStore(ctx,
       { areaIds: ['00000000-0000-0000-0000-000000000000'] }),
     (e) => e.code === 'WORKSPACE_NOT_FOUND');
     const before = tree(dir);
-    assert.equal(fs.existsSync(path.join(dir, '.tasksystem', 'state')), false);
+    assert.equal(fs.existsSync(path.join(dir, '.scopegrain', 'state')), false);
     assert.deepEqual(tree(dir), before);
   } finally { cleanup(dir); }
 });
@@ -199,8 +199,8 @@ test('prepare is a read-only preview with provisional identity', () => {
     assert.equal(preview.reservesIds, false);
     assert.equal(preview.enrolled, false);
     assert.equal(preview.changed, true);
-    assert.equal(preview.sourceRel, '.tasksystem/state/workspace.json');
-    assert.equal(preview.pointerRel, '.tasksystem/state/workspace-ownership.json');
+    assert.equal(preview.sourceRel, '.scopegrain/state/workspace.json');
+    assert.equal(preview.pointerRel, '.scopegrain/state/workspace-ownership.json');
     const next = preview.record;
     assert.equal(next.revision, f.workspace.revision + 1);
     assert.equal(next.workspaceId, f.workspace.workspaceId);
@@ -699,7 +699,7 @@ test('raw update seams cannot forge the pointer proof', () => {
       sourceKind: 'workspace-ownership', recordId: f.workspace.workspaceId,
       sourceRevision: 1, previousHash: SHA(pointerBytes),
       areaIds: [f.a],
-      file: { rel: '.tasksystem/state/workspace-ownership.json',
+      file: { rel: '.scopegrain/state/workspace-ownership.json',
         content: Buffer.from(JSON.stringify(forged, null, 2) + '\n') },
     }]);
     // The forged pointer claims a provenance hash the descriptor does

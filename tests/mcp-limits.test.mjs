@@ -51,7 +51,7 @@ test('advertised input schemas bound every string argument', async (t) => {
   let server;
   let client;
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, {}));
     ({ server } = await createMCPServer({ project: dir }));
     const [clientT, serverT] = InMemoryTransport.createLinkedPair();

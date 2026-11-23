@@ -20,7 +20,7 @@
   ],
   "references": [
     "definition-of-done",
-    "task-system"
+    "task-domain"
   ],
   "activation": "explicit",
   "externalServices": [],

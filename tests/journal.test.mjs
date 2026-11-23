@@ -20,7 +20,7 @@ import {
 import { VALID_ANSWERS, cleanup, makeTempDir, trySymlink, writeFile, writeJson }
   from './helpers.mjs';
 
-function fixture({ state = '.tasksystem/state', configRel = '.tasksystem/config.json' } = {}) {
+function fixture({ state = '.scopegrain/state', configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('journal');
   const answers = { ...VALID_ANSWERS, paths: { ...VALID_ANSWERS.paths, state } };
   writeJson(dir, configRel, createConfig(dir, answers, {}));
@@ -164,10 +164,10 @@ test('committed changes preserve exact snapshots, separate events and contiguous
   } finally { cleanup(f.dir); }
 });
 
-test('current and legacy configured state paths are honored', () => {
+test('default and custom configured state paths are honored', () => {
   for (const settings of [
     { state: '.scopegrain/state', configRel: '.scopegrain/config.json' },
-    { state: '.tasksystem/state', configRel: '.tasksystem/config.json' },
+    { state: 'custom/state', configRel: 'custom/config.json' },
   ]) {
     const f = fixture(settings);
     try {
@@ -175,7 +175,7 @@ test('current and legacy configured state paths are honored', () => {
       const event = getJournalEvent(f.bound, result.operationId, result.eventIds[0]).event;
       assert.equal(event.snapshotRef, `${settings.state}/journal/snapshots/${event.sourceHash}.blob`);
       assert.equal(fs.existsSync(path.join(f.journal, 'head.json')), true);
-      const other = settings.state.startsWith('.scopegrain/') ? '.tasksystem' : '.scopegrain';
+      const other = settings.state.startsWith('.scopegrain/') ? 'custom' : '.scopegrain';
       assert.equal(fs.existsSync(path.join(f.dir, other)), false);
     } finally { cleanup(f.dir); }
   }
@@ -207,7 +207,7 @@ test('invalid change shapes, duplicates, paths and budgets fail before writes', 
     assert.throws(() => applyJournaledCreation(f.bound,
       [change([f.a], '../escape')]), (e) => e.code === 'INVALID_PATH');
     assert.throws(() => applyJournaledCreation(f.bound,
-      [change([f.a], '.TASKSYSTEM/STATE/JOURNAL/injected')]),
+      [change([f.a], '.SCOPEGRAIN/STATE/JOURNAL/injected')]),
     (e) => e.code === 'INVALID_JOURNAL_INPUT');
     assert.throws(() => applyJournaledCreation(f.bound, [change([f.a], 'records/big',
       Buffer.alloc(loadLimits().maxDocumentBytes + 1))]),
@@ -251,7 +251,7 @@ test('an existing corrupt hash-path blob is never overwritten or used for a sour
   try {
     const expectedHash = crypto.createHash('sha256').update('content').digest('hex');
     const blob = writeFile(f.dir,
-      `.tasksystem/state/journal/snapshots/${expectedHash}.blob`, 'corrupt');
+      `.scopegrain/state/journal/snapshots/${expectedHash}.blob`, 'corrupt');
     assert.throws(() => applyJournaledCreation(f.bound, [change([f.a], 'records/item')]),
       (e) => e.code === 'JOURNAL_SNAPSHOT_MISMATCH');
     assert.equal(fs.readFileSync(blob, 'utf8'), 'corrupt');
@@ -847,12 +847,12 @@ test('forged and stale bindings are denied; original context mutation cannot red
     assert.throws(() => applyJournaledCreation(other.bound, input),
       (e) => e.code === 'SCOPE_DENIED');
     f.ctx.projectRoot = other.dir;
-    f.ctx.config.paths.state = '.tasksystem/redirect';
+    f.ctx.config.paths.state = '.scopegrain/redirect';
     const result = applyJournaledCreation(f.bound, input);
     assert.equal(result.status, 'committed');
     assert.equal(fs.existsSync(path.join(f.dir, 'records/item')), true);
     assert.equal(fs.existsSync(path.join(other.dir, 'records/item')), false);
-    const metadata = path.join(f.dir, '.tasksystem/state/workspace.json');
+    const metadata = path.join(f.dir, '.scopegrain/state/workspace.json');
     fs.unlinkSync(metadata);
     assert.throws(() => listJournalPending(f.bound), (e) => e.code === 'WORKSPACE_STALE');
     assert.throws(() => applyJournaledCreation(f.bound, [change([f.a], 'records/new')]),
@@ -1088,7 +1088,7 @@ test('abandon unlinks a stranded outbox index for a missing intent', () => {
   try {
     const wedged = wedgedIntent(f);
     writeJson(f.dir,
-      `.tasksystem/state/journal/outbox/${wedged.operationId}.json`,
+      `.scopegrain/state/journal/outbox/${wedged.operationId}.json`,
       { schemaVersion: 1, operationId: wedged.operationId,
         intentDigest: wedged.intentDigest });
     const result = recoverJournalOperation(f.bound, wedged.operationId,
@@ -1146,7 +1146,7 @@ test('missing intent recovery still fails closed on conflicts and artifacts', ()
       }
       if (variant === 'bad-index') {
         writeJson(f.dir,
-          `.tasksystem/state/journal/outbox/${wedged.operationId}.json`,
+          `.scopegrain/state/journal/outbox/${wedged.operationId}.json`,
           { schemaVersion: 1, operationId: wedged.operationId,
             intentDigest: 'a'.repeat(64) });
       }

@@ -31,7 +31,7 @@ const uuid = (n) =>
 
 function fixture() {
   const dir = makeTempDir('owned-chain');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   const ctx = resolveContext({ project: dir });
   const prepared = prepareWorkspace(ctx, {

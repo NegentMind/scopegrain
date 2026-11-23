@@ -60,7 +60,7 @@ This repository develops a project-neutral engineering harness.
   identifiers in evidence are declarations, not authenticated identity.
 - Update documentation and tests with public behavior changes.
 - Keep operational plans, reviews, notes and logs under the configured
-  state paths (.scopegrain/ by default; legacy .tasksystem/ still honored)
+  state paths (.scopegrain/ by default)
   rather than product documentation. Ask versioning preferences during
   onboarding.
 - The initial archive is local-only pending provenance and license review.

@@ -34,18 +34,12 @@ export const VERSIONING_KEYS = [
   'memory', 'state',
 ];
 export const DEFAULT_CONFIG_PATH = '.scopegrain/config.json';
-export const LEGACY_CONFIG_PATH = '.tasksystem/config.json';
 
 export function resolveConfigPath(projectRoot, configPath) {
   if (configPath !== undefined && configPath !== null) {
     return assertDestination(configPath, 'configPath');
   }
-  const current = lstatOrNull(resolveInside(projectRoot, DEFAULT_CONFIG_PATH, 'config'));
-  const legacy = lstatOrNull(resolveInside(projectRoot, LEGACY_CONFIG_PATH, 'config'));
-  if (current && legacy) {
-    throw err('CONFIG_AMBIGUOUS', 'multiple config entries found; select one with --config');
-  }
-  return legacy ? LEGACY_CONFIG_PATH : DEFAULT_CONFIG_PATH;
+  return DEFAULT_CONFIG_PATH;
 }
 
 // Proposal defaults come verbatim from policy/onboarding-defaults.json;

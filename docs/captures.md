@@ -107,7 +107,7 @@ Los placeholders (`<area-id-del-workspace>`, el UUID del ejemplo) deben
 reemplazarse por IDs reales devueltos por `workspace show` y por
 `capture create --apply`/`capture show`.
 
-(`tasksystem` sigue siendo un alias compatible.) `--input` es una ruta del
+`--input` es una ruta del
 directorio de trabajo actual, no relativa al proyecto. `--config REL`
 selecciona una configuracion explicita; las rutas de memoria y estado se
 heredan de esa configuracion, nunca se escriben por defecto. Sin `--apply`,

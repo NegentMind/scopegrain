@@ -251,9 +251,9 @@ test('bundle install: file:// bounded copy, sha256 pin, provenance', () => {
       { apply: true });
     assert.equal(done.applied, true);
     assert.ok(fs.existsSync(path.join(dir,
-      '.tasksystem/bundles/pkg/entry-a')));
+      '.scopegrain/bundles/pkg/entry-a')));
     const prov = JSON.parse(fs.readFileSync(path.join(dir,
-      '.tasksystem/bundles/pkg/provenance.json'), 'utf8'));
+      '.scopegrain/bundles/pkg/provenance.json'), 'utf8'));
     assert.equal(prov.files[0].sha256, sha);
     // Idempotent re-apply (identical bytes) is a no-op, not a conflict.
     const again = installBundle(ctx, input.bundle, input.sources,
@@ -299,11 +299,11 @@ test('bundle mount: entries join workspace catalog, sha-verified', () => {
     // Diverged bytes fail closed at catalog load — the mounted merge
     // verifies every entry's sha256 before the mount check even runs.
     fs.writeFileSync(path.join(dir,
-      '.tasksystem/bundles/pkg2/entry-c'), 'tampered');
+      '.scopegrain/bundles/pkg2/entry-c'), 'tampered');
     assert.throws(() => mountBundle(ctx, 'pkg2'),
       (e) => e.code === 'RESOURCE_INTEGRITY_MISMATCH');
     fs.writeFileSync(path.join(dir,
-      '.tasksystem/bundles/pkg2/entry-c'),
+      '.scopegrain/bundles/pkg2/entry-c'),
       '---\ndescription: mounted cmd\n---\nbody');
     // A bundle entry id colliding with a snapshot id fails closed.
     writeJson(dir, 'cats/clash-cat.json', {
@@ -333,24 +333,24 @@ test('bundle unmount + uninstall: provenance-confined deletion', () => {
     mountBundle(ctx, 'pkg3');
     // Diverged file stays behind — uninstall never clobbers user bytes.
     fs.writeFileSync(path.join(dir,
-      '.tasksystem/bundles/pkg3/entry-x'), 'user-edited');
+      '.scopegrain/bundles/pkg3/entry-x'), 'user-edited');
     const res = uninstallBundle(ctx, 'pkg3');
     assert.equal(res.unmounted, 1);
     // Only provenance.json itself is deleted — the diverged bundle file
     // is left behind, never clobbered.
     assert.deepEqual(res.deleted,
-      ['.tasksystem/bundles/pkg3/provenance.json']);
+      ['.scopegrain/bundles/pkg3/provenance.json']);
     assert.equal(res.leftBehind.length, 1);
     assert.ok(fs.existsSync(
-      path.join(dir, '.tasksystem/bundles/pkg3/entry-x')));
+      path.join(dir, '.scopegrain/bundles/pkg3/entry-x')));
     assert.equal(loadMounted(ctx).entries.length, 0);
     // Tampered provenance pointing outside the bundle dir fails closed.
     const provAbs = path.join(dir,
-      '.tasksystem/bundles/pkg3/provenance.json');
-    writeJson(dir, '.tasksystem/bundles/pkg3/provenance.json', {
+      '.scopegrain/bundles/pkg3/provenance.json');
+    writeJson(dir, '.scopegrain/bundles/pkg3/provenance.json', {
       schemaVersion: 1, id: 'pkg3', version: '1.0.0', requires: [],
       contributes: [], entries: [],
-      files: [{ rel: '.tasksystem/config.json', sha256: 'a'.repeat(64) }],
+      files: [{ rel: '.scopegrain/config.json', sha256: 'a'.repeat(64) }],
     });
     assert.throws(() => uninstallBundle(ctx, 'pkg3'), /outside bundle/);
     fs.unlinkSync(provAbs);
@@ -381,14 +381,14 @@ test('dist lock: concurrent registry mutation fails closed', () => {
   const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
   try {
     // A live-pid lock is never reclaimed: a second mutation must fail.
-    fs.writeFileSync(path.join(dir, '.tasksystem/dist.lock'),
+    fs.writeFileSync(path.join(dir, '.scopegrain/dist.lock'),
       JSON.stringify({ t: 'x', pid: process.pid, at: Date.now() }));
     assert.throws(() => registerExtension(ctx,
       { id: 'e', version: '1.0.0' }),
       (e) => e.code === 'DIST_LOCKED');
     assert.throws(() => registerPreset(ctx, { id: 'p', overrides: [] }),
       (e) => e.code === 'DIST_LOCKED');
-    fs.unlinkSync(path.join(dir, '.tasksystem/dist.lock'));
+    fs.unlinkSync(path.join(dir, '.scopegrain/dist.lock'));
     // Lock released → registry writes work again.
     registerPreset(ctx, { id: 'p', overrides: [] });
   } finally { cleanup(dir); }
@@ -456,7 +456,7 @@ test('R2 dir-source pin binds to the conventional main file', () => {
       bundle([{ id: 'skill-dir', sha256: sha }]), sources, { apply: true });
     assert.equal(done.applied, true);
     const prov = JSON.parse(fs.readFileSync(path.join(dir,
-      '.tasksystem/bundles/pkgdir/provenance.json'), 'utf8'));
+      '.scopegrain/bundles/pkgdir/provenance.json'), 'utf8'));
     assert.equal(prov.entries[0].file, 'skill-dir/SKILL.md');
     assert.equal(prov.entries[0].sha256, sha);
     // A pin for different bytes fails against the MAIN file — not "any
@@ -481,10 +481,10 @@ test('mounted entry shadowing a canonical alias fails closed', () => {
   try {
     // 'pipeline' is a canonical command alias, not a command id — a
     // mounted entry with that id would make the alias unreachable.
-    const file = path.join(dir, '.tasksystem/bundles/forgery/cmd.md');
+    const file = path.join(dir, '.scopegrain/bundles/forgery/cmd.md');
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, 'x');
-    writeJson(dir, '.tasksystem/mounted-catalog.json', {
+    writeJson(dir, '.scopegrain/mounted-catalog.json', {
       entries: [{ kind: 'command', id: 'pipeline',
         path: 'bundles/forgery/cmd.md', sha256: 'a'.repeat(64),
         bundle: 'forgery', modes: ['default'] }],
@@ -496,7 +496,7 @@ test('mounted entry shadowing a canonical alias fails closed', () => {
     // entry needs its REAL sha: hash verification runs per-entry inside
     // the loop, so it must pass for the second entry to be evaluated.
     const realSha = crypto.createHash('sha256').update('x').digest('hex');
-    writeJson(dir, '.tasksystem/mounted-catalog.json', {
+    writeJson(dir, '.scopegrain/mounted-catalog.json', {
       entries: [
         { kind: 'command', id: 'c-a', path: 'bundles/forgery/cmd.md',
           sha256: realSha, bundle: 'forgery', modes: ['default'] },

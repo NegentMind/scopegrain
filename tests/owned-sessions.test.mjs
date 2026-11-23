@@ -29,8 +29,8 @@ import { VALID_ANSWERS, cleanup, makeTempDir, writeFile, writeJson }
 const sha256 = (bytes) =>
   crypto.createHash('sha256').update(bytes).digest('hex');
 
-function fixture({ state = '.tasksystem/state',
-  configRel = '.tasksystem/config.json' } = {}) {
+function fixture({ state = '.scopegrain/state',
+  configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('ownedsess');
   const answers = { ...VALID_ANSWERS, paths: { ...VALID_ANSWERS.paths, state } };
   writeJson(dir, configRel, createConfig(dir, answers, {}));
@@ -119,7 +119,7 @@ test('store is frozen with the owned method set; closed options and cloned ctx',
 test('non-enrolled workspace and partial grants are denied', () => {
   const dir = makeTempDir('ownedsess-unenrolled');
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, {}));
     const ctx = resolveContext({ project: dir });
     assert.throws(() => createOwnedSessionStore(ctx,
@@ -247,7 +247,7 @@ test('open + record + resume chain is proven end to end', () => {
     assert.equal(resumed.usage.remaining, 1);
     assert.equal(resumed.usage.measures,
       'explicitly-recorded-operations-only');
-    assert.equal(resumed.recovery.reference, 'references/task-system.md');
+    assert.equal(resumed.recovery.reference, 'references/task-domain.md');
     assert.equal(resumed.ownership.sourceRevision, 2);
     assert.equal(resumed.locator.operationId, second.journal.operationId);
   } finally { cleanup(f.dir); }

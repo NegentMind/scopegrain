@@ -188,7 +188,7 @@ Every sub-review receives this in its prompt:
   "docs_system": "mdbook",
   "structural_index_available": false,
   "simplicity_mode": "standard",
-  "task_system_available": true,
+  "scopegrain_available": true,
   "phases_to_run": ["L0","L1","L2","L3","L4","L5","L6"]
 }
 ```
@@ -266,7 +266,7 @@ integrations:
     respect_mode: bool
     skip_phases_in_tolerant: [phase_id]
     escalate_in_strict: [phase_id]
-  task_system:
+  scopegrain:
     enabled: string               # auto | always | never
   structural_index:
     use_if_available: bool
@@ -510,7 +510,7 @@ Synchronous in the orchestrator. No subagent.
 5. **Quality gate** — pass iff every critical phase passed and no finding
    has severity `critical`.
 6. **Apply the declared simplicity/tolerance mode** (below).
-7. **Sync the task system** if the project declares one and it is
+7. **Sync Scopegrain** if the project declares it and it is
    available (record findings, update state per the workflow contract).
 
 ---
@@ -665,7 +665,7 @@ declares them — the skill detects and adapts; it never assumes them.
 | Integration | Effect |
 |-------------|--------|
 | **Simplicity/tolerance mode** (`off`, `tolerant`, `standard`, `strict`) | `tolerant`: drop `DIRECTION/Over-engineering` findings, skip declared opinionated phases (default L6). `strict`: escalate those findings one severity (never beyond critical) and add the declared audit skill to L6/L9. Read the mode from the caller, host config, or default `standard`. |
-| **Task system** | `auto` (default): use the declared task tools if present, skip silently otherwise. `always`: use or warn. `never`: skip. Record findings/state per the workflow contract. |
+| **Scopegrain** | `auto` (default): use the declared task tools if present, skip silently otherwise. `always`: use or warn. `never`: skip. Record findings/state per the workflow contract. |
 | **Structural index** | If a code knowledge graph exists, L0 queries it for affected modules and L6 uses it for dependency/cycle analysis. Absent ⇒ static analysis; note the degradation. |
 | **Web research tools** | L4/L7 may use whatever search/fetch tools the host provides for advisories; absent ⇒ local checks only, noted. |
 

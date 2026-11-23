@@ -50,7 +50,7 @@ const SPEC = {
 
 function fixture() {
   const dir = makeTempDir('owned-plans');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   const ctx = resolveContext({ project: dir });
   const prepared = prepareWorkspace(ctx, {
@@ -89,7 +89,7 @@ test('store construction validates ctx, options, enrollment and grants', () => {
   const f = fixture();
   const bare = makeTempDir('owned-plans-bare');
   try {
-    writeJson(bare, '.tasksystem/config.json',
+    writeJson(bare, '.scopegrain/config.json',
       createConfig(bare, VALID_ANSWERS, {}));
     const bareCtx = resolveContext({ project: bare });
     for (const bad of [
@@ -119,13 +119,13 @@ test('prepare is a read-only dry-run with provisional identity', () => {
     assert.equal(out.record.key, 'rel-1');
     assert.equal(out.sourceRel, 'docs/agent/plans/rel-1.json');
     assert.equal(out.ownershipRel,
-      '.tasksystem/state/plan-ownership/rel-1.json');
+      '.scopegrain/state/plan-ownership/rel-1.json');
     // 2 task files + plan + sidecar.
     assert.equal(out.files.length, 4);
     assert.ok(out.files.every((file) => file.action === 'create'));
     assert.ok(!exists(f.dir, 'docs/agent/plans/rel-1.json'));
-    assert.ok(!exists(f.dir, '.tasksystem/state/plan-ownership'));
-    assert.ok(!exists(f.dir, '.tasksystem/state/journal'));
+    assert.ok(!exists(f.dir, '.scopegrain/state/plan-ownership'));
+    assert.ok(!exists(f.dir, '.scopegrain/state/journal'));
     for (const bad of [
       {}, { areaIds: [f.a] }, { plan: GOOD },
       { areaIds: [f.a], plan: GOOD, extra: true },
@@ -165,7 +165,7 @@ test('create commits a 2-event op and get proves the genesis chain', () => {
       assert.deepEqual(e.areaIds, [f.a]);
     }
     assert.ok(exists(f.dir, 'docs/agent/plans/rel-1.json'));
-    assert.ok(exists(f.dir, '.tasksystem/state/plan-ownership/rel-1.json'));
+    assert.ok(exists(f.dir, '.scopegrain/state/plan-ownership/rel-1.json'));
     for (const rel of created.taskFiles) assert.ok(exists(f.dir, rel));
     const got = f.store.get('rel-1');
     assert.equal(got.record.key, 'rel-1');
@@ -271,7 +271,7 @@ test('DAG violations are rejected through the journalized path', () => {
         { key: 'a', title: 't', contract: 'c', dependsOn: ['b'] },
         { key: 'b', title: 't', contract: 'c', dependsOn: ['a'] },
       ] } }), (e) => e.code === 'INVALID_PLAN');
-    assert.ok(!exists(f.dir, '.tasksystem/state/journal'));
+    assert.ok(!exists(f.dir, '.scopegrain/state/journal'));
     f.store.create({ areaIds: [f.a], plan: GOOD });
     const doc = getPlan(f.ctx, 'rel-1');
     const cyclic = { ...doc,
@@ -368,17 +368,17 @@ test('unowned and forged records are never adopted', () => {
     applyPlan(f.dir, preflightPlan(f.dir, preparePlan(f.ctx,
       { ...GOOD, key: 'forged' }).files));
     fs.copyFileSync(
-      path.join(f.dir, '.tasksystem/state/plan-ownership/rel-1.json'),
-      path.join(f.dir, '.tasksystem/state/plan-ownership/forged.json'));
+      path.join(f.dir, '.scopegrain/state/plan-ownership/rel-1.json'),
+      path.join(f.dir, '.scopegrain/state/plan-ownership/forged.json'));
     assert.throws(() => f.store.get('forged'),
       (e) => e.code === 'OWNED_PLAN_MALFORMED');
     // Sidecar naming a nonexistent operation: fail closed.
     const fake = readJson(f.dir,
-      '.tasksystem/state/plan-ownership/rel-1.json');
+      '.scopegrain/state/plan-ownership/rel-1.json');
     fake.recordId = 'forged';
     fake.operations = [crypto.randomUUID()];
     fake.operationId = fake.operations[0];
-    writeJson(f.dir, '.tasksystem/state/plan-ownership/forged.json', fake);
+    writeJson(f.dir, '.scopegrain/state/plan-ownership/forged.json', fake);
     assert.throws(() => f.store.get('forged'),
       (e) => ['JOURNAL_NOT_FOUND', 'OWNED_PLAN_MALFORMED',
         'OWNED_PLAN_NOT_COMMITTED'].includes(e.code));
@@ -391,8 +391,8 @@ test('unowned and forged records are never adopted', () => {
     // A stale sidecar file (rolled back bytes) is equally detected.
     writeJson(f.dir, 'docs/agent/plans/rel-1.json', doc);
     const sidecar = readJson(f.dir,
-      '.tasksystem/state/plan-ownership/rel-1.json');
-    writeJson(f.dir, '.tasksystem/state/plan-ownership/rel-1.json',
+      '.scopegrain/state/plan-ownership/rel-1.json');
+    writeJson(f.dir, '.scopegrain/state/plan-ownership/rel-1.json',
       { ...sidecar, sourceRevision: 9 });
     assert.throws(() => f.store.get('rel-1'),
       (e) => ['OWNED_PLAN_MALFORMED', 'JOURNAL_NOT_FOUND',

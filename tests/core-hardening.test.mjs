@@ -25,7 +25,7 @@ const MAXB = loadLimits().maxDocumentBytes;
 
 function ctxFixture() {
   const dir = makeTempDir('ch');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, DEFAULT_ANSWERS, {}));
   return { dir, ctx: resolveContext({ project: dir }) };
 }
@@ -227,9 +227,9 @@ test('transition on future-dated task leaves bytes and lock/tmp clean', () => {
 test('oversized stored config rejected structurally', () => {
   const dir = makeTempDir('bigcfg');
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, DEFAULT_ANSWERS, {}));
-    const file = path.join(dir, '.tasksystem/config.json');
+    const file = path.join(dir, '.scopegrain/config.json');
     fs.appendFileSync(file, ' '.repeat(MAXB));
     assert.throws(() => loadConfig(dir),
       (e) => e.code === 'DOCUMENT_TOO_LARGE'
@@ -240,7 +240,7 @@ test('oversized stored config rejected structurally', () => {
 test('preflight: existing oversized file never fully read, bytes kept', () => {
   const dir = makeTempDir('pf');
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, DEFAULT_ANSWERS, {}));
     const discJson0 = JSON.stringify(
       { schemaVersion: 1, fingerprint: 'x', evidence: {}, warnings: [] },
@@ -248,28 +248,28 @@ test('preflight: existing oversized file never fully read, bytes kept', () => {
     const conf0 = createConfig(dir, DEFAULT_ANSWERS, {});
     const plan = buildInitPlan({
       projectRoot: dir,
-      configRel: '.tasksystem/config.json',
+      configRel: '.scopegrain/config.json',
       config: conf0,
       configContent: JSON.stringify(conf0, null, 2) + '\n',
       discovery: JSON.parse(discJson0), discoveryContent: discJson0,
     });
     applyPlan(dir, plan.files);
     // Huge pre-existing file at a projected dest -> conflict, no full read.
-    const target = path.join(dir, '.tasksystem/rules/safety.md');
+    const target = path.join(dir, '.scopegrain/rules/safety.md');
     const before = fs.readFileSync(target);
     fs.writeFileSync(target, 'x'.repeat(MAXB + 100));
     const plan2 = buildInitPlan({
       projectRoot: dir,
-      configRel: '.tasksystem/config.json',
+      configRel: '.scopegrain/config.json',
       config: createConfig(dir, DEFAULT_ANSWERS, {}),
       configContent: fs.readFileSync(
-        path.join(dir, '.tasksystem/config.json')),
+        path.join(dir, '.scopegrain/config.json')),
       discovery: null, discoveryContent: null,
     });
-    const f = plan2.files.find((x) => x.rel === '.tasksystem/rules/safety.md');
+    const f = plan2.files.find((x) => x.rel === '.scopegrain/rules/safety.md');
     assert.throws(() => preflightPlan(dir, [f]),
       (e) => e.code === 'PLAN_CONFLICT'
-        && e.conflicts?.[0]?.path === '.tasksystem/rules/safety.md');
+        && e.conflicts?.[0]?.path === '.scopegrain/rules/safety.md');
     fs.writeFileSync(target, before); // restore for cleanup
   } finally { cleanup(dir); }
 });
@@ -283,14 +283,14 @@ test('doctor oversized discovery reports needs-attention, no crash', () => {
       null, 2) + '\n';
     const plan2 = buildInitPlan({
       projectRoot: dir,
-      configRel: '.tasksystem/config.json',
+      configRel: '.scopegrain/config.json',
       config: conf,
       configContent: JSON.stringify(conf, null, 2) + '\n',
       discovery: JSON.parse(discJson),
       discoveryContent: discJson,
     });
     applyPlan(dir, plan2.files);
-    fs.writeFileSync(path.join(dir, '.tasksystem/discovery.json'),
+    fs.writeFileSync(path.join(dir, '.scopegrain/discovery.json'),
       '{}'.padEnd(MAXB + 10, ' '));
     const ctx = resolveContext({ project: dir });
     const r = runDoctor(ctx);
@@ -313,20 +313,20 @@ test('native policy strict shape: unknown keys, bad values, readonly ids', () =>
     // Unknown root key
     writeJson(dir, 'policy/native-adapters.json', { ...pol, ghost: 1 });
     assert.throws(() => renderNativeAdapters(
-      minimalCfg(dir), { configRel: '.tasksystem/config.json', installRoot: dir }));
+      minimalCfg(dir), { configRel: '.scopegrain/config.json', installRoot: dir }));
     writeJson(dir, 'policy/native-adapters.json', { ...pol, activation: 'auto' });
     assert.throws(() => renderNativeAdapters(
-      minimalCfg(dir), { configRel: '.tasksystem/config.json', installRoot: dir }),
+      minimalCfg(dir), { configRel: '.scopegrain/config.json', installRoot: dir }),
       (e) => e.code === 'POLICY_MALFORMED');
     writeJson(dir, 'policy/native-adapters.json',
       { ...pol, readOnlyAgentIds: ['ghost-agent'] });
     assert.throws(() => renderNativeAdapters(
-      minimalCfg(dir), { configRel: '.tasksystem/config.json', installRoot: dir }),
+      minimalCfg(dir), { configRel: '.scopegrain/config.json', installRoot: dir }),
       (e) => e.code === 'POLICY_MALFORMED' && /ghost-agent/.test(e.message));
     writeJson(dir, 'policy/native-adapters.json',
       { ...pol, hosts: { ...pol.hosts, claude: { ...pol.hosts.claude, sources: ['ftp://x'] } } });
     assert.throws(() => renderNativeAdapters(
-      minimalCfg(dir), { configRel: '.tasksystem/config.json', installRoot: dir }),
+      minimalCfg(dir), { configRel: '.scopegrain/config.json', installRoot: dir }),
       (e) => e.code === 'POLICY_MALFORMED');
     // Root validation: absolute/double-slash/dot/forbidden-first-segment.
     for (const skillRoot of ['/abs', 'foo//bar', './x', '.git', '.GIT/x',
@@ -335,15 +335,15 @@ test('native policy strict shape: unknown keys, bad values, readonly ids', () =>
         ...pol, hosts: { ...pol.hosts, claude: { ...pol.hosts.claude, skillRoot } },
       });
       assert.throws(() => renderNativeAdapters(
-        minimalCfg(dir), { configRel: '.tasksystem/config.json', installRoot: dir }),
+        minimalCfg(dir), { configRel: '.scopegrain/config.json', installRoot: dir }),
         (e) => e.code === 'POLICY_MALFORMED', skillRoot);
     }
     // Namespace: single-hyphen segments + trailing '-' only.
     for (const namespace of ['scopegrain--', 'task--sys-', 'Task-',
-      'task_system-', 'tasksystem']) {
+      'scopegrain_-', 'scopegrain']) {
       writeJson(dir, 'policy/native-adapters.json', { ...pol, namespace });
       assert.throws(() => renderNativeAdapters(
-        minimalCfg(dir), { configRel: '.tasksystem/config.json', installRoot: dir }),
+        minimalCfg(dir), { configRel: '.scopegrain/config.json', installRoot: dir }),
         (e) => e.code === 'POLICY_MALFORMED', namespace);
     }
   } finally { cleanup(dir); }

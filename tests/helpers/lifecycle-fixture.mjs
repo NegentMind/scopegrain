@@ -42,7 +42,7 @@ import {
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
-// Answers used by bootstrappedCtx() in these files (legacy .tasksystem
+// Answers used by bootstrappedCtx() in these files (.scopegrain
 // artifact paths, claude-only hosts). Same shape, same defaults.
 export const MINI_ANSWERS = { ...DEFAULT_ANSWERS, hosts: ['claude'] };
 
@@ -156,7 +156,7 @@ export function enroll(ctx) {
 // tests (an absent discovery.json previews as a skipped-source issue).
 export function configuredCtx(answers = MINI_ANSWERS) {
   const dir = makeTempDir('cfg');
-  writeJson(dir, '.tasksystem/config.json', createConfig(dir, answers, {}));
+  writeJson(dir, '.scopegrain/config.json', createConfig(dir, answers, {}));
   return { dir, ctx: resolveContext({ project: dir }) };
 }
 
@@ -168,7 +168,7 @@ export function configuredCtx(answers = MINI_ANSWERS) {
 // generation source that produced the fixture.
 export function bootstrappedMiniCtx(answers = MINI_ANSWERS) {
   const dir = makeTempDir('boot');
-  const configRel = '.tasksystem/config.json';
+  const configRel = '.scopegrain/config.json';
   const discovery = inspectProject(dir);
   const config = createConfig(dir, answers, discovery);
   const installRoot = lifecycleInstallRoot();

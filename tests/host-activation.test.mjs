@@ -20,7 +20,7 @@ import {
   DEFAULT_ANSWERS, cleanup, exists, makeTempDir, readJson, writeFile,
 } from './helpers.mjs';
 
-const CFG = '.tasksystem/config.json';
+const CFG = '.scopegrain/config.json';
 
 // Fixture: a temp project with a validated config. Proposal files only
 // need to exist on disk when nothing is applied (provisional hosts review
@@ -332,9 +332,9 @@ test('hermes proposal is provisional and never auto-applies global paths', () =>
     assert.ok(!exists(dir, '.hermes'));
     assert.ok(!exists(dir, '~'));
     assert.ok(exists(dir,
-      '.tasksystem/integrations/native/hermes/hermes-proposal.json'));
+      '.scopegrain/integrations/native/hermes/hermes-proposal.json'));
     const proposal = readJson(dir,
-      '.tasksystem/integrations/native/hermes/hermes-proposal.json');
+      '.scopegrain/integrations/native/hermes/hermes-proposal.json');
     assert.equal(proposal.format, 'provisional');
     assert.equal(proposal.verified, false);
     // instructions.md reviews in place: its destination is its source.
@@ -379,10 +379,10 @@ test('applied destinations parse per host format (all admitted hosts)', () => {
         // Nothing applies to unverified global roots; the generated
         // proposal documents still parse structurally in place.
         JSON.parse(fs.readFileSync(path.join(dir,
-          '.tasksystem/integrations/native/hermes/hermes-proposal.json'),
+          '.scopegrain/integrations/native/hermes/hermes-proposal.json'),
           'utf8'));
         const instr = fs.readFileSync(path.join(dir,
-          '.tasksystem/integrations/native/hermes/instructions.md'), 'utf8');
+          '.scopegrain/integrations/native/hermes/instructions.md'), 'utf8');
         assert.ok(instr.length > 40);
       } else {
         assert.ok(created.length > 0, `${host} must apply bridge files`);

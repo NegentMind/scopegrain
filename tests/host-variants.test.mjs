@@ -9,7 +9,7 @@ import { createConfig } from '../src/core/config.mjs';
 import { KNOWN_HOSTS } from '../src/core/config.mjs';
 import { DEFAULT_ANSWERS, cleanup, makeTempDir } from './helpers.mjs';
 
-const CFG = '.tasksystem/config.json';
+const CFG = '.scopegrain/config.json';
 
 function cfg(hosts) {
   return createConfig(makeTempDir('h'),
@@ -106,7 +106,7 @@ test('all outputs confined to cfgDir; no host roots written', () => {
     createConfig(dir, { ...DEFAULT_ANSWERS, hosts: KNOWN_HOSTS }, {}),
     { configRel: CFG, projectRoot: dir });
   for (const f of files) {
-    assert.ok(f.rel.startsWith('.tasksystem/integrations/native/'),
+    assert.ok(f.rel.startsWith('.scopegrain/integrations/native/'),
       f.rel);
   }
   for (const root of ['.claude', '.codex', '.opencode', '.devin', '.agents']) {

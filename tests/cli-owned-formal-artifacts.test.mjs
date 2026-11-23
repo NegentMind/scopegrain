@@ -391,7 +391,7 @@ for (const type of TYPES) {
     } finally { cleanup(f.dir); }
   });
 
-  test(`${type.family}: custom config/plans/reports/state honored; ambiguity and missing explicit config have no fallback`, async () => {
+  test(`${type.family}: custom config/plans/reports/state honored; a stray default config resolves and missing explicit config has no fallback`, async () => {
     const f = fixture(type, { plans: 'custom/plans', reports: 'custom/reports',
       state: 'private/state', configRel: 'settings/config.json' });
     try {
@@ -405,15 +405,17 @@ for (const type of TYPES) {
       assert.deepEqual((await readonly(f, showArgs(f, applied.record.id, true))).record,
         applied.record);
       assert.equal(fs.existsSync(path.join(f.dir, '.scopegrain')), false);
-      assert.equal(fs.existsSync(path.join(f.dir, '.tasksystem')), false);
       writeJson(f.dir, '.scopegrain/config.json', f.ctx.config);
-      writeJson(f.dir, '.tasksystem/config.json', f.ctx.config);
+      // A stray default config resolves; explicit missing config never falls back.
       for (const argv of [createArgs(f, file), createArgs(f, file, { apply: true }),
         showArgs(f, applied.record.id)]) {
-        assert.equal((await readonly(f, argv, 1)).code, 'CONFIG_AMBIGUOUS');
         assert.equal((await readonly(f, [...argv, '--config', 'missing/config.json'], 1)).code,
           'CONFIG_NOT_FOUND');
       }
+      const stray = await readonly(f, createArgs(f, file));
+      assert.equal(stray.sourceRel, `${f.sourceDir}/${stray.record.id}.json`);
+      assert.deepEqual((await readonly(f, showArgs(f, applied.record.id))).record,
+        applied.record);
     } finally { cleanup(f.dir); }
   });
 }

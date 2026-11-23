@@ -11,7 +11,7 @@ recent plan under the configured plans path. If none exists, stop:
 Load skills: `plan-coordination`, `select-capabilities`,
 `session-handoff`, `context-engineering` (orchestrator context budget).
 Governing rules: `rules/workflow`, `rules/memory-budget`. Orchestrator
-role: `lead`. Task record semantics: `references/task-system`. Every
+role: `lead`. Task record semantics: `references/task-domain`. Every
 dispatched task
 runs the same depth as `implement-task` — discovery, execution,
 verification, review, close.

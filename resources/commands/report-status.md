@@ -26,7 +26,7 @@ guided next-action choices use `prompts/decision-request`.
   recorded, name it and the resume point.
 - Newest plan under the configured plans path: counts by state (closed /
   active / ready / blocked / failed) and the next-ready task.
-- Task records under the configured tasks path (`references/task-system`
+- Task records under the configured tasks path (`references/task-domain`
   semantics): separate completed, active, blocked, failed, unexecuted and
   unknown work. Do not infer execution, publication or pull-request
   lifecycle from a prose summary.

@@ -163,7 +163,7 @@ test('loadConfig still accepts a valid config with literal U+FFFD', () => {
 // projector entry points reach their stored-file readers.
 function boundFixture() {
   const dir = makeTempDir('ij8-bound');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   const ctx = resolveContext({ project: dir });
   const prepared = prepareWorkspace(ctx, {
@@ -212,7 +212,7 @@ test('journal stored ack rejects non-roundtrippable UTF-8 (JOURNAL_MALFORMED)', 
       },
     };
     writeFile(f.dir,
-      `.tasksystem/state/journal/operations/${created.operationId}/acks/${eventId}.json`,
+      `.scopegrain/state/journal/operations/${created.operationId}/acks/${eventId}.json`,
       corruptJson(ack, [0xff]));
     assert.throws(() => listJournalPending(f.bound),
       (e) => e.code === 'JOURNAL_MALFORMED');
@@ -238,7 +238,7 @@ test('journal stored ack accepts literal U+FFFD in free-form strings', () => {
       },
     };
     writeFile(f.dir,
-      `.tasksystem/state/journal/operations/${created.operationId}/acks/${eventId}.json`,
+      `.scopegrain/state/journal/operations/${created.operationId}/acks/${eventId}.json`,
       JSON.stringify(ack));
     // The event is acknowledged, so it leaves the pending set without error.
     assert.deepEqual(listJournalPending(f.bound),
@@ -251,7 +251,7 @@ test('journal stored ack accepts literal U+FFFD in free-form strings', () => {
 test('getArtifact rejects non-roundtrippable UTF-8 (ARTIFACT_MALFORMED)', () => {
   const dir = makeTempDir('ij8-art');
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, {}));
     const ctx = resolveContext({ project: dir });
     const prepared = prepareArtifact(ctx, 'report',
@@ -266,7 +266,7 @@ test('getArtifact rejects non-roundtrippable UTF-8 (ARTIFACT_MALFORMED)', () => 
 test('getArtifact accepts literal U+FFFD in stored strings', () => {
   const dir = makeTempDir('ij8-artok');
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, {}));
     const ctx = resolveContext({ project: dir });
     const prepared = prepareArtifact(ctx, 'report',
@@ -399,7 +399,7 @@ test('loadPolicyFile accepts literal U+FFFD in stored strings', () => {
 
 function doctorFixture() {
   const dir = makeTempDir('ij8-doctor');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   return { dir, ctx: resolveContext({ project: dir }) };
 }
@@ -409,7 +409,7 @@ test('doctor flags non-roundtrippable UTF-8 in stored project records', () => {
   try {
     // discovery.json: corrupt byte inside a field doctor does not validate,
     // so the lossy decode previously passed the fingerprint check.
-    writeFile(dir, '.tasksystem/discovery.json', corruptJson({
+    writeFile(dir, '.scopegrain/discovery.json', corruptJson({
       schemaVersion: 1, fingerprint: ctx.config.discovery.fingerprint,
       note: `n${TOKEN}n`,
     }, [0xff]));
@@ -420,9 +420,9 @@ test('doctor flags non-roundtrippable UTF-8 in stored project records', () => {
     });
     applyPlan(dir, [prepared.file]);
     corruptFile(path.join(
-      dir, '.tasksystem', 'state', 'workspace.json'), [0x80]);
+      dir, '.scopegrain', 'state', 'workspace.json'), [0x80]);
     // journal head: corrupt byte inside an ignored field.
-    writeFile(dir, '.tasksystem/state/journal/head.json', corruptJson({
+    writeFile(dir, '.scopegrain/state/journal/head.json', corruptJson({
       schemaVersion: 1, lastSequence: 0, activeOperation: null,
       note: `n${TOKEN}n`,
     }, [0xff]));
@@ -440,7 +440,7 @@ test('doctor flags non-roundtrippable UTF-8 in stored project records', () => {
 test('doctor accepts literal U+FFFD in stored project records', () => {
   const { dir, ctx } = doctorFixture();
   try {
-    writeFile(dir, '.tasksystem/discovery.json', JSON.stringify({
+    writeFile(dir, '.scopegrain/discovery.json', JSON.stringify({
       schemaVersion: 1, fingerprint: ctx.config.discovery.fingerprint,
       note: 'n\ufffdn',
     }));
@@ -448,7 +448,7 @@ test('doctor accepts literal U+FFFD in stored project records', () => {
       areas: [{ key: 'alpha', name: 'A\ufffdA' }],
     });
     applyPlan(dir, [prepared.file]);
-    writeFile(dir, '.tasksystem/state/journal/head.json', JSON.stringify({
+    writeFile(dir, '.scopegrain/state/journal/head.json', JSON.stringify({
       schemaVersion: 1, lastSequence: 0, activeOperation: null,
       note: 'n\ufffdn',
     }));
@@ -541,7 +541,7 @@ test('native variants file rejects non-roundtrippable UTF-8 (POLICY_MALFORMED)',
       corruptJson(variants, [0xff]));
     assert.throws(() => renderNativeAdapters({ hosts: ['hermes'] },
       {
-        configRel: '.tasksystem/config.json', installRoot: dir,
+        configRel: '.scopegrain/config.json', installRoot: dir,
         catalog: NATIVE_STUB_CATALOG,
       }),
     (e) => e.code === 'POLICY_MALFORMED');
@@ -557,7 +557,7 @@ test('native template decode rejects non-roundtrippable UTF-8 (TEMPLATE_MALFORME
       Buffer.concat([Buffer.from('res '), Buffer.from([0xff])]));
     assert.throws(() => renderNativeAdapters({ hosts: ['claude'] },
       {
-        configRel: '.tasksystem/config.json', installRoot: dir,
+        configRel: '.scopegrain/config.json', installRoot: dir,
         catalog: NATIVE_STUB_CATALOG,
       }),
     (e) => e.code === 'TEMPLATE_MALFORMED');
@@ -573,7 +573,7 @@ test('native adapters still render with literal U+FFFD template bytes', () => {
       Buffer.concat([Buffer.from('res '), Buffer.from([0xef, 0xbf, 0xbd])]));
     const out = renderNativeAdapters({ hosts: ['claude'] },
       {
-        configRel: '.tasksystem/config.json', installRoot: dir,
+        configRel: '.scopegrain/config.json', installRoot: dir,
         catalog: NATIVE_STUB_CATALOG,
       });
     assert.ok(out.files.length > 0);
@@ -655,7 +655,7 @@ test('vantadb projection policy rejects non-roundtrippable UTF-8 (POLICY_MALFORM
 
 function recordFixture() {
   const dir = makeTempDir('ij8-rec');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   return { dir, ctx: resolveContext({ project: dir }) };
 }
@@ -670,7 +670,7 @@ test('stored workspace rejects non-roundtrippable UTF-8 (MALFORMED_JSON)', () =>
     });
     applyPlan(dir, [prepared.file]);
     corruptFile(path.join(
-      dir, '.tasksystem', 'state', 'workspace.json'), [0xff]);
+      dir, '.scopegrain', 'state', 'workspace.json'), [0xff]);
     assert.throws(() => getWorkspace(ctx),
       (e) => e.code === 'MALFORMED_JSON');
   } finally { cleanup(dir); }
@@ -863,8 +863,8 @@ test('adopt flags non-roundtrippable UTF-8 in workspace and journal head', () =>
     });
     applyPlan(dir, [prepared.file]);
     corruptFile(path.join(
-      dir, '.tasksystem', 'state', 'workspace.json'), [0xff]);
-    writeFile(dir, '.tasksystem/state/journal/head.json', corruptJson({
+      dir, '.scopegrain', 'state', 'workspace.json'), [0xff]);
+    writeFile(dir, '.scopegrain/state/journal/head.json', corruptJson({
       schemaVersion: 1, lastSequence: 0, activeOperation: null,
       note: `n${TOKEN}n`,
     }, [0x80]));
@@ -898,7 +898,7 @@ test('init template rejects non-roundtrippable UTF-8 (TEMPLATE_MALFORMED)', () =
     writeFile(templatesDir, 'project-instructions.md', Buffer.concat([
       Buffer.from('instructions '), Buffer.from([0xff])]));
     assert.throws(() => buildInitPlan({
-      projectRoot: dir, configRel: '.tasksystem/config.json',
+      projectRoot: dir, configRel: '.scopegrain/config.json',
       config: createConfig(dir, VALID_ANSWERS, {}), discovery: null,
       templatesDir,
     }), (e) => e.code === 'TEMPLATE_MALFORMED');
@@ -975,7 +975,7 @@ test('literal U+FFFD capture note still enriches the event proposal', () => {
 
 function v1SnapshotFixture() {
   const { dir, ctx } = recordFixture();
-  writeJson(dir, '.tasksystem/catalog.json', {
+  writeJson(dir, '.scopegrain/catalog.json', {
     schemaVersion: 1,
     entries: [
       { kind: 'command', id: 'c1', path: 'commands/c1.md',
@@ -987,20 +987,20 @@ function v1SnapshotFixture() {
     ],
     aliases: [],
   });
-  writeJson(dir, '.tasksystem/profiles/core.json', {
+  writeJson(dir, '.scopegrain/profiles/core.json', {
     schemaVersion: 1, id: 'core', description: 'd',
     skills: [], rules: [], references: [],
     activation: 'manual', externalServices: [],
   });
-  writeFile(dir, '.tasksystem/commands/c1.md', 'command body');
-  writeFile(dir, '.tasksystem/skills/s1/SKILL.md', 'skill body');
+  writeFile(dir, '.scopegrain/commands/c1.md', 'command body');
+  writeFile(dir, '.scopegrain/skills/s1/SKILL.md', 'skill body');
   return { dir, ctx };
 }
 
 test('workflow packet rejects non-roundtrippable command bytes (CATALOG_MALFORMED)', () => {
   const { dir, ctx } = v1SnapshotFixture();
   try {
-    writeFile(dir, '.tasksystem/commands/c1.md',
+    writeFile(dir, '.scopegrain/commands/c1.md',
       Buffer.concat([Buffer.from('body '), Buffer.from([0xff])]));
     assert.throws(() => buildWorkflowPacket(ctx, { command: 'c1' }),
       (e) => e.code === 'CATALOG_MALFORMED');
@@ -1010,7 +1010,7 @@ test('workflow packet rejects non-roundtrippable command bytes (CATALOG_MALFORME
 test('workflow packet rejects non-roundtrippable dependency bytes (CATALOG_MALFORMED)', () => {
   const { dir, ctx } = v1SnapshotFixture();
   try {
-    writeFile(dir, '.tasksystem/skills/s1/SKILL.md',
+    writeFile(dir, '.scopegrain/skills/s1/SKILL.md',
       Buffer.concat([Buffer.from('body '), Buffer.from([0xff])]));
     assert.throws(() => buildWorkflowPacket(ctx, { command: 'c1' }),
       (e) => e.code === 'CATALOG_MALFORMED');
@@ -1020,7 +1020,7 @@ test('workflow packet rejects non-roundtrippable dependency bytes (CATALOG_MALFO
 test('workflow packet accepts literal U+FFFD resource bytes', () => {
   const { dir, ctx } = v1SnapshotFixture();
   try {
-    writeFile(dir, '.tasksystem/commands/c1.md',
+    writeFile(dir, '.scopegrain/commands/c1.md',
       Buffer.concat([Buffer.from('body '), Buffer.from([0xef, 0xbf, 0xbd])]));
     const packet = buildWorkflowPacket(ctx, { command: 'c1' });
     assert.ok(packet.command.content.includes('\ufffd'));
@@ -1030,7 +1030,7 @@ test('workflow packet accepts literal U+FFFD resource bytes', () => {
 test('cli catalog show rejects non-roundtrippable resource bytes (CATALOG_MALFORMED)', async () => {
   const { dir } = v1SnapshotFixture();
   try {
-    writeFile(dir, '.tasksystem/commands/c1.md',
+    writeFile(dir, '.scopegrain/commands/c1.md',
       Buffer.concat([Buffer.from('body '), Buffer.from([0xff])]));
     const io = fakeIO();
     const code = await run(
@@ -1052,7 +1052,7 @@ test('mcp catalog_get rejects non-roundtrippable resource bytes (CATALOG_MALFORM
   const { createMCPTools } = await import('../src/mcp/server.mjs');
   const { dir, ctx } = v1SnapshotFixture();
   try {
-    writeFile(dir, '.tasksystem/commands/c1.md',
+    writeFile(dir, '.scopegrain/commands/c1.md',
       Buffer.concat([Buffer.from('body '), Buffer.from([0xff])]));
     const tools = createMCPTools(ctx, z);
     const get = tools.find((x) => x.name === 'scopegrain_catalog_get');

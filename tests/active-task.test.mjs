@@ -69,8 +69,8 @@ test('active pointer: env wins over file; file persists', () => {
 test('tampered pointer file surfaces an error, not a crash', () => {
   const { dir, ctx } = bootstrappedMiniCtx(VALID_ANSWERS);
   try {
-    fs.mkdirSync(`${dir}/.tasksystem`, { recursive: true });
-    fs.writeFileSync(`${dir}/.tasksystem/active-task`, 'bogus-ref\n');
+    fs.mkdirSync(`${dir}/.scopegrain`, { recursive: true });
+    fs.writeFileSync(`${dir}/.scopegrain/active-task`, 'bogus-ref\n');
     assert.throws(() => getActiveTask(ctx, {}), (e) => e.code === 'NOT_FOUND');
   } finally {
     cleanup(dir);

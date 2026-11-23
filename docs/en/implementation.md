@@ -4,9 +4,9 @@
 > (`../implementation.md`). The Spanish version prevails.
 
 Status: approved as the working baseline by the request that created the
-project. Scopegrain is the product name; TaskSystem is kept as the
-technical name for compatibility. This does not grant a redistribution
-license.
+project. Scopegrain is the product name and the entire technical surface;
+the former technical identity is fully retired. This does not grant a
+redistribution license.
 
 This contract documents the initial core and its invariants. The current
 extensions are specified in [workflows](workflows.md),
@@ -81,7 +81,7 @@ evidence:[], commands:[], fingerprint, warnings:[]}. No writes, shell or
 network.
 Folder traversal: maximum depth 4, maximum 1000 entries; exclude
 .git, node_modules, vendor, .venv, venv, target, dist, build, coverage,
-legacy, .tasksystem, .scopegrain and names starting with a dot except
+legacy, .scopegrain and names starting with a dot except
 .github.
 Never follow symlinks/junctions. Do not read .env, keys or credentials.
 Read only allowlisted manifests with a 128 KiB limit:
@@ -140,10 +140,8 @@ false in all categories for compatibility.
 locale is only es or en; known hosts, no duplicates, at least one.
 Validate types, version and keys; reject unknown ones in the answers and
 in the configuration so typos are not ignored.
-Default config .scopegrain/config.json; if only the legacy
-.tasksystem/config.json config exists, it is selected without migrating.
-Both entries require explicit --config; an explicit path does not fall
-back.
+Default config .scopegrain/config.json; an alternative location requires
+explicit --config and an explicit path does not fall back.
 --config is relative to the project root. Do not store absolute project
 paths in shared config.
 loadConfig(projectRoot,configPath) validates without mutating.

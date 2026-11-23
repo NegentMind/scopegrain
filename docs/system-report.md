@@ -9,8 +9,8 @@ aplica estas metodologias como procedimientos y controles al trabajo
 registrado. No es un ejecutor autonomo de agentes ni de modelos.
 
 El producto incorpora la entrada `scopegrain` (CLI y servidor MCP, tools
-`scopegrain_*`) y conserva `tasksystem` (alias de binario) y `.tasksystem`
-(rutas legadas) como identificadores tecnicos de compatibilidad. El nombre de
+`scopegrain_*`) y la configuracion canonica `.scopegrain/config.json`
+como identificadores tecnicos. El nombre de
 producto no implica una migracion automatica de comandos o registros.
 El [README](../README.es.md) contiene el inicio rapido.
 

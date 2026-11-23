@@ -78,8 +78,8 @@ test('workflow packet emits rendered only when it differs from content', () => {
 
     // A command body with $ARGUMENTS resolves into `rendered`.
     const body = 'Do $ARGUMENTS now.\n';
-    writeFile(dir, '.tasksystem/commands/ph-args.md', body);
-    const catAbs = `${dir}/.tasksystem/catalog.json`;
+    writeFile(dir, '.scopegrain/commands/ph-args.md', body);
+    const catAbs = `${dir}/.scopegrain/catalog.json`;
     const doc = JSON.parse(fs.readFileSync(catAbs, 'utf8'));
     doc.entries.push({
       kind: 'command', id: 'ph-args', path: 'commands/ph-args.md',

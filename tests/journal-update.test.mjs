@@ -29,7 +29,7 @@ import { VALID_ANSWERS, cleanup, makeTempDir, trySymlink, writeFile, writeJson }
 const SHA = (content) =>
   crypto.createHash('sha256').update(content).digest('hex');
 
-function fixture({ state = '.tasksystem/state', configRel = '.tasksystem/config.json' } = {}) {
+function fixture({ state = '.scopegrain/state', configRel = '.scopegrain/config.json' } = {}) {
   const dir = makeTempDir('journal-update');
   const answers = { ...VALID_ANSWERS, paths: { ...VALID_ANSWERS.paths, state } };
   writeJson(dir, configRel, createConfig(dir, answers, {}));
@@ -195,7 +195,7 @@ test('strict update seam rejects bad callbacks and shapes before any write', () 
       content: Buffer.alloc(loadLimits().maxDocumentBytes + 1) } }))),
     (e) => e.code === 'DOCUMENT_TOO_LARGE');
     assert.throws(() => applyJournaledRecordUpdate(f.bound,
-      () => [updateChange([f.a], '.TASKSYSTEM/STATE/JOURNAL/injected', 'x', 'y')]),
+      () => [updateChange([f.a], '.SCOPEGRAIN/STATE/JOURNAL/injected', 'x', 'y')]),
       (e) => e.code === 'INVALID_JOURNAL_INPUT');
     assert.throws(() => applyJournaledRecordUpdate(f.bound,
       () => [updateChange([f.a], '../escape', 'x', 'y')]),
@@ -230,7 +230,7 @@ test('missing, mismatched, linked or non-regular sources conflict before journal
     }
     const after = tree(f.dir);
     for (const [rel, value] of Object.entries(after)) {
-      if (rel.startsWith('.tasksystem/state/journal')) {
+      if (rel.startsWith('.scopegrain/state/journal')) {
         assert.fail(`journal state was written: ${rel}`);
       }
     }

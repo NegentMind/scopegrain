@@ -177,13 +177,13 @@ test('task checklist previews without --apply; --apply writes', async () => {
       ['task', 'checklist', '--input', chkFile],
     )).out.stdout.at(-1));
     assert.equal(dry.applied, false);
-    assert.equal(exists(f.dir, '.tasksystem/checklists'), false);
+    assert.equal(exists(f.dir, '.scopegrain/checklists'), false);
 
     const applied = JSON.parse((await invoke(f.dir,
       ['task', 'checklist', '--input', chkFile, '--apply'],
     )).out.stdout.at(-1));
     assert.equal(applied.applied, true);
-    assert.equal(exists(f.dir, '.tasksystem/checklists'), true);
+    assert.equal(exists(f.dir, '.scopegrain/checklists'), true);
   } finally { cleanup(f.dir); }
 });
 
@@ -211,7 +211,7 @@ test('specification clarify previews without --apply; --apply writes', async () 
       ['specification', 'clarify', '--input', clrFile],
     )).out.stdout.at(-1));
     assert.equal(dry.applied, false);
-    const clrDir = path.join(f.dir, '.tasksystem', 'clarifications');
+    const clrDir = path.join(f.dir, '.scopegrain', 'clarifications');
     assert.equal(fs.existsSync(clrDir), false);
 
     const applied = JSON.parse((await invoke(f.dir,

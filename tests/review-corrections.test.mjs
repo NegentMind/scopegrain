@@ -29,7 +29,7 @@ import {
 
 function ctxFixture() {
   const dir = makeTempDir('rc');
-  writeJson(dir, '.tasksystem/config.json',
+  writeJson(dir, '.scopegrain/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   return { dir, ctx: resolveContext({ project: dir }) };
 }
@@ -170,7 +170,7 @@ test('oversized session append fails dry-run and apply identically', () => {
         (e) => e.code === 'DOCUMENT_TOO_LARGE');
     }
     assert.ok(fs.readFileSync(file).equals(before));
-    assert.ok(!exists(dir, '.tasksystem/state/sessions/' + s.id + '.json.lock'));
+    assert.ok(!exists(dir, '.scopegrain/state/sessions/' + s.id + '.json.lock'));
     const leftovers = fs.readdirSync(path.dirname(file))
       .filter((n) => n.endsWith('.tmp') || n.endsWith('.lock'));
     assert.deepEqual(leftovers, []);
@@ -229,11 +229,11 @@ test('artifact stored refs: traversal, backslash, link ancestor rejected', (t) =
 
 test('gitignore emits literal pattern for bracketed path segment', () => {
   const files = buildVersioningFiles({
-    configDir: '.tasksystem',
-    paths: { ...DEFAULT_ANSWERS.paths, reports: '.tasksystem/reports[private]' },
+    configDir: '.scopegrain',
+    paths: { ...DEFAULT_ANSWERS.paths, reports: '.scopegrain/reports[private]' },
     versioning: ALL_VERSIONING_FALSE,
   });
-  const gi = files.find((f) => f.rel === '.tasksystem/.gitignore');
+  const gi = files.find((f) => f.rel === '.scopegrain/.gitignore');
   assert.ok(gi.content.includes('/reports\\[private\\]/'));
 });
 
@@ -260,10 +260,10 @@ test('catalog list --project uses workspace snapshot and does not write', async 
   const dir = makeTempDir('rc-catalog');
   const empty = makeTempDir('rc-no-config');
   try {
-    applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.tasksystem/config.json',
+    applyPlan(dir, prepareInit({ projectRoot: dir, configRel: '.scopegrain/config.json',
       answers: DEFAULT_ANSWERS }).files);
-    const configFile = path.join(dir, '.tasksystem', 'config.json');
-    const catalogFile = path.join(dir, '.tasksystem', 'catalog.json');
+    const configFile = path.join(dir, '.scopegrain', 'config.json');
+    const catalogFile = path.join(dir, '.scopegrain', 'catalog.json');
     const catalog = JSON.parse(fs.readFileSync(catalogFile, 'utf8'));
     const command = catalog.entries.find((e) =>
       e.kind === 'command' && e.id === 'plan-work');
@@ -287,7 +287,7 @@ test('catalog list --project uses workspace snapshot and does not write', async 
     // The cross-process verified-catalog fingerprint (FIND-022) is a
     // documented cache write under <paths.state>/cache on first verify;
     // nothing else may appear from a read verb.
-    const stateDir = path.join('.tasksystem', 'state');
+    const stateDir = path.join('.scopegrain', 'state');
     const cacheDir = path.join(stateDir, 'cache');
     const entriesAfter = fs.readdirSync(dir, { recursive: true }).sort()
       .filter((rel) => rel !== stateDir && rel !== cacheDir
@@ -306,7 +306,7 @@ test('catalog list --project uses workspace snapshot and does not write', async 
 });
 
 test('configDirPrefix handles arbitrary basenames and root config', () => {
-  assert.equal(configDirPrefix('.tasksystem/config.json'), '.tasksystem/');
+  assert.equal(configDirPrefix('.scopegrain/config.json'), '.scopegrain/');
   assert.equal(configDirPrefix('cfg space/custom-name.json'), 'cfg space/');
   assert.equal(configDirPrefix('config.json'), '');
   assert.throws(() => configDirPrefix('../x/config.json'));
@@ -332,7 +332,7 @@ test('legacy classification joins skills only, exact fields', () => {
 test('malformed and oversized --input files fail with structured errors', async () => {
   const dir = makeTempDir('infiles');
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, {}));
     const bad = `${dir}/bad.json`;
     fs.writeFileSync(bad, '{broken');

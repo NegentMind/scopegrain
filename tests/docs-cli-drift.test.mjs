@@ -21,7 +21,7 @@ const INSTALL_ROOT = fileURLToPath(new URL('..', import.meta.url));
 function bootstrapped() {
   const dir = makeTempDir('drift');
   applyPlan(dir, prepareInit({ projectRoot: dir,
-    configRel: '.tasksystem/config.json', answers: VALID_ANSWERS }).files);
+    configRel: '.scopegrain/config.json', answers: VALID_ANSWERS }).files);
   return { dir, ctx: resolveContext({ project: dir }) };
 }
 
@@ -62,7 +62,7 @@ test('scanDocText flags stale invocations and credits real verbs', () => {
     'See `capture create` and `journal idle` for details.',
     'bin/scopegrain.mjs        Binary entry point; delegates to src/cli.mjs',
     '`scopegrain doctor --project PATH` is also an invocation.',
-    'node ./bin/tasksystem.mjs pipeline --project "C:\\x" --mode plan',
+    'node ./bin/scopegrain.mjs pipeline --project "C:\\x" --mode plan',
   ].join('\n');
   const { referenced, stale } = scanDocText(doc, verbs);
   assert.ok(stale.has('capture list'));
@@ -138,7 +138,7 @@ test('summary partitions checks into ok/warnings/failures', () => {
     assert.equal(ready.summary.failures, 0);
     assert.equal(ready.summary.ok,
       ready.checks.filter((c) => c.ok).length);
-    writeFile(dir, '.tasksystem/discovery.json', '{corrupt');
+    writeFile(dir, '.scopegrain/discovery.json', '{corrupt');
     const bad = runDoctor(ctx);
     assert.equal(bad.status, 'needs-attention');
     assert.equal(bad.summary.failures,

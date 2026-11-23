@@ -180,7 +180,7 @@ sale `null` sin abortar el paquete.
 ## Memoria operativa, metas y metricas
 
 Logs JSONL acotados y append-only bajo `paths.memory`
-(`.scopegrain/memory/`; la ruta legacy `.tasksystem/` sigue honrada):
+(`.scopegrain/memory/`):
 `lessons` (aprendizajes), `outcomes` (resultado
 ok/fail por skills usadas), `progress` (archivo de avance — se escribe
 solo al alcanzar CLOSE), `goals` (metas/objetivos generales; tasks enlazan

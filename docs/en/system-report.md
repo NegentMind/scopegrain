@@ -12,8 +12,8 @@ or SDD: it applies these methodologies as procedures and controls over
 recorded work. It is not an autonomous agent or model executor.
 
 The product ships the `scopegrain` entry point (CLI and MCP server,
-`scopegrain_*` tools) and keeps `tasksystem` (binary alias) and
-`.tasksystem` (legacy paths) as technical compatibility identifiers. The
+`scopegrain_*` tools) and the canonical `.scopegrain/config.json`
+configuration as technical identifiers. The
 product name does not imply automatic migration of commands or records.
 The [README](../../README.md) contains the quick start.
 

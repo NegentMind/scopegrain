@@ -39,8 +39,8 @@ const FAKE_SERVER = fileURLToPath(
 
 function fixture() {
   const dir = makeTempDir('security-spawn');
-  writeJson(dir, '.tasksystem/config.json', createConfig(dir, VALID_ANSWERS, {}));
-  const ctx = resolveContext({ project: dir, config: '.tasksystem/config.json' });
+  writeJson(dir, '.scopegrain/config.json', createConfig(dir, VALID_ANSWERS, {}));
+  const ctx = resolveContext({ project: dir, config: '.scopegrain/config.json' });
   const prepared = prepareWorkspace(ctx, {
     areas: [{ key: 'alpha', name: 'Alpha' }],
   });
@@ -83,7 +83,7 @@ test('config without binarySha256 is rejected at save AND load', () => {
     assert.throws(() => saveVantaDBConfig(f.ctx, noDigest),
       (e) => e.code === 'VANTADB_CONFIG_MALFORMED'
         && /setup --apply|re-enroll/i.test(e.message));
-    writeJson(f.dir, '.tasksystem/vantadb.json', noDigest);
+    writeJson(f.dir, '.scopegrain/vantadb.json', noDigest);
     assert.throws(() => loadVantaDBConfig(f.ctx),
       (e) => e.code === 'VANTADB_CONFIG_MALFORMED'
         && /setup --apply|re-enroll/i.test(e.message));
@@ -135,7 +135,7 @@ test('binary trust resolves through realpath: symlink into project is rejected',
     }
     const c = cfg(f.dir);
     saveVantaDBConfig(f.ctx, c);
-    writeJson(f.dir, '.tasksystem/vantadb.json',
+    writeJson(f.dir, '.scopegrain/vantadb.json',
       { ...c, binaryPath: path.join(link, 'vantadb-server') });
     assert.throws(() => loadVantaDBConfig(f.ctx),
       (e) => e.code === 'VANTADB_BINARY_UNTRUSTED');
