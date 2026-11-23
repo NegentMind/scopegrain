@@ -616,8 +616,8 @@ export function applyImportCommands(ctx, options) {
 // records are out of scope and still need `verify approve ID`.
 function approveDiscoveredOptions(options) {
   const opts = closedOptions(
-    options ?? {}, ['commands'], 'approve-discovered options');
-  return { commands: opts.commands ?? null };
+    options ?? {}, ['commands', 'all'], 'approve-discovered options');
+  return { commands: opts.commands ?? null, all: opts.all === true };
 }
 
 // Shared planner for prepare/apply: returns {doc|null, result}. The
@@ -682,7 +682,16 @@ export function prepareApproveDiscoveredCommands(ctx, options) {
 }
 
 export function applyApproveDiscoveredCommands(ctx, options) {
-  const { commands } = approveDiscoveredOptions(options);
+  const { commands, all } = approveDiscoveredOptions(options);
+  // The no-candidates form approves every stored inferred record blindly.
+  // That blind bulk path requires an explicit `all` opt-in; reviewing
+  // literal candidates first (`verify discover --approve`) needs none.
+  if (commands === null && all !== true) {
+    throw err('VERIFY_BULK_REQUIRES_ALL',
+      'approve-discovered without candidates approves every stored '
+      + 'inferred command; pass all:true (--all) to confirm, or review '
+      + 'literal candidates via `verify discover --approve`');
+  }
   return withStoreLock(ctx, (current) =>
     planApproveDiscovered(current, commands, new Date().toISOString()));
 }

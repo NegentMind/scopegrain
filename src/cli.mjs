@@ -86,6 +86,7 @@ const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
   '--record', '--keep-files', '--no-resume', '--lazy', '--no-structure',
+  '--all',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -656,8 +657,8 @@ const COMMANDS = {
     usage: 'verify discover --project PATH [--apply] [--approve]',
   },
   'verify approve-discovered': {
-    flags: ['--project', '--config', '--apply'], pos: 0,
-    usage: 'verify approve-discovered --project PATH [--apply]',
+    flags: ['--project', '--config', '--apply', '--all'], pos: 0,
+    usage: 'verify approve-discovered --project PATH [--all] [--apply]',
   },
   'verify run': {
     flags: ['--project', '--config', '--timeout', '--fail-on-error'], pos: 1,
@@ -701,7 +702,7 @@ function helpResult() {
       'investigate is read-only; --save writes one research record under paths.research when a config resolves',
       'host activate writes project-local destinations only; global host paths and shared merges are never written',
       'capture proposals lists review proposals; capture review --apply creates an owned capture only from an approved decision',
-      'verify add/approve/discover preview first; discover --approve or approve-discovered bulk-approves literal candidates; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
+      'verify add/approve/discover preview first; discover --approve bulk-approves the literal candidates just shown; approve-discovered without candidates approves all stored inferred and needs --all; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
       'verify run prints the result JSON and exits 0 by default; --fail-on-error propagates the command exit code (or 1 on timeout/signal)',
       'view serves a loopback read-only API and keeps running; press Ctrl+C to stop',
     ],
@@ -2650,12 +2651,13 @@ async function cmdVerify(sub, positional, flags, io) {
     return { mode: 'applied', applied: true, ...apply(ctx, options) };
   }
   if (sub === 'approve-discovered') {
+    const options = { all: flags['--all'] === true };
     if (!flags['--apply']) {
       return { mode: 'dry-run', applied: false,
-        ...prepareApproveDiscoveredCommands(ctx, {}) };
+        ...prepareApproveDiscoveredCommands(ctx, options) };
     }
     return { mode: 'applied', applied: true,
-      ...applyApproveDiscoveredCommands(ctx, {}) };
+      ...applyApproveDiscoveredCommands(ctx, options) };
   }
   if (sub === 'run') {
     const options = {};

@@ -371,7 +371,11 @@ test('approveDiscoveredCommands without candidates approves stored inferred only
       { command: 'npm test', script: 'test', cwd: '.', source: 'package.json' },
       { command: 'npm run lint', script: 'lint', cwd: '.', source: 'package.json' },
     ] });
-    const res = applyApproveDiscoveredCommands(ctx);
+    // Blind bulk approval requires the explicit all opt-in.
+    assert.throws(
+      () => applyApproveDiscoveredCommands(ctx),
+      /VERIFY_BULK_REQUIRES_ALL/);
+    const res = applyApproveDiscoveredCommands(ctx, { all: true });
     assert.equal(res.approved.length, 2);
     assert.ok(res.approved.every((r) => r.source === 'inferred'));
     const stored = readJson(dir, rel);
