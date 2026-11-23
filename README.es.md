@@ -11,10 +11,25 @@ anfitrion. Separa el contexto y los contratos de trabajo de las
 convenciones de cada herramienta, y ofrece una ruta ligera o formal segun
 los hechos y riesgos declarados.
 
+### Por que Scopegrain
+
+- **Portable entre agentes de codigo:** alterna entre Devin, Antigravity,
+  Claude Code, Codex, OpenCode o hosts MCP genericos sin reescribir reglas
+  del proyecto, historial de tareas ni contratos de verificacion.
+- **Rigor proporcional (ODD):** los cambios acotados siguen una ruta ligera;
+  los cambios riesgosos o ambiguos exigen automaticamente especificacion,
+  diseno, aprobaciones HITL e informe de resultado.
+- **Autoridad explicita e integridad fail-closed:** nada escribe sin
+  `--apply`, los comandos descubiertos nunca se autoejecutan, locks/CAS y el
+  journal local evitan corrupcion silenciosa y toda mutacion deja traza.
+- **Visibilidad inmediata:** un visor web local de solo lectura
+  (`scopegrain view`, 15 vistas, ES/EN) y un servidor MCP de 33 tools
+  mantienen alineados a operadores y agentes sin salir del repositorio.
+
 El producto se llama Scopegrain. `scopegrain` es la entrada CLI y el
 nombre del servidor MCP (tools `scopegrain_*`). El alias de binario
 `tasksystem` y las rutas legadas `.tasksystem` se mantienen por
-compatibilidad. Esto no implica publicacion de un paquete.
+compatibilidad.
 
 ## Para el operador humano
 
@@ -25,13 +40,28 @@ superficie de comandos — solo los verbos siguientes.
 
 | Momento | Comando | Que hace |
 |---|---|---|
+| Defaults globales | `config show` / `config set` | Defaults globales opcionales de onboarding (`~/.config/scopegrain/config.json`); la config del workspace siempre prevalece |
 | Primera adopcion | `init` | Onboarding interactivo: detecta el stack, pregunta donde ubicar cada categoria de archivos generados y muestra cada archivo antes de escribirlo |
-| Chequeo de salud | `doctor` | Diagnostica configuracion, archivos generados, journal, stores, hooks e integraciones opcionales — solo lectura, nunca repara en silencio |
+| Chequeo de salud | `doctor` | Diagnostica configuracion, archivos generados, journal, stores, hooks, deps MCP, artefactos de usuario e integraciones — solo lectura, nunca repara en silencio |
 | Reinvestigacion | `investigate --diff` | Compara la evidencia actual del proyecto con las decisiones de descubrimiento registradas y reporta que cambio |
-| Estructura del codigo | `structure scan/status` | Construye (o reporta) el indice estructural persistido: archivos, LOC, imports y complejidad por lenguaje |
-| Panel | `view` | Lanza el dashboard web local de solo lectura (15 vistas); nunca muta estado |
+| Estructura del codigo | `structure status` / `refresh` | Comprueba frescura stat-only o reconstruye el indice estructural solo si esta obsoleto (`context` sigue siendo solo lectura) |
+| Panel | `view` | Lanza el dashboard web local de solo lectura (15 vistas, ES/EN); nunca muta estado |
 | Verificacion | `verify approve` + `verify run` | Pone un comando de verificacion en lista blanca y luego ejecuta solo comandos aprobados con salida acotada |
 | Decisiones | `approval answer` | Resuelve aprobaciones humanas pendientes |
+
+## Visor web de solo lectura
+
+Ejecuta `scopegrain view --project .` para inspeccionar tareas, planes DAG,
+olas de ejecucion persistidas, metas, sesiones, aprobaciones, artefactos,
+diario y salud del sistema en espanol o ingles. Consulta
+[Visor y API de solo lectura](docs/viewer.md) para la matriz completa de que
+puede/no puede hacer el usuario y los 29 endpoints.
+
+- Video recorrido completo (EN + ES): [`docs/assets/viewer-walkthrough.webm`](docs/assets/viewer-walkthrough.webm)
+
+![Visor de Scopegrain — Espacio de trabajo](docs/assets/viewer-workspace-es.png)
+
+![Visor de Scopegrain — Tareas](docs/assets/viewer-tasks-es.png)
 
 Todo lo demas es maquinaria del agente. Limites que conviene conocer:
 
@@ -79,13 +109,28 @@ sugerencias del harness.
 Se requiere Node.js 22 o posterior. El CLI usa modulos nativos; el servidor
 MCP opcional requiere las dependencias declaradas en `package.json`.
 
-Desde la raiz del repositorio:
+### Instalacion global (desde un clon local)
 
 ```powershell
-node ./bin/scopegrain.mjs inspect --project "C:\ruta\mi-proyecto"
-node ./bin/scopegrain.mjs init --project "C:\ruta\mi-proyecto"
-node ./bin/scopegrain.mjs doctor --project "C:\ruta\mi-proyecto"
+npm install
+npm link
+scopegrain --version
 ```
+
+### Inicio rapido en cualquier proyecto (3 comandos)
+
+```powershell
+scopegrain inspect --project "C:\ruta\mi-proyecto"
+scopegrain init --project "C:\ruta\mi-proyecto"
+scopegrain doctor --project "C:\ruta\mi-proyecto"
+```
+
+Sin enlace global, invoca `node ./bin/scopegrain.mjs ...` desde la raiz del
+repositorio. Puedes guardar defaults globales opcionales de onboarding en
+`~/.config/scopegrain/config.json` con `scopegrain config set --input FILE --apply`
+(solo `locale`, `hosts`, `methodology`, `versioning`); **la configuracion del
+workspace siempre prevalece** en runtime y re-init. Ver
+[Incorporacion y personalizacion](docs/onboarding.md).
 
 `inspect` no escribe ni ejecuta los comandos que descubre: es la
 instantanea acotada de manifiestos que `init` guarda como
@@ -253,11 +298,13 @@ manualmente; su primera ejecucion remota completo con exito el 2026-11-18.
 ## Codigo y licencia
 
 Licenciado bajo Apache License, Version 2.0 — ver [LICENSE](LICENSE),
-[NOTICE](NOTICE) y [AUTHORS](AUTHORS). `package.json` conserva
-`private: true`; no se publica un paquete npm. El material heredado
-bajo `legacy/` no forma parte del repositorio rastreado y permanece
-fuera de la distribucion a la espera de una revision de licencias
-por pieza.
+[NOTICE](NOTICE) y [AUTHORS](AUTHORS). `package.json` declara los binarios
+CLI instalables (`scopegrain`, `tasksystem`) y una lista acotada de archivos
+(incluye `viewer/dist`; excluye `docs/assets` del tarball npm para mantener
+la descarga por debajo de 1 MB). Cualquier publicacion en registros externos
+requiere autorizacion explicita del propietario. El material heredado bajo
+`legacy/` no forma parte del repositorio rastreado y permanece fuera de la
+distribucion a la espera de una revision de licencias por pieza.
 
 ## Documentacion
 

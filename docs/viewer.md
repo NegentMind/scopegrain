@@ -85,7 +85,7 @@ parametros de query desconocidos 400.
 | `GET /api/plans` | planes + readiness por tarea (o `readinessError`) + `malformed[]` |
 | `GET /api/plan-docs` | listado de archivos de plan (`<paths.plans>/*.md`: nombre, bytes, updatedAt) |
 | `GET /api/plan-docs/:name` | contenido de un archivo de plan (slug `*.md` acotado al dir de planes) |
-| `GET /api/plans/:key` | documento de plan + readiness |
+| `GET /api/plans/:key` | documento de plan + readiness + olas (`waves`) + progreso persistido (`runState`) |
 | `GET /api/artifact-docs?kind=` | documentos `.md` sueltos por tipo (dirs canónicos + legacy `.scopegrain/<kind>/`): nombre, título, status, fecha, bytes |
 | `GET /api/artifact-docs/:kind/:name` | contenido de un documento de artefacto (slug `*.md` acotado a los dirs del tipo) |
 | `GET /api/artifacts?kind=&limit=&offset=` | `kind` requerido, uno de `spec design report research decision lesson handoff review` |
@@ -93,6 +93,16 @@ parametros de query desconocidos 400.
 | `GET /api/journal/operations?limit=&offset=` | resumenes de operaciones: `state`, `eventCount`, `sourceKinds`, `recordIds` |
 | `GET /api/journal/operations/:id` | intent completo con eventos + recibo de recuperacion |
 | `GET /api/captures?limit=&offset=` | `status` por captura + `ownershipConfirmed` + registro acotado o error |
+| `GET /api/memory` | worklogs JSONL (`lessons`, `outcomes`, `progress`, `activity`) con lectura acotada |
+| `GET /api/goals` | metas del proyecto + tareas vinculadas y porcentaje de avance |
+| `GET /api/metrics` | agregados por estado/backlog/prioridad/tipo/disposicion y tasas de verificacion |
+| `GET /api/reports` / `GET /api/reports/:name` | reportes guardados por `report save` |
+| `GET /api/sessions` / `GET /api/sessions/:id` | sesiones acotadas + `resumeContext` (tarea vinculada, presupuesto, comando de reanudacion) |
+| `GET /api/approvals` / `GET /api/approvals/:id` | cola HITL de aprobaciones y detalle con respuestas/scope/digest |
+| `GET /api/catalog` | catalogo de recursos del workspace y verificacion por hash |
+| `GET /api/verify` | comandos de verificacion descubiertos y aprobados |
+| `GET /api/vantadb` | estado de enrolamiento VantaDB (sin spawnear binario) |
+| `GET /api/workflow` | maquina de estados canonica y transiciones permitidas |
 
 Valores de `state` de las operaciones del journal: `committed`,
 `prepared` (sin confirmar), `abandoned`. Valores de `status` de
@@ -143,21 +153,61 @@ de la validacion UUID/slug.
   `WORKSPACE_NOT_FOUND` (404) en proyectos no enrolados;
   `/api/workspace` sigue respondiendo con `workspace: null`.
 
+## Capacidades de la interfaz (que puede y que no puede hacer el usuario)
+
+El visor es **estrictamente de solo lectura por diseno** (loopback-only, solo GET, sin autenticacion ni mutaciones). Soporta cambio inmediato de idioma **Español / English** en la barra superior (337+ claves con paridad 100%).
+
+### Que SI puede hacer el usuario en las 15 vistas
+
+| Vista | Que inspecciona y que acciones de lectura ofrece |
+|---|---|
+| **Espacio de trabajo (`Workspace`)** | Identidad del proyecto, metodologia activa, hosts configurados, conteos de stores, tareas por estado, resumen de planes y areas enroladas. |
+| **Tareas (`Work items`)** | Filtrado combinado por texto, estado, backlog, prioridad, tipo y disposicion; detalle completo de contrato, ruta/metodologia (`request`, `authorization`, `understanding`, `uncertainty`, `risk`, `continuity`, `evidence`), verificacion, review, pasos, dependencias, notas, historial y documento Markdown. |
+| **Planes (`Plans`)** | Planes semanticos DAG (estado, porcentaje, `specId`/`designId`, `appetite`, `cynefin`, readiness por tarea, dependencias, olas ejecutables con chips clickeables hacia cada tarea, progreso persistido `runState` con checkpoints) y lectura Markdown de archivos `*.md` de planes. |
+| **Grafo (`Graph`)** | Embudo de ciclo de vida C0 (`PLAN → ACT → VERIFY → COLLATERAL → EVALUATE → REVIEW → ACCEPT → CLOSE` + `RESEARCH`/`STALL`/`ABANDON`) y grafo SVG de dependencias entre tareas. |
+| **Metas (`Goals`)** | Metas abiertas/logradas/descartadas, horizonte, barra de progreso y listado interactivo de tareas enlazadas a cada meta. |
+| **Sesiones (`Sessions`)** | Sesiones acotadas con presupuesto de operaciones, detalle con panel de contexto y reanudacion (`resumeContext`: tarea vinculada, barra de uso/restante, referencias `plan`/`spec`/`design`, ultimo evento y comando exacto de `session resume`). |
+| **Aprobaciones (`Approvals`)** | Cola HITL de aprobaciones por digest, estado, rutas acotadas e historial de respuestas/revocaciones. |
+| **Artefactos (`Artifacts`)** | Pestanas por tipo (`spec`, `design`, `report`, `research`, `decision`, `lesson`, `handoff`, `review`), tanto registros JSON con bindings como documentos Markdown renderizados. |
+| **Diario (`Journal`)** | Operaciones del journal (`committed`/`prepared`/`abandoned`), eventos, hashes y recibos de recuperacion. |
+| **Capturas (`Captures`)** | Notas de captura selectiva con estado de prueba de ownership (`proved`, `drifted`, `unconfirmed`, `unproved`, `malformed`) y scopes. |
+| **Memoria (`Memory`)** | Worklogs JSONL (`progress`, `lessons`, `outcomes`, `activity`) con trazabilidad a commits y tareas. |
+| **Catalogo (`Catalog`)** | Inventario de recursos proyectados (comandos, agentes, skills, reglas, referencias, prompts, perfiles) e integridad por hash. |
+| **Metricas (`Metrics`)** | Distribuciones por estado/backlog/prioridad/tipo/disposicion y tasas de cierre/verificacion. |
+| **Informes (`Reports`)** | Snapshots historicos guardados con `report save`. |
+| **Sistema (`System`)** | Guia rapida del operador humano, maquina de estados en vivo, enrolamiento VantaDB y comandos de verificacion aprobados/descubiertos. |
+
+### Que NO puede hacer desde la interfaz (y su comando equivalente)
+
+| Accion mutante | Por que no esta en la UI | Comando CLI / MCP equivalente |
+|---|---|---|
+| Crear o transicionar tareas | Toda transicion exige CAS, evidencia y gates de metodologia | `scopegrain task create` / `scopegrain task transition` |
+| Crear planes o guardar checkpoints de olas | Las escrituras requieren `--apply` explicito | `scopegrain plan create --apply` / `scopegrain plan run KEY --apply` |
+| Responder aprobaciones HITL | Las respuestas se vinculan por digest de contenido y actor explicito | `scopegrain approval answer --apply` |
+| Aprobar o ejecutar comandos de verificacion | Ejecucion manual con lista blanca explicita, nunca desde navegador | `scopegrain verify approve --apply` / `scopegrain verify run ID` |
+| Activar hosts, hooks, VantaDB o recuperar journal | Operaciones privilegiadas del workspace | `host activate`, `hooks install`, `vantadb setup`, `journal recover` |
+
+## Capturas y recorrido grabado
+
+Capturas verificadas en navegador real (Chromium 1440×900, 0 errores de consola/red, 0 overflow en escritorio y movil):
+
+- Video recorrido completo (EN + ES): [`assets/viewer-walkthrough.webm`](assets/viewer-walkthrough.webm)
+- Espacio de trabajo (ES): ![Workspace ES](assets/viewer-workspace-es.png)
+- Tareas y detalle (ES): ![Tareas ES](assets/viewer-tasks-es.png)
+- Metas y tareas vinculadas (ES): ![Metas ES](assets/viewer-goals-es.png)
+- Sesion y panel de contexto/reanudacion (EN): ![Sessions EN](assets/viewer-session-detail-en.png)
+- Grafo de ciclo de vida y dependencias (EN): ![Graph EN](assets/viewer-graph-en.png)
+
 ## Estructura del visor
 
-```
+```text
 viewer/
-  src/lib/api.ts       typed client mirroring the endpoint schemas
-  src/lib/useApi.ts    loading/error/reload fetch hook
-  src/components/ui/   shadcn/ui vendored components (radix-nova style)
-  src/components/      StatusBits (badges, error/empty/skeleton), PlansCard
-  src/views/           WorkspaceView, TasksView, JournalView,
-                       ArtifactsView, CapturesView
+  src/lib/api.ts       cliente tipado sincronizado con los 29 endpoints GET
+  src/lib/i18n.ts      diccionarios EN/ES con paridad 100%
+  src/lib/useApi.ts    hook de carga/error/refresco
+  src/components/ui/   componentes shadcn/ui
+  src/components/      StatusBits, ErrorBoundary, Markdown, PlansCard, viz
+  src/views/           15 vistas (Workspace, Tasks, Plans, Graph, Journal,
+                       Artifacts, Captures, Memory, Goals, Sessions,
+                       Approvals, Catalog, Metrics, Reports, System)
 ```
-
-Vistas: resumen del workspace (proyecto, conteos, areas enroladas,
-readiness de planes); items de trabajo (lista de tareas + detalle,
-badges de estado); journal (operaciones, listado por evento);
-artefactos (tabs por kind; cadena spec/design/report, superficie de
-binding de specs); capturas (badges de prueba de ownership, scopes de
-areas). Solo lectura: no hay affordances de mutacion en la UI.

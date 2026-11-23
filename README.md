@@ -10,10 +10,25 @@ separates work context and contracts from each tool's conventions, and
 offers a lightweight or formal route according to the declared facts and
 risks.
 
+### Why Scopegrain
+
+- **Portable across coding agents:** switch between Devin, Antigravity,
+  Claude Code, Codex, OpenCode or generic MCP hosts without rewriting
+  project rules, task history or verification contracts.
+- **Proportional rigor (ODD):** trivial/contained edits stay lightweight;
+  risky or ambiguous changes gate automatically on structured specs,
+  designs, HITL approvals and outcome reports.
+- **Explicit authority, fail-closed integrity:** nothing writes without
+  `--apply`, discovered manifest commands never auto-run, locks/CAS and a
+  local journal prevent silent corruption, and every mutation leaves an
+  auditable trail.
+- **Instant visibility:** a local, read-only web dashboard (`scopegrain view`,
+  15 views, EN/ES) and a 33-tool MCP server keep human operators and agents
+  aligned without leaving the repository.
+
 The product is called Scopegrain. `scopegrain` is the CLI entry point
 and the MCP server name (`scopegrain_*` tools). The `tasksystem` binary
-alias and legacy `.tasksystem` paths are kept for compatibility. This
-does not imply publishing a package.
+alias and legacy `.tasksystem` paths are kept for compatibility.
 
 ## For the human operator
 
@@ -24,13 +39,28 @@ only the verbs below.
 
 | Moment | Command | What it does |
 |---|---|---|
+| Global defaults | `config show` / `config set` | Optional user onboarding defaults (`~/.config/scopegrain/config.json`); workspace config always wins |
 | First adoption | `init` | Interactive onboarding: detects the stack, asks where each category of generated files should live, and shows every file before writing |
-| Health check | `doctor` | Diagnoses configuration, generated files, journal, stores, hooks and optional integrations — read-only, never repairs silently |
+| Health check | `doctor` | Diagnoses configuration, generated files, journal, stores, hooks, MCP deps, user artifacts and optional integrations — read-only, never repairs silently |
 | Re-investigation | `investigate --diff` | Compares the current project evidence with the recorded discovery decisions and reports what changed |
-| Code structure | `structure scan/status` | Builds (or reports) the persisted structural index: files, LOC, imports and complexity per language |
-| Dashboard | `view` | Starts the local, read-only web dashboard (15 views); it never mutates state |
+| Code structure | `structure status` / `refresh` | Checks freshness stat-only or rebuilds the persisted structural index when stale (`context` stays strictly read-only) |
+| Dashboard | `view` | Starts the local, read-only web dashboard (15 views, EN/ES); it never mutates state |
 | Verification | `verify approve` + `verify run` | Whitelists a verification command, then runs only approved commands with bounded output |
 | Decisions | `approval answer` | Resolves pending human-in-the-loop approvals |
+
+## Read-only web viewer
+
+Run `scopegrain view --project .` to inspect tasks, DAG plans, persisted
+execution waves, goals, sessions, approvals, artifacts, journal operations
+and system health in English or Spanish. See
+[Read-only viewer and API](docs/en/viewer.md) for the full what-you-can /
+cannot-do matrix and all 29 endpoints.
+
+- Walkthrough recording (EN + ES): [`docs/assets/viewer-walkthrough.webm`](docs/assets/viewer-walkthrough.webm)
+
+![Scopegrain Viewer — Workspace](docs/assets/viewer-workspace-en.png)
+
+![Scopegrain Viewer — Work items and detail](docs/assets/viewer-task-detail-en.png)
 
 Everything else is agent machinery. Boundaries worth knowing:
 
@@ -77,13 +107,28 @@ Node.js 22 or later is required. The CLI uses native modules; the
 optional MCP server requires the dependencies declared in
 `package.json`.
 
-From the repository root:
+### Install globally (from a local clone)
 
 ```powershell
-node ./bin/scopegrain.mjs inspect --project "C:\path\my-project"
-node ./bin/scopegrain.mjs init --project "C:\path\my-project"
-node ./bin/scopegrain.mjs doctor --project "C:\path\my-project"
+npm install
+npm link
+scopegrain --version
 ```
+
+### Quickstart on any project (3 commands)
+
+```powershell
+scopegrain inspect --project "C:\path\my-project"
+scopegrain init --project "C:\path\my-project"
+scopegrain doctor --project "C:\path\my-project"
+```
+
+Without a global link, invoke `node ./bin/scopegrain.mjs ...` from the
+repository root. Optional user-level onboarding defaults can be saved at
+`~/.config/scopegrain/config.json` with `scopegrain config set --input FILE --apply`
+(`locale`, `hosts`, `methodology`, `versioning` only); **workspace config
+always takes strict precedence** at runtime and re-init. See
+[Onboarding and customization](docs/en/onboarding.md).
 
 `inspect` neither writes nor executes the commands it discovers: it is
 the bounded manifest snapshot `init` stores as `discovery.json`.
@@ -253,10 +298,13 @@ manually only; its first remote run completed successfully on 2026-11-18.
 ## Code and license
 
 Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE),
-[NOTICE](NOTICE) and [AUTHORS](AUTHORS). `package.json` keeps
-`private: true`; no npm package is published. The inherited material
-under `legacy/` is not part of the tracked repository and remains
-outside the distribution pending per-piece license review.
+[NOTICE](NOTICE) and [AUTHORS](AUTHORS). `package.json` declares the
+installable CLI binaries (`scopegrain`, `tasksystem`) and bounded file
+list (`viewer/dist` included; `docs/assets` excluded from npm tarballs to
+keep installs under 1 MB). Publication to any external registry requires
+explicit owner authorization. The inherited material under `legacy/` is
+not part of the tracked repository and remains outside the distribution
+pending per-piece license review.
 
 ## Documentation
 

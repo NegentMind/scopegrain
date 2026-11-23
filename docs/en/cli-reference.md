@@ -522,3 +522,65 @@ local-only — there is no remote feed.
 
 Hooks are projected into `packet.hooks` as advisory data for the host;
 the harness never executes them.
+
+## Global user config, version, wave progress and VantaDB L3
+
+### `--version` / `-v` / `-V` / `-h`
+
+```text
+scopegrain --version
+scopegrain -h
+```
+
+Prints `{name, version, node}` from the installed `package.json` without
+conflicting with `vantadb setup --version X`. `-h` aliases `--help`.
+
+### config path / config show / config set
+
+```text
+scopegrain config path
+scopegrain config show
+scopegrain config set --input FILE [--apply]
+```
+
+Manages optional global user onboarding defaults at
+`~/.config/scopegrain/config.json` (or `$XDG_CONFIG_HOME/scopegrain/config.json`
+or `$SCOPEGRAIN_USER_CONFIG`; `"none"` or empty disables it). Only permits
+`locale`, `hosts`, `methodology` and `versioning`. Rejects permissions,
+verification commands and project paths. Strict precedence:
+`workspace > --answers > repo-signals > user-global > policy-defaults`.
+An already-initialized workspace never inherits or merges global changes at runtime.
+
+### plan run (wave progress persistence)
+
+```text
+scopegrain plan run --project PATH KEY [--apply]
+```
+
+Without `--apply` returns the deterministic wave schedule plus a checkpoint
+preview and `resume` summary. With `--apply` atomically persists a bounded
+checkpoint (max 50) at `<paths.state>/plan-runs/<KEY>.json` under a verified
+lock so interrupted multi-task runs can resume accurately.
+
+### structure refresh
+
+```text
+scopegrain structure refresh --project PATH [--config REL] [--apply]
+```
+
+Explicit bounded structural index refresh: runs a cheap stat-only freshness
+check first and returns `mode: "noop"` without reading source files when
+already fresh. When missing or stale, previews without `--apply` and
+rebuilds/persists atomically with `--apply`. `context` remains strictly
+read-only and reports `refreshPolicy: "explicit"`.
+
+### vantadb sync-persona
+
+```text
+scopegrain vantadb sync-persona --project PATH [--limit N] [--timeout MS] [--apply]
+```
+
+Opt-in L3 projection into `l3/sg-persona-<scopeHash>`: reads only
+ownership-proved `preference` and `decision` captures from `.scopegrain`
+(sole authority), projects idempotently with readback and never adopts
+unproved files (`skippedUnproved`). Preview without `--apply`.

@@ -78,7 +78,7 @@ any path return 405; unknown paths 404; unknown query parameters 400.
 | `GET /api/plans` | plans + per-task readiness (or `readinessError`) + `malformed[]` |
 | `GET /api/plan-docs` | plan file listing (`<paths.plans>/*.md`: name, bytes, updatedAt) |
 | `GET /api/plan-docs/:name` | plan file contents (`*.md` slug resolved inside the plans dir) |
-| `GET /api/plans/:key` | plan document + readiness |
+| `GET /api/plans/:key` | plan document + readiness + execution `waves` + persisted `runState` |
 | `GET /api/artifact-docs?kind=` | loose `.md` documents per kind (canonical + legacy `.scopegrain/<kind>/` dirs): name, title, status, date, bytes |
 | `GET /api/artifact-docs/:kind/:name` | artifact document contents (`*.md` slug bounded to the kind's dirs) |
 | `GET /api/artifacts?kind=&limit=&offset=` | `kind` required, one of `spec design report research decision lesson handoff review` |
@@ -86,6 +86,16 @@ any path return 405; unknown paths 404; unknown query parameters 400.
 | `GET /api/journal/operations?limit=&offset=` | operation summaries: `state`, `eventCount`, `sourceKinds`, `recordIds` |
 | `GET /api/journal/operations/:id` | full intent with events + recovery receipt |
 | `GET /api/captures?limit=&offset=` | per-capture `status` + `ownershipConfirmed` + scoped record or error |
+| `GET /api/memory` | bounded JSONL worklogs (`lessons`, `outcomes`, `progress`, `activity`) |
+| `GET /api/goals` | project goals + linked tasks and completion progress |
+| `GET /api/metrics` | aggregates by state/backlog/priority/type/disposition and verification rates |
+| `GET /api/reports` / `GET /api/reports/:name` | saved status reports from `report save` |
+| `GET /api/sessions` / `GET /api/sessions/:id` | bounded sessions + `resumeContext` (linked task, budget bar, CLI resume command) |
+| `GET /api/approvals` / `GET /api/approvals/:id` | HITL approval queue and answer/revocation detail |
+| `GET /api/catalog` | workspace resource catalog and hash verification |
+| `GET /api/verify` | discovered and approved verification commands |
+| `GET /api/vantadb` | VantaDB enrollment status (never spawns binary) |
+| `GET /api/workflow` | canonical state machine and allowed transitions |
 
 Journal operation `state` values: `committed`, `prepared` (unconfirmed),
 `abandoned`. Capture `status` values:
@@ -128,20 +138,61 @@ filesystem access derives from request input beyond UUID/slug validation.
   `WORKSPACE_NOT_FOUND` (404) on unenrolled projects; `/api/workspace`
   still answers with `workspace: null`.
 
+## UI capabilities (what a user can and cannot do)
+
+The viewer is **strictly read-only by design** (loopback-only, GET-only, no authentication or mutations). It supports instant **English / Español** language switching from the top bar with 100% key parity.
+
+### What users CAN do across the 15 views
+
+| View | Inspected data & read-only interactions |
+|---|---|
+| **Workspace** | Project identity, active methodology, configured hosts, store counts, tasks by state, plan readiness and enrolled logical areas. |
+| **Work items (`Tasks`)** | Combined filters (text, state, backlog, priority, type, disposition); full task detail with contract, methodology assessment (`request`, `authorization`, `understanding`, `uncertainty`, `risk`, `continuity`, `evidence`), verification, review, steps, dependencies, notes, history and rendered Markdown doc. |
+| **Plans** | Semantic DAG plans (status, progress %, `specId`/`designId`, `appetite`, `cynefin`, per-task readiness, dependencies, clickable wave task chips, persisted `runState` checkpoints) and rendered Markdown plan files (`*.md`). |
+| **Graph** | C0 lifecycle funnel (`PLAN → ACT → VERIFY → COLLATERAL → EVALUATE → REVIEW → ACCEPT → CLOSE` + `RESEARCH`/`STALL`/`ABANDON`) and SVG task dependency graph. |
+| **Goals** | Open/achieved/dropped goals, horizon, progress bars and clickable linked tasks per goal. |
+| **Sessions** | Bounded operation-budget sessions; detail card includes `resumeContext` (linked task state/refs, budget progress bar, last action, exact `session resume` CLI command). |
+| **Approvals** | HITL digest-bound approval queue, scoped paths and answer/revocation history. |
+| **Artifacts** | Per-kind tabs (`spec`, `design`, `report`, `research`, `decision`, `lesson`, `handoff`, `review`) covering both structured JSON artifacts with bindings and Markdown documents. |
+| **Journal** | Journal operations (`committed`/`prepared`/`abandoned`), event lists, hashes and recovery receipts. |
+| **Captures** | Selective capture notes with ownership proof status (`proved`, `drifted`, `unconfirmed`, `unproved`, `malformed`) and area scopes. |
+| **Memory** | JSONL worklogs (`progress`, `lessons`, `outcomes`, `activity`) with commit and task links. |
+| **Catalog** | Projected workspace resources (commands, agents, skills, rules, references, prompts, profiles) and hash integrity. |
+| **Metrics** | Store breakdowns by state/backlog/priority/type/disposition and verification rates. |
+| **Reports** | Historical status snapshots saved via `report save`. |
+| **System** | Human operator essentials, live C0 workflow state machine, VantaDB enrollment status and approved/discovered verification commands. |
+
+### What users CANNOT do from the UI (and the CLI/MCP equivalent)
+
+| Mutating action | Why it is outside the UI | CLI / MCP equivalent |
+|---|---|---|
+| Create or transition tasks | Transitions enforce CAS, evidence and methodology gates | `scopegrain task create` / `scopegrain task transition` |
+| Create plans or persist wave checkpoints | Writes require explicit `--apply` | `scopegrain plan create --apply` / `scopegrain plan run KEY --apply` |
+| Answer HITL approvals | Answers bind content digests and explicit actors | `scopegrain approval answer --apply` |
+| Approve or run verification commands | Manual whitelist execution, never triggered from a browser | `scopegrain verify approve --apply` / `scopegrain verify run ID` |
+| Activate hosts, hooks, VantaDB or recover journal | Privileged workspace mutations | `host activate`, `hooks install`, `vantadb setup`, `journal recover` |
+
+## Screenshots and recorded walkthrough
+
+Verified in headless Chromium (1440×900 desktop & 390×844 mobile, 0 console/page/HTTP errors, 0 horizontal overflow):
+
+- Full walkthrough video (EN + ES): [`../assets/viewer-walkthrough.webm`](../assets/viewer-walkthrough.webm)
+- Workspace (EN): ![Workspace EN](../assets/viewer-workspace-en.png)
+- Work items & detail (EN): ![Tasks detail EN](../assets/viewer-task-detail-en.png)
+- Goals & linked tasks (EN): ![Goals EN](../assets/viewer-goals-en.png)
+- Session context & resume handoff (EN): ![Sessions EN](../assets/viewer-session-detail-en.png)
+- Lifecycle funnel & dependency graph (EN): ![Graph EN](../assets/viewer-graph-en.png)
+
 ## Viewer structure
 
-```
+```text
 viewer/
-  src/lib/api.ts       typed client mirroring the endpoint schemas
+  src/lib/api.ts       typed client mirroring the 29 GET endpoints
+  src/lib/i18n.ts      EN/ES dictionaries with 100% key parity
   src/lib/useApi.ts    loading/error/reload fetch hook
-  src/components/ui/   shadcn/ui vendored components (radix-nova style)
-  src/components/      StatusBits (badges, error/empty/skeleton), PlansCard
-  src/views/           WorkspaceView, TasksView, JournalView,
-                       ArtifactsView, CapturesView
+  src/components/ui/   shadcn/ui components
+  src/components/      StatusBits, ErrorBoundary, Markdown, PlansCard, viz
+  src/views/           15 views (Workspace, Tasks, Plans, Graph, Journal,
+                       Artifacts, Captures, Memory, Goals, Sessions,
+                       Approvals, Catalog, Metrics, Reports, System)
 ```
-
-Views: workspace summary (project, counts, enrolled areas, plan
-readiness); work items (task list + detail, state badges); journal
-(operations, per-event listing); artifacts (kind tabs; spec/design/report
-chain, spec binding surface); captures (ownership proof badges, area
-scopes). Read-only: there are no mutation affordances in the UI.

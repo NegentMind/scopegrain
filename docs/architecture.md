@@ -1,8 +1,10 @@
 # Arquitectura
 
-Scopegrain es un paquete Node.js ESM privado (Node >=22). El nucleo es
+Scopegrain es un paquete Node.js ESM bajo licencia Apache-2.0 (Node >=22). El nucleo es
 sincronico, sin dependencias externas y sin `child_process`, sockets ni
-escritura fuera del proyecto explicitamente indicado. El servidor MCP es
+escritura fuera del proyecto explicitamente indicado (salvo la configuracion
+global opcional de onboarding en `~/.config/scopegrain/config.json` mediante
+`config set --apply`, que nunca sobreescribe un workspace). El servidor MCP es
 opcional y carga sus dependencias (`@modelcontextprotocol/sdk`, `zod`) de
 forma perezosa al arrancar. La API HTTP local del visor es opt-in:
 `node:http` puro, bind exclusivo a loopback y solo GET; `viewer/` es un
@@ -18,6 +20,7 @@ src/core/errors.mjs       Errores {code, message} (TaskError)
 src/core/fsx.mjs          Helpers sincronicos de filesystem
 src/core/paths.mjs        Rutas relativas seguras, contencion, anti-symlink
 src/core/config.mjs       Contrato de config.json, answers y colisiones
+src/core/user-config.mjs  Defaults globales opcionales de onboarding (~/.config/scopegrain/config.json); precedencia estricta del workspace
 src/core/context.mjs      Vincula project root explicito + config cargada
 src/core/workspaces.mjs   Identidad por proyecto, areas, autorizacion interna de scope y descriptor owned mutable
 src/core/journal.mjs      Journal interno create/update con CAS bajo lock y outbox acotado

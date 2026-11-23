@@ -6,11 +6,46 @@
 Guide for onboarding a project to Scopegrain. Every command is run
 manually; the harness proposes, the owner decides.
 
-## Prerequisite
+## Prerequisite and installation
 
 Node.js 22 or later. No dependencies need to be installed to use the
 CLI; the MCP server does require the dependencies declared in
 `package.json` (a prior `npm install`, at the owner's discretion).
+
+Options to make `scopegrain` (alias `tasksystem`) available:
+
+```powershell
+# From a local clone (links `scopegrain` globally on PATH):
+npm install
+npm link
+scopegrain --version
+
+# Or without global install, directly from the clone root:
+node ./bin/scopegrain.mjs --version
+```
+
+## Global user config vs workspace config
+
+Scopegrain separates **global user onboarding defaults** from **project
+operational authority**:
+
+- **Global user config (optional):** `~/.config/scopegrain/config.json`
+  (overridable via `XDG_CONFIG_HOME` or `SCOPEGRAIN_USER_CONFIG`; set
+  `SCOPEGRAIN_USER_CONFIG=none` to disable). Holds onboarding defaults only
+  (`locale`, `hosts`, `methodology`, `versioning`). Rejects permissions,
+  verification commands and project paths.
+- **Workspace config (authoritative):** `.scopegrain/config.json` (or
+  legacy `.tasksystem/config.json`). Once a project is initialized, runtime
+  operations read **100% from the workspace** and never merge global changes.
+
+Strict precedence during `init`:
+`existing workspace > --answers FILE > repo host signals > global user config > policy/onboarding-defaults.json`.
+
+```powershell
+scopegrain config path
+scopegrain config show
+scopegrain config set --input user-defaults.json --apply
+```
 
 ## Recommended flow
 

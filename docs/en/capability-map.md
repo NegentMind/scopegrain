@@ -259,36 +259,14 @@ snapshots (`catalog check` verifies drift); installation via
 
 Legacy `.tasksystem/` remains honored as an alternative state path.
 
-## 11. Known debt and gaps (audit 2026-11-20)
+## 11. Known debt and gaps (audit 2026-11-20, updated 2026-11-22)
 
-1. **Discovery**: partially resolved — `structure` (structural index: LOC,
-   imports, edges, heuristic complexity, fingerprint) implemented
-   2026-11-21. Still missing: real AST/symbols (delegated to the host
-   agent by design), Deno/Makefile/Docker/devcontainer/runtime versions,
-   CI workflow contents.
-2. **Agentic research**: the 5 legacy workflows (`bug-fix`, `feature-add`,
-   `refactor`, `research`, `nine-second-saloon`) have `replacement: null`;
-   they survive as projectable resources, not as core capability.
-3. ~~**`diffInvestigation`**~~: resolved — exposed as `investigate --diff`
-   (2026-11-21) and embedded in `doctor`'s fingerprint warning.
-4. **Doctor**: partially resolved — added checks for Node runtime, policy
-   parsing, journal internals (outbox/archive), verify store, sessions,
-   worklogs, ownership sidecars, `vantadb.json` (shape-only, no runtime),
-   managed hooks, stale locks and host-fragment drift (2026-11-21).
-   Still missing: installed MCP deps, viewer build, user artifacts.
-5. **Quantitative legacy guards**: partially resolved —
-   `researchEscalation` enforced 2026-11-21 (3 `VERIFY→ACT` reworks
-   without a `RESEARCH` visit block `→ACT`). Still missing:
-   iteration/duration budgets, WIP, and the "similar failures" half of
-   the escalation (requires hypotheses as a record field).
-6. **Tests**: cost dominated by the full-installation fixture
-   (~230 files+fsync × ~119 invocations) and `--test-concurrency=1`
-   (pinned after a Windows memory event). Levers: smoke subset,
-   concurrency 2, mini-fixtures, owned-* parameterization.
-7. **Init**: internal substructures (journal, verify, sessions, reviews,
-   captures, approvals, vantadb storage) not configurable via answers —
-   fixed by design.
-8. ~~**Context rehydration**~~: resolved 2026-11-21 — `context` injects
-   automatic `memory_recall` L1 and `session resume` + MCP
-   `scopegrain_session_resume` inject `memory_context` per `recordId`;
-   degradable and fail-closed (`--no-vantadb`/`--timeout`).
+1. **Discovery / Structural index**: actionable items resolved — `structure scan|status|show|refresh` implemented (2026-11-21..22); `context` stays strictly read-only reporting `refreshPolicy: "explicit"`. Out of core by design: real AST/symbols (delegated to host), Deno/Makefile/Docker/devcontainer and CI workflow contents.
+2. ~~**Agentic research legacy**~~: resolved (2026-11-22) — `resources/commands/investigate.md` formalizes the 6-phase structured research workflow, all 5 legacy workflows in `provenance/legacy-inventory.json` map to portable canonical commands (`manifest.json` v`0.1.1`), and `examples/preset-yagni.json` provides the host-agnostic equivalent of legacy `ponytail` mode.
+3. ~~**`diffInvestigation`**~~: resolved — exposed as `investigate --diff` (2026-11-21) and embedded in `doctor`'s fingerprint warning.
+4. ~~**Doctor**~~: resolved (2026-11-22) — 32 total checks including `mcp-deps`, `viewer-build`, `user-artifacts`, `user-config`, `stale-locks`, `host-fragments`, `host-cli` and `docs-cli-drift`.
+5. **Quantitative legacy guards**: partially resolved — `researchEscalation` enforced 2026-11-21 (3 `VERIFY→ACT` reworks without a `RESEARCH` visit block `→ACT`). Still open: iteration/duration budgets, WIP, and the "similar failures" half of escalation (requires hypotheses as a record field).
+6. ~~**Tests**~~: resolved (2026-11-22) — added `bootstrappedMiniCtx`, `test:smoke` and `test:fast` (`--test-concurrency=2`), migrated unit suites and `methodology-fixtures.mjs`, and added parameterized `assertOwnedStoreContract` with zero adversarial coverage removed.
+7. **Init and global config**: resolved (2026-11-22) — global user config (`~/.config/scopegrain/config.json`, `config path|show|set`) for onboarding defaults only with strict workspace precedence; internal store layouts remain fixed by design.
+8. ~~**Context rehydration & VantaDB L3**~~: resolved (2026-11-21..22) — `context` injects automatic L1 `memory_recall`, `session resume` + MCP inject per-record `memory_context`, and `vantadb sync-persona` projects proved `preference`/`decision` captures into `l3/sg-persona-*`.
+9. ~~**Plan wave persistence & viewer**~~: resolved (2026-11-22) — `plan run --apply` persists atomic checkpoints under `<state>/plan-runs/<key>.json`, surfaced in `/api/plans/:key` and `PlansView`; `/api/sessions/:id` and `SessionsView` surface `resumeContext`.

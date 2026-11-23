@@ -522,3 +522,66 @@ la distribucion sigue siendo local-only — no hay feed remoto.
 
 Los hooks se proyectan en `packet.hooks` como datos consultivos para el
 host; el harness nunca los ejecuta.
+
+## Configuracion global, version, progreso de olas y VantaDB L3
+
+### `--version` / `-v` / `-V` / `-h`
+
+```text
+scopegrain --version
+scopegrain -h
+```
+
+Imprime `{name, version, node}` desde el `package.json` instalado (sin
+conflicto con `vantadb setup --version X`). `-h` es alias de `--help`.
+
+### config path / config show / config set
+
+```text
+scopegrain config path
+scopegrain config show
+scopegrain config set --input FILE [--apply]
+```
+
+Gestiona defaults globales opcionales de onboarding del usuario en
+`~/.config/scopegrain/config.json` (o `$XDG_CONFIG_HOME/scopegrain/config.json`
+o `$SCOPEGRAIN_USER_CONFIG`; `"none"` o vacio lo desactiva). Solo admite
+`locale`, `hosts`, `methodology` y `versioning`. Rechaza permisos, comandos
+de verificacion y rutas de proyecto. Precedencia estricta:
+`workspace > --answers > repo-signals > user-global > policy-defaults`.
+Un workspace ya inicializado nunca hereda ni mezcla cambios globales en runtime.
+
+### plan run (persistencia de olas)
+
+```text
+scopegrain plan run --project PATH KEY [--apply]
+```
+
+Sin `--apply` devuelve la agenda determinista de olas más la vista previa de
+checkpoint y estado de reanudacion (`resume`). Con `--apply` persiste
+atomicamente un checkpoint acotado (max 50) en
+`<paths.state>/plan-runs/<KEY>.json` bajo lock verificado para reanudar
+corridas multi-tarea interrumpidas.
+
+### structure refresh
+
+```text
+scopegrain structure refresh --project PATH [--config REL] [--apply]
+```
+
+Refresco explicito y acotado del indice estructural: realiza primero un
+chequeo barato stat-only y devuelve `mode: "noop"` sin releer archivos cuando
+el indice ya esta fresco. Si esta obsoleto o ausente, previsualiza sin `--apply`
+y reconstruye/persiste atomicamente con `--apply`. `context` permanece
+estrictamente read-only y reporta `refreshPolicy: "explicit"`.
+
+### vantadb sync-persona
+
+```text
+scopegrain vantadb sync-persona --project PATH [--limit N] [--timeout MS] [--apply]
+```
+
+Proyeccion opt-in L3 hacia `l3/sg-persona-<scopeHash>`: lee unicamente capturas
+con ownership probado de categoria `preference` o `decision` desde `.scopegrain`
+(autoridad unica), las proyecta idempotentemente con readback y nunca adopta
+archivos no probados (`skippedUnproved`). Vista previa sin `--apply`.
