@@ -205,6 +205,14 @@ for that fixture/project and any associated tools, models, network or cost.
 Initialization does not install hooks/plugins, alter active host roots,
 grant auto-approval, register external servers or start MCP.
 
+`host manifest --project PATH --host NAME [--surface X]` produces the
+per-host install manifest (spec-kit parity): every file activation would
+generate, with sha256 and an ownership label — `whole` (harness-owned
+file), `partial` (user file carrying a managed `SCOPEGRAIN` section) or
+`shared` (manual-merge proposal into host configuration). It is a
+read-only preview artifact; writing or applying remains a separate
+explicit step.
+
 MCP configuration is machine-local. Relocation can leave absolute paths
 pointing to the old project or installation; `doctor` reports that condition.
 Rebinding requires review of the new destination, not silent replacement.

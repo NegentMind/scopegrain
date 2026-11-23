@@ -232,6 +232,14 @@ modelo, red o costo asociado. La inicializacion no instala
 hooks/plugins, no altera raices de host activas, no otorga
 autoaprobacion, no registra servidores externos ni inicia MCP.
 
+`host manifest --project PATH --host NAME [--surface X]` produce el
+manifiesto de instalacion por host (paridad spec-kit): cada archivo que
+la activacion generaria, con sha256 y etiqueta de propiedad —
+`whole` (archivo propio del harness), `partial` (archivo del usuario con
+seccion gestionada `SCOPEGRAIN`) o `shared` (propuesta manual-merge en
+configuracion del host). Es un artefacto de previsualizacion de solo
+lectura; escribir o aplicar sigue siendo un paso explicito aparte.
+
 La configuracion MCP es machine-local. Una reubicacion puede dejar rutas
 absolutas apuntando al proyecto o instalacion anterior; `doctor` reporta
 esa condicion. El rebinding requiere revision del nuevo destino, no un

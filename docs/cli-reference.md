@@ -213,9 +213,9 @@ reemplaza.
 ### structure scan / status / show
 
 ```
-structure scan --project PATH [--config REL] [--apply]
-structure status --project PATH [--config REL]
-structure show --project PATH [--config REL]
+scopegrain structure scan --project PATH [--config REL] [--apply]
+scopegrain structure status --project PATH [--config REL]
+scopegrain structure show --project PATH [--config REL]
 ```
 
 Analisis estructural acotado del arbol del proyecto: inventario de
@@ -434,6 +434,7 @@ scopegrain dist extension-remove --project PATH ID
 scopegrain dist preset-register --project PATH --input FILE
 scopegrain dist preset-list --project PATH
 scopegrain dist preset-remove --project PATH ID
+scopegrain dist pack --project PATH --source DIR --out FILE
 ```
 
 `run` ejecuta workflows declarativos cuyos pasos solo nombran primitivas
@@ -499,6 +500,12 @@ donde `chain` verifica la propiedad CAS por archivo
 (`previousSha256[n] == newSha256[n-1]` del mismo `rel`) — `valid`,
 `broken@<revision>` o `empty`. Lineas corruptas se reportan en
 `corrupt`, nunca abortan la lectura.
+
+`dist pack` empaqueta un directorio fuente en un tarball POSIX ustar
+determinista: bytes identicos de entrada producen bytes identicos de
+salida (mtime 0, uid/gid 0, modos normalizados, entradas ordenadas por
+nombre, sin campos machine-local). Es la ruta del artefacto publicable;
+la distribucion sigue siendo local-only — no hay feed remoto.
 
 ### policy/hooks.json — ejemplo declarativo
 

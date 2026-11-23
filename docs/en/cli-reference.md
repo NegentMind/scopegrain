@@ -213,9 +213,9 @@ decides nor replaces it.
 ### structure scan / status / show
 
 ```
-structure scan --project PATH [--config REL] [--apply]
-structure status --project PATH [--config REL]
-structure show --project PATH [--config REL]
+scopegrain structure scan --project PATH [--config REL] [--apply]
+scopegrain structure status --project PATH [--config REL]
+scopegrain structure show --project PATH [--config REL]
 ```
 
 Bounded structural analysis of the project tree: file inventory,
