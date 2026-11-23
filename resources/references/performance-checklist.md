@@ -19,6 +19,11 @@ Quick reference checklist for web application performance.
 
 ## Core Web Vitals Targets
 
+Thresholds are measured at the **75th percentile** of page loads,
+segmented mobile vs. desktop — a page passes only if all three metrics
+meet "good" at p75 (per
+[web.dev — Web Vitals](https://web.dev/articles/vitals)).
+
 | Metric | Good | Needs Work | Poor |
 |--------|------|------------|------|
 | LCP (Largest Contentful Paint) | ≤ 2.5s | ≤ 4.0s | > 4.0s |
@@ -116,7 +121,8 @@ waterfall:
 
 ### INP field data and DevTools workflow
 
-1. **Field data first** — check a real-user-monitoring source (CrUX, RUM
+1. **Field data first** — check a real-user-monitoring source
+   ([CrUX](https://developer.chrome.com/docs/crux) / CrUX Vis or your RUM
    tool) for real-user INP before optimizing
 2. **Identify slow interactions** — DevTools → Performance panel → record
    while interacting; look for long tasks triggered by clicks/keystrokes

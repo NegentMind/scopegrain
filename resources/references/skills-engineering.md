@@ -86,12 +86,22 @@ Additional guardrails:
   standard for critical tasks.
 - **Overshoot rule**: `max_skills` caps the score-fill; pins+base are
   mandatory and may exceed it (typical overshoot ≤2–3).
+- **Description re-rank**: after scoring, boost candidates whose
+  description tokens overlap contract/task tokens (+0.05 per overlapping
+  token, cap +0.15) — catches skills whose keywords do not literally match
+  but whose stated purpose does.
+- **Index freshness**: the scored candidate pool should come from a
+  generated skills index (description + tokens + rating + deprecated flag
+  per entry); regenerate it whenever a skill is added, renamed or
+  deprecated — a stale index silently degrades every phase.
 
 ### Keyword → skill mapping (scoring table shape)
 
 ```yaml
 keyword_to_skills:
   # Core / engine
+  "rust":       ["source-driven-development", "test-driven-development", "systematic-debugging"]
+  "engine":     ["api-and-interface-design", "performance-optimization"]
   "storage":    ["deprecation-and-migration", "observability-and-instrumentation"]
   "wal":        ["security-and-hardening", "deprecation-and-migration"]
   "index":      ["performance-optimization", "systematic-debugging"]
@@ -107,23 +117,33 @@ keyword_to_skills:
   "accessibility": ["<project a11y audit skill>"]
   # Testing / quality
   "test":       ["test-driven-development", "systematic-debugging"]
+  "debug":      ["systematic-debugging", "browser-testing-with-devtools"]
   "flaky":      ["systematic-debugging", "code-review-and-quality"]
   "coverage":   ["test-driven-development", "constraint-driven-development"]
   "benchmark":  ["performance-optimization", "observability-and-instrumentation"]
   # Security
   "security":   ["security-and-hardening", "doubt-driven-development"]
+  "unsafe":     ["security-and-hardening", "systematic-debugging"]
   "supply-chain":["security-and-hardening", "deprecation-and-migration"]
   # CI/CD / release
   "ci":         ["ci-cd-and-automation", "shipping-and-launch"]
   "release":    ["shipping-and-launch", "git-workflow-and-versioning"]
+  "version":    ["git-workflow-and-versioning", "release-notes-one-pager"]
   "changelog":  ["documentation-and-adrs", "release-notes-one-pager"]
+  "deploy":     ["shipping-and-launch", "observability-and-instrumentation"]
   # Architecture
+  "architecture": ["api-and-interface-design", "deprecation-and-migration"]
   "api":        ["api-and-interface-design", "spec-driven-development"]
+  "interface":  ["api-and-interface-design", "frontend-ui-engineering"]
   "refactor":   ["code-simplification", "incremental-implementation"]
+  "simplify":   ["code-simplification", "incremental-implementation"]
   # Workflow
   "pipeline":   ["<executor skill>", "<progress skill>"]
+  "task":       ["<executor skill>", "planning-and-task-breakdown"]
   "plan":       ["planning-and-task-breakdown", "spec-driven-development"]
+  "backlog":    ["<progress skill>", "<executor skill>"]
   # Docs
+  "docs":       ["documentation-and-adrs", "writing-guidelines"]
   "adr":        ["documentation-and-adrs", "deprecation-and-migration"]
   "spec":       ["spec-driven-development", "interview-me"]
 ```

@@ -42,7 +42,10 @@ Before reaching for controls, spend five minutes thinking like an attacker:
 
 ## Authentication
 
-- [ ] Passwords hashed with bcrypt (≥12 rounds), scrypt, or argon2
+- [ ] Passwords hashed with Argon2id (OWASP preferred: ≥19 MiB memory,
+      iterations ≥2, parallelism 1); if unavailable, scrypt (N ≥2^17, r=8,
+      p=1) or bcrypt (OWASP floor is work factor ≥10 — use ≥12 and tune to
+      server capacity; 72-byte password limit)
 - [ ] Session cookies: `httpOnly`, `secure`, `sameSite: 'lax'`
 - [ ] Session expiration configured (reasonable max-age)
 - [ ] Rate limiting on login endpoint (≤10 attempts per 15 minutes)
@@ -155,34 +158,44 @@ res.status(500).json({
 
 ## OWASP Top 10 Quick Reference
 
-| # | Vulnerability | Prevention |
+The table below tracks the current **OWASP Top 10:2025** (final release;
+the 2021 edition is superseded). SSRF was folded into A01, "Vulnerable and
+Outdated Components" became A03 Software Supply Chain Failures, and A10 is
+a new category.
+
+| # | Category (2025) | Prevention |
 |---|---|---|
-| 1 | Broken Access Control | Auth checks on every endpoint, ownership verification |
-| 2 | Cryptographic Failures | HTTPS, strong hashing, no secrets in code |
-| 3 | Injection | Parameterized queries, input validation |
-| 4 | Insecure Design | Threat modeling, spec-driven development |
-| 5 | Security Misconfiguration | Security headers, minimal permissions, audit deps |
-| 6 | Vulnerable Components | Dependency audit, keep deps updated, minimal deps |
-| 7 | Auth Failures | Strong passwords, rate limiting, session management |
-| 8 | Data Integrity Failures | Verify updates/dependencies, signed artifacts |
-| 9 | Logging Failures | Log security events, don't log secrets |
-| 10 | SSRF | Validate/allowlist URLs, restrict outbound requests |
+| A01 | Broken Access Control (incl. SSRF) | Auth checks on every endpoint, ownership verification; allowlist outbound URLs |
+| A02 | Security Misconfiguration | Security headers, minimal permissions, hardened defaults |
+| A03 | Software Supply Chain Failures | Dependency audit, lockfiles, reviewed deps, signed artifacts |
+| A04 | Cryptographic Failures | HTTPS, strong hashing, no secrets in code |
+| A05 | Injection | Parameterized queries, input validation |
+| A06 | Insecure Design | Threat modeling, spec-driven development |
+| A07 | Authentication Failures | Strong passwords, rate limiting, session management |
+| A08 | Software or Data Integrity Failures | Verify updates/dependencies, CI/CD integrity |
+| A09 | Security Logging & Alerting Failures | Log security events, don't log secrets, alertable telemetry |
+| A10 | Mishandling of Exceptional Conditions | Generic error output, no internals leaked, safe failure modes |
 
 ## OWASP Top 10 for LLMs Quick Reference
 
-For apps with LLM features. See the [OWASP GenAI Security Project](https://genai.owasp.org/llm-top-10/).
+For apps with LLM features. The table below tracks the current
+**OWASP GenAI LLM Top 10:2026** (published August 2026). Source:
+[OWASP GenAI Security Project](https://genai.owasp.org/llm-top-10/).
+Notable renames vs. the 2025 edition: "System Prompt Leakage" became
+LLM08 Hidden Context Exposure, and Improper Output Handling moved to
+LLM10.
 
-| ID | Risk | Prevention |
+| ID | Risk (2026) | Prevention |
 |---|---|---|
 | LLM01 | Prompt Injection | Don't trust the system prompt as a boundary; enforce permissions in code |
 | LLM02 | Sensitive Information Disclosure | Keep secrets/PII out of prompts; filter outputs |
-| LLM03 | Supply Chain | Vet models, datasets, and plugins like any dependency |
-| LLM04 | Data and Model Poisoning | Use trusted model sources, verify integrity; vet fine-tuning and RAG data |
-| LLM05 | Improper Output Handling | Treat model output as untrusted; validate, parameterize, encode |
-| LLM06 | Excessive Agency | Scope tool permissions; confirm destructive actions |
-| LLM07 | System Prompt Leakage | Assume the system prompt can leak; put no secrets in it |
-| LLM08 | Vector and Embedding Weaknesses | Partition RAG embeddings per tenant; validate documents before indexing |
-| LLM09 | Misinformation | Ground answers with citations; validate critical claims; keep a human in the loop |
-| LLM10 | Unbounded Consumption | Cap tokens, request rate, and loop/recursion depth |
+| LLM03 | Excessive Agency | Scope tool permissions; confirm destructive actions |
+| LLM04 | Supply Chain | Vet models, datasets, and plugins like any dependency |
+| LLM05 | Data and Model Poisoning | Use trusted model sources, verify integrity; vet fine-tuning and RAG data |
+| LLM06 | Unbounded Consumption | Cap tokens, request rate, and loop/recursion depth |
+| LLM07 | Misinformation | Ground answers with citations; validate critical claims; keep a human in the loop |
+| LLM08 | Hidden Context Exposure | Assume prompts/context can leak; no secrets in them; bound memory persistence |
+| LLM09 | Vector and Embedding Weaknesses | Partition RAG embeddings per tenant; validate documents before indexing |
+| LLM10 | Improper Output Handling | Treat model output as untrusted; validate, parameterize, encode |
 
 <!-- Referencias cruzadas: → ver quality-floor.md, observability-checklist.md, definition-of-done.md, ship-runbook.md -->

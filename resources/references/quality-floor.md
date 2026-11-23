@@ -48,7 +48,9 @@ if ($stubs) { $findings += "UNIMPLEMENTED_STUBS: $($stubs.Count)"; $exitCode = 2
 $tc = git diff $BaseBranch --name-only -- "*test*" | ForEach-Object {
     $d = git diff $BaseBranch -- $_
     if ($d -match '#\[ignore\]|\.skip|xit\(|test\.only|mark\.skip') { "IGNORED_TEST: $_" }
-    if (-not (Test-Path $_)) { "DELETED_TEST: $_ (no explanation in commit)" } }
+    # deleted = absent on disk but still tracked at the base ref
+    if (-not (Test-Path $_) -and (git ls-files --error-unmatch $_ 2>$null)) {
+        "DELETED_TEST: $_ (no explanation in commit)" } }
 if ($tc) { $findings += $tc; $exitCode = 2 }
 
 # 4. Secrets (leakage scanner, e.g. gitleaks-class tool)

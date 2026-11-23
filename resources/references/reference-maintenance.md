@@ -99,7 +99,8 @@ states are laws"):
 | Fork/join | Sequential or parallel branches; `join: all|any` |
 | Environment scoping | Hide sensitive env (`blocked_env`), substitute via `env_overrides` |
 | Session isolation | State keyed by session id |
-| Per-state model routing | State-level model choice and thinking level |
+| Per-state model routing | State-level model choice |
+| Thinking-level control | Per-state reasoning effort (high/medium/low/off) |
 | Escalation detection | Warn when a state jumps ≥2 privilege levels without approval |
 
 ### Model-traits registry (shape)

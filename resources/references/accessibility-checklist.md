@@ -6,13 +6,15 @@ Automated checks do not establish complete conformance.
 State what was exercised and what requires a user or assistive technology.
 Do not label an untested criterion as passing.
 
-Quick reference for WCAG 2.1 AA-level review. Checklist items are verifiable;
-automated tooling covers only a subset — keyboard, screen-reader and zoom
-checks require hands-on exercise.
+Quick reference for **WCAG 2.2 AA**-level review (WCAG 2.2 is the current
+W3C Recommendation; WCAG 3.0 remains a working draft). Checklist items are
+verifiable; automated tooling covers only a subset — keyboard,
+screen-reader and zoom checks require hands-on exercise.
 
 ## Table of Contents
 
 - [Essential Checks](#essential-checks)
+- [WCAG 2.2 AA Additions](#wcag-22-aa-additions)
 - [Common HTML Patterns](#common-html-patterns)
 - [Testing Tools](#testing-tools)
 - [Quick Reference: ARIA Live Regions](#quick-reference-aria-live-regions)
@@ -57,8 +59,26 @@ checks require hands-on exercise.
 - [ ] Language declared (`<html lang="en">`)
 - [ ] Page has a descriptive `<title>`
 - [ ] Links distinguishable from surrounding text (not by color alone)
-- [ ] Touch targets ≥ 44x44px on mobile
+- [ ] Touch targets ≥ 44x44px on mobile (best practice; WCAG 2.2 AA floor
+      is SC 2.5.8: ≥24×24 CSS px or sufficient spacing between targets)
 - [ ] Meaningful empty states (not blank screens)
+
+## WCAG 2.2 AA Additions
+
+Success criteria introduced at AA by WCAG 2.2 that older checklists miss:
+
+- [ ] SC 2.4.11 Focus Not Obscured — the focused element is not entirely
+      hidden by sticky headers, banners or overlays
+- [ ] SC 2.5.7 Dragging Movements — any drag action has a single-pointer
+      alternative (a button or control that achieves the same result)
+- [ ] SC 3.2.6 Consistent Help — help/contact mechanisms appear in the
+      same relative order on every page that has them
+- [ ] SC 3.3.7 Redundant Entry — data already entered is not requested
+      again in the same session (auto-populated or selectable)
+- [ ] SC 3.3.8 Accessible Authentication — login does not require a
+      cognitive function test (puzzle, transcription) unless an
+      alternative, a mechanism (password-manager support, paste allowed)
+      or object/personal-content recognition is provided
 
 ## Common HTML Patterns
 
@@ -132,8 +152,8 @@ checks require hands-on exercise.
 
 ```bash
 # Automated audit
-npx axe-core          # Programmatic accessibility testing
-npx pa11y             # CLI accessibility checker
+npx @axe-core/cli <url>  # Programmatic accessibility testing (axe CLI)
+npx pa11y <url>          # CLI accessibility checker
 
 # In browser
 # Chrome DevTools → Lighthouse → Accessibility
