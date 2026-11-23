@@ -172,7 +172,20 @@ alias dispatches through the same path as `workflow COMMAND`: it
 builds a read-only packet (canonical command + resolved resources +
 profile) for a host to interpret; the harness never executes the
 content. Common flags for every alias:
-`--project PATH [--config REL] [--mode M] [--task UUID] [--host H] [--profile ID] [--interaction direct|guided]`.
+`--project PATH [--config REL] [--mode M] [--task UUID] [--host H] [--profile ID] [--interaction direct|guided] [--lazy]`.
+
+With `--lazy` the packet does not inline resource bodies: every
+`resources`/`contributedResources` entry carries `{kind,id,description,
+path,sha256}` (no `content`, no composed preset layers — hits are
+declared under `presets.deferred`) and the packet exposes `hydrate` with
+the hydration channels (`catalog show KIND ID` /
+`scopegrain_catalog_get`). The command and profile bodies stay full.
+
+With `--task`, skills declared on `task.skills` auto-include into
+`resources.skills` (task-typed routing, declared on
+`packet.taskRouting`: `included` resolved ids, `skipped` ids not in the
+catalog). Command-declared dependencies still fail closed; unresolvable
+task ids are reported, never fatal.
 
 | Alias | Canonical command | Modes |
 |---|---|---|

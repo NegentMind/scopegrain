@@ -250,6 +250,9 @@ export function createMCPTools(ctx, z) {
           host: z.string().max(MAX_ARG_CHARS).optional(),
           profile: z.string().max(MAX_ARG_CHARS).optional(),
           interaction: z.enum(['direct', 'guided']).optional(),
+          lazy: z.boolean().optional()
+            .describe('return the binding index without bodies; hydrate '
+              + 'via scopegrain_catalog_get'),
         },
         annotations: READ_ONLY,
       },

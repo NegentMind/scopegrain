@@ -22,11 +22,11 @@ import {
 
 const ALLOWED = new Set([
   'command', 'mode', 'taskId', 'host', 'profile', 'interaction',
-  'arguments', 'script',
+  'arguments', 'script', 'lazy',
 ]);
 const INTERACTIONS = new Set(['direct', 'guided']);
 
-function resolveResources(kind, ids, catalog, presets, applied) {
+function resolveResources(kind, ids, catalog, presets, hits, lazy) {
   const out = [];
   const seen = new Set();
   for (const id of ids) {
@@ -35,10 +35,23 @@ function resolveResources(kind, ids, catalog, presets, applied) {
     const k = `${kind}/${canon}`.toLowerCase();
     if (seen.has(k)) continue; // alias+target dedupe post-resolution
     seen.add(k);
+    if (lazy) {
+      // Index entry only: the body is hydrated on demand via catalog
+      // show / scopegrain_catalog_get. Preset layers are not composed —
+      // their hits are declared on the caller's deferred list.
+      const { applied: h } = presetLayers(presets, kind, canon);
+      for (const hh of h) hits.push({ resource: k, ...hh });
+      out.push({
+        kind, id: canon,
+        description: r.description, path: catalogDestRel(r),
+        sha256: r.sha256 ?? null,
+      });
+      continue;
+    }
     const base = decodeUtf8Strict(
       r.content, 'CATALOG_MALFORMED', `catalog resource ${kind}/${canon}`);
-    const { layers, applied: hits } = presetLayers(presets, kind, canon);
-    for (const h of hits) applied.push({ resource: k, ...h });
+    const { layers, applied: h } = presetLayers(presets, kind, canon);
+    for (const hh of h) hits.push({ resource: k, ...hh });
     out.push({
       kind, id: canon,
       description: r.description, path: catalogDestRel(r),
@@ -99,6 +112,7 @@ export function buildWorkflowPacket(ctx, opts = {}) {
   if (opts.host !== undefined && !ctx.config.hosts.includes(opts.host)) {
     throw err('INVALID_HOST', `host '${opts.host}' is not selected`);
   }
+  const lazy = opts.lazy === true;
   let task = null;
   let allowedActions = null;
   const methodology = {
@@ -111,6 +125,25 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     const effective = evaluateTaskActions(ctx, task);
     allowedActions = effective.permitted;
     methodology.taskCheck = effective.methodology;
+  }
+  // Task-typed routing: skills declared on the task record auto-include
+  // into the packet's skills bucket. Ids that do not resolve are reported
+  // on the skipped list — declared, never silent; command-declared deps
+  // still fail closed through resolveResources.
+  const taskRouting = opts.taskId === undefined ? null
+    : { taskId: task.id, skills: [], included: [], skipped: [] };
+  if (taskRouting) {
+    const declared = Array.isArray(task.skills) ? task.skills : [];
+    for (const sid of declared) {
+      if (typeof sid !== 'string' || sid.trim() === '') continue;
+      taskRouting.skills.push(sid);
+      try {
+        const r = getResource('skill', sid, { catalog });
+        taskRouting.included.push(r.canonicalId ?? r.id);
+      } catch {
+        taskRouting.skipped.push(sid);
+      }
+    }
   }
   const alias = catalog.aliases.find(
     (a) => a.kind === 'command'
@@ -131,6 +164,8 @@ export function buildWorkflowPacket(ctx, opts = {}) {
   // buckets. Activation already validated ids; resolution re-validates —
   // catalog drift since activation fails closed at getResource.
   const extensionApplied = [];
+  const presetDeferred = [];
+  const hitsTarget = lazy ? presetDeferred : presetApplied;
   const contributedResources = { agents: [], skills: [], rules: [],
     references: [], prompts: [], mcps: [] };
   const BUCKET = { agent: 'agents', skill: 'skills', rule: 'rules',
@@ -147,16 +182,18 @@ export function buildWorkflowPacket(ctx, opts = {}) {
       const key = `${kind}/${canon}`.toLowerCase();
       if (contributedResources[bucket]
         .some((x) => x._key === key)) continue;
-      const base = decodeUtf8Strict(r.content,
+      const base = lazy ? null : decodeUtf8Strict(r.content,
         'CATALOG_MALFORMED', `catalog resource ${key}`);
       const { layers, applied: hits } =
         presetLayers(presets, kind, canon);
       for (const h of hits) {
-        presetApplied.push({ resource: key, ...h });
+        hitsTarget.push({ resource: key, ...h });
       }
       contributedResources[bucket].push({ kind, id: canon,
         description: r.description, path: catalogDestRel(r),
-        content: composeResource(base, layers),
+        ...(lazy
+          ? { sha256: r.sha256 ?? null }
+          : { content: composeResource(base, layers) }),
         extension: ext.id });
       extensionApplied.push({ extension: ext.id, resource: key });
     }
@@ -208,8 +245,16 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     // data projected to hosts; the harness never executes them.
     hooks: hooksFor(inv.canonicalId),
     // Installed preset override layers applied to projected resources —
-    // declared, never silent.
-    presets: { applied: presetApplied },
+    // declared, never silent. In lazy mode layers are not composed into
+    // bodies, so their hits are reported under `deferred` instead.
+    presets: { applied: presetApplied,
+      ...(presetDeferred.length ? { deferred: presetDeferred } : {}) },
+    lazy: lazy || undefined,
+    hydrate: lazy ? {
+      cli: 'scopegrain catalog show KIND ID --project PATH',
+      mcp: 'scopegrain_catalog_get',
+    } : undefined,
+    taskRouting: taskRouting ?? undefined,
     // Active extensions contribute their declared resources to this
     // packet — same rule: declared, never silent.
     extensions: { applied: extensionApplied },
@@ -223,20 +268,21 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     },
     resources: {
       agents: resolveResources('agent', commandDeps.agents, catalog,
-        presets, presetApplied),
+        presets, hitsTarget, lazy),
       skills: resolveResources('skill',
-        [...new Set([...commandDeps.skills, ...merged.skills])], catalog,
-        presets, presetApplied),
+        [...new Set([...commandDeps.skills, ...merged.skills,
+          ...(taskRouting?.included ?? [])])], catalog,
+        presets, hitsTarget, lazy),
       rules: resolveResources('rule',
         [...new Set([...commandDeps.rules, ...merged.rules])], catalog,
-        presets, presetApplied),
+        presets, hitsTarget, lazy),
       references: resolveResources('reference',
         [...new Set([...commandDeps.references, ...merged.references])],
-        catalog, presets, presetApplied),
+        catalog, presets, hitsTarget, lazy),
       prompts: resolveResources('prompt', commandDeps.prompts, catalog,
-        presets, presetApplied),
+        presets, hitsTarget, lazy),
       mcps: resolveResources('mcp', commandDeps.mcps, catalog,
-        presets, presetApplied),
+        presets, hitsTarget, lazy),
     },
     contributedResources,
     paths: { ...ctx.config.paths },
@@ -258,6 +304,10 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     notes: [
       'Resource contents are verbatim data for a host to interpret; the '
         + 'harness never executes them.',
+      ...(lazy ? ['Lazy packet: resource entries carry the declared '
+        + 'index only — hydrate bodies via `catalog show KIND ID` '
+        + 'or the scopegrain_catalog_get MCP tool. Preset layers are '
+        + 'not composed into hydrated bodies.'] : []),
       'Dependency resources supplement the selected profile; core safety '
         + 'resources always apply.',
     ],

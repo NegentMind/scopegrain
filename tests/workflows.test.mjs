@@ -228,3 +228,42 @@ test('task context supplies state and allowed actions', () => {
     assert.ok(p2.allowedActions.includes('edit'));
   } finally { cleanup(dir); }
 });
+
+test('lazy packet carries the binding index, not bodies', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    const eager = buildWorkflowPacket(ctx, { command: 'pipeline' });
+    const p = buildWorkflowPacket(ctx, { command: 'pipeline', lazy: true });
+    assert.equal(p.lazy, true);
+    assert.ok(p.hydrate.mcp === 'scopegrain_catalog_get');
+    assert.equal(typeof p.command.content, 'string');
+    for (const group of ['agents', 'skills', 'rules', 'references']) {
+      for (const r of p.resources[group]) {
+        assert.equal(r.content, undefined, `${group}/${r.id} must not inline`);
+        assert.equal(typeof r.path, 'string');
+      }
+    }
+    assert.ok(p.resourceCost.total < eager.resourceCost.total);
+    assert.equal(eager.lazy, undefined);
+  } finally { cleanup(dir); }
+});
+
+test('task-declared skills auto-include; unresolvable ids degrade to skipped', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    const task = createTask(ctx, {
+      title: 'routed', contract: 'C', authorContext: 'a', scope: [],
+      skills: ['incremental-implementation', 'bogus-skill-xyz'],
+    });
+    const p = buildWorkflowPacket(ctx, {
+      command: 'pipeline', mode: 'task', taskId: task.id,
+    });
+    assert.equal(p.taskRouting.taskId, task.id);
+    assert.ok(p.taskRouting.included.includes('incremental-implementation'));
+    assert.ok(p.taskRouting.skipped.includes('bogus-skill-xyz'));
+    assert.ok(p.resources.skills.some(
+      (r) => r.id === 'incremental-implementation'));
+    const noTask = buildWorkflowPacket(ctx, { command: 'pipeline' });
+    assert.equal(noTask.taskRouting, undefined);
+  } finally { cleanup(dir); }
+});

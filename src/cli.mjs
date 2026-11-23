@@ -42,7 +42,7 @@ const VALUE_FLAGS = new Set([
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
-  '--record', '--keep-files', '--no-resume',
+  '--record', '--keep-files', '--no-resume', '--lazy',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -485,11 +485,11 @@ const COMMANDS = {
   },
   workflow: {
     flags: ['--project', '--config', '--mode', '--task', '--host',
-      '--profile', '--interaction', '--arguments', '--script'],
+      '--profile', '--interaction', '--arguments', '--script', '--lazy'],
     pos: 1,
     usage: 'workflow COMMAND [--mode M] [--task UUID] [--host H] '
       + '[--profile ID] [--interaction direct|guided] '
-      + '[--arguments TEXT] [--script PATH]',
+      + '[--arguments TEXT] [--script PATH] [--lazy]',
   },
   'plan create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
@@ -1444,6 +1444,7 @@ async function cmdWorkflow(command, flags) {
     ...(flags['--arguments'] !== undefined
       ? { arguments: flags['--arguments'] } : {}),
     ...(flags['--script'] !== undefined ? { script: flags['--script'] } : {}),
+    lazy: flags['--lazy'] === true,
   });
 }
 
