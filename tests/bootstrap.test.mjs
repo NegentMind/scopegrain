@@ -65,6 +65,20 @@ test('apply creates all files; re-run on empty project is a true no-op', () => {
   } finally { cleanup(dir); }
 });
 
+test('generated entrypoint and instructions carry the intake pointer', () => {
+  const dir = makeTempDir('init-intake');
+  try {
+    applyPlan(dir, prepareInit({ projectRoot: dir, answers: VALID_ANSWERS }).files);
+    const agents = fs.readFileSync(`${dir}/AGENTS.md`, 'utf8');
+    assert.match(agents, /Request intake/);
+    assert.match(agents, /intake\.mode/);
+    const instructions =
+      fs.readFileSync(`${dir}/.tasksystem/instructions.md`, 'utf8');
+    assert.match(instructions, /Request intake/);
+    assert.match(instructions, /bookkeeping, not implementation authority/);
+  } finally { cleanup(dir); }
+});
+
 test('re-init preserves custom formatting and approved commands', () => {
   const dir = makeTempDir('init-preserve');
   try {

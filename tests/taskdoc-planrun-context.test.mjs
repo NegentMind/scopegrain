@@ -93,6 +93,8 @@ test('context assembles the session-start packet read-only', async () => {
     assert.equal(code, 0);
     const out = JSON.parse(io.out.stdout.at(-1));
     assert.match(out.instructions, /instructions\.md$/);
+    assert.equal(out.methodology, 'manual');
+    assert.deepEqual(out.intake, { mode: 'off' });
     assert.equal(out.tasks.total, 4);
     assert.equal(out.tasks.open, 4);
     assert.ok(Array.isArray(out.tasks.ready));
