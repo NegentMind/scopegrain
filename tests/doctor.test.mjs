@@ -279,9 +279,9 @@ test('operational checks: mcp-deps, viewer-build, and user-artifacts', async () 
     const isoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sg-nomcp-'));
     try {
       const noMcp = runDoctor(ctx, { installRoot: isoRoot });
-      const mcpWarn = noMcp.checks.find((c) => c.name === 'mcp-deps');
-      assert.ok(mcpWarn && !mcpWarn.ok && mcpWarn.severity === 'warning');
-      assert.ok(mcpWarn.missing.includes('@modelcontextprotocol/sdk'));
+      const mcpInfo = noMcp.checks.find((c) => c.name === 'mcp-deps');
+      assert.ok(mcpInfo && mcpInfo.ok && mcpInfo.ready === false);
+      assert.ok(mcpInfo.missing.includes('@modelcontextprotocol/sdk'));
       const viewerNo = noMcp.checks.find((c) => c.name === 'viewer-build');
       assert.ok(viewerNo && viewerNo.ok && viewerNo.built === false);
     } finally {

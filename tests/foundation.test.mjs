@@ -277,7 +277,7 @@ test('both entrypoints delegate to the shared CLI and preserve package metadata'
   });
   assert.deepEqual(pkg.files, [
     'bin', 'src', 'resources', 'policy', 'templates', 'schemas',
-    'provenance', 'docs', 'viewer/dist', 'examples',
+    'provenance', 'docs/*.md', 'docs/en/*.md', 'viewer/dist', 'examples',
     'CHANGELOG.md', 'AUTHORS', 'NOTICE',
   ]);
   assert.equal(pkg.license, 'Apache-2.0');

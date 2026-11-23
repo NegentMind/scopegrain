@@ -861,15 +861,13 @@ export function runDoctor(ctx, opts = {}) {
     };
     const installed = expected.filter(hasPkg);
     const missing = expected.filter((p) => !installed.includes(p));
-    if (missing.length === 0) {
-      push('mcp-deps', true,
-        `MCP dependencies installed (${installed.join(', ')})`,
-        { installed, missing });
-    } else {
-      push('mcp-deps', false,
-        `optional MCP dependencies missing: ${missing.join(', ')}`,
-        { severity: 'warning', installed, missing });
-    }
+    // MCP server is optional (the CLI core runs with zero deps), so missing
+    // MCP deps are reported structurally without degrading CLI-only readiness.
+    push('mcp-deps', true,
+      missing.length === 0
+        ? `MCP dependencies installed (${installed.join(', ')})`
+        : `optional MCP dependencies not installed: ${missing.join(', ')}`,
+      { installed, missing, ready: missing.length === 0 });
   }
 
   // Viewer SPA build presence under installRoot/viewer/dist. Informational

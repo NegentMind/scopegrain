@@ -46,7 +46,7 @@ test('command packet resolves declared resources and modes', () => {
 });
 
 test('one shared ACT evaluation supplies workflow envelope AND actions, without second approval lookup', (t) => {
-  const f = formalFixture();
+  const f = formalFixture({ full: true });
   try {
     transitionTask(f.ctx, { id: f.task.id, to: 'ACT', expectedRevision: 0 });
     const approvalFile = path.resolve(f.approvals.task.file.abs);
@@ -96,7 +96,7 @@ test('no-task envelope uses selected mode; existing complete packet document cap
 });
 
 test('revoked approval filters BOTH workflow edit and five-field checkAction', () => {
-  const f = formalFixture();
+  const f = formalFixture({ full: true });
   try {
     transitionTask(f.ctx, { id: f.task.id, to: 'ACT', expectedRevision: 0 });
     const opts = { command: 'pipeline', mode: 'task', taskId: f.task.id };
@@ -121,7 +121,7 @@ test('revoked approval filters BOTH workflow edit and five-field checkAction', (
 });
 
 test('V2 empty scope permits ACT but removes edit; legacy V1 empty scope keeps edit', () => {
-  const f = lightFixture({ scope: [] });
+  const f = lightFixture({ scope: [], full: true });
   try {
     transitionTask(f.ctx, { id: f.task.id, to: 'ACT', expectedRevision: 0 });
     const p = buildWorkflowPacket(f.ctx, {
