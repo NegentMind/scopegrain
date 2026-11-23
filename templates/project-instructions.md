@@ -76,6 +76,17 @@ session. It is user-owned: never rewrite, truncate or relocate it; propose
 edits instead. Task state, journal and worklogs remain authoritative for
 operational facts.
 
+## Request intake
+
+The packet's `intake.mode` field carries the project's prompt-to-record
+posture (`off` by default — absent or `off` means no intake behavior).
+When configured, apply the `intake` command resource from the catalog:
+classify each request as answer-only, one task, or a multi-task plan;
+honor `capture`/`suggest`/`auto` semantics for recording. A persisted
+task or plan record is bookkeeping, not implementation authority —
+lifecycle transitions, verification, review and side-effect approvals
+still require their usual gates and explicit authorization.
+
 ## Safety and closure
 
 Ask before network access, publication, push, destructive effects or elevated

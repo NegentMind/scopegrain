@@ -66,6 +66,34 @@
   },
   {
    "kind": "command",
+   "id": "intake",
+   "path": "resources/commands/intake.md",
+   "description": "Classify each user request into no-record, capture, task or plan per the project's intake.mode.",
+   "modes": [
+    "default"
+   ],
+   "agents": [
+    "lead"
+   ],
+   "skills": [
+    "planning-and-task-breakdown",
+    "organic-driven-development",
+    "clarify-intent"
+   ],
+   "rules": [
+    "workflow",
+    "methodology",
+    "human-decisions"
+   ],
+   "references": [
+    "task-system"
+   ],
+   "prompts": [
+    "decision-request"
+   ]
+  },
+  {
+   "kind": "command",
    "id": "coordinate-plan",
    "path": "resources/commands/coordinate-plan.md",
    "description": "Coordinate ready tasks within an approved plan and explicit limits.",
