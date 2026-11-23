@@ -35,6 +35,7 @@ const W2_NAMES = [
   'scopegrain_memory_read', 'scopegrain_goal_create',
   'scopegrain_goal_list', 'scopegrain_goal_transition',
   'scopegrain_metrics', 'scopegrain_mcp_inventory',
+  'scopegrain_context',
 ];
 const WRITE_TOOLS = new Set([
   'scopegrain_next_task', 'scopegrain_task_meta',
@@ -99,8 +100,8 @@ async function withWire(f, body) {
 }
 function namesContract(tools) {
   const ALL = [...OLD_NAMES, ...NEW_NAMES, ...W2_NAMES];
-  assert.equal(tools.length, 33);
-  assert.equal(new Set(tools.map((t) => t.name)).size, 33);
+  assert.equal(tools.length, 34);
+  assert.equal(new Set(tools.map((t) => t.name)).size, 34);
   assert.deepEqual(tools.map((t) => t.name).sort(), [...ALL].sort());
   assert.deepEqual(tools.filter((t) => !OLD_NAMES.includes(t.name)).map((t) => t.name).sort(),
     [...NEW_NAMES, ...W2_NAMES].sort());

@@ -143,7 +143,7 @@ export function createMCPTools(ctx, z) {
           + 'instructions pointer, workspace identity, task distribution, '
           + 'ready work, recent progress, open goals, pending journal '
           + 'events, active task and memory rehydration. Same bounded '
-          + 'read as the CLI context command — call it at the top of '
+          + 'read as the CLI `context` command — call it at the top of '
           + 'a session before the first task action.',
         inputSchema: {
           tail: z.number().int().min(1).max(100).optional()
