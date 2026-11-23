@@ -3,7 +3,12 @@
 // session-start packet and record-level sg-formal scan for session
 // resume. Both degrade instead of throwing: unenrolled fails closed
 // with enrolled:false; runtime failures surface as error markers.
+// The project-level read is memory_search over the project's own
+// l1/sg-<projectHash> namespace — the engine's memory_recall pool is
+// machine-global (every l1/* with default identity), so it must never
+// feed an automatic packet.
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -11,15 +16,17 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { resolveContext } from '../src/core/context.mjs';
 import { applyPlan } from '../src/core/bootstrap.mjs';
-import { prepareWorkspace, bindWorkspace } from '../src/core/workspaces.mjs';
+import { prepareWorkspace, bindWorkspace, getWorkspace }
+  from '../src/core/workspaces.mjs';
 import {
   callVantaDBTool, saveVantaDBConfig, DEFAULT_VANTADB_VERSION,
-  VANTADB_BACKEND_ID,
+  VANTADB_BACKEND_ID, projectL1Namespace, vantaDBSyncWorklogs,
 } from '../src/integrations/vantadb-runtime.mjs';
 import {
   projectRehydration, recordRehydration,
 } from '../src/integrations/vantadb-rehydrate.mjs';
-import { TOKEN_ESTIMATOR } from '../src/core/tokens.mjs';
+import { appendWorklog } from '../src/core/worklog.mjs';
+import { estimateTokens } from '../src/core/tokens.mjs';
 import { createConfig } from '../src/core/config.mjs';
 import { VALID_ANSWERS, cleanup, makeTempDir, writeJson }
   from './helpers.mjs';
@@ -27,8 +34,8 @@ import { VALID_ANSWERS, cleanup, makeTempDir, writeJson }
 const FAKE_SERVER = fileURLToPath(
   new URL('./fixtures/fake-vantadb-mcp.mjs', import.meta.url));
 
-function fixture() {
-  const dir = makeTempDir('rehydration');
+function fixture(tag = 'rehydration', storagePath) {
+  const dir = makeTempDir(tag);
   writeJson(dir, '.tasksystem/config.json',
     createConfig(dir, VALID_ANSWERS, {}));
   const ctx = resolveContext({ project: dir,
@@ -38,21 +45,26 @@ function fixture() {
   });
   applyPlan(dir, [prepared.file]);
   const [a] = prepared.workspace.areas.map((area) => area.id);
-  return { dir, ctx, bound: bindWorkspace(ctx, { areaIds: [a] }) };
+  return { dir, ctx, bound: bindWorkspace(ctx, { areaIds: [a] }),
+    storagePath: storagePath ?? path.join(dir, 'vanta-data') };
 }
 
-// Enrolled binaries must resolve OUTSIDE the project root.
-function enroll(dir) {
+// Enrolled binaries must resolve OUTSIDE the project root. The config
+// pins binarySha256 — verified against the file before every spawn —
+// so the fixture writes the placeholder first and digests its bytes.
+function enroll(dir, storagePath) {
   const binDir = path.join(path.dirname(dir), `bin-${path.basename(dir)}`);
   fs.mkdirSync(binDir, { recursive: true });
-  const c = {
+  const binaryPath = path.join(binDir, 'vantadb-server');
+  fs.writeFileSync(binaryPath, 'placeholder');
+  return {
     schemaVersion: 1, backendId: VANTADB_BACKEND_ID,
     version: DEFAULT_VANTADB_VERSION,
-    binaryPath: path.join(binDir, 'vantadb-server'),
-    storagePath: path.join(dir, 'vanta-data'),
+    binaryPath,
+    binarySha256: crypto.createHash('sha256')
+      .update(fs.readFileSync(binaryPath)).digest('hex'),
+    storagePath: storagePath ?? path.join(dir, 'vanta-data'),
   };
-  fs.writeFileSync(c.binaryPath, 'placeholder');
-  return c;
 }
 
 function fakeSpawn() {
@@ -74,15 +86,16 @@ test('unenrolled project fails closed on both rehydration surfaces', async () =>
   }
 });
 
-test('projectRehydration recalls seeded L1 memories over a real stdio session', async () => {
+test('projectRehydration recalls the project L1 namespace over a real stdio session', async () => {
   const f = fixture();
   try {
     const c = enroll(f.dir);
     saveVantaDBConfig(f.ctx, c);
+    const namespace = projectL1Namespace(getWorkspace(f.ctx));
     // Seed one curated L1 episodic record, as vantaDBDistill writes them.
     await callVantaDBTool({ cfg: c, name: 'memory_put',
       arguments: {
-        namespace: 'l1/scopegrain', key: 'sg-worklog-progress-x',
+        namespace, key: 'sg-worklog-progress-x',
         payload: JSON.stringify({
           content: 'Scopegrain progress entry: rehydration test',
           agent_id: 'default', team_id: 'default', type: 'episodic',
@@ -93,13 +106,16 @@ test('projectRehydration recalls seeded L1 memories over a real stdio session', 
     const out = await projectRehydration({ ctx: f.ctx, query: 'rehydration',
       spawnImpl: fakeSpawn() });
     assert.equal(out.enrolled, true);
+    assert.equal(out.recall.tool, 'memory_search');
+    assert.equal(out.recall.pool, 'project');
+    assert.equal(out.recall.namespace, namespace);
     assert.equal(out.recall.recalled.length, 1);
     assert.match(out.recall.recalled[0].content, /rehydration test/);
+    assert.equal(out.recall.recalled[0].type, 'episodic');
     assert.equal(typeof out.recall.prepend_context, 'string');
-    // Advisory estimate over the (post-cap) prepend_context string.
-    assert.deepEqual(out.recall.prependContextEstimate, {
-      estimatedTokens: 1, estimator: TOKEN_ESTIMATOR, bytes: 3,
-    });
+    // Advisory estimate over the (post-cap) locally built prepend_context.
+    assert.deepEqual(out.recall.prependContextEstimate,
+      estimateTokens(out.recall.prepend_context));
 
     // No hits -> null prepend_context -> no estimate field at all.
     const empty = await projectRehydration({ ctx: f.ctx,
@@ -108,6 +124,74 @@ test('projectRehydration recalls seeded L1 memories over a real stdio session', 
     assert.equal('prependContextEstimate' in empty.recall, false);
   } finally {
     cleanup(f.dir);
+  }
+});
+
+test('project rehydration is cross-session and isolated per project on shared storage', async () => {
+  const shared = makeTempDir('rehydration-shared');
+  const a = fixture('rehydration-a', path.join(shared, 'vanta-data'));
+  const b = fixture('rehydration-b', path.join(shared, 'vanta-data'));
+  try {
+    const cfgA = enroll(a.dir, a.storagePath);
+    const cfgB = enroll(b.dir, b.storagePath);
+    saveVantaDBConfig(a.ctx, cfgA);
+    saveVantaDBConfig(b.ctx, cfgB);
+    const nsA = projectL1Namespace(getWorkspace(a.ctx));
+    const nsB = projectL1Namespace(getWorkspace(b.ctx));
+    assert.notEqual(nsA, nsB);
+
+    // Both projects project into the SAME storage via the real write
+    // path — each lands in its own derived namespace.
+    appendWorklog(a.ctx, 'progress', { taskId: crypto.randomUUID(),
+      title: 'alpha-only-marker', kind: 'action' });
+    appendWorklog(b.ctx, 'progress', { taskId: crypto.randomUUID(),
+      title: 'beta-only-marker', kind: 'action' });
+    await vantaDBSyncWorklogs({ ctx: a.ctx, bound: a.bound, cfg: cfgA,
+      spawnImpl: fakeSpawn() });
+    await vantaDBSyncWorklogs({ ctx: b.ctx, bound: b.bound, cfg: cfgB,
+      spawnImpl: fakeSpawn() });
+
+    // Session A rehydrates (fresh spawn, persisted store): sees only
+    // project A records — project B content cannot leak in.
+    const ra = await projectRehydration({ ctx: a.ctx, query: 'marker',
+      spawnImpl: fakeSpawn() });
+    assert.equal(ra.enrolled, true);
+    assert.equal(ra.recall.namespace, nsA);
+    assert.ok(ra.recall.recalled.length >= 1);
+    assert.ok(ra.recall.recalled.every((h) => /alpha/.test(h.content)));
+    assert.match(ra.recall.prepend_context, /alpha-only-marker/);
+    assert.equal(ra.recall.prepend_context.includes('beta'), false);
+
+    const rb = await projectRehydration({ ctx: b.ctx, query: 'marker',
+      spawnImpl: fakeSpawn() });
+    assert.equal(rb.recall.namespace, nsB);
+    assert.ok(rb.recall.recalled.every((h) => /beta/.test(h.content)));
+    assert.equal(rb.recall.prepend_context.includes('alpha'), false);
+  } finally {
+    cleanup(a.dir);
+    cleanup(b.dir);
+    cleanup(shared);
+  }
+});
+
+test('enrolled project without a workspace degrades before any spawn', async () => {
+  const dir = makeTempDir('rehydration-noworkspace');
+  try {
+    writeJson(dir, '.tasksystem/config.json',
+      createConfig(dir, VALID_ANSWERS, {}));
+    const ctx = resolveContext({ project: dir,
+      config: '.tasksystem/config.json' });
+    const c = enroll(dir);
+    saveVantaDBConfig(ctx, c);
+    let spawns = 0;
+    const counting = (...args) => { spawns += 1; return fakeSpawn()(...args); };
+    const out = await projectRehydration({ ctx, spawnImpl: counting });
+    assert.equal(out.enrolled, true);
+    assert.equal(out.recall, null);
+    assert.equal(out.error.code, 'WORKSPACE_NOT_FOUND');
+    assert.equal(spawns, 0);
+  } finally {
+    cleanup(dir);
   }
 });
 

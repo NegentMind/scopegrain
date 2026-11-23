@@ -98,7 +98,8 @@ export async function assembleContextPacket(ctx, opts = {}) {
     tasks: {
       total: tasks.length, open: open.length, byState,
       ready: open.filter(
-        (t) => t.state === 'PLAN' && t.disposition === null)
+        // V1 records omit disposition entirely — absent == not disposed.
+        (t) => t.state === 'PLAN' && t.disposition == null)
         .map((t) => ({ id: t.id, title: t.title,
           priority: t.priority ?? null, backlog: t.backlog ?? null })),
     },
@@ -156,9 +157,10 @@ export async function assembleContextPacket(ctx, opts = {}) {
         return { indexed: false, stale: null, summary: null };
       }
     })(),
-    // Automatic project-level rehydration: one bounded memory_recall
-    // over the distilled L1 pool when a VantaDB backend is enrolled.
-    // Degradable like the rest of the packet — never aborts.
+    // Automatic project-level rehydration: one bounded memory_search
+    // over the project's own l1/sg-<projectHash> namespace when a
+    // VantaDB backend is enrolled — project-scoped, never the global
+    // L1 recall pool. Degradable like the rest of the packet.
     vantadb: await (async () => {
       if (noVantadb === true) {
         return { enrolled: null, recall: null, skipped: true };

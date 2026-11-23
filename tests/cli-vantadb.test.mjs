@@ -52,15 +52,16 @@ test('help lists exactly the authored vantadb usages', async () => {
   const usages = result.output.commands.map((command) => command.command);
   assert.ok(usages.includes('vantadb setup --project PATH [--version X] [--storage PATH] [--binary PATH] [--install-dir DIR] [--apply]'));
   assert.ok(usages.includes('vantadb status --project PATH [--probe] [--timeout MS]'));
-  assert.ok(usages.includes('vantadb sync --project PATH [--limit N] [--timeout MS]'));
+  assert.ok(usages.includes('vantadb sync --project PATH [--limit N] [--timeout MS] [--apply]'));
   assert.ok(usages.includes('vantadb get --project PATH --namespace NS --key K [--timeout MS]'));
   assert.ok(usages.includes('vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--mode keyword|vector|hybrid] [--timeout MS]'));
   assert.ok(usages.includes('vantadb list --project PATH --namespace NS [--cursor N] [--timeout MS]'));
-  assert.ok(usages.includes('vantadb reinforce --project PATH --namespace NS --key K --outcome used|corrected|unused [--timeout MS]'));
+  assert.ok(usages.includes('vantadb reinforce --project PATH --namespace NS --key K --outcome used|corrected|unused [--timeout MS] [--apply]'));
   assert.ok(usages.includes('vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N] [--timeout MS]'));
   assert.ok(usages.includes('vantadb context --project PATH --record-id ID [--top-k N] [--limit N] [--timeout MS]'));
-  assert.ok(usages.includes('vantadb distill --project PATH [--limit N] [--timeout MS]'));
-  assert.ok(usages.includes('vantadb sync-memory --project PATH [--limit N] [--timeout MS]'));
+  assert.ok(usages.includes('vantadb distill --project PATH [--limit N] [--timeout MS] [--apply]'));
+  assert.ok(usages.includes('vantadb sync-memory --project PATH [--limit N] [--timeout MS] [--apply]'));
+  assert.ok(usages.includes('vantadb sync-persona --project PATH [--limit N] [--timeout MS] [--apply]'));
 });
 
 test('setup preview is read-only: no config, no storage dir, no writes', async () => {

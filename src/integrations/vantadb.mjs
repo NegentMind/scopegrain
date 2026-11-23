@@ -132,6 +132,24 @@ export function projectionEventNamespace(event) {
   return `sg-formal-v1-${projectionScopeHash(event)}`;
 }
 
+// Project-identity hash for the derived layers (L1 recall pool, L3
+// persona): the same {workspaceId, projectId, repositoryId} triple
+// bindWorkspace freezes, WITHOUT areaIds. The project is the isolation
+// boundary of the l1/* recall pool — the engine's memory_recall
+// enumerates every l1/* namespace and only filters on
+// agent_id/team_id, so a per-scope hash would add fragmentation, not
+// isolation. One namespace per project also makes the read side
+// derivable from the workspace descriptor alone. The `kind` tag keeps
+// the digest domain disjoint from the formal scope hash.
+export function projectionProjectHash(identity) {
+  return canonicalDigest({
+    kind: 'scopegrain.project',
+    workspaceId: identity.workspaceId,
+    projectId: identity.projectId,
+    repositoryId: identity.repositoryId,
+  });
+}
+
 function chunksFor(snapshot, event) {
   const decoded = snapshot.toString('utf8');
   const encoding = Buffer.from(decoded, 'utf8').equals(snapshot) ? 'utf8' : 'base64';

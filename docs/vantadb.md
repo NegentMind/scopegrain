@@ -23,8 +23,25 @@ nada descarga, instala ni sincroniza sin un comando explicito.
 
 - **Instancia compartida por maquina**: un unico storage (por defecto
   `~/.vantadb/data`). Cada proyecto escribe en namespaces derivados de su
-  scope (`sg-formal-v1-<scopeHash>`, `sg-snapshot-v1-<scopeHash>`), por lo
-  que la separacion es por namespace, no por proceso.
+  identidad: la proyeccion formal usa el scope del evento
+  (`sg-formal-v1-<scopeHash>`, `sg-snapshot-v1-<scopeHash>`) y las capas
+  derivadas usan la identidad del proyecto
+  (`l1/sg-<projectHash>`, `l3/sg-persona-<projectHash>`, donde
+  `projectHash` es el digest de `{workspaceId, projectId, repositoryId}`
+  del descriptor de workspace — sin `areaIds`). La separacion es por
+  namespace, no por proceso.
+- **Rehidratacion con aislamiento por proyecto**: la seccion
+  `vantadb.recall` del paquete `context` lee SOLO el namespace L1 del
+  proyecto via `memory_search`. No usa `memory_recall` porque el pool
+  de recall del engine enumera TODOS los namespaces `l1/*` filtrando
+  solo por `agent_id`/`team_id` — valores que scopegrain fija en
+  `default` — asi que el pool es global a la maquina e inyectaria
+  memorias de otros proyectos. `memory_search` acotada al namespace del
+  proyecto sigue siendo recall cross-session (los registros persisten
+  en el storage compartido) pero no puede exponer registros ajenos.
+  Por simetria, `vantadb recall`/`scopegrain_memory_recall` siguen
+  siendo proxies del pool global del engine: su salida puede incluir
+  registros `l1/*` de otros proyectos o herramientas.
 - **Auto-spawn por operacion**: `sync`/`get` lanzan `vantadb-server --mcp`
   con `VANTADB_STORAGE_PATH`, hablan JSON-RPC por stdio y el proceso muere
   al cerrar. El writer-discovery de VantaDB (`.vanta.server.json`) cubre
@@ -98,8 +115,8 @@ scopegrain vantadb distill --project PATH [--limit N] [--timeout MS]
 scopegrain vantadb sync-memory --project PATH [--limit N] [--timeout MS]
 ```
 
-`distill` escribe en `l1/sg-<scopeHash>` (prefijo `l1/*` = pool de recall
-cross-session) un `MemoryRecord` valido (`type: episodic`,
+`distill` escribe en `l1/sg-<projectHash>` (prefijo `l1/*` = pool de recall
+cross-session del engine) un `MemoryRecord` valido (`type: episodic`,
 `agent_id/team_id: default`, `session_key: scopegrain`) con un resumen
 determinista por linea. Clave `sg-event-<eventId>` — re-ejecuciones son
 upserts idempotentes. La verdad formal sigue en `sg-formal-v1-*`; los
@@ -107,12 +124,25 @@ registros L1 son derivados y su metadata apunta al registro formal.
 
 `sync-memory` proyecta los worklogs operativos locales
 (`.scopegrain/memory/{lessons,outcomes,progress,goals}.jsonl` — el almacen
-autoritativo, sin cambios) al mismo namespace `l1/sg-<scopeHash>` del
+autoritativo, sin cambios) al mismo namespace `l1/sg-<projectHash>` del
 proyecto, clave `sg-worklog-<log>-<digest16>` derivada del contenido:
 entradas sin cambios se reportan como `skipped` y las re-ejecuciones no
-generan duplicados. Cada registro lleva `metadata.record_type:
+generan duplicados. Un registro remoto existente cuyo payload difiere del
+esperado se reporta como `conflicted` — la divergencia se declara, nunca
+se sobreescribe ni se omite. Cada registro lleva `metadata.record_type:
 'sg-worklog'` (filtrable por `memory_list.filters`), `log`, `entryDigest`,
 `taskId` y `kind`, y la entrada completa en el payload.
+
+`sync-persona` proyecta las capturas probadas de categoria
+`preference`/`decision` a `l3/sg-persona-<projectHash>` (misma identidad
+de proyecto que L1), clave `sg-persona-<category>-<captureId>`.
+
+Nota de migracion: los registros proyectados por versiones anteriores
+bajo `l1/sg-<scopeHash>` (digest por conjunto de areas) y
+`l3/sg-persona-<scopeHash>` quedan inertes — no se borran y el pool
+global de recall aun puede verlos. Re-ejecutar `distill --apply`,
+`sync-memory --apply` y `sync-persona --apply` los reproyecta al
+namespace por proyecto.
 
 Los verbos de lectura (`get`/`list`/`search`/`recall`) son proxies acotados
 sobre el mismo canal stdio: auto-spawn del servidor, validacion de
@@ -121,10 +151,15 @@ argumentos antes de tocar config, sin escrituras locales.
 Las superficies de rehidratacion (la seccion `vantadb.recall` del paquete
 `context` y `vantadb.context` de `session resume`) adjuntan
 `prependContextEstimate` (`{estimatedTokens, estimator, bytes}`) cuando la
-respuesta incluye un `prepend_context` en texto, medido tras el cap de
-caracteres aplicado por el harness. Es una estimacion heuristica local
-`utf8-bytes/4`, nunca el conteo del tokenizer del anfitrion; un
-`prepend_context` ausente o no texto no produce el campo.
+salida incluye un `prepend_context` en texto, medido tras el cap de
+caracteres aplicado por el harness. En la seccion `vantadb.recall` el
+`prepend_context` se compone localmente concatenando el `content` de los
+hits del `memory_search` del namespace del proyecto (cap 8192
+caracteres; cada hit individual cap 512 caracteres) — no es el bloque
+del engine. Es una
+estimacion heuristica local `utf8-bytes/4`, nunca el conteo del
+tokenizer del anfitrion; un `prepend_context` ausente o no texto no
+produce el campo.
 
 ## Tools MCP `scopegrain_memory_*`
 

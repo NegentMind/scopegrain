@@ -16,8 +16,8 @@ import { canonicalDigest } from '../core/digests.mjs';
 import { readWorklog } from '../core/worklog.mjs';
 import { estimateTokens } from '../core/tokens.mjs';
 import { controlledSpawnEnv } from '../core/verify-commands.mjs';
-import { createVantaDBProjector, projectionScopeHash, secretEgressCheck }
-  from './vantadb.mjs';
+import { createVantaDBProjector, projectionProjectHash, projectionScopeHash,
+  secretEgressCheck } from './vantadb.mjs';
 
 export const DEFAULT_VANTADB_VERSION = '0.9.0';
 export const VANTADB_REPO = 'ness-e/Vantadb';
@@ -655,6 +655,20 @@ const L1_NS_PREFIX = 'l1/sg-';
 const L1_SESSION_KEY = 'scopegrain';
 const L1_ISOLATION = { agent_id: 'default', team_id: 'default' };
 
+// Derived-layer namespaces are per-PROJECT (identity triple from the
+// workspace descriptor, never ambient). One namespace per project lets
+// the automatic rehydration read exactly the records this project
+// projected — the engine's memory_recall enumerates every l1/*
+// namespace and cannot be namespace-scoped, so the recall surface
+// uses memory_search addressed at this namespace instead.
+export function projectL1Namespace(identity) {
+  return `${L1_NS_PREFIX}${projectionProjectHash(identity).slice(0, 16)}`;
+}
+
+function projectL3PersonaNamespace(identity) {
+  return `${L3_NS_PREFIX}${projectionProjectHash(identity).slice(0, 16)}`;
+}
+
 // Curated L1 dual-write: one episodic MemoryRecord per remote-verified
 // (acked) journal event, keyed by eventId so re-runs are idempotent
 // upserts. L1 records live under l1/* namespaces where memory_recall's
@@ -673,7 +687,7 @@ export async function vantaDBDistill({ bound, cfg, limit, timeoutMs, spawnImpl }
     const failed = [];
     for (const { event, evidence } of items) {
       const scopeHash = projectionScopeHash(event);
-      const namespace = `${L1_NS_PREFIX}${scopeHash.slice(0, 16)}`;
+      const namespace = projectL1Namespace(event);
       const key = `sg-event-${event.eventId}`;
       const record = {
         id: event.eventId,
@@ -702,16 +716,21 @@ export async function vantaDBDistill({ bound, cfg, limit, timeoutMs, spawnImpl }
         ...L1_ISOLATION,
       };
       try {
+        const payload = JSON.stringify(record);
         const put = await client.invoke({ name: 'memory_put',
-          arguments: { namespace, key, payload: JSON.stringify(record) } });
+          arguments: { namespace, key, payload } });
         if (put?.isError) {
           failed.push({ eventId: event.eventId, error: put });
           continue;
         }
         const got = await client.invoke({ name: 'memory_get',
           arguments: { namespace, key } });
-        if (got?.isError) {
-          failed.push({ eventId: event.eventId, error: got });
+        // Readback verifies the stored payload, not just presence —
+        // idempotent means the remote value is the one we wrote.
+        if (got?.isError || got?.structuredContent?.payload !== payload) {
+          failed.push({ eventId: event.eventId, error: got?.isError ? got
+            : { code: 'VANTADB_REMOTE_CONFLICT',
+              message: 'remote record diverges from expected payload' } });
           continue;
         }
         distilled.push({ eventId: event.eventId, namespace, key });
@@ -790,13 +809,10 @@ export async function vantaDBSyncWorklogs({ ctx, bound, cfg, limit, timeoutMs,
     throw err('VANTADB_INVALID_INPUT',
       'limit must be a positive integer within policy');
   }
-  const scopeHash = canonicalDigest({
-    workspaceId: bound.workspaceId, projectId: bound.projectId,
-    repositoryId: bound.repositoryId, areaIds: [...bound.areaIds].sort(),
-  });
-  const namespace = `${L1_NS_PREFIX}${scopeHash.slice(0, 16)}`;
+  const namespace = projectL1Namespace(bound);
   const projected = [];
   const skipped = [];
+  const conflicted = [];
   const failed = [];
   const blocked = [];
   return withMcpClient(cfg, timeoutMs, spawnImpl, async (client) => {
@@ -807,12 +823,6 @@ export async function vantaDBSyncWorklogs({ ctx, bound, cfg, limit, timeoutMs,
           .update(JSON.stringify(entry), 'utf8').digest('hex');
         const key = `sg-worklog-${log}-${digest.slice(0, 16)}`;
         try {
-          const existing = await client.invoke({ name: 'memory_get',
-            arguments: { namespace, key } });
-          if (existing && !existing.isError) {
-            skipped.push({ log, key });
-            continue;
-          }
           const record = {
             id: key,
             content: `Scopegrain ${log} entry: ${worklogSummary(log, entry)}`,
@@ -841,6 +851,20 @@ export async function vantaDBSyncWorklogs({ ctx, bound, cfg, limit, timeoutMs,
             blocked.push({ log, key, reason: hit });
             continue;
           }
+          const existing = await client.invoke({ name: 'memory_get',
+            arguments: { namespace, key } });
+          if (existing && !existing.isError) {
+            // Idempotent means identical, not merely present: a remote
+            // record that diverges from the expected payload is a
+            // conflict — reported, never overwritten nor silently
+            // skipped.
+            if (existing?.structuredContent?.payload === payload) {
+              skipped.push({ log, key });
+            } else {
+              conflicted.push({ log, key });
+            }
+            continue;
+          }
           const put = await client.invoke({ name: 'memory_put',
             arguments: { namespace, key, payload } });
           if (put?.isError) {
@@ -855,7 +879,7 @@ export async function vantaDBSyncWorklogs({ ctx, bound, cfg, limit, timeoutMs,
         }
       }
     }
-    return { namespace, projected, skipped, blocked, failed };
+    return { namespace, projected, skipped, conflicted, blocked, failed };
   });
 }
 
@@ -867,7 +891,7 @@ const CAPTURE_UUID_JSON_RE =
 // Opt-in L3 persona/preferences projection: reads ONLY ownership-proved
 // capture notes of category 'preference' or 'decision' from .scopegrain
 // (which remains the sole authoritative store) and projects them
-// idempotently into VantaDB under l3/sg-persona-<scopeHash>. Unproved or
+// idempotently into VantaDB under l3/sg-persona-<projectHash>. Unproved or
 // drifted captures are never adopted and are reported in skippedUnproved.
 export async function vantaDBSyncPersona({
   ctx, bound, cfg, limit, apply = false, timeoutMs, spawnImpl,
@@ -878,11 +902,7 @@ export async function vantaDBSyncPersona({
     throw err('VANTADB_INVALID_INPUT',
       'limit must be a positive integer within policy');
   }
-  const scopeHash = canonicalDigest({
-    workspaceId: bound.workspaceId, projectId: bound.projectId,
-    repositoryId: bound.repositoryId, areaIds: [...bound.areaIds].sort(),
-  });
-  const namespace = `${L3_NS_PREFIX}${scopeHash.slice(0, 16)}`;
+  const namespace = projectL3PersonaNamespace(bound);
   const capturesDir = resolveInside(
     ctx.projectRoot, `${ctx.config.paths.memory}/captures`, 'captures dir');
   const candidates = [];
@@ -941,19 +961,12 @@ export async function vantaDBSyncPersona({
 
   const projected = [];
   const skipped = [];
+  const conflicted = [];
   const failed = [];
   const blocked = [];
   return withMcpClient(cfg, timeoutMs, spawnImpl, async (client) => {
     for (const c of candidates) {
       try {
-        const existing = await client.invoke({
-          name: 'memory_get',
-          arguments: { namespace, key: c.key },
-        });
-        if (existing && !existing.isError) {
-          skipped.push({ id: c.id, category: c.category, key: c.key });
-          continue;
-        }
         const record = {
           id: c.key,
           content: `User ${c.category}${c.subjectId ? ` (${c.subjectId})` : ''}: `
@@ -989,6 +1002,21 @@ export async function vantaDBSyncPersona({
             reason: hit });
           continue;
         }
+        const existing = await client.invoke({
+          name: 'memory_get',
+          arguments: { namespace, key: c.key },
+        });
+        if (existing && !existing.isError) {
+          // Idempotent means identical, not merely present: a remote
+          // record diverging from the expected payload is a conflict —
+          // reported, never overwritten nor silently skipped.
+          if (existing?.structuredContent?.payload === payload) {
+            skipped.push({ id: c.id, category: c.category, key: c.key });
+          } else {
+            conflicted.push({ id: c.id, category: c.category, key: c.key });
+          }
+          continue;
+        }
         const put = await client.invoke({
           name: 'memory_put',
           arguments: { namespace, key: c.key, payload },
@@ -1001,8 +1029,13 @@ export async function vantaDBSyncPersona({
           name: 'memory_get',
           arguments: { namespace, key: c.key },
         });
-        if (readback?.isError) {
-          failed.push({ id: c.id, key: c.key, error: readback });
+        // Readback verifies the stored payload, not just presence.
+        if (readback?.isError
+            || readback?.structuredContent?.payload !== payload) {
+          failed.push({ id: c.id, key: c.key,
+            error: readback?.isError ? readback
+              : { code: 'VANTADB_REMOTE_CONFLICT',
+                message: 'remote record diverges from expected payload' } });
           continue;
         }
         projected.push({ id: c.id, category: c.category, key: c.key });
@@ -1018,6 +1051,7 @@ export async function vantaDBSyncPersona({
       namespace,
       projected,
       skipped,
+      conflicted,
       skippedUnproved,
       blocked,
       failed,

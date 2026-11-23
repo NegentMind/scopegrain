@@ -46,10 +46,17 @@ function fixture() {
 function cfg(dir, storagePath) {
   const binDir = path.join(path.dirname(dir), `bin-${path.basename(dir)}`);
   fs.mkdirSync(binDir, { recursive: true });
+  const binaryPath = path.join(binDir, 'vantadb-server');
+  // The enrolled digest is verified against the real file before every
+  // spawn: write the placeholder once so cfg() returns a pinned config.
+  // Call sites that rewrite 'placeholder' keep the same digest.
+  if (!fs.existsSync(binaryPath)) fs.writeFileSync(binaryPath, 'placeholder');
   return {
     schemaVersion: 1, backendId: VANTADB_BACKEND_ID,
     version: DEFAULT_VANTADB_VERSION,
-    binaryPath: path.join(binDir, 'vantadb-server'),
+    binaryPath,
+    binarySha256: crypto.createHash('sha256')
+      .update(fs.readFileSync(binaryPath)).digest('hex'),
     storagePath: storagePath ?? path.join(dir, 'vanta-data'),
   };
 }
@@ -484,6 +491,37 @@ test('vantaDBSyncWorklogs projects JSONL entries to L1 and skips repeats', async
       cfg: c, spawnImpl: fakeSpawn() });
     assert.equal(again.projected.length, 0);
     assert.equal(again.skipped.length, 2);
+  } finally {
+    cleanup(f.dir);
+  }
+});
+
+test('vantaDBSyncWorklogs reports divergent remote records as conflicted, never skipped or overwritten', async () => {
+  const f = fixture();
+  try {
+    const c = cfg(f.dir);
+    fs.writeFileSync(c.binaryPath, 'placeholder');
+    appendWorklog(f.ctx, 'progress', { taskId: crypto.randomUUID(),
+      title: 'w1', kind: 'action' });
+    const first = await vantaDBSyncWorklogs({ ctx: f.ctx, bound: f.bound,
+      cfg: c, spawnImpl: fakeSpawn() });
+    assert.equal(first.projected.length, 1);
+    // Tamper the remote record in place — same key, wrong payload.
+    await callVantaDBTool({ cfg: c, name: 'memory_put',
+      arguments: { namespace: first.namespace,
+        key: first.projected[0].key, payload: '{"forged":true}' },
+      spawnImpl: fakeSpawn() });
+    const again = await vantaDBSyncWorklogs({ ctx: f.ctx, bound: f.bound,
+      cfg: c, spawnImpl: fakeSpawn() });
+    assert.equal(again.skipped.length, 0);
+    assert.equal(again.projected.length, 0);
+    assert.equal(again.conflicted.length, 1);
+    assert.equal(again.conflicted[0].key, first.projected[0].key);
+    // The foreign value is reported, never overwritten.
+    const got = await callVantaDBTool({ cfg: c, name: 'memory_get',
+      arguments: { namespace: first.namespace,
+        key: first.projected[0].key }, spawnImpl: fakeSpawn() });
+    assert.equal(got.structuredContent.payload, '{"forged":true}');
   } finally {
     cleanup(f.dir);
   }
