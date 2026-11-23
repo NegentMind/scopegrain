@@ -12,6 +12,7 @@ import {
   prepareActivation, applyActivation,
 } from '../src/hosts/activation.mjs';
 import { KNOWN_HOSTS, createConfig } from '../src/core/config.mjs';
+import { hostManifest } from '../src/hosts/host-manifest.mjs';
 import { renderNativeAdapters } from '../src/hosts/native.mjs';
 import { renderAdapters } from '../src/hosts/render.mjs';
 import { applyPlan } from '../src/core/bootstrap.mjs';
@@ -275,6 +276,39 @@ test('devin applies the dedicated mcp_config file and skips the legacy merge', (
     assert.equal(fs.readFileSync(
       path.join(dir, '.devin', 'mcp_config.json'), 'utf8'),
       '{"other":true}\n');
+  } finally { cleanup(dir); }
+});
+
+test('opencode MCP fragment is disclosed as a manual merge, never written', () => {
+  // OpenCode pilot D1. The fragment embeds absolute machine-local paths and
+  // is merged by hand into the project OpenCode config, so it has no
+  // whole-file destination. Silence was the defect: activation must
+  // disclose it, the manifest must label it `shared`, and nothing may ever
+  // create the destination (doctor therefore never sees it as a fragment
+  // conflict — it is not in the applyable set at all).
+  const { dir, ctx } = fixture(['opencode']);
+  try {
+    const preview = prepareActivation(ctx, { host: 'opencode' });
+    assert.equal(preview.format, 'documented-only');
+    const entry = preview.skipped.find((s) => s.destination === 'opencode.jsonc');
+    assert.ok(entry, 'the MCP merge target must be disclosed, not silent');
+    assert.match(entry.reason, /manual merge/);
+    assert.ok(entry.source.endsWith('/integrations/opencode-mcp.json'));
+    assert.ok(preview.warnings.some((w) => /manual merge/.test(w)));
+    assert.ok(!preview.files.some((f) => f.rel === 'opencode.jsonc'),
+      'the merge target is never an applyable destination');
+
+    const res = applyActivation(ctx, { host: 'opencode' });
+    assert.ok(res.applied > 0);
+    assert.ok(exists(dir, '.opencode/skills'));
+    assert.ok(exists(dir, '.opencode/agents/scopegrain-reviewer.md'));
+    assert.ok(!exists(dir, 'opencode.jsonc'));
+
+    const manifest = hostManifest(ctx, { host: 'opencode' });
+    assert.equal(manifest.shared.length, 1);
+    assert.equal(manifest.shared[0].destination, 'opencode.jsonc');
+    assert.equal(manifest.shared[0].ownership, 'shared');
+    assert.ok(!manifest.generated.some((g) => g.rel === 'opencode.jsonc'));
   } finally { cleanup(dir); }
 });
 

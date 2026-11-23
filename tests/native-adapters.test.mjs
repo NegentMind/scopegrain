@@ -218,16 +218,52 @@ test('activation plan is metadata only: manual merge, no hooks/apply', () => {
   assert.equal(activationPlan.hooksInstalled, false);
   assert.equal(activationPlan.nativeHostTested, false);
   assert.equal(activationPlan.writeHostRoots, false);
-  assert.equal(activationPlan.entries.length, files.length);
-  for (const e of activationPlan.entries) {
+  // Every projected file carries exactly one manual-merge entry. Entries
+  // whose source is the bootstrap-emitted MCP fragment (opencode) are
+  // extra, so the mapping is asserted per projected file instead of by
+  // count.
+  const bySource = new Map(activationPlan.entries.map((e) => [e.source, e]));
+  assert.equal(bySource.size, activationPlan.entries.length,
+    'entry sources are unique');
+  for (const f of files) {
+    const e = bySource.get(f.rel);
+    assert.ok(e, `projected file ${f.rel} needs an activation entry`);
     assert.equal(e.manualMerge, true);
-    assert.ok(files.some((f) => f.rel === e.source),
-      `entry source ${e.source} must be a projected file`);
   }
   for (const h of ['claude', 'codex', 'opencode', 'devin']) {
     assert.ok(Array.isArray(activationPlan.hosts[h].sources));
     assert.equal(typeof activationPlan.hosts[h].permissionScope, 'string');
   }
+});
+
+test('opencode MCP fragment is a declared manual-merge target', () => {
+  // OpenCode pilot D1: the fragment is emitted by render.mjs, so it has no
+  // whole-file destination. Its merge target must still be declared, or the
+  // manual review stays invisible: `host manifest` would report shared: 0,
+  // `host activate` would not disclose it in `skipped`, and the absolute
+  // machine-local paths embedded in the fragment would never reach the
+  // gitignore proposal.
+  const { files, activationPlan } = renderNativeAdapters(
+    cfg(['opencode']), { configRel: CFG_REL, projectRoot: makeTempDir('x') });
+  const entry = activationPlan.entries.find(
+    (e) => e.host === 'opencode' && e.kind === 'mcp');
+  assert.ok(entry, 'opencode declares an mcp merge entry');
+  assert.equal(entry.id, 'scopegrain');
+  assert.equal(entry.destination, 'opencode.jsonc');
+  assert.equal(entry.manualMerge, true);
+  assert.equal(entry.machineLocal, true);
+  assert.ok(entry.source.endsWith('/integrations/opencode-mcp.json'));
+  assert.match(entry.note, /regenerate per machine/);
+  assert.match(entry.note, /opencode\.json\b/,
+    'the alternative project config name is disclosed');
+  // The fragment is a bootstrap artifact: no projected native file claims it.
+  assert.ok(!files.some((f) => f.rel === entry.source));
+  // Scoped to opencode in this pilot: claude/codex share the same asymmetry
+  // but are deliberately untouched here.
+  const { activationPlan: others } = renderNativeAdapters(
+    cfg(['claude', 'codex']),
+    { configRel: CFG_REL, projectRoot: makeTempDir('x') });
+  assert.ok(!others.entries.some((e) => e.kind === 'mcp'));
 });
 
 test('opencode emits only the V2 proposal in bootstrap', () => {

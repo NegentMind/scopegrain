@@ -292,6 +292,9 @@ test('case-insensitive duplicate plan destinations are rejected', () => {
 for (const [host, dest] of [
   ['devin', '/.devin/mcp_config.json'],
   ['antigravity', '/.agents/mcp_config.json'],
+  // OpenCode's manual-merge target is the project's own config file, which
+  // carries the absolute serverPath/--project values from the fragment.
+  ['opencode', '/opencode.jsonc'],
 ]) {
   test(`${host} init proposes git exclusion for ${dest}`, () => {
     const dir = makeTempDir('mlprop');

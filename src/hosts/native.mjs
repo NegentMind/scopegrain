@@ -721,6 +721,31 @@ export function renderNativeAdapters(config, {
     }
   }
 
+  // OpenCode V2 MCP: unlike Devin and Antigravity there is NO dedicated
+  // whole file — `integrations/opencode-mcp.json` (emitted by render.mjs at
+  // init) declares `mcp.servers.scopegrain` and is merged by hand into the
+  // project OpenCode config. Declaring the merge target here keeps the
+  // manual review visible instead of silent: `host manifest` reports it as
+  // `shared`, `host activate` discloses it in `skipped` (MERGE_KINDS) and
+  // never writes it, and the machine-local absolute paths it embeds reach
+  // the gitignore proposal via `machineLocal`. Claude and Codex carry the
+  // same asymmetry for their own fragments; only opencode is declared here.
+  if (config.hosts.includes('opencode')) {
+    const rel = `${cfgPrefix}integrations/opencode-mcp.json`;
+    entries.push({
+      host: 'opencode', kind: 'mcp', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.opencode.permissionScope,
+      source: rel, destination: 'opencode.jsonc',
+      manualMerge: true, machineLocal: true,
+      note: 'machine-local absolute paths; merge mcp.servers.scopegrain into '
+        + 'the project OpenCode config (opencode.jsonc, or opencode.json when '
+        + 'the project uses that name) and keep that file unversioned; '
+        + 'regenerate per machine with `host activate --host opencode --apply` '
+        + 'after relocating the project or installation',
+    });
+  }
+
   // Antigravity project-scope MCP (.agents/mcp_config.json): dedicated whole
   // file under the .agents harness root — create-only applyable with the same
   // conflict semantics as every projected file. Embeds absolute machine-local

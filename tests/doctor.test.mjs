@@ -198,6 +198,24 @@ test('operational checks: divergent host fragment fails', async () => {
   } finally { cleanup(dir); }
 });
 
+test('opencode host-fragments: the manual merge target is never a conflict', () => {
+  // The opencode MCP fragment is a manual-merge proposal (kind 'mcp'), so it
+  // is never part of the applyable set doctor re-renders. A real project
+  // config file with different content must therefore not surface as
+  // fragment drift.
+  const { dir, ctx } = bootstrapped();
+  try {
+    writeFile(dir, 'opencode.jsonc', '{ "mcp": { "servers": {} } }\n');
+    const report = runDoctor(ctx);
+    const check = report.checks.find((c) => c.name === 'host-fragments');
+    assert.ok(check, 'host-fragments check exists');
+    assert.ok(check.ok, check.detail);
+    assert.match(check.detail, /opencode:v2: 0 ok, \d+ pending/);
+    assert.ok(!check.detail.includes('opencode.jsonc'),
+      'the manual merge target must not be classified as a fragment');
+  } finally { cleanup(dir); }
+});
+
 test('missing required template is needs-attention without touching it', () => {
   const { dir, ctx } = bootstrapped();
   try {
