@@ -16,21 +16,23 @@ with 0 console/network errors and 0 horizontal overflow. Earlier full
 runs (`1152`, `813`, `770`, `699`, `673`, `536`) are kept as past
 references. Do not sum scoped runs or historic results.
 
-### OpenCode V2 native pilot (2026-11-23) — executed, not certified
+### OpenCode V2 native pilot (2026-11-23) — certified
 
 Run against a real `opencode v2.3.2` (`@opencode/cli` distribution,
-node v26.8.1, Windows 10.0.26200) in this project at commit `fd347dd`.
-The evidence comes from the installed binary, not from fixtures.
+node v26.8.1, Windows 10.0.26200) in this project at commit `fd347dd`, plus
+an isolated fixture `%TEMP%\opencode\sg-oc-cert` created and deleted in the
+same session. The evidence comes from the installed binary, not from test
+fixtures.
 
 | Procedure step | Observed result |
 | --- | --- |
-| 1. Isolated setup | `host activate --host opencode --apply`: 89 `create` destinations, 0 conflict, 1 `skipped` (the `opencode.jsonc` manual merge). The earlier isolated fixture produced the same result |
-| 2. Discovery (skills and subagents) | 15/15 `scopegrain-*` subagents resolved by `opencode debug agents`; 74 visible `scopegrain-*` skill IDs — 44 loaded from `.opencode/skills` and 30 that only exist as Antigravity command bridges under `.agents/skills` |
-| 2. Discovery (commands) | NOT VERIFIED. OpenCode dispatches commands only from the interactive composer and the owner has not run that probe yet (D5) |
+| 1. Isolated setup | `host activate --host opencode --apply`: 89 `create` destinations, 0 conflict, 1 `skipped` (the `opencode.jsonc` manual merge). The isolated fixture with `hosts:["opencode"]` produced the same result and was used for steps 5 and 6 |
+| 2. Discovery (skills and subagents) | 15/15 `scopegrain-*` subagents resolved by `opencode debug agents`; 74 visible `scopegrain-*` skill IDs — 44 from `.opencode/skills` and 30 that only exist as Antigravity command bridges under `.agents/skills` |
+| 2. Discovery (commands) | `/scopegrain-status` run from the TUI composer expanded the alias bridge cleanly (`status` → `report-status`, snapshot `69e32254…33e2` verified against `catalog.json`, loader `scopegrain context` available). The `/` autocomplete is capped by the TUI (a list of ~10), so the 30 command files were not enumerated on screen: what is verified is real dispatch |
 | 3. Invocation | the `scopegrain-unified-review` skill loaded live — the `skill` tool reported the base directory `.../.opencode/skills/scopegrain-unified-review`, proving precedence; `scopegrain_status`, `scopegrain_catalog_list` and `scopegrain_list_tasks` invoked over MCP |
 | 4. Denials | in `scopegrain-reviewer` the `edit` and `shell` tools do not exist in the child context (they do not ask for approval: they are absent) and `fs`/`child_process` imports were denied by the loader; all 6 Scopegrain local-write tools and the notion/todoist/tui/chrome-devtools/playwright/argus MCP writers stay reachable |
-| 5. Interruption and resumption | NOT EXECUTED |
-| 6. Cleanup | NOT EXECUTED |
+| 5. Interruption and resumption | in the fixture: task `6897a2f6…9e7d` (PLAN, revision 0) and session `adfc2adb…ff94` (limit 20). One operation was recorded (`used=1`, `revision=1`). A stale-revision append failed with `REVISION_MISMATCH` and an `edit` action in PLAN with `SESSION_ACTION_DENIED`; in both cases the session file stayed **byte-identical** (sha256 `91743f93…45a6`). Two consecutive `session resume` calls returned `used=1`, `remaining=19` without rewriting the file; `task show` kept PLAN/revision 0 with a single `created` history event |
+| 6. Cleanup | `uninstall --project <fixture> --apply`: 235 files deleted, 103 directories removed, 0 issues, 2 divergent `leftBehind`. The sha256 of `~/.config/opencode/opencode.json` was **identical before and after** (`E8C00D62…428A`) and no `scopegrain`/`sg-oc-cert` artifact appeared in the global configuration tree; the fixture was deleted entirely (0 files left) |
 | 7. Evidence | this record plus the tables in this section |
 
 Literal counts observed: `scopegrain_status` → `ok=30, warnings=4,
@@ -39,10 +41,12 @@ failures=438`; catalog → 132 entries and 32 aliases; tasks → 76 records and
 `local-write` (`next_task`, `task_meta`, `task_disposition`, `memory_add`,
 `goal_create`, `goal_transition`).
 
-The documented criterion requires all 7 steps with archived evidence. The
-TUI command probe, interruption/resumption and cleanup are still missing,
-so OpenCode V2 stands as an **executed pilot, NOT certified** — never
-"partially certified".
+Step 6 finding: `uninstall` derives its deletion set from the **current**
+configuration, not from the journal of what was generated. After narrowing
+`hosts` to `["opencode"]` post-init, 532 native proposals of the removed
+hosts, `CLAUDE.md` and the task record survived and needed a manual second
+pass. That is not a defect on the normal path (init with the final host
+set), but it is a limit to document before reusing a fixture across hosts.
 
 Tests run alongside this pilot: `native-adapters`, `host-activation`,
 `host-cli`, `doctor` and `docs-cli-drift` → 61 pass, 0 fail; `npm run
@@ -94,7 +98,8 @@ test:smoke` → 215 pass, 0 fail. `doctor` keeps 438 failures: 436
 | Antigravity pilot (this repo) | Antigravity session, 2026-11-18 | `host activate --surface app-cli --apply` generated 86 `.agents/` files; the session consumed the projections and ran a multi-agent FMEA reporting 7 findings (F-01..F-07), all fixed |
 | Native Antigravity App/CLI pilot (this repo) | Fresh Antigravity session, 2026-11-19 | 72 `scopegrain-*` skills and 15 subagents auto-discovered from `.agents/`; `scopegrain` MCP active from `.agents/mcp_config.json` with 18 read-only tools; `scopegrain_status` and `scopegrain_catalog_list` invoked live (doctor `needs-attention` only for the deliberately divergent `AGENTS.md`/`CLAUDE.md` plus `changedDiscovery`/`SCAN_PARTIAL_DEPTH` warnings; 130-entry catalog hash-verified); the `scopegrain-reviewer` subagent had no native write/shell tools yet kept `call_mcp_tool` reaching other global MCP servers |
 | First CI run | GitHub Actions `verify.yml` manual, run 44391417084, 2026-11-18 | Exit 0: ~3.6 minutes per job |
-| Remaining host pilots | Pending | Claude, Codex, OpenCode, the Antigravity IDE surface and Hermes not certified |
+| OpenCode V2 native pilot (this repo + fixture) | Fresh `opencode v2.3.2` session, 2026-11-23 | 15 subagents and 44 skills from `.opencode/` (74 visible IDs after de-duplicating against `.agents/skills`, with `.opencode/skills` winning precedence); `/scopegrain-status` expanded in the TUI composer; `scopegrain` MCP with 33 tools (27 read-only, 6 local-write) and `scopegrain_status`/`catalog_list`/`list_tasks` invoked live; the read-only role blocked `edit`/`shell` by tool absence and left external MCP writers reachable; interruption/resumption repeated no effects and duplicated no counter (session file byte-identical); cleanup left no global traces (sha256 of `~/.config/opencode/opencode.json` unchanged) |
+| Remaining host pilots | Pending | Claude, Codex, the Antigravity IDE surface and Hermes not certified |
 
 Local logs preserved under `.tasksystem/verification/organic-sdd/`:
 `c2d1-green-final.log`, `c2d2-green-final.log`, their causal REDs and
@@ -486,9 +491,9 @@ edited files. They were normalized with no behavior changes and are
 checked separately; that adjustment is not presented as another suite
 run.
 
-The Devin Local and Antigravity App/CLI pilots were certified in real
-sessions (skills + MCP + read-only invocation); no real Claude Code,
-Codex, OpenCode, Antigravity IDE or Hermes sessions were run. The
+The Devin Local, Antigravity App/CLI and OpenCode V2 pilots were certified
+in real sessions (skills + MCP + read-only invocation); no real Claude
+Code, Codex, Antigravity IDE or Hermes sessions were run. The
 197 archived original skills, external plugins, native isolation,
 Node.js 22 and other operating systems are not certified. Logs,
 fixtures and operational reviews remain private and ignored; they do

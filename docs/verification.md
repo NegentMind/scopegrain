@@ -14,21 +14,23 @@ Las integrales anteriores (`1152`, `813`, `770`, `699`, `673`, `536`) se
 conservan como referencias pasadas. No sumar tandas acotadas ni resultados
 historicos.
 
-### Piloto nativo de OpenCode V2 (2026-11-23) — ejecutado, sin certificar
+### Piloto nativo de OpenCode V2 (2026-11-23) — certificado
 
 Ejecucion sobre `opencode v2.3.2` real (distribucion `@opencode/cli`,
-node v26.8.1, Windows 10.0.26200) en este proyecto, commit `fd347dd`. La
-evidencia proviene del binario instalado, no de fixtures.
+node v26.8.1, Windows 10.0.26200) en este proyecto, commit `fd347dd`, mas
+un fixture aislado `%TEMP%\opencode\sg-oc-cert` creado y borrado en la
+misma sesion. La evidencia proviene del binario instalado, no de fixtures
+de test.
 
 | Paso del procedimiento | Resultado observado |
 | --- | --- |
-| 1. Preparacion aislada | `host activate --host opencode --apply`: 89 destinos `create`, 0 conflicto, 1 `skipped` (fusion manual de `opencode.jsonc`). El fixture aislado previo dio el mismo resultado |
-| 2. Descubrimiento (skills y subagentes) | 15/15 subagentes `scopegrain-*` resueltos por `opencode debug agents`; 74 IDs de skill `scopegrain-*` visibles: 44 cargados desde `.opencode/skills` y 30 que solo existen como puentes de comando proyectados por Antigravity bajo `.agents/skills` |
-| 2. Descubrimiento (comandos) | NO VERIFICADO. OpenCode despacha comandos solo desde el composer interactivo y el owner aun no ejecuto esa prueba (D5) |
+| 1. Preparacion aislada | `host activate --host opencode --apply`: 89 destinos `create`, 0 conflicto, 1 `skipped` (fusion manual de `opencode.jsonc`). El fixture aislado con `hosts:["opencode"]` dio el mismo resultado y se uso para los pasos 5 y 6 |
+| 2. Descubrimiento (skills y subagentes) | 15/15 subagentes `scopegrain-*` resueltos por `opencode debug agents`; 74 IDs de skill `scopegrain-*` visibles: 44 desde `.opencode/skills` y 30 que solo existen como puentes de comando proyectados por Antigravity bajo `.agents/skills` |
+| 2. Descubrimiento (comandos) | `/scopegrain-status` ejecutado en el composer TUI: expandio limpio el puente de alias (`status` → `report-status`, snapshot `69e32254…33e2` verificado contra `catalog.json`, loader `scopegrain context` disponible). El autocompletado de `/` quedo topado por la TUI (lista de ~10), asi que el conteo de los 30 archivos de comando no se enumero en pantalla: lo verificado es el despacho real |
 | 3. Invocacion | skill `scopegrain-unified-review` cargada en vivo — el `skill` tool reporto el base dir `.../.opencode/skills/scopegrain-unified-review`, probando precedencia; `scopegrain_status`, `scopegrain_catalog_list` y `scopegrain_list_tasks` invocados por MCP |
 | 4. Denegaciones | en `scopegrain-reviewer` los tools `edit` y `shell` no existen en el contexto del hijo (no piden aprobacion: no estan) y las importaciones `fs`/`child_process` fueron denegadas por el loader; las 6 tools de escritura local de Scopegrain y los escritores MCP de notion/todoist/tui/chrome-devtools/playwright/argus siguen alcanzables |
-| 5. Interrupcion y reanudacion | NO EJECUTADO |
-| 6. Limpieza | NO EJECUTADO |
+| 5. Interrupcion y reanudacion | en el fixture: tarea `6897a2f6…9e7d` (PLAN, revision 0) y sesion `adfc2adb…ff94` (limite 20). Se registro 1 operacion (`used=1`, `revision=1`). Un append con revision vieja fallo con `REVISION_MISMATCH` y una accion `edit` en PLAN con `SESSION_ACTION_DENIED`; en ambos casos el archivo de sesion quedo **byte-identico** (sha256 `91743f93…45a6`). Dos `session resume` seguidos devolvieron `used=1`, `remaining=19`, sin volver a escribir el archivo; `task show` mantuvo PLAN/revision 0 con historial de un solo evento `created` |
+| 6. Limpieza | `uninstall --project <fixture> --apply`: 235 archivos borrados, 103 directorios retirados, 0 issues, 2 `leftBehind` divergentes. El sha256 de `~/.config/opencode/opencode.json` quedo **identico antes y despues** (`E8C00D62…428A`) y no aparecio ningun artefacto `scopegrain`/`sg-oc-cert` en el arbol de configuracion global; el fixture se borro completo (0 archivos restantes) |
 | 7. Evidencia | este registro mas las tablas de esta seccion |
 
 Conteos literales observados: `scopegrain_status` → `ok=30, warnings=4,
@@ -37,10 +39,13 @@ failures=438`; catalogo → 132 entradas y 32 alias; tareas → 76 registros y
 `local-write` (`next_task`, `task_meta`, `task_disposition`, `memory_add`,
 `goal_create`, `goal_transition`).
 
-El criterio documentado exige los 7 pasos con evidencia archivada. Faltan
-los comandos en la TUI, la interrupcion/reanudacion y la limpieza, de modo
-que OpenCode V2 queda como **piloto ejecutado y NO certificado** — nunca
-como "certificado parcial".
+Hallazgo del paso 6: `uninstall` deriva su conjunto de borrado de la
+configuracion **actual**, no del journal de lo generado. Al reducir
+`hosts` a `["opencode"]` despues de `init`, sobrevivieron 532 propuestas
+nativas de los hosts retirados, `CLAUDE.md` y el registro de tarea; hubo
+que retirarlos en una segunda pasada manual. No es un fallo del camino
+normal (init con el conjunto final de hosts) pero si un limite a documentar
+antes de reutilizar un fixture entre hosts.
 
 Pruebas ejecutadas junto a este piloto: `native-adapters`,
 `host-activation`, `host-cli`, `doctor` y `docs-cli-drift` → 61 pass, 0
@@ -91,8 +96,9 @@ deriva `0.1.0 -> 0.1.1` de `.devin`/`.agents`; `opencode:v2` queda en
 | Piloto Devin Local (este repo) | Sesion fresca Devin, 2026-11-17 | 42 skills `scopegrain-*` + 15 subagentes auto-cargados; MCP `scopegrain` activo desde `.devin/mcp_config.json`; `scopegrain_status` invocado: doctor con 16 checks y catalogo de 130 entradas integro por hash |
 | Piloto Antigravity (este repo) | Sesion Antigravity, 2026-11-18 | `host activate --surface app-cli --apply` genero 86 archivos `.agents/`; la sesion consumio las proyecciones y ejecuto un FMEA multi-agente que reporto 7 hallazgos (F-01..F-07), todos corregidos |
 | Piloto nativo Antigravity App/CLI (este repo) | Sesion fresca Antigravity, 2026-11-19 | 72 skills `scopegrain-*` y 15 subagentes auto-descubiertos desde `.agents/`; MCP `scopegrain` activo desde `.agents/mcp_config.json` con 18 herramientas read-only; `scopegrain_status` y `scopegrain_catalog_list` invocados en vivo (doctor `needs-attention` solo por `AGENTS.md`/`CLAUDE.md` deliberadamente divergentes y warnings `changedDiscovery`/`SCAN_PARTIAL_DEPTH`; catalogo de 130 entradas integro por hash); el subagente `scopegrain-reviewer` carecio de herramientas nativas de escritura/shell pero conservo `call_mcp_tool` hacia otros servidores MCP globales |
+| Piloto nativo OpenCode V2 (este repo + fixture) | Sesion fresca `opencode v2.3.2`, 2026-11-23 | 15 subagentes y 44 skills desde `.opencode/` (74 IDs visibles tras deduplicar contra `.agents/skills`, con `.opencode/skills` ganando precedencia); `/scopegrain-status` expandio en el composer TUI; MCP `scopegrain` con 33 tools (27 read-only, 6 local-write) y `scopegrain_status`/`catalog_list`/`list_tasks` invocados en vivo; el rol read-only bloqueo `edit`/`shell` por ausencia de tool y dejo alcanzables los escritores MCP externos; interrupcion/reanudacion sin repetir efectos ni duplicar contador (archivo de sesion byte-identico); limpieza sin rastros globales (sha256 de `~/.config/opencode/opencode.json` sin cambios) |
 | Primera ejecucion CI | GitHub Actions `verify.yml` manual, run 44391417084, 2026-11-18 | Exit 0: ~3.6 minutos por job |
-| Pilotos en anfitriones restantes | Pendientes | Claude, Codex, OpenCode, la superficie IDE de Antigravity y Hermes no certificados |
+| Pilotos en anfitriones restantes | Pendientes | Claude, Codex, la superficie IDE de Antigravity y Hermes no certificados |
 
 Logs locales conservados en `.tasksystem/verification/organic-sdd/`:
 `c2d1-green-final.log`, `c2d2-green-final.log`, sus RED causales y diffs
@@ -495,9 +501,9 @@ El gate de whitespace detecto terminadores/espacios finales en archivos
 editados. Se normalizaron sin cambios de comportamiento y se comprueba
 por separado; ese ajuste no se presenta como otra ejecucion de la suite.
 
-Los pilotos de Devin Local y Antigravity App/CLI quedaron certificados en
-sesiones reales (skills + MCP + invocacion read-only); no se ejecutaron
-sesiones reales de Claude Code, Codex, OpenCode, la superficie IDE de
+Los pilotos de Devin Local, Antigravity App/CLI y OpenCode V2 quedaron
+certificados en sesiones reales (skills + MCP + invocacion read-only); no
+se ejecutaron sesiones reales de Claude Code, Codex, la superficie IDE de
 Antigravity ni Hermes.
 No se certifican las 197 skills originales archivadas, plugins externos,
 aislamiento nativo, Node.js 22 ni otros sistemas operativos.
