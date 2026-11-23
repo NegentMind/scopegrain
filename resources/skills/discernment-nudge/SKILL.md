@@ -154,5 +154,6 @@ it — the nudge is the closer.
 - [ ] The exact lead-in was used, plain bullets, nothing after the nudge
 
 <!-- Provenance: adapted from a third-party skill licensed Apache-2.0
-     (see legacy/opencode/skills/discernment-nudge/LICENSE.txt). Keep this
-     notice if the text is redistributed. -->
+     (see LICENSE.txt in this directory; the source copy is archived at
+     provenance/licenses/discernment-nudge/LICENSE.txt). Keep this notice
+     if the text is redistributed. -->

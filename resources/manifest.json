@@ -1,6 +1,6 @@
 {
  "schemaVersion": 1,
- "version": "0.1.1",
+ "version": "0.1.2",
  "entries": [
   {
    "kind": "command",
@@ -1639,7 +1639,7 @@
   },
   {
    "kind": "skill",
-   "id": "progreso",
+   "id": "progress",
    "target": "session-handoff"
   },
   {

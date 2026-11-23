@@ -89,6 +89,25 @@ export function validateTransitionInput(input) {
   }
 }
 
+// The canonical policy's `constraints` block declares the content guards
+// edges cannot express (terminal dispositions, ->CLOSE methodology
+// revalidation). The runtime reads them here and pins them to the
+// authored values: a missing or divergent block fails closed with
+// POLICY_INVALID instead of silently weakening a gate.
+function workflowConstraints() {
+  const c = loadPolicy().constraints;
+  const exact = (v, want) => Array.isArray(v) && v.length === want.length
+    && v.every((x) => want.includes(x));
+  if (c === null || typeof c !== 'object' || Array.isArray(c)
+      || !exact(c.terminalDispositions, ['discarded', 'cancelled'])
+      || c.terminalDispositionTarget !== 'ABANDON'
+      || !exact(c.methodologyRevalidatedTargets, ['ACT', 'ACCEPT', 'CLOSE'])) {
+    throw err('POLICY_INVALID',
+      'policy/workflow.json constraints diverge from the authored gates');
+  }
+  return c;
+}
+
 // All transition decision logic given the current stored record: revision
 // CAS, workflow edge, evidence merge, ACCEPT gates, next-record shape and
 // the ACT/ACCEPT/CLOSE methodology gate, ending in the serialized bytes. Pure
@@ -122,13 +141,16 @@ export function evaluateTaskTransition(ctx, task, input,
       `transition ${task.state} -> ${to} is not allowed by workflow policy`);
   }
   // A terminal disposition is effective, not decorative: a task marked
-  // discarded/cancelled may only move to ABANDON. Resuming requires an
-  // explicit disposition clear first — otherwise the triage record lies.
+  // with a policy-declared terminal kind may only move to the declared
+  // target. Resuming requires an explicit disposition clear first —
+  // otherwise the triage record lies.
+  const constraints = workflowConstraints();
   const dispKind = task.disposition?.kind;
-  if ((dispKind === 'discarded' || dispKind === 'cancelled')
-      && to !== 'ABANDON') {
+  if (dispKind !== undefined
+      && constraints.terminalDispositions.includes(dispKind)
+      && to !== constraints.terminalDispositionTarget) {
     throw err('DISPOSITION_BLOCKS',
-      `task is ${dispKind}; transition to ABANDON or clear disposition first`);
+      `task is ${dispKind}; transition to ${constraints.terminalDispositionTarget} or clear disposition first`);
   }
 
   let verification = task.verification;
@@ -189,8 +211,10 @@ export function evaluateTaskTransition(ctx, task, input,
   // only adds the outcome/acceptance proof for to === 'ACCEPT', so CLOSE gets
   // the ACT-equivalent baseline — bindings, approvals, dependencies re-proven
   // against the CURRENT records. gatedTaskStates stays the authored pair;
-  // this is revalidation, not a new user-facing gate target.
-  if (to === 'ACT' || to === 'ACCEPT' || to === 'CLOSE') {
+  // the CLOSE revalidation target is policy-declared under
+  // constraints.methodologyRevalidatedTargets — revalidation, not a new
+  // user-facing gate target.
+  if (constraints.methodologyRevalidatedTargets.includes(to)) {
     const result = evaluateMethodology(ctx, next, {
       to, previousRevision: task.revision,
     });

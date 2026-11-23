@@ -55,7 +55,7 @@ except `dependsOn` (which inside a plan names plan keys, the DAG).
 `plan next` is triage-aware: entries triaged `defer|skip|blocked` report
 status `triaged` instead of `ready`/`blocked`.
 
-## Operational memory (`.tasksystem/memory/*.jsonl`)
+## Operational memory (`.scopegrain/memory/*.jsonl`)
 
 Bounded append-only JSONL logs; `memory add --log X --input FILE`,
 `memory list --log X [--tail N]`.
@@ -119,4 +119,4 @@ columns, in this order:
 **Business row (human):**
 ``| `BIZ-16` | — | **Sign binaries (code-signing cert)** | — | 🟠 2-3d + cost | 🟠 Medium | 🆕 Pending | Cert + signing step in release + checksums. | Owner: owner | Dep: certificate |``
 
-<!-- Referencias cruzadas: → ver definition-of-done.md, task-system.md, research-modules.md -->
+<!-- Cross-references: → see definition-of-done.md, task-system.md, research-modules.md -->

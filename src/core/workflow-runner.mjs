@@ -25,9 +25,14 @@ const RUN_DIR = (ctx) => configRel(ctx, `workflow-runs`);
 // existing core functions; 'shell' or arbitrary commands are rejected at
 // document validation, before any state exists.
 const OPS = {
+  // 'evidence' is a legacy alias for 'verification' (the transition DTO
+  // key); both present is ambiguous and rejected at document validation.
   'task.transition': (ctx, a) => transitionTask(ctx, {
     id: a.taskId, to: a.to, expectedRevision: a.expectedRevision,
-    ...(a.evidence ? { evidence: a.evidence } : {}),
+    ...(a.verification !== undefined
+      ? { verification: a.verification }
+      : a.evidence !== undefined ? { verification: a.evidence } : {}),
+    ...(a.review !== undefined ? { review: a.review } : {}),
   }),
   'methodology.check': (ctx, a) => evaluateMethodology(ctx,
     getTask(ctx, a.taskId), { to: a.to ?? 'ACT' }),
@@ -42,6 +47,23 @@ const OPS = {
     findings: checklistFindings(ctx, a.taskId),
   }),
   'noop': () => ({ skipped: false }),
+};
+
+// Closed per-op args contract: an unknown key is rejected at document
+// validation instead of being silently dropped — a misspelled evidence
+// arg must never degrade to an evidence-less transition.
+const OP_ARGS = {
+  'task.transition': new Set(
+    ['taskId', 'to', 'expectedRevision', 'verification', 'review',
+      'evidence']),
+  'methodology.check': new Set(['taskId', 'to']),
+  'converge.evaluate': new Set(['taskId']),
+  'converge.record': new Set(['taskId']),
+  'analyze.task': new Set(['taskId']),
+  'checklist.mark': new Set(
+    ['checklistId', 'itemId', 'status', 'note', 'expectedRevision']),
+  'checklist.findings': new Set(['taskId']),
+  'noop': new Set(),
 };
 
 function validateWorkflow(doc) {
@@ -74,6 +96,24 @@ function validateWorkflow(doc) {
     for (const k of Object.keys(s)) {
       if (!['id', 'op', 'args'].includes(k)) {
         throw err('UNKNOWN_KEY', `steps[${i}] has unknown key '${k}'`);
+      }
+    }
+    if (s.args !== undefined) {
+      if (s.args === null || typeof s.args !== 'object'
+          || Array.isArray(s.args)) {
+        throw err('INVALID_VALUE', `steps[${i}].args must be an object`);
+      }
+      for (const k of Object.keys(s.args)) {
+        if (!OP_ARGS[s.op].has(k)) {
+          throw err('UNKNOWN_KEY',
+            `steps[${i}].args has unknown key '${k}' for op '${s.op}'`);
+        }
+      }
+      if (s.op === 'task.transition'
+          && s.args.evidence !== undefined
+          && s.args.verification !== undefined) {
+        throw err('INVALID_VALUE',
+          `steps[${i}].args: 'evidence' aliases 'verification'; supply one`);
       }
     }
     if (seen.has(s.id)) throw err('INVALID_VALUE', `duplicate step '${s.id}'`);

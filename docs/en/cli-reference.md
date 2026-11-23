@@ -531,6 +531,15 @@ native bridges through the same pipeline as snapshot resources — their
 treats the mounted layer as an overlay (never an `upgradeAvailable`
 signal).
 
+`host parity --project . [--hosts CSV]` compares the canonical resource
+sets each selected host would project (activation plan, read-only) via
+each bridge's `source:` frontmatter. It reports per-host `coverage`,
+`drift` (resources absent from a host that does emit that kind — a
+projection-bug signal) and `structural` (absences where the host emits
+no resource of that kind at all, e.g. codex with no `agent/*`). Hosts
+with surfaces (antigravity) are compared by the union of their declared
+variants.
+
 `dist selftest --project PATH` exercises the full distribution cycle
 (discovery → validate → dry-run → install → mount → unmount →
 uninstall) against a fixture generated inside the project and always

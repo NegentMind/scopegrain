@@ -51,4 +51,4 @@ Example shape (illustrative only — each project fills its own rows):
 - [ ] Reports and decisions are stored under the configured harness state
       paths, not mixed into product documentation.
 
-<!-- Referencias cruzadas: → ver backlog-format.md, task-system.md, definition-of-done.md -->
+<!-- Cross-references: → see backlog-format.md, task-system.md, definition-of-done.md -->

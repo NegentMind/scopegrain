@@ -96,4 +96,4 @@ Before a feature ships to production, all of the following are true:
 - [ ] A request can be traced across every service it touches
 - [ ] On-call knows where the runbooks are
 
-<!-- Referencias cruzadas: → ver ship-runbook.md, performance-checklist.md, security-checklist.md, definition-of-done.md -->
+<!-- Cross-references: → see ship-runbook.md, performance-checklist.md, security-checklist.md, definition-of-done.md -->

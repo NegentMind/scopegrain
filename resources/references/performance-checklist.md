@@ -178,4 +178,4 @@ onINP(({ value, attribution }) => {
 - [ ] Correctness checks still run after any optimization — a faster wrong
       answer is a regression.
 
-<!-- Referencias cruzadas: → ver observability-checklist.md, frontend-web.md, accessibility-checklist.md, ship-runbook.md -->
+<!-- Cross-references: → see observability-checklist.md, frontend-web.md, accessibility-checklist.md, ship-runbook.md -->

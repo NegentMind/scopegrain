@@ -51,4 +51,4 @@ source, not assumptions:
 - [ ] Capability parity between the native binding and any pure-Python or
       other-language surface is stated; never presume identical features.
 
-<!-- Referencias cruzadas: → ver clean-code-clean-architecture.md, test-suite.md, security-checklist.md -->
+<!-- Cross-references: → see clean-code-clean-architecture.md, test-suite.md, security-checklist.md -->

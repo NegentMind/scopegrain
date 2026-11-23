@@ -531,6 +531,15 @@ que los recursos del snapshot — su `resourcePath` apunta dentro de
 `<configDir>/bundles/<id>/`, y `doctor` trata la capa mounted como
 overlay (nunca como señal de `upgradeAvailable`).
 
+`host parity --project . [--hosts CSV]` compara los conjuntos de
+recursos canonicos que cada host seleccionado proyectaria (plan de
+activacion, solo lectura) a traves del frontmatter `source:` de cada
+puente. Reporta `coverage` por host, `drift` (recursos ausentes en un
+host que si emite ese kind — senal de bug de proyeccion) y `structural`
+(ausencias donde el host no emite ningun recurso de ese kind, p.ej.
+codex sin `agent/*`). Hosts con surfaces (antigravity) se comparan por
+la union de sus variantes declaradas.
+
 `dist selftest --project PATH` ejercita el ciclo de distribucion
 completo (discovery → validate → dry-run → install → mount → unmount →
 uninstall) sobre un fixture generado dentro del proyecto y siempre

@@ -45,11 +45,41 @@ const MAX_OUTPUT_CAP = 1024 * 1024;
 const KILL_GRACE_MS = 2000;
 // Shell/control syntax is never meaningful here — argv is spawned
 // literally — so these characters only mislead a human reader into
-// believing pipes, redirects or substitutions would happen.
-const FORBIDDEN_CHARS = /[`$(){}\[\]|&;<>'"*?!~]/;
+// believing pipes, redirects or substitutions would happen. '%' is
+// cmd.exe expansion syntax: '%PATH%' in a stored record would suggest
+// an expansion that never occurs (spawn uses no shell).
+const FORBIDDEN_CHARS = /[`$(){}\[\]|&;<>'"*?!~%]/;
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\x00-\x1f\x7f]/;
 const BATCH_WRAPPER = /\.(bat|cmd|ps1)$/i;
+
+// Child-process env allowlist, shared with integrations/vantadb-runtime:
+// spawned helpers inherit only the variables they need to resolve
+// executables, temp dirs and the platform shell — never the parent's
+// credential-bearing variables (tokens, keys, *_SECRET, cloud
+// credentials). Callers pass the exact extra vars their child contract
+// requires through `overrides`.
+const CHILD_ENV_ALLOWLIST = [
+  'PATH', 'HOME', 'HOMEDRIVE', 'HOMEPATH', 'USERPROFILE',
+  'USER', 'LOGNAME', 'SystemRoot', 'SystemDrive', 'OS', 'ComSpec',
+  'PATHEXT', 'APPDATA', 'LOCALAPPDATA', 'TEMP', 'TMP', 'TMPDIR',
+  'SHELL', 'TERM', 'LANG', 'LC_ALL', 'LC_CTYPE',
+  'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE',
+  'XDG_CACHE_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_RUNTIME_DIR',
+];
+
+export function controlledSpawnEnv(overrides = {}) {
+  const env = {};
+  for (const name of CHILD_ENV_ALLOWLIST) {
+    const value = process.env[name];
+    if (typeof value === 'string') env[name] = value;
+  }
+  for (const [name, value] of Object.entries(overrides)) {
+    if (value === null || value === undefined) delete env[name];
+    else env[name] = String(value);
+  }
+  return env;
+}
 
 const isCanon = (v) => {
   const t = Date.parse(v);
@@ -633,7 +663,12 @@ function planApproveDiscovered(current, commands, at) {
   };
   return {
     doc: approved.length > 0 ? doc : null,
-    result: { added, existing, skipped, approved, alreadyApproved },
+    result: { added, existing, skipped, approved, alreadyApproved,
+      ...(approved.length > 0 ? {
+        warning: `bulk approval: ${approved.length} inferred command(s) `
+          + 'approved in one action; use `verify approve ID` for '
+          + 'per-command review',
+      } : {}) },
   };
 }
 
@@ -723,7 +758,9 @@ export async function runVerifyCommand(ctx, id, options = {}) {
     try {
       child = spawn(rec.argv[0], rec.argv.slice(1), {
         cwd: cwdAbs,
-        env: process.env,
+        // Allowlisted env only: approved argv may exfiltrate whatever it
+        // can read, so credential-bearing parent vars never reach it.
+        env: controlledSpawnEnv(),
         shell: false,
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],

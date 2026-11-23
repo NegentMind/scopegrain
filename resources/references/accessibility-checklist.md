@@ -191,4 +191,4 @@ comprehensibility. Record what was automated vs. manually exercised.
 | Empty links/buttons | "Link" announced with no description | Add text or `aria-label` |
 | `tabindex > 0` | Breaks natural tab order | Use `tabindex="0"` or `-1` only |
 
-<!-- Referencias cruzadas: → ver frontend-web.md, performance-checklist.md, ocr-review.md -->
+<!-- Cross-references: → see frontend-web.md, performance-checklist.md, ocr-review.md -->

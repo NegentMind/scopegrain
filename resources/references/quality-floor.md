@@ -117,4 +117,4 @@ The floor guard is applied correctly when:
 - [ ] The secrets scanner has a committed project allowlist
 - [ ] Exit codes 0/1/2 behave as specified
 
-<!-- Referencias cruzadas: → ver definition-of-done.md, security-checklist.md, test-suite.md, ship-runbook.md -->
+<!-- Cross-references: → see definition-of-done.md, security-checklist.md, test-suite.md, ship-runbook.md -->

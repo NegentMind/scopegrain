@@ -75,4 +75,4 @@ web/
 - [ ] Whether any claim in the site's content depends on a stack fact you
       are about to change.
 
-<!-- Referencias cruzadas: → ver accessibility-checklist.md, performance-checklist.md, ocr-review.md -->
+<!-- Cross-references: → see accessibility-checklist.md, performance-checklist.md, ocr-review.md -->

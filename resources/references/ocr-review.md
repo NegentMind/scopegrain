@@ -82,4 +82,4 @@ matters*.
 - A CI job may publish the review spec as an informational artifact on each
   PR — informational only, never merge-blocking.
 
-<!-- Referencias cruzadas: → ver definition-of-done.md, security-checklist.md, accessibility-checklist.md, testing-patterns.md -->
+<!-- Cross-references: → see definition-of-done.md, security-checklist.md, accessibility-checklist.md, testing-patterns.md -->

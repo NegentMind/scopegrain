@@ -216,4 +216,4 @@ The discovery protocol was applied correctly when:
 - [ ] Project-local skills prioritized over global
 - [ ] ≥1 dynamic (non-base) skill loaded per phase
 
-<!-- Referencias cruzadas: → ver orchestration-patterns.md, task-system.md, definition-of-done.md, reference-maintenance.md -->
+<!-- Cross-references: → see orchestration-patterns.md, task-system.md, definition-of-done.md, reference-maintenance.md -->

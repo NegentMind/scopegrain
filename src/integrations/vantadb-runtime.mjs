@@ -15,7 +15,9 @@ import { loadJournalPolicy } from '../core/policy.mjs';
 import { canonicalDigest } from '../core/digests.mjs';
 import { readWorklog } from '../core/worklog.mjs';
 import { estimateTokens } from '../core/tokens.mjs';
-import { createVantaDBProjector, projectionScopeHash } from './vantadb.mjs';
+import { controlledSpawnEnv } from '../core/verify-commands.mjs';
+import { createVantaDBProjector, projectionScopeHash, secretEgressCheck }
+  from './vantadb.mjs';
 
 export const DEFAULT_VANTADB_VERSION = '0.9.0';
 export const VANTADB_REPO = 'ness-e/Vantadb';
@@ -88,19 +90,32 @@ export function vantaDBConfigAbs(ctx) {
   return resolveInside(ctx.projectRoot, configRel(ctx, `${CONFIG_REL}`), 'vantadb config');
 }
 
+// realpath resolves symlinked ancestors so a link inside (or into) the
+// project cannot defeat the containment check; a missing target falls
+// back to the lexical path — spawn paths then fail closed on the
+// missing binary before executing anything.
+function realpathOrResolved(abs) {
+  try {
+    return fs.realpathSync(abs);
+  } catch {
+    return path.resolve(abs);
+  }
+}
+
 // vantadb.json lives inside the (possibly versioned) config dir, so a
 // hostile repository could ship a config pointing at its own payload;
 // memory verbs would then execute those bytes with the user's
 // privileges. The enrolled binary must therefore (a) be named like the
-// official server and (b) resolve outside the project root. A pinned
-// binarySha256 — recorded at enrollment — is verified before spawn.
+// official server and (b) realpath-resolve outside the project root.
+// A pinned binarySha256 — recorded at enrollment — is verified before
+// spawn.
 export function assertBinaryTrust(ctx, abs) {
   if (!BINARY_NAMES.has(path.basename(abs).toLowerCase())) {
     throw err('VANTADB_BINARY_UNTRUSTED',
       `binaryPath must name vantadb-server(.exe): ${abs}`);
   }
-  const root = path.resolve(ctx.projectRoot);
-  const real = path.resolve(abs);
+  const root = realpathOrResolved(ctx.projectRoot);
+  const real = realpathOrResolved(abs);
   if (real === root || real.startsWith(root + path.sep)) {
     throw err('VANTADB_BINARY_UNTRUSTED',
       'binaryPath must resolve outside the project root');
@@ -134,6 +149,14 @@ export function loadVantaDBConfig(ctx) {
       'binarySha256 must be a 64-hex digest when present');
   }
   assertBinaryTrust(ctx, value.binaryPath);
+  // The digest pin is required (fail-closed): a config without it would
+  // spawn unverified bytes. A missing digest means a stale or tampered
+  // enrollment — re-enroll to record it.
+  if (value.binarySha256 === undefined) {
+    throw err('VANTADB_CONFIG_MALFORMED',
+      'vantadb config is missing binarySha256; re-enroll with '
+      + '`vantadb setup --apply` so the binary digest is pinned');
+  }
   return Object.freeze({ ...value });
 }
 
@@ -162,6 +185,13 @@ export function saveVantaDBConfig(ctx, cfg) {
       'binarySha256 must be a 64-hex digest when present');
   }
   assertBinaryTrust(ctx, cfg.binaryPath);
+  // Never persist a config the loader would reject: the digest pin is
+  // required. `vantadb setup --apply` always computes and writes it.
+  if (cfg.binarySha256 === undefined) {
+    throw err('VANTADB_CONFIG_MALFORMED',
+      'vantadb config is missing binarySha256; enroll with '
+      + '`vantadb setup --apply` so the binary digest is pinned');
+  }
   const abs = vantaDBConfigAbs(ctx);
   mkdirpSync(path.dirname(abs));
   writeJsonAtomic(abs, { ...cfg });
@@ -209,6 +239,11 @@ function downloadBytes(url, maxBytes, redirects = 0) {
   });
 }
 
+// Trust note: the .sha256 sidecar ships in the same GitHub release as
+// the asset, so it proves integrity against corruption/truncation, NOT
+// authenticity against a compromised release channel. The durable trust
+// anchor is the binarySha256 pinned in vantadb.json at enrollment and
+// re-verified before every spawn.
 function parseSha256Sidecar(text, name) {
   const match = /^([0-9a-fA-F]{64})\s+\*?(\S+)\s*$/m.exec(text);
   if (!match || match[2] !== name) {
@@ -276,25 +311,20 @@ export async function ensureVantaDBBinary({
 // break dispatch-only calls we rely on (memory_list_namespaces,
 // capabilities, memory_list); the injection ACLs gate what recall and
 // context_assemble may inject; the byte budget truncates search results.
-// Pin them explicitly instead of trusting inherited process.env.
-const SPAWN_ENV_STRIP = [
-  'VANTADB_MCP_PROFILE',
-  'VANTADB_MCP_INJECT_NAMESPACES',
-  'VANTADB_MCP_TAINTED_NAMESPACES',
-  'VANTADB_MCP_INCLUDE_TAINTED',
-  'VANTADB_MCP_BYTE_BUDGET',
-];
-
+// The child therefore gets only the shared allowlist env plus the exact
+// VANTADB_* vars pinned below — nothing else is inherited, so neither
+// contract-bending VANTADB_MCP_* nor credential-bearing vars can leak
+// from the parent environment.
 function controlledEnv(storagePath) {
-  const env = { ...process.env };
-  for (const key of SPAWN_ENV_STRIP) delete env[key];
-  env.VANTADB_STORAGE_PATH = storagePath;
-  env.VANTADB_QUIET = '1';
-  env.VANTADB_MCP_PROFILE = 'brain';
-  // Injection ACL: recall/context may only inject the engine's own l1/*
-  // memory pool, never arbitrary namespaces such as sg-formal-v1-*.
-  env.VANTADB_MCP_INJECT_NAMESPACES = 'l1/';
-  return env;
+  return controlledSpawnEnv({
+    VANTADB_STORAGE_PATH: storagePath,
+    VANTADB_QUIET: '1',
+    VANTADB_MCP_PROFILE: 'brain',
+    // Injection ACL: recall/context may only inject the engine's own
+    // l1/* memory pool, never arbitrary namespaces such as
+    // sg-formal-v1-*.
+    VANTADB_MCP_INJECT_NAMESPACES: 'l1/',
+  });
 }
 
 export function createStdioMcpClient({
@@ -475,8 +505,10 @@ export async function syncVantaDB({ ctx, bound, cfg, limit, timeoutMs, spawnImpl
 
 // Opt-in capability probe: spawns the server once, calls `capabilities`
 // and surfaces the embedding provider state (fallback/model_present/
-// status) plus the raw feature flags. Status without --probe never
-// touches the process — this is the only spawn-on-read verb.
+// status) plus the raw feature flags. `vantadb status` without --probe
+// never touches the process — note that the memory_* read verbs
+// (get/search/recall/context) DO spawn the enrolled binary on every
+// call, so they are not local reads.
 export async function vantaDBProbe({ cfg, timeoutMs, spawnImpl }) {
   const result = await withMcpClient(cfg, timeoutMs, spawnImpl,
     async (client) => client.invoke({ name: 'capabilities', arguments: {} }));
@@ -758,6 +790,7 @@ export async function vantaDBSyncWorklogs({ ctx, bound, cfg, limit, timeoutMs,
   const projected = [];
   const skipped = [];
   const failed = [];
+  const blocked = [];
   return withMcpClient(cfg, timeoutMs, spawnImpl, async (client) => {
     for (const log of WORKLOG_NAMES) {
       const { entries } = readWorklog(ctx, log, { tail: perLogCap });
@@ -791,8 +824,17 @@ export async function vantaDBSyncWorklogs({ ctx, bound, cfg, limit, timeoutMs,
             ...L1_ISOLATION,
             entry,
           };
+          // Secret-egress guard: worklog entries are free text; a pasted
+          // credential must never reach the backend. Blocked entries are
+          // reported, never transmitted, never silently skipped.
+          const payload = JSON.stringify(record);
+          const hit = secretEgressCheck(payload);
+          if (hit) {
+            blocked.push({ log, key, reason: hit });
+            continue;
+          }
           const put = await client.invoke({ name: 'memory_put',
-            arguments: { namespace, key, payload: JSON.stringify(record) } });
+            arguments: { namespace, key, payload } });
           if (put?.isError) {
             failed.push({ log, key, error: put });
             continue;
@@ -943,22 +985,3 @@ export async function vantaDBSyncPersona({
         if (readback?.isError) {
           failed.push({ id: c.id, key: c.key, error: readback });
           continue;
-        }
-        projected.push({ id: c.id, category: c.category, key: c.key });
-      } catch (e) {
-        failed.push({
-          id: c.id, key: c.key,
-          error: { code: e.code ?? 'VANTADB_RPC_ERROR', message: e.message },
-        });
-      }
-    }
-    return {
-      mode: 'applied',
-      namespace,
-      projected,
-      skipped,
-      skippedUnproved,
-      failed,
-    };
-  });
-}

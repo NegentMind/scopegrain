@@ -167,4 +167,4 @@ tasks at the current one; the version is recorded where the gate reads it.
 - [ ] Relevant decisions recorded to the decisions memory with a reference
 - [ ] Code compiles and the agreed test gate passes
 
-<!-- Referencias cruzadas: → ver quality-floor.md, ship-runbook.md, backlog-format.md, test-suite.md -->
+<!-- Cross-references: → see quality-floor.md, ship-runbook.md, backlog-format.md, test-suite.md -->

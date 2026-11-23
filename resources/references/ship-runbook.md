@@ -116,4 +116,4 @@ Prerequisite: a prior ship report (fallback: git history).
 **Final verification:** run the project's release-verification script
 (assets + registries + checksums + `--version` smoke) after the tag lands.
 
-<!-- Referencias cruzadas: → ver definition-of-done.md, observability-checklist.md, orchestration-patterns.md, dev-tools.md -->
+<!-- Cross-references: → see definition-of-done.md, observability-checklist.md, orchestration-patterns.md, dev-tools.md -->

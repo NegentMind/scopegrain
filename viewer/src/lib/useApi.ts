@@ -11,10 +11,14 @@ export interface ApiState<T> {
 }
 
 // Minimal fetch hook: loading/error/empty handling stays in the views.
-// `deps` re-triggers the request (e.g. selected artifact kind).
+// `deps` re-triggers the request (e.g. selected artifact kind); every value
+// captured by the fetcher closure must be listed there or the view keeps
+// showing the previous params' payload.
 // reload() is a silent revalidate: existing data stays on screen, the result
 // is only committed when it structurally changed, and a background failure
-// keeps the stale payload instead of blanking the panel.
+// keeps the stale payload instead of blanking the panel. A deps change is
+// NOT silent: the previous payload is dropped up front so it is never
+// attributed to the new params, and a failure surfaces as an error.
 export function useApi<T>(
   fetcher: () => Promise<T>,
   deps: readonly unknown[] = [],
@@ -39,6 +43,12 @@ export function useApi<T>(
     if (isSilent && lastJson.current !== null) {
       setRefreshing(true);
     } else {
+      // Mount or deps change: this is a new request context, not a
+      // revalidate. Reset the dedup marker and drop the previous payload —
+      // otherwise a failure here would leave the last params' data on
+      // screen (lastJson !== null swallows the error below).
+      lastJson.current = null;
+      setData(null);
       setLoading(true);
       setError(null);
     }

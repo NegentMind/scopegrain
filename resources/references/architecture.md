@@ -63,4 +63,4 @@ benches/                 ← benchmark suite
 - Update the map in the same change that moves a boundary. An architecture
   doc that trails the code is an evidence defect, not documentation debt.
 
-<!-- Referencias cruzadas: → ver clean-code-clean-architecture.md, graph-investigation.md, mcp-tools.md -->
+<!-- Cross-references: → see clean-code-clean-architecture.md, graph-investigation.md, mcp-tools.md -->

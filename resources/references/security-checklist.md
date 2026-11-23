@@ -198,4 +198,4 @@ LLM10.
 | LLM09 | Vector and Embedding Weaknesses | Partition RAG embeddings per tenant; validate documents before indexing |
 | LLM10 | Improper Output Handling | Treat model output as untrusted; validate, parameterize, encode |
 
-<!-- Referencias cruzadas: → ver quality-floor.md, observability-checklist.md, definition-of-done.md, ship-runbook.md -->
+<!-- Cross-references: → see quality-floor.md, observability-checklist.md, definition-of-done.md, ship-runbook.md -->

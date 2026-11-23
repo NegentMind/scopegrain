@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { applyPlan } from '../src/core/bootstrap.mjs';
 import { createConfig } from '../src/core/config.mjs';
 import { resolveContext } from '../src/core/context.mjs';
@@ -438,6 +439,119 @@ test('unenrolled project reports null workspace and 404 scoped endpoints', async
     assert.equal(tasks.body.tasks.length, 0);
   } finally {
     await srv.close();
+    cleanup(f.dir);
+  }
+});
+
+// --- sendStatic (viewer/dist static mount) -----------------------------------
+//
+// sendStatic serves viewer/dist — a gitignored build artifact that may not
+// exist on a clean checkout. The tests materialize the minimal files they
+// need and remove only what they created, so they pass both against a real
+// build and against an absent dist directory.
+const VIEWER_DIST = fileURLToPath(
+  new URL('../viewer/dist/', import.meta.url));
+
+function staticFixture() {
+  const created = [];
+  const distExisted = fs.existsSync(VIEWER_DIST);
+  const assetsDir = path.join(VIEWER_DIST, 'assets');
+  const assetsExisted = fs.existsSync(assetsDir);
+  const ensure = (rel, content) => {
+    const abs = path.join(VIEWER_DIST, ...rel.split('/'));
+    if (fs.existsSync(abs)) return;
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content);
+    created.push(abs);
+  };
+  ensure('index.html', '<!doctype html><title>static fixture</title>\n');
+  ensure('assets/static-fixture.css', 'body{}\n');
+  return {
+    cleanup() {
+      for (const abs of created) fs.rmSync(abs, { force: true });
+      if (!assetsExisted) {
+        fs.rmSync(assetsDir, { recursive: true, force: true });
+      }
+      if (!distExisted) {
+        fs.rmSync(VIEWER_DIST, { recursive: true, force: true });
+      }
+    },
+  };
+}
+
+test('sendStatic rejects traversal segments and out-of-root paths', async () => {
+  const f = baseFixture();
+  const srv = await serve(f);
+  try {
+    // Encoded '.'/'..' segments are decoded after the URL split, so the
+    // traversal guard sees them; bare '..' is normalized away by the URL
+    // parser and never reaches sendStatic.
+    for (const rel of [
+      '/%2e%2e/secret',
+      '/%2E%2E/%2E%2E/etc/passwd',
+      '/assets/..%2F..%2Fpackage.json',
+    ]) {
+      const res = await srv.get(rel);
+      assert.equal(res.status, 400, rel);
+      assert.equal(res.body.error.code, 'INVALID_PATH');
+    }
+  } finally {
+    await srv.close();
+    cleanup(f.dir);
+  }
+});
+
+test('sendStatic SPA fallback serves index.html with no-store', async () => {
+  const f = baseFixture();
+  const fix = staticFixture();
+  const srv = await serve(f);
+  try {
+    // Extensionless paths that do not match a file fall back to the SPA
+    // entry point so client-side routes load.
+    const res = await fetch(`${srv.base}/tasks`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /^text\/html/);
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+    assert.match(await res.text(), /html/i);
+
+    // A missing path with an extension must NOT fall back.
+    const missing = await srv.get('/no-such-file.css');
+    assert.equal(missing.status, 404);
+    assert.equal(missing.body.error.code, 'NOT_FOUND');
+  } finally {
+    await srv.close();
+    fix.cleanup();
+    cleanup(f.dir);
+  }
+});
+
+test('sendStatic types bodies and caches hashed assets immutably', async () => {
+  const f = baseFixture();
+  const fix = staticFixture();
+  const srv = await serve(f);
+  try {
+    const css = await fetch(`${srv.base}/assets/static-fixture.css`);
+    assert.equal(css.status, 200);
+    assert.equal(
+      css.headers.get('content-type'), 'text/css; charset=utf-8');
+    // Content-addressed assets are immutable; index.html is not.
+    assert.equal(css.headers.get('cache-control'),
+      'public, max-age=31536000, immutable');
+    await css.text();
+
+    const index = await fetch(`${srv.base}/index.html`);
+    assert.equal(index.status, 200);
+    assert.equal(
+      index.headers.get('content-type'), 'text/html; charset=utf-8');
+    assert.equal(index.headers.get('cache-control'), 'no-store');
+    assert.equal(index.headers.get('x-content-type-options'), 'nosniff');
+    assert.match(
+      String(index.headers.get('content-security-policy')),
+      /default-src 'self'/);
+    await index.text();
+  } finally {
+    await srv.close();
+    fix.cleanup();
     cleanup(f.dir);
   }
 });

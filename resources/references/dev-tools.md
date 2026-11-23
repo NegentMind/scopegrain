@@ -87,4 +87,4 @@ git add -p && git commit -m "feat: ..."
 - [ ] For each tool, the fallback is stated (what to run when the tool is
       absent — usually the language's native equivalent).
 
-<!-- Referencias cruzadas: → ver build-system.md, test-suite.md, ship-runbook.md, quality-floor.md -->
+<!-- Cross-references: → see build-system.md, test-suite.md, ship-runbook.md, quality-floor.md -->

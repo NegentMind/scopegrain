@@ -207,11 +207,14 @@ export function evaluateMethodology(ctx, task,
   }
   // researchEscalation enforcement (policy/methodology.json): a VERIFY->ACT
   // transition is a recorded rework cycle — an attempt that failed
-  // verification and went back to implementation. At the authored attempts
-  // threshold, further ->ACT requires a RESEARCH visit after the last
-  // rework. Only recorded transitions count: the policy's causalGrouping
-  // declares hypothesis-grouped "similar failures" are never inferred
-  // from counts, and failure hypotheses are not yet a record field.
+  // verification and went back to implementation. At the authored
+  // revisitDesignAfterAttemptsWithoutProgress threshold (3 reworks),
+  // further ->ACT requires a RESEARCH visit after the last rework. Only
+  // recorded transitions count: investigateAfterSimilarFailures (2) is
+  // declared but NOT mechanized — the policy's causalGrouping states
+  // hypothesis-grouped "similar failures" are never inferred from counts,
+  // failure hypotheses are not yet a record field, and judging causal
+  // similarity stays the agent's obligation per rules/research-escalation.md.
   if (to === 'ACT') {
     const esc = loadMethodologyPolicy().researchEscalation;
     const history = Array.isArray(task.history) ? task.history : [];

@@ -27,6 +27,12 @@
     "STALL": ["read"],
     "ABANDON": ["read"]
   },
+  "constraints": {
+    "note": "Runtime-enforced content guards that transition edges cannot express. Read and pinned by transition.mjs; divergence fails POLICY_INVALID.",
+    "terminalDispositions": ["discarded", "cancelled"],
+    "terminalDispositionTarget": "ABANDON",
+    "methodologyRevalidatedTargets": ["ACT", "ACCEPT", "CLOSE"]
+  },
   "acceptance": {
     "verificationRequired": true,
     "verificationStatuses": ["pass"],

@@ -44,4 +44,4 @@ The full-workspace form is legitimate only as a deliberate final check.
 - [ ] A failure is reproduced with a discriminating minimal case before
       being labeled a product bug vs. a broken fixture.
 
-<!-- Referencias cruzadas: → ver testing-patterns.md, build-system.md, definition-of-done.md, quality-floor.md -->
+<!-- Cross-references: → see testing-patterns.md, build-system.md, definition-of-done.md, quality-floor.md -->

@@ -71,4 +71,4 @@ agent's permission block, aligned with this table.
 | docs writer | ❌ | ❌ | ✅ | ✅ | ✅ if designing |
 | perf/resilience | ✅ | ✅ | per need | ❌ | ❌ |
 
-<!-- Referencias cruzadas: → ver orchestration-patterns.md, skills-engineering.md, mcp-tools.md, backlog-format.md -->
+<!-- Cross-references: → see orchestration-patterns.md, skills-engineering.md, mcp-tools.md, backlog-format.md -->

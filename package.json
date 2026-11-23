@@ -36,7 +36,6 @@
     "policy",
     "templates",
     "schemas",
-    "provenance",
     "docs/*.md",
     "docs/en/*.md",
     "viewer/dist",

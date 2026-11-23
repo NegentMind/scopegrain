@@ -24,7 +24,7 @@ const TONE: Record<string, string> = {
 
 function ApprovalDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const t = useT();
-  const { data, loading, error, reload } = useApi(() => api.approval(id));
+  const { data, loading, error, reload } = useApi(() => api.approval(id), [id]);
   if (loading) return <ListSkeleton />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const a = data?.approval;
@@ -115,6 +115,7 @@ export function ApprovalsView() {
                     aria-expanded={openId === a.id}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault(); // Space must not scroll the page
                         setOpenId(openId === a.id ? null : a.id);
                       }
                     }}

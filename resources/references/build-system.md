@@ -78,4 +78,4 @@ Prioritize the scope flag: it usually dominates every other optimization.
 - [ ] Platform-specific workarounds carry a stated cause, or are flagged
       as undocumented and untrusted.
 
-<!-- Referencias cruzadas: → ver test-suite.md, dev-tools.md, definition-of-done.md -->
+<!-- Cross-references: → see test-suite.md, dev-tools.md, definition-of-done.md -->

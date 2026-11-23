@@ -425,4 +425,4 @@ net debt per change ≤ 0 (Boy Scout applied to the PR, not just the file).
 - [ ] Idiomatic exceptions exist (framework conventions, compat aliases) —
       check the project's exceptions list before flagging names.
 
-<!-- Referencias cruzadas: → ver architecture.md, definition-of-done.md, quality-floor.md, testing-patterns.md -->
+<!-- Cross-references: → see architecture.md, definition-of-done.md, quality-floor.md, testing-patterns.md -->

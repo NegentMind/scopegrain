@@ -441,6 +441,12 @@ const DICT: Record<Locale, Record<string, string>> = {
     'tasks.deps': 'Deps',
     'tasks.files': 'Related files',
     'tasks.scenarios': 'Scenario refs',
+    'common.ok': 'ok',
+    'common.warn': 'warn',
+    'common.fail': 'fail',
+    'journal.desc':
+      'Create-only record operations; committed / prepared / abandoned.',
+    'journal.recovery': 'Recovery receipt',
   },
   es: {
     'app.title': 'Visor de Scopegrain',
@@ -825,6 +831,12 @@ const DICT: Record<Locale, Record<string, string>> = {
     'tasks.deps': 'Deps',
     'tasks.files': 'Archivos relacionados',
     'tasks.scenarios': 'Refs de escenario',
+    'common.ok': 'ok',
+    'common.warn': 'avisos',
+    'common.fail': 'fallos',
+    'journal.desc':
+      'Operaciones de registro de solo creación; committed / prepared / abandoned.',
+    'journal.recovery': 'Recibo de recuperación',
   },
 };
 

@@ -37,7 +37,7 @@ const VALUE_FLAGS = new Set([
   '--reason', '--by', '--log', '--tail', '--backlog', '--status', '--index',
   '--text', '--outcome', '--cursor', '--arguments', '--script',
   '--assessment', '--source', '--out', '--registry', '--op', '--id',
-  '--token-limit',
+  '--token-limit', '--hosts',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -565,6 +565,10 @@ const COMMANDS = {
   'host manifest': {
     flags: ['--project', '--config', '--host', '--surface'], pos: 0,
     usage: 'host manifest --project PATH --host NAME [--surface X]',
+  },
+  'host parity': {
+    flags: ['--project', '--config', '--hosts'], pos: 0,
+    usage: 'host parity --project PATH [--hosts CSV]',
   },
   'helper install': {
     flags: ['--project', '--config', '--input'], pos: 0,
@@ -2397,6 +2401,16 @@ async function cmdHelper(sub, flags) {
 }
 
 async function cmdHost(sub, flags) {
+  if (sub === 'parity') {
+    const { hostParity } = await import('./hosts/parity.mjs');
+    const ctx = lifecycleCtx(flags);
+    const options = {};
+    if (Object.hasOwn(flags, '--hosts')) {
+      options.hosts = flags['--hosts'].split(',')
+        .map((h) => h.trim()).filter(Boolean);
+    }
+    return hostParity(ctx, options);
+  }
   if (sub === 'manifest') {
     const { hostManifest } = await import('./hosts/host-manifest.mjs');
     const ctx = lifecycleCtx(flags);

@@ -15,24 +15,20 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   ToggleGroup,
   ToggleGroupItem,
 } from '@/components/ui/toggle-group';
 import {
   api,
-  type GoalLinkedTask,
   type MemoryLogName,
 } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useT } from '@/lib/i18n';
-import { openTask } from '@/lib/nav';
 import {
   EmptyBox,
   ErrorBox,
   ListSkeleton,
-  StateBadge,
 } from '@/components/StatusBits';
 
 const LOGS: MemoryLogName[] = [
@@ -102,8 +98,7 @@ export function MemoryView() {
         {malformed.length > 0 ? (
           <div className="mt-4 space-y-1 text-xs">
             <p className="font-medium text-destructive">
-              {malformed.length} malformed
-              {t('common.malformedSuffix')}
+              {malformed.length} {t('common.malformedEntries')}
             </p>
             {malformed.map((m, i) => (
               <p key={i} className="font-mono text-muted-foreground">
@@ -215,7 +210,10 @@ function EntriesTable({
   );
 }
 
-// Goal entries rendered as rows of structured data + their linked tasks.
+// Goal entries rendered as rows of structured data. The memory endpoint
+// returns the raw goals worklog (id/title/description/status/horizon/
+// metrics) — the linked-task join only exists on api.goals(), which is
+// what GoalsView consumes.
 function GoalsTable({ entries }: { entries: Record<string, unknown>[] }) {
   const t = useT();
   return (
@@ -229,50 +227,29 @@ function GoalsTable({ entries }: { entries: Record<string, unknown>[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {entries.map((e, i) => {
-          const tasks = Array.isArray(e.tasks)
-            ? (e.tasks as GoalLinkedTask[])
-            : [];
-          return (
-            <TableRow key={i}>
-              <TableCell className="font-mono text-xs text-muted-foreground">
-                {at(e)}
-              </TableCell>
-              <TableCell>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">{str(e.title) ?? ''}</p>
-                  {str(e.description) ? (
-                    <p className="text-xs text-muted-foreground">
-                      {str(e.description)}
-                    </p>
-                  ) : null}
-                  {tasks.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {tasks.map((tk) => (
-                        <Button
-                          key={tk.id}
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 gap-1 px-1.5 text-xs"
-                          onClick={() => openTask(tk.id)}
-                        >
-                          <StateBadge state={tk.state} />
-                          <span className="max-w-48 truncate">{tk.title}</span>
-                        </Button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </TableCell>
-              <TableCell>
-                <Badge variant="outline">{str(e.status) ?? ''}</Badge>
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                {str(e.horizon) ?? ''}
-              </TableCell>
-            </TableRow>
-          );
-        })}
+        {entries.map((e, i) => (
+          <TableRow key={i}>
+            <TableCell className="font-mono text-xs text-muted-foreground">
+              {at(e)}
+            </TableCell>
+            <TableCell>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">{str(e.title) ?? ''}</p>
+                {str(e.description) ? (
+                  <p className="text-xs text-muted-foreground">
+                    {str(e.description)}
+                  </p>
+                ) : null}
+              </div>
+            </TableCell>
+            <TableCell>
+              <Badge variant="outline">{str(e.status) ?? ''}</Badge>
+            </TableCell>
+            <TableCell className="text-xs text-muted-foreground">
+              {str(e.horizon) ?? ''}
+            </TableCell>
+          </TableRow>
+        ))}
       </TableBody>
     </Table>
   );

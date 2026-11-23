@@ -241,4 +241,4 @@ test('user can create and complete a task', async ({ page }) => {
 | Overly broad assertions | Doesn't catch regressions | Be specific |
 | No async error handling | Swallowed errors, false passes | Always `await` async tests |
 
-<!-- Referencias cruzadas: → ver test-suite.md, definition-of-done.md, quality-floor.md -->
+<!-- Cross-references: → see test-suite.md, definition-of-done.md, quality-floor.md -->

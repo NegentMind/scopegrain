@@ -40,6 +40,7 @@ const STATE_TONE: Record<string, string> = {
   CLOSE:
     'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
   STALL: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
+  ABANDON: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
 };
 
 export function StateBadge({ state }: { state: string }) {
