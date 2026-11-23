@@ -3,7 +3,7 @@ name: "scopegrain-plan-design-review"
 description: "Use to assess a proposed design or task plan before committing implementation work"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/plan-design-review"
 ---
 

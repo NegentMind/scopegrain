@@ -3,7 +3,7 @@ name: "scopegrain-shipping-and-launch"
 description: "Use to assess delivery readiness or plan recovery from a failed release"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/shipping-and-launch"
 ---
 

@@ -3,7 +3,7 @@ name: "scopegrain-audit-harness"
 description: "Inspect harness contracts, resources and capability claims."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/audit-harness"
 ---
 

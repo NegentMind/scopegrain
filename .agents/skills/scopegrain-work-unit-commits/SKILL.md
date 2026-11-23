@@ -3,7 +3,7 @@ name: "scopegrain-work-unit-commits"
 description: "Use when splitting authorized implementation into reviewable commits, keeping tests and docs with the unit they verify, or deciding what belongs in each commit."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/work-unit-commits"
 ---
 

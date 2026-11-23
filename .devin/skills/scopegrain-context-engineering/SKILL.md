@@ -3,7 +3,7 @@ name: "scopegrain-context-engineering"
 description: "Use to assemble task-relevant context or recover work after a context interruption"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/context-engineering"
 ---
 

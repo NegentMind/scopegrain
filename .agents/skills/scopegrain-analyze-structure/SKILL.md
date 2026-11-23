@@ -3,7 +3,7 @@ name: "scopegrain-analyze-structure"
 description: "Analyze structural impact with available graph and source evidence."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/analyze-structure"
 ---
 

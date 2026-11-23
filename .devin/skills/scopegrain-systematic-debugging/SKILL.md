@@ -3,7 +3,7 @@ name: "scopegrain-systematic-debugging"
 description: "Use when a test, command or observed behavior fails before proposing a code fix"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/systematic-debugging"
 ---
 

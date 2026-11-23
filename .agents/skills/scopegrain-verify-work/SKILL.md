@@ -3,7 +3,7 @@ name: "scopegrain-verify-work"
 description: "Execute or prescribe scoped verification and preserve raw evidence."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/verify-work"
 ---
 

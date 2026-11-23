@@ -3,7 +3,7 @@ name: "scopegrain-webperf"
 description: "Compatibility alias: webperf"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/webperf"
 ---
 

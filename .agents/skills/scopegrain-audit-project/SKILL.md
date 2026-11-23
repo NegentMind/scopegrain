@@ -3,7 +3,7 @@ name: "scopegrain-audit-project"
 description: "Assess an agreed project surface and report evidence-based risks."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/audit-project"
 ---
 

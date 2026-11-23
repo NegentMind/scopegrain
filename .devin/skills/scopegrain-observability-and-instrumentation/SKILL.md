@@ -3,7 +3,7 @@ name: "scopegrain-observability-and-instrumentation"
 description: "Use when operational claims require real logs, metrics or traces rather than static placeholders"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/observability-and-instrumentation"
 ---
 

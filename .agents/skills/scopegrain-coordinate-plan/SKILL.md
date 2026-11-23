@@ -3,7 +3,7 @@ name: "scopegrain-coordinate-plan"
 description: "Coordinate ready tasks within an approved plan and explicit limits."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/coordinate-plan"
 ---
 

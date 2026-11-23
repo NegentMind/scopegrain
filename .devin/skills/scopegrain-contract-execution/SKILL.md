@@ -3,7 +3,7 @@ name: "scopegrain-contract-execution"
 description: "Use when executing a scoped engineering task through the recorded lifecycle, with acceptance criteria, verification evidence, review and a resumable handoff."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/contract-execution"
 ---
 

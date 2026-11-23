@@ -3,7 +3,7 @@ name: "scopegrain-incremental-implementation"
 description: "Use for changes that can be delivered as small vertical slices without broad unrelated churn"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/incremental-implementation"
 ---
 

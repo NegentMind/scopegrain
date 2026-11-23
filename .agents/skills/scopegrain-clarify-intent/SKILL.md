@@ -3,7 +3,7 @@ name: "scopegrain-clarify-intent"
 description: "Use to turn an initial product idea into a bounded, testable engineering request"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/clarify-intent"
 ---
 

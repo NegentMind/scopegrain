@@ -3,7 +3,7 @@ name: "scopegrain-resilience-tester"
 description: "Test failure handling in explicitly disposable environments."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "agent/resilience-tester"
 ---
 

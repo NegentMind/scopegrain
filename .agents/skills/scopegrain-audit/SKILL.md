@@ -3,7 +3,7 @@ name: "scopegrain-audit"
 description: "Compatibility alias: audit"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/audit"
 ---
 

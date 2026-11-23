@@ -3,7 +3,7 @@ name: "scopegrain-simplify-code"
 description: "Simplify demonstrated complexity while preserving observable behavior."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/simplify-code"
 ---
 

@@ -3,7 +3,7 @@ name: "scopegrain-code-review-and-quality"
 description: "Use when inspecting a change for behavioral defects, regressions, boundary risks and missing tests"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/code-review-and-quality"
 ---
 

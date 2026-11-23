@@ -3,7 +3,7 @@ name: "scopegrain-select-capabilities"
 description: "Use when choosing capabilities for a task or inspecting catalog and dependency availability"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/select-capabilities"
 ---
 

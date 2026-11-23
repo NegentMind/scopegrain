@@ -3,7 +3,7 @@ name: "scopegrain-triage-work"
 description: "Recommend backlog priorities from current evidence without applying them."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/triage-work"
 ---
 

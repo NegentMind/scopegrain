@@ -3,7 +3,7 @@ name: "scopegrain-verification-engineer"
 description: "Produce scoped verification evidence without changing the acceptance floor."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "agent/verification-engineer"
 ---
 

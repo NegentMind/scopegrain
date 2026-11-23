@@ -3,7 +3,7 @@ name: "scopegrain-deprecation-and-migration"
 description: "Use when replacing behavior, configuration or stored data while preserving a recoverable upgrade path"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/deprecation-and-migration"
 ---
 

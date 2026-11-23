@@ -3,7 +3,7 @@ name: "scopegrain-performance-engineer"
 description: "Measure and explain performance without confusing estimates with results."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "agent/performance-engineer"
 ---
 

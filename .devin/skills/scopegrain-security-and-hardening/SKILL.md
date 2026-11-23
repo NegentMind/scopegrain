@@ -3,7 +3,7 @@ name: "scopegrain-security-and-hardening"
 description: "Use when a change touches untrusted inputs, permissions, sensitive data or dependency trust"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/security-and-hardening"
 ---
 

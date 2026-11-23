@@ -3,7 +3,7 @@ name: "scopegrain-code-simplify"
 description: "Compatibility alias: code-simplify"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/code-simplify"
 ---
 

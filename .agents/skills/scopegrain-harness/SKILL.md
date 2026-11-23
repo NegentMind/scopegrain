@@ -3,7 +3,7 @@ name: "scopegrain-harness"
 description: "Compatibility alias: harness"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/harness"
 ---
 

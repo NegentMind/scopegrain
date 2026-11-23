@@ -3,7 +3,7 @@ name: "scopegrain-discernment-nudge"
 description: "Use when a plausible request or proposed solution risks being accepted without checking its premise"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/discernment-nudge"
 ---
 

@@ -3,7 +3,7 @@ name: "scopegrain-plan-work"
 description: "Prepare a dependency graph for settled formal work without executing it."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "command/plan-work"
 ---
 

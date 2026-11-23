@@ -3,7 +3,7 @@ name: "scopegrain-source-driven-development"
 description: "Use when a design or implementation decision depends on repository facts or external interfaces"
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/source-driven-development"
 ---
 

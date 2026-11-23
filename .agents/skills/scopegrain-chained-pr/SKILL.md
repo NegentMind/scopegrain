@@ -3,7 +3,7 @@ name: "scopegrain-chained-pr"
 description: "Use when a change forecasts more than ~400 authored lines or the owner asks for stacked/chained PRs; selects a bounded delivery-slice strategy."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/chained-pr"
 ---
 

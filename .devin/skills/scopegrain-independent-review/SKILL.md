@@ -3,7 +3,7 @@ name: "scopegrain-independent-review"
 description: "Review a task artifact against its contract from a separate context without implementing fixes."
 metadata:
   generated-by: "scopegrain"
-  scopegrain-version: "0.1.0"
+  scopegrain-version: "0.1.1"
   source: "skill/independent-review"
 ---
 
