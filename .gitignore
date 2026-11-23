@@ -13,3 +13,7 @@ tests/.tmp/
 .agents/mcp_config.json
 .devin/mcp_config.json
 .devin/config.json
+# OpenCode project config: carries the scopegrain MCP entry with absolute
+# serverPath/--project values. Machine-local by contract — never version it.
+/opencode.jsonc
+/opencode.json
