@@ -14,7 +14,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, suite `1411/1411` test
 | Superficie | Inventario | Acceso |
 |---|---|---|
 | CLI `bin/scopegrain.mjs` (alias `bin/tasksystem.mjs`) | ~95 subcomandos, imports perezosos por comando | Humano y agente |
-| MCP `src/mcp/server.mjs` | 33 tools `scopegrain_*`: 27 `READ_ONLY` + 6 `WRITE_LOCAL` (incl. `mcp_inventory` auto-descriptivo) | Hosts MCP (stdio) |
+| MCP `src/mcp/server.mjs` | 34 tools `scopegrain_*`: 28 `READ_ONLY` + 6 `WRITE_LOCAL` (incl. `mcp_inventory` auto-descriptivo) | Hosts MCP (stdio) |
 | API local `src/api/server.mjs` | 29 rutas GET `/api/*` | Loopback-only, GET-only |
 | Visor `viewer/` (`scopegrain view`) | 15 vistas React 19 + TS + Vite + Tailwind | Read-only, humano |
 | Catálogo `resources/manifest.json` | 130 entradas + 32 aliases | Proyectable al proyecto |

@@ -38,6 +38,11 @@ Cambiar un proyecto a un modo estricto no convierte sus tareas V1 en V2:
 siguen siendo consultables, pero necesitan metadatos apropiados para pasar
 los gates. No hay una actualizacion implicita del historial.
 
+`intake.mode` es una configuracion aparte (`off` por defecto): controla
+si el agente clasifica cada solicitud en un registro (capture, task o
+plan) siguiendo el recurso `intake` del catalogo. No cambia la
+metodologia ni relaja ningun gate.
+
 ## Clasificacion proporcional
 
 La evaluacion usa intencion, autorizacion, comprension, incertidumbre,

@@ -251,6 +251,9 @@ fingerprint used for change detection without rescanning.
 - `show` returns the persisted document (or `NOT_FOUND` when absent).
 - `context` includes the freshness summary so the agent knows when to
   refresh before relying on the index.
+- The packet also exposes `methodology` and `intake` (the project's
+  `intake.mode`, `off` by default). The same packet is served over MCP
+  by the read-only `scopegrain_context` tool.
 
 It never reads secrets or binary contents, never executes project
 commands, honors depth/entry budgets with warnings, and rejects

@@ -250,6 +250,9 @@ fingerprint determinista usado para detectar cambios sin re-escanear.
 - `show` devuelve el documento persistido (o `NOT_FOUND` si no hay).
 - `context` incluye el resumen de frescura para que el agente sepa cuando
   refrescar antes de confiar en el indice.
+- El packet tambien expone `methodology` e `intake` (`intake.mode` del
+  proyecto, `off` por defecto). El mismo packet se sirve por MCP con la
+  tool read-only `scopegrain_context`.
 
 Nunca lee secretos ni contenido de binarios, no ejecuta comandos del
 proyecto, respeta los limites de profundidad/entradas con warnings, y

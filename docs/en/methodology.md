@@ -42,6 +42,11 @@ a project to a strict mode does not convert its V1 tasks to V2: they
 remain queryable, but need appropriate metadata to pass the gates.
 There is no implicit upgrade of history.
 
+`intake.mode` is a separate configuration (`off` by default): it
+controls whether the agent classifies each request into a record
+(capture, task or plan) following the catalog's `intake` resource. It
+changes neither the methodology nor any gate.
+
 ## Proportional classification
 
 The evaluation uses intent, authorization, understanding, uncertainty,

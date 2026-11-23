@@ -18,7 +18,7 @@ this is its English twin.
 | Surface | Inventory | Access |
 |---|---|---|
 | CLI `bin/scopegrain.mjs` (alias `bin/tasksystem.mjs`) | ~95 subcommands, lazy per-command imports | Human and agent |
-| MCP `src/mcp/server.mjs` | 32 `scopegrain_*` tools: 26 `READ_ONLY` + 6 `WRITE_LOCAL` | MCP hosts (stdio) |
+| MCP `src/mcp/server.mjs` | 34 `scopegrain_*` tools: 28 `READ_ONLY` + 6 `WRITE_LOCAL` | MCP hosts (stdio) |
 | Local API `src/api/server.mjs` | 29 GET routes `/api/*` | Loopback-only, GET-only |
 | Viewer `viewer/` (`scopegrain view`) | 15 views, React 19 + TS + Vite + Tailwind | Read-only, human |
 | Catalog `resources/manifest.json` | 130 entries + 32 aliases | Projectable into the project |
@@ -141,7 +141,7 @@ committed+acked events.
 
 ---
 
-## 3. MCP — 32 `scopegrain_*` tools
+## 3. MCP — 34 `scopegrain_*` tools
 
 ### Read-only (26)
 

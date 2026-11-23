@@ -23,7 +23,7 @@ risks.
   local journal prevent silent corruption, and every mutation leaves an
   auditable trail.
 - **Instant visibility:** a local, read-only web dashboard (`scopegrain view`,
-  15 views, EN/ES) and a 33-tool MCP server keep human operators and agents
+  15 views, EN/ES) and a 34-tool MCP server keep human operators and agents
   aligned without leaving the repository.
 
 The product is called Scopegrain. `scopegrain` is the CLI entry point
@@ -300,7 +300,7 @@ certified in a fresh real session on 2026-11-23 against `opencode v2.3.2`:
 15/15 `scopegrain-*` subagents resolved, 74 de-duplicated `scopegrain-*`
 skill IDs with `.opencode/skills` winning precedence over `.agents/skills`,
 `/scopegrain-status` expanding in the TUI composer, the `scopegrain` MCP
-exposing 33 tools (27 read-only, 6 local-write) with
+exposing 34 tools (28 read-only, 6 local-write) with
 `scopegrain_status`/`catalog_list`/`list_tasks` invoked live, the read-only
 role blocking `edit`/`shell` by tool absence, interruption/resumption
 repeating no effects, and cleanup leaving no traces in the global OpenCode
