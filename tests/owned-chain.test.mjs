@@ -21,7 +21,7 @@ import {
   sha256Hex, validateChainOwnership, walkOwnedIndex,
 } from '../src/core/owned-chain.mjs';
 import {
-  VALID_ANSWERS, cleanup, makeTempDir, writeFile, writeJson,
+  VALID_ANSWERS, assertOwnedStoreContract, cleanup, makeTempDir, writeFile, writeJson,
 } from './helpers.mjs';
 
 const CODE = 'TEST_MALFORMED';
@@ -334,4 +334,27 @@ test('requireCommittedOp and walkOwnedIndex over a real committed op', () => {
     assert.throws(() => [...walkOwnedIndex(bound, [bogus], spec)],
       (e) => e instanceof Error);
   } finally { cleanup(dir); }
+});
+
+test('parameterized owned-* store contract holds across all owned stores', async () => {
+  const { createOwnedSpecificationStore } = await import('../src/core/owned-specifications.mjs');
+  const { createOwnedDesignStore } = await import('../src/core/owned-designs.mjs');
+  const { createOwnedOutcomeStore } = await import('../src/core/owned-outcomes.mjs');
+  const { createOwnedTaskStore } = await import('../src/core/transition.mjs');
+  const { createOwnedApprovalStore } = await import('../src/core/approvals.mjs');
+  const { createOwnedSessionStore } = await import('../src/core/sessions.mjs');
+  const { createOwnedPlanStore } = await import('../src/core/plans.mjs');
+
+  const factories = [
+    ['owned-spec', createOwnedSpecificationStore, ['prepare', 'create', 'get']],
+    ['owned-design', createOwnedDesignStore, ['prepare', 'create', 'get']],
+    ['owned-outcome', createOwnedOutcomeStore, ['prepare', 'create', 'get']],
+    ['owned-task', createOwnedTaskStore, ['prepare', 'create', 'get', 'transition']],
+    ['owned-approval', createOwnedApprovalStore, ['prepare', 'create', 'get', 'answer']],
+    ['owned-session', createOwnedSessionStore, ['prepare', 'create', 'get', 'record']],
+    ['owned-plan', createOwnedPlanStore, ['prepare', 'create', 'get', 'update']],
+  ];
+  for (const [, factory, expectedMethods] of factories) {
+    assertOwnedStoreContract(assert, factory, { expectedMethods });
+  }
 });

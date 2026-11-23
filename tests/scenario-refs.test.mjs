@@ -10,7 +10,7 @@ import {
 import {
   allScenarioRefs, normalizeScenarioRefs,
 } from '../src/core/methodology-data.mjs';
-import { bootstrappedCtx, cleanup } from './helpers.mjs';
+import { bootstrappedMiniCtx, cleanup } from './helpers.mjs';
 
 const SPEC = {
   originalRequest: 'spec for scenario-ref tests',
@@ -35,7 +35,7 @@ function makeSpec(ctx, dir) {
 }
 
 test('allScenarioRefs returns every canonical pair, fresh each call', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = allScenarioRefs(spec);
@@ -50,7 +50,7 @@ test('allScenarioRefs returns every canonical pair, fresh each call', () => {
 });
 
 test('malformed spec: non-spec object / legacy data -> SPEC_STRUCTURED_REQUIRED', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     assert.throws(() => allScenarioRefs(null),
@@ -69,7 +69,7 @@ test('malformed spec: non-spec object / legacy data -> SPEC_STRUCTURED_REQUIRED'
 });
 
 test('normalize: omitted raw -> all; stored undefined -> error', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     assert.equal(normalizeScenarioRefs(spec, undefined).length, 3);
@@ -79,7 +79,7 @@ test('normalize: omitted raw -> all; stored undefined -> error', () => {
 });
 
 test('case-insensitive input resolves canonical; stored spelling must match', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const raw = normalizeScenarioRefs(spec, [
@@ -93,7 +93,7 @@ test('case-insensitive input resolves canonical; stored spelling must match', ()
 });
 
 test('explicit [] rejects; non-array/non-object/missing/extra keys reject', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     assert.throws(() => normalizeScenarioRefs(spec, []),
@@ -112,7 +112,7 @@ test('explicit [] rejects; non-array/non-object/missing/extra keys reject', () =
 });
 
 test('non-string IDs reject without coercion: numeric, array, whitespace', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     // Spec with numeric-looking IDs '1'/'2' to prove no String() coercion.
     const specP = prepareSpecification(ctx, { ...SPEC,
@@ -139,7 +139,7 @@ test('non-string IDs reject without coercion: numeric, array, whitespace', () =>
 });
 
 test('duplicate casefold + same scenario id under different requirements legal', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     assert.throws(() => normalizeScenarioRefs(spec, [

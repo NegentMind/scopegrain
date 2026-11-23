@@ -16,14 +16,14 @@ import fs from 'node:fs';
 import {
   approve, assessment, formalFixture, seedState,
 } from './methodology-fixtures.mjs';
-import { bootstrappedCtx, cleanup } from './helpers.mjs';
+import { bootstrappedMiniCtx, cleanup } from './helpers.mjs';
 
 const query = (f, input = {}) =>
   checkMethodology(f.ctx, { taskId: f.task.id, ...input });
 
 // R1/S1: V3 + light assessment in organic-sdd evaluates like V2 -> light.
 test('V3 with assessment is admitted as light in organic-sdd', () => {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   try {
     f.ctx.config.methodology = 'organic-sdd';
     f.task = createTask(f.ctx, { title: 'V3 light', contract: 'C',
@@ -60,7 +60,7 @@ test('V3 with approved formal pair evaluates as sdd', () => {
 // R2/S1: V3 without methodology and without formal pair is still blocked
 // in enforced mode — admission must not become a bypass.
 test('V3 without metadata is blocked in organic-sdd, not bypassed', () => {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   try {
     // createTask itself rejects metadata-less tasks under organic-sdd;
     // the bare-V3 record arises via the V1-upgrade path, so it is created
@@ -81,7 +81,7 @@ test('V3 without metadata is blocked in organic-sdd, not bypassed', () => {
 // R3/S1: manual mode + V3 without methodology metadata stays manual —
 // the V1-upgrade path observed in the wild must not regress.
 test('manual mode keeps metadata-less V3 on the manual route', () => {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   try {
     f.ctx.config.methodology = 'manual';
     f.task = createTask(f.ctx, { title: 'V3 bare manual', contract: 'C',
@@ -96,7 +96,7 @@ test('manual mode keeps metadata-less V3 on the manual route', () => {
 
 // R3/S2: manual mode + V3 that DOES carry methodology is enforced like V2.
 test('manual mode enforces V3 records carrying methodology', () => {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   try {
     f.ctx.config.methodology = 'manual';
     f.task = createTask(f.ctx, { title: 'V3 method manual', contract: 'C',
@@ -111,7 +111,7 @@ test('manual mode enforces V3 records carrying methodology', () => {
 
 // R4: regression — V2 behaviour unchanged (light assessment, organic-sdd).
 test('V2 light assessment still allowed (regression)', () => {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   try {
     f.ctx.config.methodology = 'organic-sdd';
     f.task = createTask(f.ctx, { title: 'V2 light', contract: 'C',
@@ -129,7 +129,7 @@ test('V2 light assessment still allowed (regression)', () => {
 // stored (validateTaskShape rejects it with TASK_MALFORMED), so the gate
 // check is exercised directly on the evaluation seam.
 test('schemaVersion 4 fails closed with METHODOLOGY_REQUIRED', () => {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   try {
     f.ctx.config.methodology = 'organic-sdd';
     const r = evaluateMethodology(f.ctx, {
@@ -182,7 +182,7 @@ test('prepareOutcomeEvidence accepts V3 formal, rejects V3 without pair', () => 
 // The shared predicate must remove it for V3 exactly as for V2, while a
 // metadata-less V3 in manual mode keeps it.
 test('governed V3 with empty scope loses edit like V2', () => {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   try {
     f.ctx.config.methodology = 'organic-sdd';
     const v3 = createTask(f.ctx, { title: 'V3 empty scope', contract: 'C',
@@ -202,7 +202,7 @@ test('governed V3 with empty scope loses edit like V2', () => {
 });
 
 test('metadata-less V3 in manual mode keeps edit', () => {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   try {
     f.ctx.config.methodology = 'manual';
     const t = createTask(f.ctx, { title: 'V3 bare edit', contract: 'C',
@@ -215,7 +215,7 @@ test('metadata-less V3 in manual mode keeps edit', () => {
 });
 
 test('V3 without formal pair cannot produce outcome evidence', () => {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   try {
     f.ctx.config.methodology = 'manual';
     f.task = createTask(f.ctx, { title: 'V3 bare outcome', contract: 'C',

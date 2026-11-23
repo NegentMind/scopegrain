@@ -12,7 +12,7 @@ import {
 import { getArtifact, prepareArtifact } from '../src/core/artifacts.mjs';
 import { loadLimits } from '../src/core/policy.mjs';
 import {
-  bootstrappedCtx, cleanup, trySymlink, writeJson,
+  bootstrappedMiniCtx, cleanup, trySymlink, writeJson,
 } from './helpers.mjs';
 
 const SPEC = {
@@ -39,7 +39,7 @@ const SPEC = {
 function specIn(over = {}) { return { ...SPEC, ...over }; }
 
 test('prepareSpecification: V2, verbatim request, renderer body, closed', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     assert.throws(() => prepareSpecification(ctx, specIn({ extra: 1 })),
       (e) => e.code === 'UNKNOWN_KEY');
@@ -61,7 +61,7 @@ test('prepareSpecification: V2, verbatim request, renderer body, closed', () => 
 });
 
 test('ids unique casefold; empty scenarios; traversal rejected', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const dup = specIn({ requirements: [
       { id: 'R', statement: 's', scenarios: [SPEC.requirements[0].scenarios[0]] },
@@ -85,7 +85,7 @@ test('ids unique casefold; empty scenarios; traversal rejected', () => {
 });
 
 test('scope containment at prepare AND read: junctions rejected', (t) => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   const outside = `${dir}-outside`;
   fs.mkdirSync(`${outside}/secret`, { recursive: true });
   try {
@@ -120,7 +120,7 @@ test('scope containment at prepare AND read: junctions rejected', (t) => {
 });
 
 test('materialized body coherence and required stored data', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { file } = prepareSpecification(ctx, specIn());
     applyPlan(dir, [file]);
@@ -155,7 +155,7 @@ test('materialized body coherence and required stored data', () => {
 });
 
 test('document size bounds: oversized request and oversized stored file', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const huge = 'x'.repeat(loadLimits().maxDocumentBytes + 1024);
     assert.throws(() => prepareSpecification(ctx,
@@ -172,7 +172,7 @@ test('document size bounds: oversized request and oversized stored file', () => 
 });
 
 test('version matrix: V1+data, V2-noData, V2-wrong-kind, forged V1 spec', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     // Factory: data on a non-V2 kind is rejected outright.
     assert.throws(() => prepareArtifact(ctx, 'research',
@@ -201,7 +201,7 @@ test('version matrix: V1+data, V2-noData, V2-wrong-kind, forged V1 spec', () => 
 });
 
 test('report V2: typed data through factory 4th arg, synthetic shape', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const d = 'a'.repeat(64);
     const { artifact, file } = prepareArtifact(ctx, 'report',
@@ -222,7 +222,7 @@ test('report V2: typed data through factory 4th arg, synthetic shape', () => {
 });
 
 test('design: V2 required, binds spec digest, drift detected', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = prepareSpecification(ctx, specIn());
     applyPlan(dir, [spec.file]);
@@ -257,7 +257,7 @@ test('design: V2 required, binds spec digest, drift detected', () => {
 });
 
 test('E8 subspecs: typed links, existing target required, closed', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const child = prepareSpecification(ctx, specIn());
     applyPlan(dir, [child.file]);

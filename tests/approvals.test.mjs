@@ -16,7 +16,7 @@ import {
   answerApproval, describeApprovalTarget, getApproval,
   prepareApproval, prepareApprovalAnswer,
 } from '../src/core/approvals.mjs';
-import { bootstrappedCtx, cleanup, writeJson } from './helpers.mjs';
+import { bootstrappedMiniCtx, cleanup, writeJson } from './helpers.mjs';
 
 const SPEC = {
   originalRequest: 'verbatim request for approvals tests',
@@ -57,7 +57,7 @@ function absOf(dir, approvalId) {
 }
 
 test('prepare: pending, id=digest, locale question, scope from spec', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -76,7 +76,7 @@ test('prepare: pending, id=digest, locale question, scope from spec', () => {
 });
 
 test('target input boundary: null/extra/malformed rejected before lookup', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const { target } = targetOf(ctx, 'artifact', 'spec', spec.id);
@@ -103,7 +103,7 @@ test('target input boundary: null/extra/malformed rejected before lookup', () =>
 });
 
 test('answers map to statuses; only approve grants approved', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     let n = 0;
     for (const [ans, want] of [
@@ -121,7 +121,7 @@ test('answers map to statuses; only approve grants approved', () => {
 });
 
 test('spec openQuestions blocks approve only', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir, { openQuestions: ['open q'] });
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -134,7 +134,7 @@ test('spec openQuestions blocks approve only', () => {
 });
 
 test('reaffirm requires comment; revoke only from approved', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -161,7 +161,7 @@ test('reaffirm requires comment; revoke only from approved', () => {
 });
 
 test('revoke from approved succeeds and records actor/comment', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -176,7 +176,7 @@ test('revoke from approved succeeds and records actor/comment', () => {
 });
 
 test('answer input basics: actor required, unknown keys, bad ids', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -203,7 +203,7 @@ test('answer input basics: actor required, unknown keys, bad ids', () => {
 });
 
 test('stale revision/digest fail before any write', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -225,7 +225,7 @@ test('stale revision/digest fail before any write', () => {
 });
 
 test('malformed shape: id!=digest, scope/options/history tamper', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -258,7 +258,7 @@ test('malformed shape: id!=digest, scope/options/history tamper', () => {
 });
 
 test('malformed history and back-clock fail; bytes preserved', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -275,7 +275,7 @@ test('malformed history and back-clock fail; bytes preserved', () => {
 });
 
 test('preview answer is read-only; file carries rel; no writes', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -297,7 +297,7 @@ test('preview answer is read-only; file carries rel; no writes', () => {
 });
 
 test('foreign lock sentinel blocks and is preserved; own tmp cleaned', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -332,7 +332,7 @@ test('foreign lock sentinel blocks and is preserved; own tmp cleaned', () => {
 });
 
 test('corrupt prompts surface TaskError, never TypeError or poisoned cache', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const { target } = targetOf(ctx, 'artifact', 'spec', spec.id);
@@ -396,7 +396,7 @@ test('corrupt prompts surface TaskError, never TypeError or poisoned cache', asy
 });
 
 test('zero filesystem writes on invalid input; NOT_FOUND before lock', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -420,7 +420,7 @@ test('zero filesystem writes on invalid input; NOT_FOUND before lock', () => {
 });
 
 test('deterministic tmp sentinel preserved; mid-write EIO keeps bytes', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -462,7 +462,7 @@ test('deterministic tmp sentinel preserved; mid-write EIO keeps bytes', () => {
 });
 
 test('lock close-fail: owned fd guarded, record bytes unchanged', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -500,7 +500,7 @@ test('lock close-fail: owned fd guarded, record bytes unchanged', () => {
 });
 
 test('extended-ISO-year history compares numerically (not lexically)', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const spec = makeSpec(ctx, dir);
     const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
@@ -521,7 +521,7 @@ test('extended-ISO-year history compares numerically (not lexically)', () => {
 });
 
 test('task/plan digests: progress stable; scope/contract/deps change them', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const task = createTask(ctx, {
       title: 'T', contract: 'C', authorContext: 'a', scope: ['src/x'] });
@@ -557,7 +557,7 @@ test('task/plan digests: progress stable; scope/contract/deps change them', () =
 });
 
 test('approval scope preserves case-distinct paths src/a and SRC/a', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const task = createTask(ctx, {
       title: 'T', contract: 'C', authorContext: 'a',

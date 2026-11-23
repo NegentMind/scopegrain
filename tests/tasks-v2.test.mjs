@@ -12,7 +12,7 @@ import { preparePlan } from '../src/core/plans.mjs';
 import {
   prepareDesign, prepareSpecification,
 } from '../src/core/specifications.mjs';
-import { bootstrappedCtx, cleanup, writeJson } from './helpers.mjs';
+import { bootstrappedMiniCtx, cleanup, writeJson } from './helpers.mjs';
 
 const SPEC = {
   originalRequest: 'spec for task v2 fixtures',
@@ -58,7 +58,7 @@ function taskIn(over = {}) {
 // ---------------- V2 shape & stored strictness ----------------
 
 test('formal V2: schemaVersion 2 + all five normalized fields', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { spec, design } = makePair(ctx, dir);
     const { task, file } = prepareTask(ctx, taskIn({
@@ -81,7 +81,7 @@ test('formal V2: schemaVersion 2 + all five normalized fields', () => {
 });
 
 test('omitted scenarioRefs -> all spec scenarios; explicit [] rejected', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { spec, design } = makePair(ctx, dir);
     const { task } = prepareTask(ctx, taskIn({
@@ -95,7 +95,7 @@ test('omitted scenarioRefs -> all spec scenarios; explicit [] rejected', () => {
 });
 
 test('light assessment V2: assessment + null refs + [] scenarios', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     ctx.config.methodology = 'organic-sdd';
     const { task } = prepareTask(ctx, taskIn({ methodology: ASSESS }));
@@ -109,7 +109,7 @@ test('light assessment V2: assessment + null refs + [] scenarios', () => {
 });
 
 test('V1 manual: no new fields, no silent upgrade', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     ctx.config.methodology = 'manual';
     const t = createTask(ctx, taskIn());
@@ -120,7 +120,7 @@ test('V1 manual: no new fields, no silent upgrade', () => {
 });
 
 test('mode gating: sdd needs pair; organic needs assessment or pair', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     ctx.config.methodology = 'sdd';
     assert.throws(() => prepareTask(ctx, taskIn()),
@@ -135,7 +135,7 @@ test('mode gating: sdd needs pair; organic needs assessment or pair', () => {
 });
 
 test('classified sdd without pair -> METHODOLOGY_REQUIRED', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     ctx.config.methodology = 'organic-sdd';
     assert.throws(() => prepareTask(ctx, taskIn({
@@ -146,7 +146,7 @@ test('classified sdd without pair -> METHODOLOGY_REQUIRED', () => {
 });
 
 test('blocked/read-only drafts create PLAN records without authorization', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     ctx.config.methodology = 'organic-sdd';
     const blocked = prepareTask(ctx, taskIn({
@@ -164,7 +164,7 @@ test('blocked/read-only drafts create PLAN records without authorization', () =>
 });
 
 test('half/unknown refs, planKey alone, bad keys rejected', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { spec, design } = makePair(ctx, dir);
     assert.throws(() => prepareTask(ctx, taskIn({ specId: spec.id })),
@@ -193,7 +193,7 @@ test('half/unknown refs, planKey alone, bad keys rejected', () => {
 });
 
 test('scope: sibling-prefix/case-only/broader rejected with scope named', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { spec, design } = makePair(ctx, dir);
     const f = { specId: spec.id, designId: design.id };
@@ -215,7 +215,7 @@ test('scope: sibling-prefix/case-only/broader rejected with scope named', () => 
 });
 
 test('scope junction: real link under scope path -> SYMLINK_REJECTED', (t) => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   const outside = `${dir}-outside`;
   fs.mkdirSync(`${outside}/x`, { recursive: true });
   try {
@@ -244,7 +244,7 @@ test('scope junction: real link under scope path -> SYMLINK_REJECTED', (t) => {
 });
 
 test('getter validates OWN record only: spec deleted -> task still reads', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { spec, design } = makePair(ctx, dir);
     const { task, file } = prepareTask(ctx, taskIn({
@@ -257,7 +257,7 @@ test('getter validates OWN record only: spec deleted -> task still reads', () =>
 });
 
 test('explicit methodology:null without refs -> METHODOLOGY_REQUIRED', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     ctx.config.methodology = 'manual';
     assert.throws(() => prepareTask(ctx, taskIn({ methodology: null })),
@@ -269,7 +269,7 @@ test('explicit methodology:null without refs -> METHODOLOGY_REQUIRED', () => {
 });
 
 test('uppercase spec id still binds design -> prepare succeeds', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { spec } = makePair(ctx, dir);
     // Design authored against an UPPERCASE spec id: data.specId preserves
@@ -301,7 +301,7 @@ test('uppercase spec id still binds design -> prepare succeeds', () => {
 });
 
 test('stored V2 coherence: null-methodology-no-refs and sdd-classified light', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { spec, design } = makePair(ctx, dir);
     const { task, file } = prepareTask(ctx, taskIn({
@@ -333,7 +333,7 @@ test('stored V2 coherence: null-methodology-no-refs and sdd-classified light', (
 });
 
 test('stored V2 field types: planKey nonstring, bad scenario ids, unsafe rev', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { spec, design } = makePair(ctx, dir);
     const { task, file } = prepareTask(ctx, taskIn({
@@ -366,7 +366,7 @@ test('stored V2 field types: planKey nonstring, bad scenario ids, unsafe rev', (
 });
 
 test('stored V2 strict: missing field or V1-with-fields -> malformed', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { spec, design } = makePair(ctx, dir);
     const { task, file } = prepareTask(ctx, taskIn({
@@ -393,7 +393,7 @@ test('stored V2 strict: missing field or V1-with-fields -> malformed', () => {
 });
 
 test('prepareTask is read-only: invalid writes nothing; valid creates none', () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const tasksDir = `${dir}/.tasksystem/tasks`;
     const before = fs.existsSync(tasksDir)

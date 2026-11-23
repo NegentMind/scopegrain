@@ -12,7 +12,7 @@ import { prepareDesign, prepareSpecification } from '../src/core/specifications.
 import { getTask, createTask, taskFilePath } from '../src/core/tasks.mjs';
 import { preparePlan } from '../src/core/plans.mjs';
 import { prepareOutcomeEvidence } from '../src/core/outcomes.mjs';
-import { bootstrappedCtx, writeJson } from './helpers.mjs';
+import { bootstrappedMiniCtx, writeJson } from './helpers.mjs';
 
 export const assessment = (overrides = {}) => ({
   schemaVersion: 1, request: 'declared D2 fixture change', intent: 'change',
@@ -78,7 +78,7 @@ export function reanswer(f, a, answer) {
 }
 export function formalFixture({ mini = true, three = false, approved = true,
     methodology, openQuestions = [], planV3 } = {}) {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   const s = prepareSpecification(f.ctx, {
     originalRequest: 'D2 synthetic specification', title: 'Fixture spec',
     outcome: { statement: 'assigned outcomes', evidencePlan: 'declared checks' },
@@ -124,7 +124,7 @@ export function approveFormal(f) {
     f.formalPlan ? 'plan' : 'task', f.formalPlan?.key ?? f.task.id);
 }
 export function lightFixture({ scope = ['src/a'], mode = 'manual' } = {}) {
-  const f = bootstrappedCtx();
+  const f = bootstrappedMiniCtx();
   f.ctx.config.methodology = mode;
   f.task = createTask(f.ctx, { title: 'Light change', contract: 'C',
     authorContext: 'fixture-author', scope, methodology: assessment() });

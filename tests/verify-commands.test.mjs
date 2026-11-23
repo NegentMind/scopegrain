@@ -13,7 +13,7 @@ import {
 } from '../src/core/verify-commands.mjs';
 import { investigateProject } from '../src/discovery/semantic.mjs';
 import {
-  bootstrappedCtx, cleanup, exists, fakeIO, readJson, writeFile,
+  bootstrappedMiniCtx, cleanup, exists, fakeIO, readJson, writeFile,
   writeJson,
 } from './helpers.mjs';
 
@@ -62,7 +62,7 @@ test('parseCommandArgv rejects shell syntax and path escapes', () => {
 // --- store + CLI surface ---------------------------------------------------
 
 test('verify list is empty on a fresh project', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const io = fakeIO();
     assert.equal(await run(['verify', 'list', '--project', dir], io), 0);
@@ -73,7 +73,7 @@ test('verify list is empty on a fresh project', async () => {
 });
 
 test('verify add previews first; --apply writes an unapproved record', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   const rel = verifyStoreRel(ctx);
   try {
     const io = fakeIO();
@@ -106,7 +106,7 @@ test('verify add previews first; --apply writes an unapproved record', async () 
 });
 
 test('verify add is idempotent: the same command+cwd is not duplicated', async () => {
-  const { dir } = bootstrappedCtx();
+  const { dir } = bootstrappedMiniCtx();
   try {
     for (const args of [
       ['verify', 'add', '--project', dir, '--command', 'npm test', '--apply'],
@@ -122,7 +122,7 @@ test('verify add is idempotent: the same command+cwd is not duplicated', async (
 });
 
 test('verify add rejects invalid commands and requires --command', async () => {
-  const { dir } = bootstrappedCtx();
+  const { dir } = bootstrappedMiniCtx();
   try {
     const io = fakeIO();
     assert.equal(await run(
@@ -137,7 +137,7 @@ test('verify add rejects invalid commands and requires --command', async () => {
 });
 
 test('verify run refuses unapproved commands; approve is preview+apply', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   const rel = verifyStoreRel(ctx);
   try {
     writeFile(dir, 'scripts/check.mjs',
@@ -178,7 +178,7 @@ test('verify run refuses unapproved commands; approve is preview+apply', async (
 });
 
 test('verify run/approve report unknown ids with structured errors', async () => {
-  const { dir } = bootstrappedCtx();
+  const { dir } = bootstrappedMiniCtx();
   try {
     const io = fakeIO();
     assert.equal(await run(
@@ -197,7 +197,7 @@ test('verify run/approve report unknown ids with structured errors', async () =>
 });
 
 test('stored bytes are tamper-evident: edits are reported, never honored', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   const rel = verifyStoreRel(ctx);
   try {
     const add = applyAddCommand(ctx, { command: 'node scripts/check.mjs' });
@@ -220,7 +220,7 @@ test('stored bytes are tamper-evident: edits are reported, never honored', async
 });
 
 test('verify discover stores inferred candidates, never approved', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   const rel = verifyStoreRel(ctx);
   try {
     writeJson(dir, 'package.json', {
@@ -265,7 +265,7 @@ test('verify discover stores inferred candidates, never approved', async () => {
 });
 
 test('ambiguous package managers produce skipped candidates, not commands', async () => {
-  const { dir } = bootstrappedCtx();
+  const { dir } = bootstrappedMiniCtx();
   try {
     writeJson(dir, 'package.json', {
       name: 'fixture', scripts: { test: 'echo t' },
@@ -284,7 +284,7 @@ test('ambiguous package managers produce skipped candidates, not commands', asyn
 });
 
 test('unresolved hints name the concrete fix per pm-signal failure', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   const rel = verifyStoreRel(ctx);
   try {
     const runDiscover = (commands) => {
@@ -324,7 +324,7 @@ test('unresolved hints name the concrete fix per pm-signal failure', async () =>
 });
 
 test('approveDiscoveredCommands imports literal commands approved in one write', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   const rel = verifyStoreRel(ctx);
   try {
     writeJson(dir, 'package.json', {
@@ -363,7 +363,7 @@ test('approveDiscoveredCommands imports literal commands approved in one write',
 });
 
 test('approveDiscoveredCommands without candidates approves stored inferred only', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   const rel = verifyStoreRel(ctx);
   try {
     applyAddCommand(ctx, { command: 'node scripts/check.mjs' }); // declared
@@ -383,7 +383,7 @@ test('approveDiscoveredCommands without candidates approves stored inferred only
 });
 
 test('approveDiscoveredCommands skips unresolved candidates, never stores them', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   const rel = verifyStoreRel(ctx);
   try {
     const res = applyApproveDiscoveredCommands(ctx, { commands: [
@@ -405,7 +405,7 @@ test('approveDiscoveredCommands skips unresolved candidates, never stores them',
 // --- bounded executor ------------------------------------------------------
 
 test('runVerifyCommand enforces the timeout budget', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     writeFile(dir, 'scripts/slow.mjs', 'setTimeout(() => {}, 30000);\n');
     const { record } = applyAddCommand(
@@ -417,7 +417,7 @@ test('runVerifyCommand enforces the timeout budget', async () => {
 });
 
 test('runVerifyCommand bounds captured output', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     writeFile(dir, 'scripts/loud.mjs',
       'process.stdout.write("x".repeat(65536));\n');
@@ -434,7 +434,7 @@ test('runVerifyCommand bounds captured output', async () => {
 });
 
 test('unresolvable executables fail with a structured error', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { record } = applyAddCommand(ctx,
       { command: 'scopegrain-definitely-missing-exe run' });
@@ -447,7 +447,7 @@ test('unresolvable executables fail with a structured error', async () => {
 });
 
 test('approved commands with missing cwd are refused', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     const { record } = applyAddCommand(ctx,
       { command: 'node check.mjs', cwd: 'scripts' });
@@ -458,7 +458,7 @@ test('approved commands with missing cwd are refused', async () => {
 });
 
 test('verify run --fail-on-error propagates non-clean exits; default stays 0', async () => {
-  const { dir, ctx } = bootstrappedCtx();
+  const { dir, ctx } = bootstrappedMiniCtx();
   try {
     writeFile(dir, 'scripts/ok.mjs', "console.log('vc-ok');\n");
     writeFile(dir, 'scripts/fail.mjs', "process.exitCode = 7;\n");
@@ -511,7 +511,7 @@ test('verify run --fail-on-error propagates non-clean exits; default stays 0', a
 // --- CLI plumbing ----------------------------------------------------------
 
 test('unknown verify subcommands, bad arity and stray flags fail', async () => {
-  const { dir } = bootstrappedCtx();
+  const { dir } = bootstrappedMiniCtx();
   try {
     const io = fakeIO();
     assert.equal(await run(['verify', 'frobnicate', '--project', dir], io), 1);

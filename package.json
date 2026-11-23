@@ -45,7 +45,9 @@
     "NOTICE"
   ],
   "scripts": {
-    "test": "node --test --test-concurrency=1 tests/*.test.mjs"
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "test:fast": "node --test --test-concurrency=2 tests/*.test.mjs",
+    "test:smoke": "node --test --test-concurrency=2 tests/cli.test.mjs tests/config.test.mjs tests/paths.test.mjs tests/tasks.test.mjs tests/plans.test.mjs tests/journal.test.mjs tests/methodology-gates.test.mjs tests/api-server.test.mjs tests/mcp.test.mjs tests/docs-cli-drift.test.mjs tests/structure.test.mjs tests/activity.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.27.1",

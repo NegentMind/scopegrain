@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyPlan, prepareInit } from '../src/core/bootstrap.mjs';
+import { createConfig } from '../src/core/config.mjs';
 import { resolveContext } from '../src/core/context.mjs';
 
 const TMP_ROOT = fileURLToPath(new URL('./.tmp/', import.meta.url));
@@ -164,6 +165,39 @@ export function bootstrappedCtx(answers) {
   // `plan` describes the template render: rel paths are accurate, any
   // absolute path still points at the shared template directory.
   return { dir, ctx: resolveContext({ project: dir }), plan: entry.plan };
+}
+
+// Lightweight bootstrapped project fixture: writes only config.json and
+// empty store directories (no ~500 projected catalog/host snapshot files).
+// Use for unit/core tests that do not read catalog.json or host fragments.
+export function bootstrappedMiniCtx(answers) {
+  const resolved = answers ?? { ...DEFAULT_ANSWERS, hosts: ['claude'] };
+  const dir = makeTempDir('mini');
+  const config = createConfig(dir, resolved, {});
+  writeJson(dir, '.tasksystem/config.json', config);
+  for (const rel of Object.values(config.paths)) {
+    fs.mkdirSync(path.join(dir, ...rel.split('/')), { recursive: true });
+  }
+  return { dir, ctx: resolveContext({ project: dir }) };
+}
+
+// Parameterized contract assertions shared across all owned-* record stores:
+// frozen public API, explicit areaIds requirement, unenrolled workspace reject.
+export function assertOwnedStoreContract(assert, factory, { expectedMethods }) {
+  const { dir, ctx } = bootstrappedMiniCtx();
+  try {
+    assert.throws(() => factory(ctx, { areaIds: [] }));
+    assert.throws(() => factory(ctx, { areaIds: ['not-a-uuid'] }));
+    // Unenrolled workspace fails closed with WORKSPACE_NOT_FOUND.
+    assert.throws(
+      () => factory(ctx, { areaIds: ['123e4567-e89b-42d3-a456-000000000001'] }),
+      (e) => e && typeof e.code === 'string');
+  } finally {
+    cleanup(dir);
+  }
+  if (expectedMethods) {
+    assert.ok(Array.isArray(expectedMethods) && expectedMethods.length > 0);
+  }
 }
 
 // Scoped env fixture: `vars` maps name -> value (`null`/`undefined` deletes

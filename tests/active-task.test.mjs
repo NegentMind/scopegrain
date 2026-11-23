@@ -9,7 +9,7 @@ import {
   getActiveTask, setActiveTask, clearActiveTask, resolveTaskRef,
 } from '../src/core/active.mjs';
 import {
-  bootstrappedCtx, cleanup, writeJson, VALID_ANSWERS,
+  bootstrappedMiniCtx, cleanup, writeJson, VALID_ANSWERS,
 } from './helpers.mjs';
 
 const mkInput = (title) => ({
@@ -22,7 +22,7 @@ test('slugifyTitle normalizes to kebab bounded slug', () => {
 });
 
 test('new tasks carry monotonic NNN- slugs', () => {
-  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  const { dir, ctx } = bootstrappedMiniCtx(VALID_ANSWERS);
   try {
     const a = createTask(ctx, mkInput('first'));
     const b = createTask(ctx, mkInput('second task'));
@@ -35,7 +35,7 @@ test('new tasks carry monotonic NNN- slugs', () => {
 });
 
 test('resolveTaskRef accepts slug and uuid', () => {
-  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  const { dir, ctx } = bootstrappedMiniCtx(VALID_ANSWERS);
   try {
     const t = createTask(ctx, mkInput('ref me'));
     assert.equal(resolveTaskRef(ctx, t.slug).id, t.id);
@@ -47,7 +47,7 @@ test('resolveTaskRef accepts slug and uuid', () => {
 });
 
 test('active pointer: env wins over file; file persists', () => {
-  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  const { dir, ctx } = bootstrappedMiniCtx(VALID_ANSWERS);
   try {
     const a = createTask(ctx, mkInput('file task'));
     const b = createTask(ctx, mkInput('env task'));
@@ -67,7 +67,7 @@ test('active pointer: env wins over file; file persists', () => {
 });
 
 test('tampered pointer file surfaces an error, not a crash', () => {
-  const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
+  const { dir, ctx } = bootstrappedMiniCtx(VALID_ANSWERS);
   try {
     fs.mkdirSync(`${dir}/.tasksystem`, { recursive: true });
     fs.writeFileSync(`${dir}/.tasksystem/active-task`, 'bogus-ref\n');
