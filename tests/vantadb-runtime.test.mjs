@@ -16,8 +16,9 @@ import {
   ensureVantaDBBinary, callVantaDBTool, getVantaDBRecord, loadVantaDBConfig, releaseAsset,
   vantaDBContext, vantaDBDistill, vantaDBProbe,
   requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, targetTriple,
-  vantaDBReinforce, vantaDBStatus, vantaDBSyncWorklogs,
+  vantaDBReinforce, vantaDBStatus, vantaDBSyncPersona, vantaDBSyncWorklogs,
 } from '../src/integrations/vantadb-runtime.mjs';
+import { createCaptureStore } from '../src/core/captures.mjs';
 import { appendWorklog } from '../src/core/worklog.mjs';
 import {
   VALID_ANSWERS, cleanup, makeTempDir, writeJson, withEnv,
@@ -483,6 +484,78 @@ test('vantaDBSyncWorklogs projects JSONL entries to L1 and skips repeats', async
       cfg: c, spawnImpl: fakeSpawn() });
     assert.equal(again.projected.length, 0);
     assert.equal(again.skipped.length, 2);
+  } finally {
+    cleanup(f.dir);
+  }
+});
+
+test('vantaDBSyncPersona projects proved preference/decision captures to L3 idempotently and skips unproved', async () => {
+  const f = fixture();
+  try {
+    const c = cfg(f.dir);
+    fs.writeFileSync(c.binaryPath, 'placeholder');
+    const store = createCaptureStore(f.ctx, {
+      areaIds: f.bound.areaIds, origin: 'cli-test',
+    });
+    const pref = store.create({
+      category: 'preference',
+      title: 'Respond in Spanish',
+      summary: 'Owner prefers concise technical Spanish with tables.',
+      areaIds: [f.bound.areaIds[0]],
+      basis: 'declared',
+      subjectId: 'owner',
+    });
+    const dec = store.create({
+      category: 'decision',
+      title: 'Keep context read-only',
+      summary: 'Context packet never mutates disk.',
+      areaIds: [f.bound.areaIds[0]],
+      basis: 'declared',
+    });
+    // Non-persona category must be ignored.
+    store.create({
+      category: 'lesson',
+      title: 'Lesson ignored by L3 persona',
+      summary: 'Belongs to L1/worklogs, not persona.',
+      areaIds: [f.bound.areaIds[0]],
+      basis: 'inferred',
+    });
+    // Unproved raw capture file must never be adopted.
+    const fakeUuid = crypto.randomUUID();
+    writeJson(f.dir, `.tasksystem/memory/captures/${fakeUuid}.json`, {
+      schemaVersion: 1, kind: 'scopegrain.capture', id: fakeUuid,
+      category: 'preference', title: 'Forged', summary: 'No ownership proof',
+    });
+
+    // Preview does not spawn VantaDB and surfaces only proved candidates + skippedUnproved.
+    const preview = await vantaDBSyncPersona({
+      ctx: f.ctx, bound: f.bound, cfg: null, apply: false,
+    });
+    assert.equal(preview.mode, 'preview');
+    assert.match(preview.namespace, /^l3\/sg-persona-[0-9a-f]{16}$/);
+    assert.equal(preview.candidates.length, 2);
+    assert.equal(preview.skippedUnproved.length, 1);
+    assert.equal(preview.skippedUnproved[0].id, fakeUuid);
+
+    // Apply projects both proved captures and verifies readback.
+    const applied = await vantaDBSyncPersona({
+      ctx: f.ctx, bound: f.bound, cfg: c, apply: true, spawnImpl: fakeSpawn(),
+    });
+    assert.equal(applied.mode, 'applied');
+    assert.equal(applied.failed.length, 0);
+    assert.equal(applied.projected.length, 2);
+    assert.deepEqual(
+      applied.projected.map((p) => p.id).sort(),
+      [pref.record.id, dec.record.id].sort());
+    assert.equal(applied.skippedUnproved.length, 1);
+
+    // Re-running is idempotent: both records are skipped.
+    const second = await vantaDBSyncPersona({
+      ctx: f.ctx, bound: f.bound, cfg: c, apply: true, spawnImpl: fakeSpawn(),
+    });
+    assert.equal(second.projected.length, 0);
+    assert.equal(second.skipped.length, 2);
+    assert.equal(second.failed.length, 0);
   } finally {
     cleanup(f.dir);
   }

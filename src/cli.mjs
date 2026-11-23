@@ -151,6 +151,10 @@ const COMMANDS = {
     flags: ['--project', '--config', '--limit', '--timeout'], pos: 0,
     usage: 'vantadb sync-memory --project PATH [--limit N] [--timeout MS]',
   },
+  'vantadb sync-persona': {
+    flags: ['--project', '--config', '--limit', '--timeout', '--apply'], pos: 0,
+    usage: 'vantadb sync-persona --project PATH [--limit N] [--timeout MS] [--apply]',
+  },
   'capture create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
     usage: 'capture create --project PATH [--config REL] --input FILE [--apply]',
@@ -1925,7 +1929,7 @@ const SEARCH_MODES = ['keyword', 'vector', 'hybrid'];
 
 async function cmdVantaDB(sub, positional, flags) {
   const { bindWorkspace, getWorkspace } = await import('./core/workspaces.mjs');
-  const { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool, defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary, getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBProbe, vantaDBReinforce, vantaDBStatus, vantaDBSyncWorklogs } = await import('./integrations/vantadb-runtime.mjs');
+  const { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool, defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary, getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBProbe, vantaDBReinforce, vantaDBStatus, vantaDBSyncPersona, vantaDBSyncWorklogs } = await import('./integrations/vantadb-runtime.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -2066,6 +2070,13 @@ async function cmdVantaDB(sub, positional, flags) {
       cfg: requireVantaDBConfig(ctx),
       limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
       timeoutMs });
+  }
+  if (sub === 'sync-persona') {
+    const apply = !!flags['--apply'];
+    const cfg = apply ? requireVantaDBConfig(ctx) : null;
+    return vantaDBSyncPersona({ ctx, bound, cfg,
+      limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
+      apply, timeoutMs });
   }
   const cfg = requireVantaDBConfig(ctx);
   const limit = flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined;

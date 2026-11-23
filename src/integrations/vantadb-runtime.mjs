@@ -6,10 +6,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { err } from '../core/errors.mjs';
-import { readJsonFile, mkdirpSync, writeFileExclusive, removeIfExists }
+import { readJsonFile, mkdirpSync, writeFileExclusive, removeIfExists, lstatOrNull, readDirBounded }
   from '../core/fsx.mjs';
 import { configRel, resolveInside } from '../core/paths.mjs';
 import { listJournalAcked, listJournalPending } from '../core/journal.mjs';
+import { createCaptureStore } from '../core/captures.mjs';
 import { loadJournalPolicy } from '../core/policy.mjs';
 import { canonicalDigest } from '../core/digests.mjs';
 import { readWorklog } from '../core/worklog.mjs';
@@ -797,5 +798,159 @@ export async function vantaDBSyncWorklogs({ ctx, bound, cfg, limit, timeoutMs,
       }
     }
     return { namespace, projected, skipped, failed };
+  });
+}
+
+const L3_NS_PREFIX = 'l3/sg-persona-';
+const PERSONA_CATEGORIES = new Set(['preference', 'decision']);
+const CAPTURE_UUID_JSON_RE =
+  /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.json$/i;
+
+// Opt-in L3 persona/preferences projection: reads ONLY ownership-proved
+// capture notes of category 'preference' or 'decision' from .scopegrain
+// (which remains the sole authoritative store) and projects them
+// idempotently into VantaDB under l3/sg-persona-<scopeHash>. Unproved or
+// drifted captures are never adopted and are reported in skippedUnproved.
+export async function vantaDBSyncPersona({
+  ctx, bound, cfg, limit, apply = false, timeoutMs, spawnImpl,
+}) {
+  const policy = loadJournalPolicy();
+  const cap = limit === undefined ? policy.defaultPageSize : Number(limit);
+  if (!Number.isSafeInteger(cap) || cap <= 0 || cap > policy.maxPageSize) {
+    throw err('VANTADB_INVALID_INPUT',
+      'limit must be a positive integer within policy');
+  }
+  const scopeHash = canonicalDigest({
+    workspaceId: bound.workspaceId, projectId: bound.projectId,
+    repositoryId: bound.repositoryId, areaIds: [...bound.areaIds].sort(),
+  });
+  const namespace = `${L3_NS_PREFIX}${scopeHash.slice(0, 16)}`;
+  const capturesDir = resolveInside(
+    ctx.projectRoot, `${ctx.config.paths.memory}/captures`, 'captures dir');
+  const candidates = [];
+  const skippedUnproved = [];
+  const st = lstatOrNull(capturesDir);
+  if (st && st.isDirectory()) {
+    const store = createCaptureStore(ctx, {
+      areaIds: bound.areaIds, origin: 'vantadb-persona',
+    });
+    const { entries } = readDirBounded(capturesDir, cap * 4);
+    for (const e of entries) {
+      if (candidates.length >= cap) break;
+      const m = CAPTURE_UUID_JSON_RE.exec(e.name);
+      if (!m || e.isSymbolicLink() || !e.isFile()) continue;
+      const id = m[1];
+      let proved;
+      try {
+        proved = store.get(id);
+      } catch (errGet) {
+        skippedUnproved.push({
+          id, code: errGet.code ?? 'CAPTURE_UNPROVED',
+          message: errGet.message,
+        });
+        continue;
+      }
+      const note = proved.record;
+      if (!PERSONA_CATEGORIES.has(note.category)) continue;
+      const key = `sg-persona-${note.category}-${note.id}`;
+      const captureDigest = canonicalDigest(note);
+      candidates.push({
+        id: note.id,
+        category: note.category,
+        subjectId: note.subjectId,
+        title: note.title,
+        summary: note.summary,
+        basis: note.provenance.basis,
+        supersedes: note.supersedes,
+        capturedAt: note.capturedAt,
+        key,
+        captureDigest,
+      });
+    }
+  }
+
+  if (!apply) {
+    return {
+      mode: 'preview',
+      namespace,
+      candidates: candidates.map((c) => ({
+        id: c.id, category: c.category, subjectId: c.subjectId,
+        key: c.key, title: c.title, basis: c.basis,
+      })),
+      skippedUnproved,
+    };
+  }
+
+  const projected = [];
+  const skipped = [];
+  const failed = [];
+  return withMcpClient(cfg, timeoutMs, spawnImpl, async (client) => {
+    for (const c of candidates) {
+      try {
+        const existing = await client.invoke({
+          name: 'memory_get',
+          arguments: { namespace, key: c.key },
+        });
+        if (existing && !existing.isError) {
+          skipped.push({ id: c.id, category: c.category, key: c.key });
+          continue;
+        }
+        const record = {
+          id: c.key,
+          content: `User ${c.category}${c.subjectId ? ` (${c.subjectId})` : ''}: `
+            + `${c.title} — ${c.summary.slice(0, 400)}`,
+          type: c.category === 'preference' ? 'persona' : 'semantic',
+          priority: 80,
+          scene_name: 'persona',
+          source_message_ids: [],
+          metadata: {
+            scopegrain: true,
+            record_type: 'sg-persona',
+            layer: 'L3',
+            captureId: c.id,
+            category: c.category,
+            subjectId: c.subjectId,
+            basis: c.basis,
+            supersedes: c.supersedes,
+            captureDigest: c.captureDigest,
+          },
+          created_at: c.capturedAt,
+          updated_at: c.capturedAt,
+          version: 1,
+          session_key: L1_SESSION_KEY,
+          ...L1_ISOLATION,
+        };
+        const put = await client.invoke({
+          name: 'memory_put',
+          arguments: { namespace, key: c.key, payload: JSON.stringify(record) },
+        });
+        if (put?.isError) {
+          failed.push({ id: c.id, key: c.key, error: put });
+          continue;
+        }
+        const readback = await client.invoke({
+          name: 'memory_get',
+          arguments: { namespace, key: c.key },
+        });
+        if (readback?.isError) {
+          failed.push({ id: c.id, key: c.key, error: readback });
+          continue;
+        }
+        projected.push({ id: c.id, category: c.category, key: c.key });
+      } catch (e) {
+        failed.push({
+          id: c.id, key: c.key,
+          error: { code: e.code ?? 'VANTADB_RPC_ERROR', message: e.message },
+        });
+      }
+    }
+    return {
+      mode: 'applied',
+      namespace,
+      projected,
+      skipped,
+      skippedUnproved,
+      failed,
+    };
   });
 }
