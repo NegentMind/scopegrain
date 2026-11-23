@@ -35,6 +35,12 @@ piloto nativo. La suite de fundacion completo localmente con un archivo
 de test a la vez; ver
 [verificacion](verification.md) para su alcance y ejecuciones anteriores
 separadas.
+
+OpenCode V2 fue ademas observado contra una instalacion real de
+`opencode v2.3.2` el 2026-11-23. Los hechos de nivel de adaptador de
+[Limites de superficie de OpenCode V2](#limites-de-superficie-de-opencode-v2)
+provienen de ese binario real, pero ninguna sesion interactiva fresca ha
+certificado el piloto; la observacion de adaptador no es certificacion.
 Ningun host fue activado por estos cambios. La inicializacion crea
 propuestas bajo el directorio de configuracion seleccionado, normalmente
 `.scopegrain/integrations/`; las rutas activas previstas abajo NO se
@@ -51,9 +57,11 @@ escriben automaticamente.
 | Hermes Agent (provisional) | Ninguna verificada | `~/.hermes/skills/` (global; nunca escrita) | Ninguna asumida |
 
 Los puentes de comandos nativos de OpenCode apuntan adicionalmente a
-`.opencode/commands/`. Comandos, skills y roles siguen refiriendose a los
-mismos recursos canonicos configurados y al mismo runtime. Copiar un
-puente sin su configuracion de proyecto y snapshot es insuficiente.
+`.opencode/commands/`, que el host despacha solo desde su composer
+interactivo; un `opencode run` no interactivo no los expande. Comandos,
+skills y roles siguen refiriendose a los mismos recursos canonicos
+configurados y al mismo runtime. Copiar un puente sin su configuracion de
+proyecto y snapshot es insuficiente.
 
 ## Variantes explicitas
 
@@ -133,7 +141,9 @@ especificas del host:
 
 - Claude: lista de herramientas de lectura solicitada.
 - Codex: sandbox de filesystem de solo lectura solicitado.
-- OpenCode V2: denegacion solicitada de edit/shell/subagent.
+- OpenCode V2: denegacion solicitada de edit/shell/subagent — ver
+  [Limites de superficie de OpenCode V2](#limites-de-superficie-de-opencode-v2)
+  para el alcance realmente medido en una instalacion real.
 - Devin: allowlist de herramientas de subagentes personalizados.
 - Antigravity App/CLI: lista documentada de herramientas de lectura
   solicitada; IDE no tiene propuesta de restriccion de agentes
@@ -164,6 +174,82 @@ explicita del propietario. Scopegrain no selecciona ningun proveedor,
 identificador de modelo, estimacion de costo ni llamada de pago
 universal. La disponibilidad, el comportamiento del router y la
 facturacion dependen del host.
+
+## Limites de superficie de OpenCode V2
+
+Medido contra una instalacion real de `opencode v2.3.2` (node v26.8.1,
+Windows 10.0.26200) el 2026-11-23, con los puentes aplicados en un
+proyecto fixture aislado. Son observaciones de adaptador, no un piloto:
+ninguna sesion interactiva fresca ha certificado todavia descubrimiento,
+invocacion y denegaciones de extremo a extremo. Se uso OpenCode V2 segun
+su documentacion en [opencode.ai/docs](https://opencode.ai/docs/): skills,
+agents, commands y servidores MCP.
+
+Lo que el binario real acepto:
+
+- `.opencode/skills/<id>/SKILL.md` y `.opencode/agents/<id>.md` se
+  descubren sin configuracion adicional — 44 skills y 15 subagentes se
+  resolvieron desde el fixture aplicado. Los escalares de frontmatter,
+  `mode: subagent` y el bloque de provenance `metadata.*` fueron
+  tolerados.
+- La lista ordenada `permissions` (`action`/`resource`/`effect`) es el
+  esquema V2 y se aplica, ganando la ultima regla coincidente. El mapa V1
+  legacy `permission` (singular) es la forma que la guia de migracion
+  depreca; los puentes V2 generados no lo usan.
+- `mcp.servers.<nombre>` con `type: "local"`, un arreglo `command` y
+  `disabled` es la forma MCP canonica V2 y conecta tal cual una vez se
+  limpia `disabled`. La documentacion V2 declara que los nombres de
+  servidor ya no viven directamente bajo `mcp`; una instalacion real
+  puede seguir honrando esa forma plana legacy en paralelo, de modo que un
+  archivo de proyecto fusionado puede contener legitimamente ambas.
+- `.opencode/commands/<nombre>.md` es la ruta documentada de comandos,
+  pero el host despacha comandos solo desde el composer interactivo:
+  `opencode run "/<nombre>"` no expande ninguno. Una ejecucion no
+  interactiva no puede probar ni refutar el descubrimiento de comandos —
+  los conteos de comandos deben leerse de una sesion interactiva fresca.
+
+### Alcance del rol de solo lectura en OpenCode V2
+
+`opencode debug agents` resuelve los permisos generados de
+`scopegrain-reviewer` exactamente como se emiten:
+
+```text
+action   resource        effect
+*        *               allow    <- politica base del host, heredada
+read     *.env           ask
+edit     *               deny     <- propuesta
+shell    *               deny     <- propuesta
+subagent *               deny     <- propuesta
+```
+
+`edit`, `shell` y `subagent` quedan efectivamente denegados porque gana la
+ultima regla coincidente. Toda accion no nombrada alli sigue heredando
+`* -> allow`: `webfetch`, `websearch`, `skill`, `todowrite`, las
+herramientas de recurso MCP y toda herramienta MCP externa
+(`<servidor>_<herramienta>`). El rol de solo lectura puede por tanto
+producir todavia efectos de escritura externos a traves de un servidor MCP
+de terceros. Es la misma clase de hallazgo que el piloto Antigravity del
+2026-11-19 registro para `call_mcp_tool`: una propuesta de solo lectura no
+aisla efectos MCP de terceros ni de red.
+
+La denegacion por herramienta individual es tecnicamente expresable — el
+binario real acepta un `action` exacto (`scopegrain_memory_add`) y un
+comodin de prefijo (`servidor_*`) — de modo que estrechar el perfil para
+denegar solo las herramientas mutantes de Scopegrain sin bloquear las de
+solo lectura es posible. Es una decision de semantica de rol, asi que no
+se aplica aqui.
+
+### Descubrimiento de skills entre hosts
+
+OpenCode tambien indexa `.claude/skills` y `.agents/skills` por
+compatibilidad. La precedencia documentada es `.opencode/skills` del
+proyecto primero, luego `.agents/skills`, luego `.claude/skills`, y las
+skills se seleccionan por ID. Activar varios hosts en un mismo proyecto
+expone por tanto los mismos IDs `scopegrain-*` a traves de mas de una
+raiz: se carga la copia de mayor precedencia, pero las raices solapadas no
+son aislamiento y la superficie duplicada es especifica de cada proyecto.
+Confirmar esa deduplicacion en vivo, en un workspace que ya tiene
+`.agents/skills/`, corresponde al piloto pendiente.
 
 ## Contrato de activacion
 
@@ -208,6 +294,17 @@ del proyecto:
   `.mcp.json` (Claude), `.codex/config.toml` (Codex) y la propuesta de
   OpenCode V2 embeben valores absolutos de `serverPath`/`--project` y
   deben re-fusionarse o regenerarse tras un traslado.
+- OpenCode V2 no tiene destino MCP de archivo completo, asi que su
+  fragmento `integrations/opencode-mcp.json` declara ademas su destino de
+  fusion manual — el `opencode.jsonc` del proyecto (o `opencode.json`
+  cuando el proyecto usa ese nombre) — como entrada `mcp` omitida. Esa
+  declaracion es solo divulgacion: `host manifest` etiqueta el destino
+  como `shared`, la activacion lo lista en `skipped`, `doctor` nunca lo
+  re-renderiza como fragmento, y las rutas absolutas que el fragmento
+  embebe llegan a la propuesta de gitignore para que el archivo de
+  proyecto fusionado quede sin versionar. Nunca se escribe nada en el.
+  Los fragmentos de Claude y Codex conservan el arreglo silencioso
+  anterior.
 - `surface` selecciona un id de variante (p. ej. `app-cli`, `ide`) o una
   de sus superficies declaradas. Como las variantes de Antigravity emiten
   los mismos destinos con permisos distintos, omitir una superficie alli

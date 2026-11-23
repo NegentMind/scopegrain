@@ -29,6 +29,12 @@ hosts and surfaces — Claude, Codex, OpenCode, the Antigravity IDE surface
 and the provisional Hermes — still lack a native pilot. The foundation
 suite completed locally with one test file at a time; see
 [verification](verification.md) for its scope and separate earlier runs.
+
+OpenCode V2 was additionally observed against a real `opencode v2.3.2`
+installation on 2026-11-23. The adapter-level facts in
+[OpenCode V2 surface limits](#opencode-v2-surface-limits) come from that
+real binary, but no fresh interactive session has certified the pilot;
+adapter observation is not certification.
 No host was activated by these changes. Initialization creates proposals
 under the selected configuration directory, normally
 `.scopegrain/integrations/`; intended active paths below are NOT written
@@ -44,10 +50,12 @@ automatically.
 | Antigravity IDE | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | None assumed; skills-only proposal |
 | Hermes Agent (provisional) | None verified | `~/.hermes/skills/` (global; never written) | None assumed |
 
-OpenCode native command bridges additionally target `.opencode/commands/`.
-Commands, skills and roles still refer to the same configured canonical
-resources and runtime. Copying a bridge without its project configuration
-and snapshot is insufficient.
+OpenCode native command bridges additionally target `.opencode/commands/`,
+which the host dispatches only from its interactive composer; a
+non-interactive `opencode run` does not expand them. Commands, skills and
+roles still refer to the same configured canonical resources and runtime.
+Copying a bridge without its project configuration and snapshot is
+insufficient.
 
 ## Explicit Variants
 
@@ -120,7 +128,9 @@ Selected read-only roles receive host-specific restrictions:
 
 - Claude: requested read-tool list.
 - Codex: requested read-only filesystem sandbox.
-- OpenCode V2: requested edit/shell/subagent denial.
+- OpenCode V2: requested edit/shell/subagent denial — see
+  [OpenCode V2 surface limits](#opencode-v2-surface-limits) for the scope
+  actually measured on a real installation.
 - Devin: custom subagent tool allowlist.
 - Antigravity App/CLI: requested documented read-tool list; IDE has no
   custom-agent restriction proposal because agents are not assumed there.
@@ -144,6 +154,79 @@ Devin Cloud behavior is not certified by the CLI/Local pilot or fixtures.
 Models remain under host policy or an explicit owner choice. No universal
 provider, model identifier, cost estimate or paid call is selected by
 Scopegrain. Availability, router behavior and billing are host-dependent.
+
+## OpenCode V2 Surface Limits
+
+Measured against a real `opencode v2.3.2` installation (node v26.8.1,
+Windows 10.0.26200) on 2026-11-23, with the bridges applied to an isolated
+fixture project. These are adapter observations, not a pilot: no fresh
+interactive session has yet certified discovery, invocation and denials
+end-to-end. OpenCode V2 was used as documented at
+[opencode.ai/docs](https://opencode.ai/docs/): skills, agents, commands and
+MCP servers.
+
+What the real binary accepted:
+
+- `.opencode/skills/<id>/SKILL.md` and `.opencode/agents/<id>.md` are
+  discovered without further configuration — 44 skills and 15 subagents
+  were resolved from the applied fixture. Frontmatter scalars,
+  `mode: subagent` and the `metadata.*` provenance block were tolerated.
+- The ordered `permissions` list (`action`/`resource`/`effect`) is the V2
+  schema and is enforced, last matching rule winning. The V1 legacy
+  `permission` map (singular) is the form the migration guide deprecates;
+  generated V2 bridges do not use it.
+- `mcp.servers.<name>` with `type: "local"`, a `command` array and
+  `disabled` is the canonical V2 MCP shape and connects as written once
+  `disabled` is cleared. V2 documentation states server names no longer
+  live directly under `mcp`; a real installation may still honour that
+  legacy flat form alongside it, so a merged project file can legitimately
+  carry both.
+- `.opencode/commands/<name>.md` is the documented command path, but the
+  host dispatches commands only from the interactive composer:
+  `opencode run "/<name>"` does not expand one. A non-interactive run can
+  therefore neither prove nor disprove command discovery — command counts
+  must be read from a fresh interactive session.
+
+### Read-only role scope in OpenCode V2
+
+`opencode debug agents` resolves the generated `scopegrain-reviewer`
+permissions exactly as emitted:
+
+```text
+action   resource        effect
+*        *               allow    <- host base policy, inherited
+read     *.env           ask
+edit     *               deny     <- proposal
+shell    *               deny     <- proposal
+subagent *               deny     <- proposal
+```
+
+`edit`, `shell` and `subagent` are effectively denied because the last
+matching rule wins. Every action not named there still inherits
+`* -> allow`: `webfetch`, `websearch`, `skill`, `todowrite`, the MCP
+resource tools and every external MCP tool (`<server>_<tool>`). The
+read-only role can therefore still cause external write effects through a
+third-party MCP server. This is the same class of finding the 2026-11-19
+Antigravity pilot recorded for `call_mcp_tool`: a read-only proposal does
+not isolate third-party MCP or network effects.
+
+Per-tool denial is technically expressible — the real binary accepts an
+exact `action` name (`scopegrain_memory_add`) and a prefix wildcard
+(`server_*`) — so narrowing the profile to deny only the mutating
+Scopegrain tools without blocking the read-only ones is possible. That is a
+role-semantics decision, so it is not applied here.
+
+### Cross-host skill discovery
+
+OpenCode also indexes `.claude/skills` and `.agents/skills` for
+compatibility. Documented precedence is project `.opencode/skills` first,
+then `.agents/skills`, then `.claude/skills`, and skills are selected by
+ID. Activating several hosts in one project therefore exposes the same
+`scopegrain-*` IDs through more than one root: the highest-precedence copy
+is the one loaded, but the overlapping roots are not isolation and the
+duplicate surface is project-specific. Confirming that de-duplication
+behavior live, in a workspace that already has `.agents/skills/`, belongs
+to the pending pilot.
 
 ## Activation Contract
 
@@ -183,6 +266,15 @@ generated native proposals into project-local host destinations:
   `.codex/config.toml` (Codex) and the OpenCode V2 proposal all embed
   absolute `serverPath`/`--project` values and must be re-merged or
   regenerated after a move.
+- OpenCode V2 has no whole-file MCP destination, so its
+  `integrations/opencode-mcp.json` fragment also declares its manual-merge
+  target — the project `opencode.jsonc` (or `opencode.json` where the
+  project uses that name) — as a skipped `mcp` entry. That declaration is
+  disclosure only: `host manifest` labels the target `shared`, activation
+  lists it in `skipped`, `doctor` never re-renders it as a fragment, and
+  the absolute paths the fragment embeds reach the gitignore proposal so
+  the merged project file stays unversioned. Nothing is ever written to it.
+  Claude and Codex fragments keep the older, silent arrangement.
 - `surface` selects a variant id (e.g. `app-cli`, `ide`) or one of its
   declared surfaces. Because Antigravity variants emit the same
   destinations with different permissions, omitting a surface there makes
