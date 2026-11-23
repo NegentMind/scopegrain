@@ -17,3 +17,6 @@ tests/.tmp/
 # serverPath/--project values. Machine-local by contract — never version it.
 /opencode.jsonc
 /opencode.json
+# Claude/Codex MCP merge targets: same machine-local absolute-path contract.
+/.mcp.json
+/.codex/config.toml
