@@ -11,7 +11,7 @@ import {
 } from '../src/core/plans.mjs';
 import { getTask } from '../src/core/tasks.mjs';
 import { transitionTask } from '../src/core/transition.mjs';
-import { seedState } from './methodology-fixtures.mjs';
+import { assessment, seedState } from './methodology-fixtures.mjs';
 import {
   VALID_ANSWERS, cleanup, exists, makeTempDir, writeJson,
 } from './helpers.mjs';
@@ -173,5 +173,65 @@ test('malformed stored plan surfaces in list', () => {
     const out = listPlans(ctx);
     assert.equal(out.plans.length, 1);
     assert.equal(out.malformed.length, 1);
+  } finally { cleanup(dir); }
+});
+
+test('organic-sdd plan tasks carry their own light assessments', () => {
+  const { dir, ctx } = ctxFixture();
+  ctx.config.methodology = 'organic-sdd';
+  try {
+    const prepared = preparePlan(ctx, {
+      key: 'light-1', title: 'Light plan', authorContext: 'ctx',
+      tasks: [
+        { key: 'a', title: 'A', contract: 'c', scope: [], dependsOn: [],
+          methodology: assessment() },
+        { key: 'b', title: 'B', contract: 'c', scope: [], dependsOn: ['a'],
+          methodology: assessment() },
+      ],
+    });
+    applyPlan(dir, preflightPlan(dir, prepared.files));
+    for (const t of prepared.plan.tasks) {
+      const task = getTask(ctx, t.id);
+      assert.equal(task.schemaVersion, 2);
+      assert.equal(task.methodology.request, 'declared D2 fixture change');
+      assert.equal(task.state, 'PLAN');
+    }
+  } finally { cleanup(dir); }
+});
+
+test('organic-sdd plan without assessments stays gated', () => {
+  const { dir, ctx } = ctxFixture();
+  ctx.config.methodology = 'organic-sdd';
+  try {
+    assert.throws(() => preparePlan(ctx, GOOD),
+      (e) => e.code === 'METHODOLOGY_REQUIRED');
+  } finally { cleanup(dir); }
+});
+
+test('plan task classified sdd without the formal pair is rejected', () => {
+  const { dir, ctx } = ctxFixture();
+  ctx.config.methodology = 'organic-sdd';
+  try {
+    assert.throws(() => preparePlan(ctx, {
+      key: 'x-1', title: 'X', authorContext: 'ctx',
+      tasks: [{ key: 'a', title: 'A', contract: 'c', scope: [],
+        dependsOn: [], methodology: assessment({
+          risk: 'named', riskCategories: ['security'] }) }],
+    }), (e) => e.code === 'METHODOLOGY_REQUIRED');
+  } finally { cleanup(dir); }
+});
+
+test('manual-mode plan task may carry an assessment (V2 record)', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    const prepared = preparePlan(ctx, {
+      key: 'man-1', title: 'M', authorContext: 'ctx',
+      tasks: [{ key: 'a', title: 'A', contract: 'c', scope: [],
+        dependsOn: [], methodology: assessment() }],
+    });
+    applyPlan(dir, preflightPlan(dir, prepared.files));
+    const task = getTask(ctx, prepared.plan.tasks[0].id);
+    assert.equal(task.schemaVersion, 2);
+    assert.equal(task.methodology.request, 'declared D2 fixture change');
   } finally { cleanup(dir); }
 });

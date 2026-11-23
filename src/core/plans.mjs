@@ -58,7 +58,7 @@ const PLAN_INPUT_KEYS = new Set(
     ...PLAN_V3_KEYS]);
 const PLAN_TASK_KEYS = new Set(
   ['key', 'title', 'contract', 'scope', 'dependsOn', 'scenarioRefs',
-    'triage', 'triageReason', ...TASK_V3_FORWARD]);
+    'triage', 'triageReason', 'methodology', ...TASK_V3_FORWARD]);
 const PLAN_KEYS = new Set([
   'schemaVersion', 'key', 'title', 'authorContext', 'inputDigest',
   'tasks', 'createdAt', 'specId', 'designId', ...PLAN_V3_KEYS,
@@ -295,9 +295,10 @@ export function validatePlanInput(ctx, input) {
     const clean = normalizeTaskInput(ctx, {
       title: t.title, contract: t.contract,
       authorContext, scope: t.scope === undefined ? [] : t.scope,
+      methodology: t.methodology,
       ...v3Forward,
       ...(hasPair ? {
-        methodology: null, specId: input.specId, designId: input.designId,
+        specId: input.specId, designId: input.designId,
         planKey: key, scenarioRefs: t.scenarioRefs,
       } : {}),
     });
