@@ -277,10 +277,13 @@ considered equivalent to Local/CLI. See
 
 ## Verification
 
-The most recent local full run (`npm test`, per-file serial, 2026-11-18)
-finished with 1152 passing tests, none failed and none skipped on Windows,
-Node.js v26.8.1 and npm 11.6.0. Intermediate full runs and earlier batches
-are separate executions; their scope and historic results are in
+The most recent local full run (`npm test`, per-file serial, 2026-11-22,
+commit `ca27e26`) finished with **1411 passing tests**, 0 failed and 0
+skipped on Windows, Node.js v26.8.1 and npm 11.6.0, alongside the
+viewer lane (**17/17 Vitest tests**, 0 lint/typecheck errors, Vite build
+passing, and a 30-screen EN/ES Playwright visual audit with 0 errors and
+0 overflow). Intermediate full runs and earlier batches are separate
+executions; their scope and historic results are in
 [verification](docs/en/verification.md). The Devin Local native pilot was
 certified in a fresh real session on 2026-11-17 (42 `scopegrain-*` skills
 and 15 subagents auto-loaded, `scopegrain` MCP active from

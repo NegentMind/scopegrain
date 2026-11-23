@@ -2,12 +2,17 @@
 
 ## Estado Actual
 
-La ultima ejecucion integral (`npm test`, serial por archivo) termino con
-1152 pruebas aprobadas, 0 fallidas, 0 omitidas y 0 canceladas en Windows,
-Node.js v26.8.1 y npm 11.6.0. Las integrales anteriores de design/outcome
-(813), CLI spec/UTF8 (770), ownership spec (699), capturas CLI (673) y
-foundation (536) se conservan como referencias pasadas.
-No sumar tandas acotadas ni resultados historicos.
+La ultima ejecucion integral (`npm test`, serial por archivo, commit
+`ca27e26`, 2026-11-22) termino con **1411 pruebas aprobadas, 0 fallidas,
+0 omitidas y 0 canceladas** (831.6 s) en Windows, Node.js v26.8.1 y
+npm 11.6.0. La suite del visor (`viewer/`: `eslint`, `tsc --noEmit`,
+`vitest run`, `vite build`) paso con **17/17 pruebas en 5 archivos**,
+0 errores y build en 816 ms; la auditoria visual en Chromium real
+(Playwright, 1440×900 y 390×844) verifico las 15 vistas en ingles y
+espanol (30 pantallas) con 0 errores de consola/red y 0 overflow.
+Las integrales anteriores (`1152`, `813`, `770`, `699`, `673`, `536`) se
+conservan como referencias pasadas. No sumar tandas acotadas ni resultados
+historicos.
 
 | Bloque | Referencia | Evidencia observada |
 | --- | --- | --- |
@@ -42,7 +47,10 @@ No sumar tandas acotadas ni resultados historicos.
 | Integral ownership design/outcome | `npm test` serial, 2026-11-18 | Exit 0: 813 pass, 0 fail, 0 skipped, 0 cancelled |
 | Ola de ampliacion Scopegrain | Gates focalizados por bloque, 2026-11-17 | Lifecycle 22; semantic 24; hosts 28+42; journal-update 131; productores 15; hardening 229 pass + 4 todo (luego wave-3: 501 pass); viewer API 9; owned plans 19; owned workspaces 53; owned tasks 60; owned sessions 19; owned approvals 32+135; CLI wave-2 152; minors-a 22; journal-wedge 178; utf8-wave3 501 |
 | Remediacion FMEA F-01..F-07 | Wave Antigravity + gates focalizados, 2026-11-18 | locks 6/6; plans 7/7; paths+digests 16/16; verify+methodology 152/152; journal 38/38; workspaces 27/27 |
-| Integral actual | `npm test` serial, 2026-11-18 | Exit 0: 1152 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral previa | `npm test` serial, 2026-11-18 | Exit 0: 1152 pass, 0 fail, 0 skipped, 0 cancelled |
+| Integral actual (release v0.1.0 prep) | `npm test` serial (`ca27e26`), 2026-11-22 | Exit 0: 1411 pass, 0 fail, 0 skipped, 0 cancelled (831.6 s); `npm run test:smoke` 215/215 pass (43.2 s) |
+| Visor (lint + typecheck + vitest + build + Chromium EN/ES) | `viewer/` + Playwright, 2026-11-22 | Exit 0: eslint 0, tsc 0, vitest 17/17 (5 archivos), build 816 ms; 30 vistas EN/ES sin errores ni overflow |
+| E2E proyecto limpio + `npm pack --dry-run` | CLI global `scopegrain@0.1.0`, 2026-11-22 | Exit 0: inspect/investigate/init/workspace/doctor/structure/context/dist selftest/light CLOSE/formal SDD plan+waves/backup; tarball 978.9 kB (341 archivos) |
 | Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |
 | Control nativo de embeddings | Modelo/runtime locales existentes, 2026-11-16 | Exit 1: `blocked-native-embedding-safety`; fase positiva aprobada, controles negativos fallidos |
 | Piloto Devin Local (este repo) | Sesion fresca Devin, 2026-11-17 | 42 skills `scopegrain-*` + 15 subagentes auto-cargados; MCP `scopegrain` activo desde `.devin/mcp_config.json`; `scopegrain_status` invocado: doctor con 16 checks y catalogo de 130 entradas integro por hash |

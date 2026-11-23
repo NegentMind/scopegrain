@@ -279,8 +279,11 @@ comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver
 ## Verificacion
 
 La ultima ejecucion integral local (`npm test`, serial por archivo,
-2026-11-18) termino con 1152 pruebas aprobadas, ninguna fallida y ninguna
-omitida en Windows, Node.js v26.8.1 y npm 11.6.0. Las integrales
+2026-11-22, commit `ca27e26`) termino con **1411 pruebas aprobadas**,
+0 fallidas y 0 omitidas en Windows, Node.js v26.8.1 y npm 11.6.0, junto
+con el carril del visor (**17/17 pruebas Vitest**, 0 errores de
+lint/typecheck, build Vite en verde y auditoria visual Playwright de 30
+pantallas EN/ES con 0 errores y 0 overflow). Las integrales
 intermedias y las tandas anteriores son ejecuciones separadas; su alcance
 y resultados historicos estan en [verificacion](docs/verification.md).
 El piloto nativo de Devin Local quedo certificado en una sesion fresca

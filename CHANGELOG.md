@@ -5,10 +5,49 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-11-21
+## [0.1.0] - 2026-11-22
 
 ### Added
 
+- **Global user onboarding config (`config path|show|set`)** — optional
+  user-level defaults (`locale`, `hosts`, `methodology`, `versioning`) at
+  `~/.config/scopegrain/config.json` (or `$XDG_CONFIG_HOME` /
+  `$SCOPEGRAIN_USER_CONFIG`, disable with `none`). Permissions,
+  verification commands and project paths are forbidden; workspace config
+  always takes strict precedence at runtime and re-init.
+- **Persisted plan-run wave progress (`plan run KEY --apply`)** — bounded
+  atomic checkpoints (max 50) under `<state>/plan-runs/<key>.json` under
+  verified locks, surfaced via `GET /api/plans/:key` (`runState`) and
+  `PlansView` (with clickable wave task chips, fixing `[object Object]`
+  rendering).
+- **Session resume context in viewer (`GET /api/sessions/:id`)** —
+  read-only `resumeContext` panel in `SessionsView` (linked task state
+  and refs, budget usage bar, last action, exact `session resume` CLI
+  command).
+- **VantaDB L3 persona/preferences projection (`vantadb sync-persona`)** —
+  opt-in, preview-by-default, idempotent projection of ownership-proved
+  `preference` and `decision` captures into `l3/sg-persona-<scopeHash>`
+  with readback verification and rejection of unproved files.
+- **Explicit structural index refresh (`structure refresh`)** — stat-only
+  no-op when fresh, bounded preview/apply when stale, while keeping
+  `context` strictly read-only (`refreshPolicy: "explicit"`).
+- **Remaining `doctor` checks** — `mcp-deps` (optional, non-blocking),
+  `viewer-build` (informational), `user-artifacts` (bounded JSON/UTF-8
+  integrity check) and `user-config` (warning on malformed global file),
+  bringing `doctor` to 32 checks.
+- **CLI version/help flags (`--version`, `-v`, `-V`, `-h`)** — prints
+  `{name, version, node}` without conflicting with `vantadb setup --version X`.
+- **Legacy workflow parity & portable YAGNI preset** — expanded
+  `resources/commands/investigate.md` with the 6-phase research procedure,
+  mapped all 5 legacy workflows in `provenance/legacy-inventory.json` to
+  canonical commands (`resources/manifest.json` bumped to `0.1.1`), and
+  added `examples/preset-yagni.json`.
+- **Test fixture optimization** — `bootstrappedMiniCtx`, `test:smoke`
+  (215 tests in ~43 s), `test:fast` (`--test-concurrency=2`), and
+  parameterized `assertOwnedStoreContract`; full serial suite recertified
+  at **1411/1411 pass** plus **17/17 viewer tests** and 30-screen EN/ES
+  Playwright visual audit with screenshots and walkthrough video under
+  `docs/assets/`.
 - **Automatic context rehydration (VantaDB)** — when a backend is
   enrolled, `context` injects a bounded `memory_recall` over distilled
   L1 memories and `session resume` plus MCP `scopegrain_session_resume`
@@ -80,18 +119,19 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - **Publication packaging** — `private` removed; `bin`
-  (`scopegrain`/`tasksystem`), `files` (bin, src, resources, policy,
-  templates, schemas, provenance, docs, `viewer/dist`, examples) and
+  (`scopegrain`/`tasksystem`), trimmed `files` (`bin`, `src`, `resources`,
+  `policy`, `templates`, `schemas`, `provenance`, `docs/*.md`,
+  `docs/en/*.md`, `viewer/dist`, `examples` — 979 kB tarball) and
   repository/homepage/bugs/keywords metadata declared so the package is
-  installable (`npm i scopegrain` / `npx scopegrain`).
+  installable (`npm i scopegrain` / `npx scopegrain` / `npm link`).
 - **Apache License 2.0 declared** — `LICENSE`, `NOTICE` and `AUTHORS`
   added at the root (`Copyright 2026 The Negent Mind Authors`);
   `package.json` license set to `Apache-2.0`; SPDX headers applied to
   every tracked `.mjs` and to `verify.yml`; `.md`/`.json` files are
-  covered by `LICENSE` + `NOTICE`. `private: true` is retained — this
-  is a licensing decision, not a publication event. The provenance
-  gates for license choice and the 65 reused-ID authorship attestation
-  are recorded as resolved in `docs/provenance.md`.
+  covered by `LICENSE` + `NOTICE`. Registry publication remains gated on
+  explicit owner authorization. The provenance gates for license choice
+  and the 65 reused-ID authorship attestation are recorded as resolved in
+  `docs/provenance.md`.
 - **Stale lock recovery** — lock payloads are now JSON `{t, pid, at}`.
   A lock whose writer pid is provably dead is reclaimed on the next
   acquire; a live pid is never broken; metadata-less locks (legacy bare
