@@ -14,7 +14,12 @@ Reglas comunes:
   bytes, destinos y hashes inmediatamente antes de mutar.
 - Nada existente se sobrescribe ni se fusiona: los destinos ocupados son
   conflictos reportados, y toda escritura usa `wx` exclusivo via
-  `applyPlan` (preflight completo y rollback de solo lo creado).
+  `applyPlan` (preflight completo y rollback de solo lo creado). Dos
+  excepciones documentadas y acotadas: la accion `managed` de `update`
+  reescribe in-place solo la region `SCOPEGRAIN:BEGIN..END` de un archivo
+  que opto por ella, y `update --reconcile` reescribe archivos divergentes
+  demostrablemente generados (unlink + `wx`, mismo preflight) — nunca
+  contenido ajeno.
 - Las rutas se validan con `assertDestination`/`resolveInside`: sin
   absolutas, unidades, UNC, `..`, prefijos reservados
   (`.git`/`node_modules`/`legacy`/`.opencode`) ni ancestros enlazados. Los
@@ -63,10 +68,14 @@ fragmentos de anfitriones) conservando los bytes en disco de
 | accion | significado |
 | --- | --- |
 | `create` | destino ausente; puede crearse |
-| `noop` | bytes identicos a los generados |
+| `noop` | bytes identicos a los generados (o region administrada identica) |
+| `managed` | destino divergente cuya region `SCOPEGRAIN:BEGIN..END` puede refrescarse in-place — la unica escritura no create-only del codebase, confinada a la region delimitada por marcadores que el archivo opto por llevar; jamas toca bytes de usuario fuera de ella |
 | `conflict` | destino distinto, enlace, directorio o colision interna |
 
-`applyUpdate(ctx, {installRoot?, reconcile?}?)` crea solo los `create`;
+`applyUpdate(ctx, {installRoot?, reconcile?}?)` crea solo los `create` y
+refresca las regiones `managed` (relee bajo el mismo lstat de
+clasificacion, rechaza enlaces/no-regulares, aborta si los marcadores
+desaparecieron a mitad del apply y escribe via temp exclusivo + rename);
 los `conflict` se reportan y nunca se sobrescriben. `config.json` se
 reporta pero queda fuera del conjunto de escritura: la configuracion es
 del proyecto, no un recurso refrescable. Un destino que aparece entre la
@@ -95,6 +104,26 @@ raiz (`instructions.md`, `discovery.json`, `task-contract.md`) tampoco
 son reconciliables: en la raiz no hay forma de distinguir lo generado de
 lo ajeno. El resultado del apply reporta `reconciled` (con el motivo
 original del conflicto) junto a los `conflict` restantes.
+
+Con `reconcile:true` el preview y el apply incluyen ademas una seccion
+`hostBridges`: los destinos host *aplicables* (`.claude/`, `.devin/`,
+`.agents/`, `.opencode/`, `.codex/`...) viven fuera de las raices
+generadas que posee el plan de init, asi que el reconcile los evalua en
+una segunda pasada — re-deriva el conjunto que `host activate` escribiria
+para cada host configurado y cada surface declarada, y juzga cada destino
+contra disco con el mismo modelo de seguridad. Solo un archivo regular
+divergente cuyos bytes nuevos son demostrablemente generados se reescribe
+(unlink + `wx`): los merge targets (`kind` en `MERGE_KINDS` —
+agent-declaration, mcp), los destinos globales o reservados y los
+archivos mantenidos a mano siempre quedan `conflict`. Los destinos
+`pending` (ausentes) se reportan pero nunca se crean: la primera
+activacion sigue siendo una decision explicita de `host activate`. Cuando
+varias surfaces generan bytes distintos para un destino, la reescritura
+exige un unico mejor candidato con evidencia de bytes en otros destinos;
+un empate o cero evidencia se reporta como divergente-no-reconciliable
+para `host activate --surface` o revision manual. El reporte
+`hostBridges` expone `{files, counts, conflicts, errors}` (mas
+`reconciled` en el apply).
 
 ## backup
 
@@ -173,7 +202,7 @@ raiz del proyecto nunca se elimina y no se escribe nada mas.
 
 ## Diagnostico en doctor
 
-`doctor` anade dos chequeos de solo lectura:
+`doctor` anade chequeos de solo lectura, entre ellos:
 
 - `workspace-enrollment`: informa `not enrolled`, `enrolled` o falla si el
   descriptor existe pero no es un archivo regular valido.
@@ -181,6 +210,15 @@ raiz del proyecto nunca se elimina y no se escribe nada mas.
   idle`, o falla ante head malformado/no regular o una
   `activeOperation` pendiente (la recuperacion explicita sigue siendo del
   journal; ver [recuperacion del journal](journal-recovery.md)).
+- `host-merge-targets`: inspecciona los merge targets machine-local
+  declarados en el plan de activacion (`.mcp.json`,
+  `.codex/config.toml`, `opencode.jsonc`, `.devin/config.json`,
+  `.agents/mcp_config.json`, `.devin/mcp_config.json`) — justo los
+  archivos fusionados a mano que llevan rutas absolutas del equipo.
+  Reporta `pending` (destino ausente), `stale` (no regular, ilegible o
+  con ruta absoluta fuera de la raiz del proyecto) y `diverged` (bytes
+  distintos del fragmento generado actual); ausencia de merge targets
+  declarados tambien se reporta.
 - `docs-cli-drift` (nivel aviso, nunca cuenta como fallo): compara los
   verbos que la documentacion del proyecto presenta como comandos
   ejecutables (`README*.md`, `docs/*.md`, `docs/en/*.md`) con la

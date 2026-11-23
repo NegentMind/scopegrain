@@ -191,3 +191,12 @@ prompts en garantia de seguridad o ausencia universal de alucinaciones.
 La escalada de investigacion es una politica y procedimiento: registrar la
 hipotesis causal, revisar fallos repetidos y pedir acceso a red cuando haga
 falta. No es un ejecutor oculto de busquedas, modelos o agentes.
+
+Limite de enforcement: el runtime solo mecaniza el contador de reworks —
+`revisitDesignAfterAttemptsWithoutProgress` (3 ciclos `VERIFY→ACT` sin
+visita a `RESEARCH` bloquean `→ACT`). La mitad de similitud causal
+(`investigateAfterSimilarFailures`, 2 fallos causalmente similares →
+investigar) esta declarada y NO mecanizada: las hipotesis de fallo no son
+un campo del record y la similitud causal nunca se infiere de conteos —
+juzgarla sigue siendo obligacion del agente segun
+`resources/rules/research-escalation.md`.

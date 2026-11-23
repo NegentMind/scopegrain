@@ -268,3 +268,79 @@ reused IDs — is an owner attestation or a controlled semantic review, not
 a finding. This document does not attest what was not verified; it
 records exactly what the mechanical evidence and the new-body inspection
 support.
+
+## 8. Second semantic migration (enrichment via adapted port)
+
+Post-verdict update to section 7. After the owner confirmed the
+`legacy/opencode/` material is their own authorship, a second pass ran:
+an adapted, neutralized port of the legacy procedural content into the
+active resources (`resources/agents/`, `commands/`, `rules/`,
+`references/`, `prompts/`, `skills/`).
+
+**Scope:** ~120 active resources enriched or created from their legacy
+counterparts, plus 7 new prompts (`plan-brief`, `plan-execution`,
+`iteration-loop`, `finding-record`, `session-recitation`, `spec-brief`,
+`research-brief`) added to the catalog (`manifest.json`, 139 entries at
+the time; 140 today).
+
+**Nature of the port (classification b):** the content was adapted, not
+copied verbatim — every reference to VantaDB, OpenCode, concrete MCP
+tools (`campaign_*`, `codegraph_*`), `docs/dev/` paths and specific
+toolchains (cargo/nextest/PyO3) was removed or generalized. The (a)/(b)
+verdicts of section 7 now apply de facto: most active resources are
+**derived adaptations (b)** of the owner's own material. This does not
+change the exclusion policy: `legacy/` stays gitignored and out of the
+package.
+
+**Third-party exception:** `resources/skills/discernment-nudge/SKILL.md`
+derives from an external skill licensed **Apache-2.0**; the file carries
+an HTML provenance notice in the footer and ships its `LICENSE.txt`
+(mirrored under `provenance/licenses/discernment-nudge/`). Keep that
+notice if the resource is redistributed.
+
+**`freshReplacement` reclassification:** the 4 dangling entries in
+`provenance/legacy-classification.json` pointed at nonexistent paths;
+corrected to the real destinations of the alias map (`campaign-executor`→
+`plan-coordination`, `interview-me`→`resolve-ambiguity`, `progreso`→
+`session-handoff`, `using-agent-skills`→`select-capabilities`).
+
+**What was NOT ported (deliberate decision, not loss):**
+- Mechanics already covered by the runtime in code (CAS sessions, journal,
+  ACCEPT/CLOSE gates, verify-commands, skill outcomes).
+- VantaDB-domain material: semgrep/ast-grep rules, server-gating
+  `mcp-profiles` (the scopegrain profile schema does not accept MCP keys),
+  `model-traits.mjs` (host-specific), PowerShell sandbox (decision
+  documented in `component-migration.md`), ponytail plugin (host API),
+  `mcp/ai-media-server.mjs` (product function), runtime state
+  `opencode-loop/` and `locks/` (ephemeral).
+- Concrete executable/template assets (`vantadb.yml` profile, HTML report
+  template, `floor-guard.ps1` script — its contract IS ported in
+  `references/quality-floor.md`).
+
+**Gaps recorded for owner decision:** per-profile MCP gating, pre-action
+hooks in `policy/hooks.json` (channel exists, `hooks: {}` empty; the
+discipline was ported as `workflow.md` §Pre-action checks rule),
+error-signature dedup (ported as a workflow §Pre-action checks rule),
+harness diagnostics heuristics (partial in `metrics`).
+
+**Binding semantics (owner decision, 2nd pass):** the
+`agents`/`skills`/`rules`/`references`/`prompts` arrays of commands
+declare the **complete flow**: the command's direct citations plus what
+the prompts it binds cite (prompts are inlined at execution). Literal
+transitive closure over the whole graph was measured and discarded — it
+degenerates to ~the whole corpus (41/44 skills per command) because the
+enriched corpus is densely interlinked; skill↔skill mentions are
+on-demand routing, not loading. `verify-work` stopped declaring
+`test-driven-development` (wrong binding: the command does not cite it)
+and `audit-harness` declared its bound prompts for the first time.
+
+**Formalized backlog:** the runtime gaps (per-profile MCP gating,
+executable hooks, error-signature dedup, diagnostics heuristics,
+binding parity-check, deep-bundles channel, viewer as reader/editor) are
+recorded as open goals — visible in every `context` packet — with a
+`v0.3` horizon.
+
+**Attribution note:** commit `013568a` absorbed edits by the viewer
+agent (`queries.mjs`, `api.ts` types) under a message that does not
+describe them; the content is correct and left as is, with this record
+as supplementary traceability.

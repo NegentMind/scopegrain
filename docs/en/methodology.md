@@ -199,3 +199,12 @@ security or universal absence of hallucinations.
 Investigation escalation is a policy and a procedure: record the causal
 hypothesis, review repeated failures and request network access when
 needed. It is not a hidden executor of searches, models or agents.
+
+Enforcement boundary: the runtime only mechanizes the reworks counter —
+`revisitDesignAfterAttemptsWithoutProgress` (3 `VERIFY→ACT` rework cycles
+without a `RESEARCH` visit block `→ACT`). The causal-similarity half
+(`investigateAfterSimilarFailures`, 2 causally similar failures →
+investigate) is declared and NOT mechanized: failure hypotheses are not
+a record field and causal similarity is never inferred from counts —
+judging it remains the agent's obligation per
+`resources/rules/research-escalation.md`.

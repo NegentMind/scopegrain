@@ -1,12 +1,30 @@
 # Harness Tool Boundary
 
-MCP queries are bound to the selected project. Most tools are read-only
-(`readOnlyHint`); a bounded set performs local journaled mutations
-(`scopegrain_memory_add`, `scopegrain_goal_create`,
-`scopegrain_goal_transition`, `scopegrain_task_disposition`, and
-`scopegrain_next_task` when `claimBy` is set — all annotated as
-destructive/non-read-only). Larger mutations stay explicit through CLI
-apply/transition operations.
+MCP queries are bound to the selected project. The server registers 34
+`scopegrain_*` tools in four annotation classes:
+
+- **Read-only local (22)** — `readOnlyHint:true, openWorldHint:false`:
+  `approval_get`, `artifact_get`, `catalog_get`, `catalog_list`,
+  `check_action`, `get_task`, `goal_list`, `inspect`, `list_tasks`,
+  `mcp_inventory`, `memory_read`, `memory_status`, `methodology_check`,
+  `metrics`, `plan_get`, `plan_next`, `resource_diagnose`,
+  `resource_search`, `session_get`, `specification_get`, `status`,
+  `workflow_packet`.
+- **Read-only with backend (6)** — `readOnlyHint:true` BUT
+  `openWorldHint:true`: `context`, `session_resume`, `memory_get`,
+  `memory_search`, `memory_recall`, `memory_context`. Read semantics, yet
+  the handler spawns the enrolled `vantadb-server` binary and sends data
+  (queries, keys, record IDs) to the configured memory backend — the
+  annotation honestly advertises the external world they reach.
+- **Local write (4)** — `WRITE_LOCAL`: `next_task` (writes only when
+  `claimBy` is set — otherwise it is a read), `task_meta` (CAS metadata
+  patch), `memory_add`, `goal_create`. All bounded journaled mutations.
+- **Discard write (2)** — `WRITE_DISCARD`, `destructiveHint:true`:
+  `task_disposition`, `goal_transition`. Discard semantics — a
+  `discarded`/`cancelled` disposition or a `dropped` goal shelves work —
+  even though the write itself is a bounded CAS patch.
+
+Larger mutations stay explicit through CLI apply/transition operations.
 Tool annotations do not create access control or authorize native actions.
 Stdout belongs to protocol messages; diagnostic logging uses stderr.
 Installed-SDK tests and live-host interoperability are separate evidence.

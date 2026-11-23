@@ -38,6 +38,20 @@
 - **Why:** the counter is a heuristic for "same cause": unrelated failures
   reset it, while the same cause surfacing on different paths still counts.
 
+## Runtime enforcement boundary
+
+What the runtime actually mechanizes (`policy/methodology.json`
+`researchEscalation` + `src/core/methodology.mjs`): only the reworks
+counter — after `revisitDesignAfterAttemptsWithoutProgress` (3) recorded
+`VERIFY→ACT` rework cycles without an intervening `→RESEARCH` visit,
+further `→ACT` is blocked with `RESEARCH_ESCALATION_REQUIRED`. The
+`investigateAfterSimilarFailures` (2) half is **declared, not
+mechanized**: failure hypotheses are not a record field and causal
+similarity is never inferred from counts
+(`causalGrouping: explicitly-recorded-hypothesis-not-inferred-from-counts`).
+Judging "causally similar" remains the agent's obligation under the rules
+above — the gate is a floor, not the rule.
+
 ### 4 — Internet use needs permission and real tools
 
 - **Must:** obtain authorization for network access (`→ see safety.md`) and
