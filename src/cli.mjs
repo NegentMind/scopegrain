@@ -16,14 +16,57 @@ import { loadLimits, loadMethodologyPolicy } from './core/policy.mjs';
 import { estimateJson, estimateTokens, TOKEN_ESTIMATOR }
   from './core/tokens.mjs';
 
-const PATH_LABELS = {
-  plans: 'Ruta de planes',
-  tasks: 'Ruta de tareas',
-  reports: 'Ruta de informes',
-  research: 'Ruta de investigaciones',
-  decisions: 'Ruta de decisiones',
-  memory: 'Ruta de memoria',
-  state: 'Ruta de estado operativo',
+// Init-wizard prompt strings: the locale answer is asked FIRST and drives
+// the language of every subsequent question, so a project configured `en`
+// never sees Spanish prompts. The locale prompt itself stays bilingual.
+const WIZARD_LOCALE_PROMPT = 'Language / Idioma (es/en)';
+const WIZARD_STRINGS = {
+  es: {
+    name: 'Nombre del proyecto',
+    hosts: (list) => `Anfitriones (${list})`,
+    methodology:
+      'Metodologia: manual (V1), organic-sdd (proporcional), sdd (formal)',
+    methodologyInvalid: 'Metodo invalido: use manual, organic-sdd o sdd.',
+    configPath: 'Ruta de configuracion',
+    paths: {
+      plans: 'Ruta de planes',
+      tasks: 'Ruta de tareas',
+      reports: 'Ruta de informes',
+      research: 'Ruta de investigaciones',
+      decisions: 'Ruta de decisiones',
+      memory: 'Ruta de memoria',
+      state: 'Ruta de estado operativo',
+    },
+    versioning: (key) => `Versionar ${key}? (yes/no)`,
+    versioningInvalid: 'responda yes o no',
+    invalidValue: 'Valor invalido',
+    resumeStale: 'Sesion previa de init incompatible con el esquema actual; '
+      + 'reanudar respuestas compatibles? (yes/no)',
+    confirmCreate: 'Crear estos archivos? (yes/no)',
+  },
+  en: {
+    name: 'Project name',
+    hosts: (list) => `Hosts (${list})`,
+    methodology:
+      'Methodology: manual (V1), organic-sdd (proportional), sdd (formal)',
+    methodologyInvalid: 'Invalid method: use manual, organic-sdd or sdd.',
+    configPath: 'Configuration path',
+    paths: {
+      plans: 'Plans path',
+      tasks: 'Tasks path',
+      reports: 'Reports path',
+      research: 'Research path',
+      decisions: 'Decisions path',
+      memory: 'Memory path',
+      state: 'Operational state path',
+    },
+    versioning: (key) => `Version ${key}? (yes/no)`,
+    versioningInvalid: 'answer yes or no',
+    invalidValue: 'Invalid value',
+    resumeStale: 'Previous init session is incompatible with the current '
+      + 'schema; resume compatible answers? (yes/no)',
+    confirmCreate: 'Create these files? (yes/no)',
+  },
 };
 
 const VALUE_FLAGS = new Set([
@@ -85,8 +128,8 @@ const COMMANDS = {
     usage: 'journal recover OPERATION --project PATH [--config REL] --input FILE [--apply]',
   },
   'journal compact': {
-    flags: ['--project', '--config'], pos: 0,
-    usage: 'journal compact --project PATH [--config REL]',
+    flags: ['--project', '--config', '--apply'], pos: 0,
+    usage: 'journal compact --project PATH [--config REL] [--apply]',
   },
   'structure scan': {
     flags: ['--project', '--config', '--apply'], pos: 0,
@@ -114,8 +157,9 @@ const COMMANDS = {
     usage: 'vantadb status --project PATH [--probe] [--timeout MS]',
   },
   'vantadb sync': {
-    flags: ['--project', '--config', '--limit', '--timeout'], pos: 0,
-    usage: 'vantadb sync --project PATH [--limit N] [--timeout MS]',
+    flags: ['--project', '--config', '--limit', '--timeout', '--apply'],
+    pos: 0,
+    usage: 'vantadb sync --project PATH [--limit N] [--timeout MS] [--apply]',
   },
   'vantadb get': {
     flags: ['--project', '--config', '--namespace', '--key', '--timeout'], pos: 0,
@@ -133,8 +177,8 @@ const COMMANDS = {
   },
   'vantadb reinforce': {
     flags: ['--project', '--config', '--namespace', '--key', '--outcome',
-      '--timeout'], pos: 0,
-    usage: 'vantadb reinforce --project PATH --namespace NS --key K --outcome used|corrected|unused [--timeout MS]',
+      '--timeout', '--apply'], pos: 0,
+    usage: 'vantadb reinforce --project PATH --namespace NS --key K --outcome used|corrected|unused [--timeout MS] [--apply]',
   },
   'vantadb recall': {
     flags: ['--project', '--config', '--query', '--scope', '--top-k',
@@ -147,12 +191,14 @@ const COMMANDS = {
     usage: 'vantadb context --project PATH --record-id ID [--top-k N] [--limit N] [--timeout MS]',
   },
   'vantadb distill': {
-    flags: ['--project', '--config', '--limit', '--timeout'], pos: 0,
-    usage: 'vantadb distill --project PATH [--limit N] [--timeout MS]',
+    flags: ['--project', '--config', '--limit', '--timeout', '--apply'],
+    pos: 0,
+    usage: 'vantadb distill --project PATH [--limit N] [--timeout MS] [--apply]',
   },
   'vantadb sync-memory': {
-    flags: ['--project', '--config', '--limit', '--timeout'], pos: 0,
-    usage: 'vantadb sync-memory --project PATH [--limit N] [--timeout MS]',
+    flags: ['--project', '--config', '--limit', '--timeout', '--apply'],
+    pos: 0,
+    usage: 'vantadb sync-memory --project PATH [--limit N] [--timeout MS] [--apply]',
   },
   'vantadb sync-persona': {
     flags: ['--project', '--config', '--limit', '--timeout', '--apply'], pos: 0,
@@ -177,20 +223,24 @@ const COMMANDS = {
     usage: 'task list --project PATH [--backlog NAME]',
   },
   'task meta': {
-    flags: ['--project', '--config', '--revision', '--input'], pos: 1,
-    usage: 'task meta --project PATH ID --revision N --input FILE',
+    flags: ['--project', '--config', '--revision', '--input', '--apply'],
+    pos: 1,
+    usage: 'task meta --project PATH ID --revision N --input FILE [--apply]',
   },
   'task disposition': {
-    flags: ['--project', '--config', '--revision', '--reason', '--by'], pos: 2,
-    usage: 'task disposition --project PATH ID KIND --revision N [--reason TEXT] [--by X]',
+    flags: ['--project', '--config', '--revision', '--reason', '--by',
+      '--apply'], pos: 2,
+    usage: 'task disposition --project PATH ID KIND --revision N [--reason TEXT] [--by X] [--apply]',
   },
   'task note': {
-    flags: ['--project', '--config', '--revision', '--text'], pos: 1,
-    usage: 'task note --project PATH ID --revision N --text TEXT',
+    flags: ['--project', '--config', '--revision', '--text', '--apply'],
+    pos: 1,
+    usage: 'task note --project PATH ID --revision N --text TEXT [--apply]',
   },
   'task step': {
-    flags: ['--project', '--config', '--revision', '--index', '--status'], pos: 1,
-    usage: 'task step --project PATH ID --revision N --index N --status pending|done|skipped',
+    flags: ['--project', '--config', '--revision', '--index', '--status',
+      '--apply'], pos: 1,
+    usage: 'task step --project PATH ID --revision N --index N --status pending|done|skipped [--apply]',
   },
   'task show': {
     flags: ['--project', '--config'], pos: 1,
@@ -209,8 +259,9 @@ const COMMANDS = {
     usage: 'task deactivate --project PATH',
   },
   'task transition': {
-    flags: ['--project', '--config', '--revision', '--evidence'], pos: 2,
-    usage: 'task transition --project PATH ID STATE --revision N [--evidence FILE]',
+    flags: ['--project', '--config', '--revision', '--evidence', '--apply'],
+    pos: 2,
+    usage: 'task transition --project PATH ID STATE --revision N [--evidence FILE] [--apply]',
   },
   'task doc': {
     flags: ['--project', '--config'], pos: 1,
@@ -230,7 +281,8 @@ const COMMANDS = {
     pos: -1,
     usage: 'task checklist --project PATH [ID] '
       + '(--input FILE to create | no ID to list | ID to show | '
-      + 'ID --key CHK### --status S --revision N [--text NOTE] to mark)',
+      + 'ID --key CHK### --status S --revision N [--text NOTE] to mark; '
+      + '--apply writes for create and mark)',
   },
   'plan run': {
     flags: ['--project', '--config', '--apply'], pos: 1,
@@ -249,8 +301,8 @@ const COMMANDS = {
     usage: 'constitution show --project PATH',
   },
   'constitution set': {
-    flags: ['--project', '--config', '--input'], pos: 0,
-    usage: 'constitution set --project PATH --input FILE',
+    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
+    usage: 'constitution set --project PATH --input FILE [--apply]',
   },
   'config path': {
     flags: [], pos: 0,
@@ -275,24 +327,24 @@ const COMMANDS = {
     usage: 'task check-action --project PATH ID ACTION',
   },
   'memory add': {
-    flags: ['--project', '--config', '--log', '--input'], pos: 0,
-    usage: 'memory add --project PATH --log lessons|outcomes|progress --input FILE',
+    flags: ['--project', '--config', '--log', '--input', '--apply'], pos: 0,
+    usage: 'memory add --project PATH --log lessons|outcomes|progress --input FILE [--apply]',
   },
   'memory list': {
     flags: ['--project', '--config', '--log', '--tail'], pos: 0,
     usage: 'memory list --project PATH --log lessons|outcomes|progress [--tail N]',
   },
   'goal create': {
-    flags: ['--project', '--config', '--input'], pos: 0,
-    usage: 'goal create --project PATH --input FILE',
+    flags: ['--project', '--config', '--input', '--apply'], pos: 0,
+    usage: 'goal create --project PATH --input FILE [--apply]',
   },
   'goal list': {
     flags: ['--project', '--config'], pos: 0,
     usage: 'goal list --project PATH',
   },
   'goal transition': {
-    flags: ['--project', '--config', '--to'], pos: 1,
-    usage: 'goal transition --project PATH ID --to open|achieved|dropped',
+    flags: ['--project', '--config', '--to', '--apply'], pos: 1,
+    usage: 'goal transition --project PATH ID --to open|achieved|dropped [--apply]',
   },
   metrics: {
     flags: ['--project', '--config'], pos: 0,
@@ -636,6 +688,8 @@ function helpResult() {
       'results are JSON on stdout; errors are JSON on stderr with exit code 1',
       'JSON creation previews do not reserve IDs; use IDs returned by --apply',
       'task create --input is the supported creation path; the --title/--contract/--author flag form only applies to projects in manual methodology mode',
+      'mutating verbs preview as {mode:"dry-run",plan|task} unless --apply; this includes task create (both forms), meta/disposition/note/step/transition, checklist mark, goal create/transition, memory add, journal compact, constitution set and vantadb sync/reinforce/distill/sync-memory',
+      'intake.mode (off|capture|suggest|auto) lives in .scopegrain/config.json under "intake"; edit the key directly — it is not an interactive wizard question and init --answers does not carry it',
       'Methodology checks and stored approvals are not native tool permissions',
       '--owned opts specification create/show into journal ownership; legacy behavior stays unchanged without it',
       '--owned opts design/outcome create/show into journal ownership; new show commands require it',
@@ -747,6 +801,11 @@ async function askInteractive(io, projectRoot, configFlag, existing,
   const st = session === null ? null : sessionStatus(session);
   const answered = new Set(st === null ? [] : st.answered);
   const leaf = (id) => id.split('.').reduce((o, k) => o?.[k], st.answers);
+  // Prompt language: an existing config or the user global supplies a hint
+  // for messages emitted before the locale answer arrives; the answered
+  // locale then takes over for every subsequent question.
+  let t = WIZARD_STRINGS[existing?.locale ?? userCfg?.locale]
+    ?? WIZARD_STRINGS.en;
   // askOrReplay returns the stored value for answered questions and runs
   // `ask` otherwise, recording the outcome in the session. With
   // retryOnInvalid a rejected value re-prompts instead of aborting the
@@ -761,21 +820,24 @@ async function askInteractive(io, projectRoot, configFlag, existing,
         return value;
       } catch (e) {
         if (!retryOnInvalid) throw e;
-        io.stderr(`Valor invalido: ${e.message}`);
+        io.stderr(`${t.invalidValue}: ${e.message}`);
       }
     }
   };
   const answers = {};
-  answers.name = await askOrReplay('name', () => io.ask('Nombre del proyecto',
-    existing ? existing.project.name : path.basename(projectRoot)));
-  answers.locale = await askOrReplay('locale', () => io.ask('Idioma (es/en)',
+  // Locale is asked first (bilingual prompt) so it can localize the rest.
+  answers.locale = await askOrReplay('locale', () => io.ask(
+    WIZARD_LOCALE_PROMPT,
     existing ? existing.locale : (userCfg?.locale ?? 'es')));
+  t = WIZARD_STRINGS[answers.locale] ?? WIZARD_STRINGS.en;
+  answers.name = await askOrReplay('name', () => io.ask(t.name,
+    existing ? existing.project.name : path.basename(projectRoot)));
   const hostList = KNOWN_HOSTS.join(',');
   answers.hosts = await askOrReplay('hosts', async () => {
     const defaultHosts = existing
       ? existing.hosts.join(',')
       : (userCfg?.hosts ? userCfg.hosts.join(',') : hostList);
-    const hostsRaw = await io.ask(`Anfitriones (${hostList})`, defaultHosts);
+    const hostsRaw = await io.ask(t.hosts(hostList), defaultHosts);
     return hostsRaw.split(',').map((h) => h.trim()).filter(Boolean);
   });
   // Methodology question: existing normalized mode wins, otherwise the
@@ -787,18 +849,16 @@ async function askInteractive(io, projectRoot, configFlag, existing,
     ?? loadMethodologyPolicy().interactiveDefault;
   answers.methodology = await askOrReplay('methodology', async () => {
     for (;;) {
-      const reply = (await io.ask(
-        'Metodologia: manual (V1), organic-sdd (proporcional), sdd (formal)',
-        modeDefault)).trim();
+      const reply = (await io.ask(t.methodology, modeDefault)).trim();
       if (loadMethodologyPolicy().modes.includes(reply)) return reply;
-      io.stderr('Metodo invalido: use manual, organic-sdd o sdd.');
+      io.stderr(t.methodologyInvalid);
     }
   });
-  const configRel = await io.ask('Ruta de configuracion', configFlag);
+  const configRel = await io.ask(t.configPath, configFlag);
   answers.paths = {};
   for (const key of PATH_KEYS) {
     answers.paths[key] = await askOrReplay(`paths.${key}`,
-      () => io.ask(PATH_LABELS[key],
+      () => io.ask(t.paths[key],
         existing ? existing.paths[key] : DEFAULT_PATH_PROPOSALS[key]),
       true);
   }
@@ -811,10 +871,10 @@ async function askInteractive(io, projectRoot, configFlag, existing,
     answers.versioning[key] = await askOrReplay(`versioning.${key}`,
       async () => {
         for (;;) {
-          const reply = (await io.ask(`Versionar ${key}? (yes/no)`, def))
+          const reply = (await io.ask(t.versioning(key), def))
             .trim().toLowerCase();
           if (reply === 'yes' || reply === 'no') return reply === 'yes';
-          io.stderr('responda yes o no');
+          io.stderr(t.versioningInvalid);
         }
       });
   }
@@ -955,8 +1015,18 @@ async function cmdInit(flags, io) {
     // belongs to an earlier run and is kept either way.
     sessionCreated = opened.created;
     if (sessionStatus(session).stale) {
+      // The locale question has not run yet: fall back to the existing
+      // config locale, then the user global, then English.
+      let priorLocale = existing?.locale ?? null;
+      if (priorLocale === null) {
+        try {
+          const { loadUserConfig } =
+            await import('./core/user-config.mjs');
+          priorLocale = loadUserConfig().config?.locale ?? null;
+        } catch { priorLocale = null; }
+      }
       const resume = await io.ask(
-        'Sesion previa de init incompatible con el esquema actual; reanudar respuestas compatibles? (yes/no)',
+        (WIZARD_STRINGS[priorLocale] ?? WIZARD_STRINGS.en).resumeStale,
         'no');
       if (resume.trim().toLowerCase() === 'yes') {
         opened = openInitSession({ projectRoot }, { resumeStale: true });
@@ -981,7 +1051,9 @@ async function cmdInit(flags, io) {
   const prepared = prepareInit({ projectRoot, configRel, answers });
   if (interactive) {
     io.stdout(JSON.stringify({ mode: 'plan', ...planJson(prepared) }, null, 2));
-    const confirm = await io.ask('Crear estos archivos? (yes/no)', 'no');
+    const confirm = await io.ask(
+      (WIZARD_STRINGS[answers.locale] ?? WIZARD_STRINGS.en).confirmCreate,
+      'no');
     if (confirm.trim().toLowerCase() !== 'yes') {
       // Declining the plan is an abort: drop the session this run created
       // (plus its now-empty stateDir dirs) so cancel leaves no writes.
@@ -1005,8 +1077,12 @@ async function cmdInit(flags, io) {
 }
 
 async function cmdTask(sub, positional, flags, io) {
-  const { createTask, getTask, listTasks, prepareTask } = await import('./core/tasks.mjs');
-  const { transitionTask, updateTaskMeta, checkAction } = await import('./core/transition.mjs');
+  const { getTask, listTasks, prepareTask } = await import('./core/tasks.mjs');
+  const {
+    transitionTask, updateTaskMeta, checkAction, evaluateTaskMeta,
+    evaluateTaskTransition, validateMetaUpdateInput,
+    validateTransitionInput,
+  } = await import('./core/transition.mjs');
   const { appendWorklog } = await import('./core/worklog.mjs');
   const { writeTaskDoc } = await import('./core/taskdoc.mjs');
   const ctx = resolveContext({
@@ -1024,10 +1100,6 @@ async function cmdTask(sub, positional, flags, io) {
       const input = readInputFile(requireFlag(flags, '--input'), 'task input');
       const prepared = prepareTask(ctx, input);
       return await finishCreation(ctx, 'task', prepared.task, prepared.file, flags);
-    }
-    if (flags['--apply']) {
-      throw err('INVALID_ARGS',
-        '--apply requires --input for task create; legacy flags create directly');
     }
     // Methodology-gated modes cannot be satisfied by the flag form: flags
     // cannot express an assessment, and --input is the only way to supply
@@ -1048,7 +1120,10 @@ async function cmdTask(sub, positional, flags, io) {
     const scope = flags['--scope']
       ? flags['--scope'].split(',').map((s) => s.trim()).filter(Boolean)
       : [];
-    return createTask(ctx, {
+    // The legacy flag form follows the same preview/--apply gate as
+    // --input (FIND-028): prepare shows the exact record it would write
+    // and only --apply persists it.
+    const prepared = prepareTask(ctx, {
       title: requireFlag(flags, '--title'),
       contract: requireFlag(flags, '--contract'),
       authorContext: requireFlag(flags, '--author'),
@@ -1057,6 +1132,7 @@ async function cmdTask(sub, positional, flags, io) {
       ...(Object.hasOwn(flags, '--design') ? { designId: flags['--design'] } : {}),
       ...(Object.hasOwn(flags, '--plan') ? { planKey: flags['--plan'] } : {}),
     });
+    return await finishCreation(ctx, 'task', prepared.task, prepared.file, flags);
   }
   if (sub === 'list') {
     const result = listTasks(ctx);
@@ -1067,23 +1143,33 @@ async function cmdTask(sub, positional, flags, io) {
     }
     return result;
   }
+  // Meta mutations share updateTaskMeta; without --apply the same pure
+  // evaluation (CAS revision check included) previews the record the
+  // write would produce — the dry-run validates exactly like apply.
+  const previewMeta = (input) => {
+    validateMetaUpdateInput(input);
+    const evaluated = evaluateTaskMeta(ctx, getTask(ctx, input.id), input);
+    return { mode: 'dry-run', applied: false, task: evaluated.next };
+  };
   if (sub === 'meta') {
     const input = readInputFile(requireFlag(flags, '--input'), 'task meta input');
     if (flags['--revision'] === undefined) {
       throw err('INVALID_ARGS', '--revision N is required');
     }
-    return updateTaskMeta(ctx, {
+    const metaInput = {
       id: positional[0],
       expectedRevision: decimalInt(flags['--revision'], '--revision'),
       ...input,
-    });
+    };
+    return flags['--apply']
+      ? updateTaskMeta(ctx, metaInput) : previewMeta(metaInput);
   }
   if (sub === 'disposition') {
     if (flags['--revision'] === undefined) {
       throw err('INVALID_ARGS', '--revision N is required');
     }
     const kind = positional[1];
-    return updateTaskMeta(ctx, {
+    const metaInput = {
       id: positional[0],
       expectedRevision: decimalInt(flags['--revision'], '--revision'),
       disposition: kind === 'active' ? null : {
@@ -1091,17 +1177,21 @@ async function cmdTask(sub, positional, flags, io) {
         ...(flags['--reason'] ? { reason: flags['--reason'] } : {}),
         ...(flags['--by'] ? { by: flags['--by'] } : {}),
       },
-    });
+    };
+    return flags['--apply']
+      ? updateTaskMeta(ctx, metaInput) : previewMeta(metaInput);
   }
   if (sub === 'note') {
     if (flags['--revision'] === undefined) {
       throw err('INVALID_ARGS', '--revision N is required');
     }
-    return updateTaskMeta(ctx, {
+    const metaInput = {
       id: positional[0],
       expectedRevision: decimalInt(flags['--revision'], '--revision'),
       addNote: requireFlag(flags, '--text'),
-    });
+    };
+    return flags['--apply']
+      ? updateTaskMeta(ctx, metaInput) : previewMeta(metaInput);
   }
   if (sub === 'step') {
     if (flags['--revision'] === undefined) {
@@ -1110,14 +1200,16 @@ async function cmdTask(sub, positional, flags, io) {
     if (flags['--index'] === undefined || flags['--status'] === undefined) {
       throw err('INVALID_ARGS', '--index N and --status S are required');
     }
-    return updateTaskMeta(ctx, {
+    const metaInput = {
       id: positional[0],
       expectedRevision: decimalInt(flags['--revision'], '--revision'),
       stepStatus: {
         index: decimalInt(flags['--index'], '--index'),
         status: flags['--status'],
       },
-    });
+    };
+    return flags['--apply']
+      ? updateTaskMeta(ctx, metaInput) : previewMeta(metaInput);
   }
   if (sub === 'show') {
     if (positional.length !== 1) {
@@ -1184,10 +1276,22 @@ async function cmdTask(sub, positional, flags, io) {
         throw err('INVALID_ARGS',
           'checklist mark requires --key CHK### --status S --revision N');
       }
-      return cl.markChecklistItem(ctx, positional[0], flags['--key'], {
+      const markInput = {
         status: flags['--status'], note: flags['--text'],
         expectedRevision: decimalInt(flags['--revision'], '--revision'),
-      });
+      };
+      if (!flags['--apply']) {
+        return {
+          mode: 'dry-run', applied: false,
+          plan: {
+            verb: 'task checklist mark', id: positional[0],
+            key: flags['--key'], status: markInput.status,
+            revision: markInput.expectedRevision,
+          },
+        };
+      }
+      return cl.markChecklistItem(
+        ctx, positional[0], flags['--key'], markInput);
     }
     return cl.getChecklist(ctx, positional[0]);
   }
@@ -1208,12 +1312,22 @@ async function cmdTask(sub, positional, flags, io) {
     const evidence = flags['--evidence']
       ? validateEvidenceArg(readInputFile(flags['--evidence'], 'evidence file'))
       : {};
-    const next = transitionTask(ctx, {
+    const transitionInput = {
       id: positional[0],
       to: positional[1],
       expectedRevision,
       ...evidence,
-    });
+    };
+    if (!flags['--apply']) {
+      // Same input gate and policy evaluation as the write path (pure
+      // evaluateTaskTransition): the preview is the exact record --apply
+      // would store, methodology gates included.
+      validateTransitionInput(transitionInput);
+      const evaluated = evaluateTaskTransition(
+        ctx, getTask(ctx, transitionInput.id), transitionInput);
+      return { mode: 'dry-run', applied: false, task: evaluated.next };
+    }
+    const next = transitionTask(ctx, transitionInput);
     // Closing a task archives its outcome in the progress log: the
     // avance/backlog-history loop is append-only and derives from the
     // final stored record, not from the transition input.
@@ -1712,7 +1826,14 @@ async function cmdMemory(sub, flags) {
   if (sub === 'add') {
     const input = readInputFile(
       requireFlag(flags, '--input'), 'memory input');
-    return appendWorklog(ctx, requireFlag(flags, '--log'), input);
+    const log = requireFlag(flags, '--log');
+    if (!flags['--apply']) {
+      return {
+        mode: 'dry-run', applied: false,
+        plan: { verb: 'memory add', log, input },
+      };
+    }
+    return appendWorklog(ctx, log, input);
   }
   if (sub === 'list') {
     const tail = flags['--tail'] !== undefined
@@ -1782,11 +1903,24 @@ async function cmdGoal(sub, positional, flags) {
   });
   if (sub === 'create') {
     const input = readInputFile(requireFlag(flags, '--input'), 'goal input');
+    if (!flags['--apply']) {
+      return {
+        mode: 'dry-run', applied: false,
+        plan: { verb: 'goal create', input },
+      };
+    }
     return createGoal(ctx, input);
   }
   if (sub === 'list') return listGoals(ctx);
   if (sub === 'transition') {
-    return transitionGoal(ctx, positional[0], requireFlag(flags, '--to'));
+    const to = requireFlag(flags, '--to');
+    if (!flags['--apply']) {
+      return {
+        mode: 'dry-run', applied: false,
+        plan: { verb: 'goal transition', id: positional[0], to },
+      };
+    }
+    return transitionGoal(ctx, positional[0], to);
   }
   throw err('INVALID_ARGS', `unknown goal subcommand '${sub}'`);
 }
@@ -1829,7 +1963,7 @@ async function cmdCaptureReview(project, flags) {
 
 async function cmdJournal(sub, positional, flags) {
   const { bindWorkspace, getWorkspace } = await import('./core/workspaces.mjs');
-  const { getJournalOperation, listJournalPending, prepareJournalRecovery, recoverJournalOperation, compactJournal } = await import('./core/journal.mjs');
+  const { getJournalOperation, listJournalPending, prepareJournalRecovery, recoverJournalOperation, compactJournal, countJournalPending } = await import('./core/journal.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
@@ -1846,7 +1980,16 @@ async function cmdJournal(sub, positional, flags) {
     return listJournalPending(bound, options);
   }
   if (sub === 'show') return getJournalOperation(bound, positional[0]);
-  if (sub === 'compact') return compactJournal(bound);
+  if (sub === 'compact') {
+    if (!flags['--apply']) {
+      return {
+        mode: 'dry-run', applied: false,
+        plan: { verb: 'journal compact',
+          pendingOperations: countJournalPending(bound) },
+      };
+    }
+    return { mode: 'applied', applied: true, ...compactJournal(bound) };
+  }
   const input = readInputFile(requireFlag(flags, '--input'), 'journal recovery input');
   return flags['--apply']
     ? recoverJournalOperation(bound, positional[0], input)
@@ -1976,10 +2119,23 @@ async function cmdVantaDB(sub, positional, flags) {
       name: 'memory_recall', arguments: args, timeoutMs });
   }
   if (sub === 'reinforce') {
-    return vantaDBReinforce({ cfg: requireVantaDBConfig(ctx),
-      namespace: requireFlag(flags, '--namespace'),
-      key: requireFlag(flags, '--key'),
-      outcome: requireFlag(flags, '--outcome'), timeoutMs });
+    const cfg = requireVantaDBConfig(ctx);
+    // Server-side mutation: without --apply the call is never made (the
+    // records it would modify are remote, so the preview is a plan).
+    if (!flags['--apply']) {
+      return {
+        mode: 'dry-run', applied: false,
+        plan: {
+          verb: 'vantadb reinforce',
+          namespace: requireFlag(flags, '--namespace'),
+          key: requireFlag(flags, '--key'),
+          outcome: requireFlag(flags, '--outcome'),
+        },
+      };
+    }
+    return vantaDBReinforce({ cfg,
+      namespace: flags['--namespace'], key: flags['--key'],
+      outcome: flags['--outcome'], timeoutMs });
   }
   if (sub === 'context') {
     const recordId = requireFlag(flags, '--record-id');
@@ -1990,13 +2146,26 @@ async function cmdVantaDB(sub, positional, flags) {
       timeoutMs });
   }
   if (sub === 'distill') {
-    return vantaDBDistill({ bound, cfg: requireVantaDBConfig(ctx),
+    const cfg = requireVantaDBConfig(ctx);
+    if (!flags['--apply']) {
+      return {
+        mode: 'dry-run', applied: false,
+        plan: { verb: 'vantadb distill' },
+      };
+    }
+    return vantaDBDistill({ bound, cfg,
       limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
       timeoutMs });
   }
   if (sub === 'sync-memory') {
-    return vantaDBSyncWorklogs({ ctx, bound,
-      cfg: requireVantaDBConfig(ctx),
+    const cfg = requireVantaDBConfig(ctx);
+    if (!flags['--apply']) {
+      return {
+        mode: 'dry-run', applied: false,
+        plan: { verb: 'vantadb sync-memory' },
+      };
+    }
+    return vantaDBSyncWorklogs({ ctx, bound, cfg,
       limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
       timeoutMs });
   }
@@ -2007,7 +2176,12 @@ async function cmdVantaDB(sub, positional, flags) {
       limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
       apply, timeoutMs });
   }
+  // sub === 'sync' — one-shot run; same preview/--apply gate as every
+  // other mutating verb (FIND-028).
   const cfg = requireVantaDBConfig(ctx);
+  if (!flags['--apply']) {
+    return { mode: 'dry-run', applied: false, plan: { verb: 'vantadb sync' } };
+  }
   const limit = flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined;
   return syncVantaDB({ ctx, bound, cfg, limit, timeoutMs });
 }
@@ -2092,6 +2266,12 @@ async function cmdConstitution(sub, flags) {
   if (sub === 'set') {
     const input = readInputFile(
       requireFlag(flags, '--input'), 'constitution input');
+    if (!flags['--apply']) {
+      return {
+        mode: 'dry-run', applied: false,
+        plan: { verb: 'constitution set', input },
+      };
+    }
     return setConstitution(ctx, input);
   }
   throw err('INVALID_ARGS', `unknown constitution subcommand '${sub}'`);

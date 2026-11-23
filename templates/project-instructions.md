@@ -87,6 +87,12 @@ task or plan record is bookkeeping, not implementation authority —
 lifecycle transitions, verification, review and side-effect approvals
 still require their usual gates and explicit authorization.
 
+## Language
+
+Canonical instructions and catalog resources stay in English; operational
+and planning artifacts (task records, journal/worklog entries, generated
+documents) follow the configured project `locale` in `{{configPath}}`.
+
 ## Safety and closure
 
 Ask before network access, publication, push, destructive effects or elevated

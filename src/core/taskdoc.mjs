@@ -70,24 +70,24 @@ export function renderTaskDoc(task, locale = 'en') {
   L.push('');
   L.push(`# ${task.title}`);
   L.push('');
-  L.push('## Contract');
+  L.push(`## ${H.contract}`);
   L.push('');
   L.push(task.contract);
   L.push('');
   if (task.authorContext) {
-    L.push('## Author context');
+    L.push(`## ${H.authorContext}`);
     L.push('');
     L.push(task.authorContext);
     L.push('');
   }
   if (task.scope?.length) {
-    L.push('## Scope');
+    L.push(`## ${H.scope}`);
     L.push('');
     list(L, task.scope, (s) => `\`${s}\``);
     L.push('');
   }
   if (task.dependsOn?.length || Object.keys(task.relations ?? {}).length) {
-    L.push('## Dependencies & relations');
+    L.push(`## ${H.relations}`);
     L.push('');
     list(L, task.dependsOn, (d) => `dependsOn \`${d}\``);
     for (const kind of RELATION_ORDER) {
@@ -102,13 +102,13 @@ export function renderTaskDoc(task, locale = 'en') {
     L.push('');
   }
   if (task.goalIds?.length) {
-    L.push('## Goals');
+    L.push(`## ${H.goals}`);
     L.push('');
     list(L, task.goalIds, (g) => `\`${g}\``);
     L.push('');
   }
   if (task.steps?.length) {
-    L.push('## Steps');
+    L.push(`## ${H.steps}`);
     L.push('');
     for (const [i, s] of task.steps.entries()) {
       const mark = s.status === 'done' ? 'x' : s.status === 'skipped' ? '-' : ' ';
@@ -118,7 +118,7 @@ export function renderTaskDoc(task, locale = 'en') {
   }
   if (task.analysis && Object.values(task.analysis).some((v) =>
       (Array.isArray(v) && v.length) || (typeof v === 'string' && v))) {
-    L.push('## Analysis');
+    L.push(`## ${H.analysis}`);
     L.push('');
     for (const [k, v] of Object.entries(task.analysis)) {
       if (Array.isArray(v)) {
@@ -130,7 +130,7 @@ export function renderTaskDoc(task, locale = 'en') {
     L.push('');
   }
   if (task.notes?.length) {
-    L.push('## Notes');
+    L.push(`## ${H.notes}`);
     L.push('');
     list(L, task.notes, (n) => {
       if (typeof n === 'string') return n;
@@ -140,14 +140,13 @@ export function renderTaskDoc(task, locale = 'en') {
     });
     L.push('');
   }
-  L.push('## History');
+  L.push(`## ${H.history}`);
   L.push('');
   for (const h of task.history ?? []) {
     L.push(`- \`${h.at}\` ${h.event}${h.state ? ` → **${h.state}**` : ''}`);
   }
   L.push('');
-  L.push('<!-- Derived from the task JSON record; regenerate with',
-    '`scopegrain task doc`. Do not edit by hand. -->');
+  L.push(`<!-- ${H.derivedNotice} -->`);
   return L.join('\n') + '\n';
 }
 
@@ -158,7 +157,7 @@ export function taskDocPath(ctx, taskId) {
 export function writeTaskDoc(ctx, taskId) {
   const task = getTask(ctx, taskId);
   const abs = taskDocPath(ctx, task.id);
-  const content = renderTaskDoc(task);
+  const content = renderTaskDoc(task, ctx.config?.locale);
   let prior = null;
   try { prior = fs.readFileSync(abs, 'utf8'); } catch { /* absent */ }
   if (prior === content) return { path: abs, taskId: task.id, changed: false };

@@ -192,6 +192,11 @@ With `--task`, skills declared on `task.skills` auto-include into
 catalog). Command-declared dependencies still fail closed; unresolvable
 task ids are reported, never fatal.
 
+`packet.deep` declares the opt-in mounted-bundle layer:
+`{available, mounted, bundles[], path:'bundles/'}` — entries carrying
+`bundle` are deep resources whose bodies live under
+`<configDir>/bundles/<bundle>/` and hydrate through the same channels.
+
 | Alias | Canonical command | Modes |
 |---|---|---|
 | `backlog` | `triage-work` | `default` (default) |

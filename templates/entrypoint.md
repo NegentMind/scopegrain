@@ -17,6 +17,13 @@ and pending journal events.
 persistent session knowledge (like AGENTS.md but harness-owned): read it every
 session, do not edit it without asking the owner.
 
+## Language
+
+Canonical instructions and catalog resources stay in English; operational
+artifacts this harness records or generates (task records, journal and
+worklog entries, generated documents) follow the project `locale` declared
+in `{{configPath}}`.
+
 ## Request intake
 
 When the packet's `intake.mode` field is not `off`, classify each user

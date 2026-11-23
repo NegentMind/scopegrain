@@ -46,6 +46,7 @@ function resolveResources(kind, ids, catalog, presets, hits, lazy) {
         kind, id: canon,
         description: r.description, path: catalogDestRel(r),
         sha256: r.sha256 ?? null,
+        ...(r.bundle ? { bundle: r.bundle } : {}),
       });
       continue;
     }
@@ -57,6 +58,7 @@ function resolveResources(kind, ids, catalog, presets, hits, lazy) {
       kind, id: canon,
       description: r.description, path: catalogDestRel(r),
       content: composeResource(base, layers),
+      ...(r.bundle ? { bundle: r.bundle } : {}),
     });
   }
   return out;
@@ -230,7 +232,7 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     },
     // Copied: the catalog's warnings array is shared with the verified
     // cache — packet-level additions must not leak back into it.
-    warnings: [...catalog.warnings],
+    warnings: [...(catalog.warnings ?? [])],
     command: {
       id: opts.command,
       requestedMode: inv.requestedMode,
@@ -273,6 +275,18 @@ export function buildWorkflowPacket(ctx, opts = {}) {
       cli: 'scopegrain catalog show KIND ID --project PATH',
       mcp: 'scopegrain_catalog_get',
     } : undefined,
+    // Opt-in deep layer: mounted bundle entries (kind/id + owning
+    // bundle) are already merged in the workspace catalog — entries
+    // carrying `bundle` are deep resources whose bodies live under
+    // <configDir>/bundles/<bundle>/ and hydrate through the same
+    // channels as snapshot resources.
+    deep: {
+      available: (catalog.mounted ?? 0) > 0,
+      mounted: catalog.mounted ?? 0,
+      bundles: [...new Set(catalog.entries
+        .filter((e) => e.bundle).map((e) => e.bundle))].sort(),
+      path: 'bundles/',
+    },
     taskRouting: taskRouting ?? undefined,
     // Active extensions contribute their declared resources to this
     // packet — same rule: declared, never silent.

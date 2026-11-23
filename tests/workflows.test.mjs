@@ -4,7 +4,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { buildWorkflowPacket } from '../src/core/workflows.mjs';
+import { installBundle, mountBundle } from '../src/core/distribution.mjs';
 import { TOKEN_ESTIMATOR } from '../src/core/tokens.mjs';
 import { createTask } from '../src/core/tasks.mjs';
 import { checkAction, transitionTask } from '../src/core/transition.mjs';
@@ -14,7 +16,7 @@ import {
   formalFixture, lightFixture, reanswer, snapshot,
 } from './methodology-fixtures.mjs';
 import {
-  bootstrappedCtx, cleanup,
+  bootstrappedCtx, cleanup, writeJson,
 } from './helpers.mjs';
 
 function ctxFixture() {
@@ -281,5 +283,34 @@ test('profile-declared mcps gate into the packet bucket', () => {
     const lazy = buildWorkflowPacket(ctx, { command: 'status', lazy: true });
     const lm = lazy.resources.mcps.find((r) => r.id === 'scopegrain');
     assert.ok(lm && lm.content === undefined && typeof lm.sha256 === 'string');
+  } finally { cleanup(dir); }
+});
+
+test('mounted bundle resources mark packet.deep and entry.bundle', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    const body = '---\nmodes:\n  - default\n---\ndeep body';
+    fs.mkdirSync(path.join(dir, 'pack'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pack/cmd.md'), body);
+    const sha = crypto.createHash('sha256').update(body).digest('hex');
+    writeJson(dir, 'cats/pack-cat.json', {
+      entries: [{ id: 'entry-deep', kind: 'command', modes: ['default'],
+        source: { uri: 'file://pack/cmd.md' } }],
+    });
+    installBundle(ctx, { id: 'deeppkg', version: '1.0.0',
+      requires: [{ id: 'entry-deep', sha256: sha }] },
+      [{ uri: 'file://cats/pack-cat.json' }], { apply: true });
+    mountBundle(ctx, 'deeppkg');
+    const p = buildWorkflowPacket(ctx, { command: 'entry-deep', lazy: true });
+    assert.equal(p.deep.available, true);
+    assert.equal(p.deep.mounted, 1);
+    assert.deepEqual(p.deep.bundles, ['deeppkg']);
+    assert.equal(p.deep.path, 'bundles/');
+    // Hydration path points inside the confined bundle dir.
+    assert.equal(p.command.path, 'bundles/deeppkg/entry-deep');
+    // deep is workspace-scoped: any packet sees the mounted layer.
+    const other = buildWorkflowPacket(ctx, { command: 'status' });
+    assert.equal(other.deep.available, true);
+    assert.deepEqual(other.deep.bundles, ['deeppkg']);
   } finally { cleanup(dir); }
 });

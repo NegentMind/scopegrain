@@ -191,6 +191,11 @@ Con `--task`, las skills declaradas en `task.skills` se auto-incluyen en
 comando siguen fallando cerrado; las ids de tarea que no resuelven se
 reportan, nunca abortan.
 
+`packet.deep` declara la capa opt-in de bundles montados:
+`{available, mounted, bundles[], path:'bundles/'}` — entradas con
+`bundle` son recursos profundos cuyo cuerpo vive bajo
+`<configDir>/bundles/<bundle>/` e hidrata por los mismos canales.
+
 | Alias | Comando canonico | Modos |
 |---|---|---|
 | `backlog` | `triage-work` | `default` (default) |
