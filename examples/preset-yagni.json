@@ -1,0 +1,13 @@
+{
+  "id": "yagni-concise",
+  "version": "1.0.0",
+  "priority": 10,
+  "description": "Portable YAGNI ladder and concise execution preset (host-agnostic equivalent of legacy ponytail mode).",
+  "overrides": [
+    {
+      "target": "command/*",
+      "op": "append",
+      "content": "\n\n## Concise / YAGNI discipline (preset: yagni-concise)\n\nPrefer the smallest verified change that satisfies the stated contract:\nreuse existing abstractions > stdlib > installed dependencies > minimal new code.\nAvoid speculative generality, unnecessary wrappers and unrelated edits.\n"
+    }
+  ]
+}
