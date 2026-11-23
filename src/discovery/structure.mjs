@@ -424,14 +424,24 @@ export function structureIndexRel(ctx) {
   return `${ctx.config.paths.state}/cache/structure-index.json`;
 }
 
-// Persist via tmp+rename — derived cache data, never journaled.
+// Persist via exclusive random tmp + rename — derived cache data, never
+// journaled. Refuses to overwrite a symlink or non-file destination.
 export function writeStructureIndex(ctx, index) {
   const rel = structureIndexRel(ctx);
   const abs = resolveInside(ctx.projectRoot, rel, 'structure index');
+  const existing = lstatOrNull(abs);
+  if (existing && (existing.isSymbolicLink() || !existing.isFile())) {
+    throw err('STRUCTURE_MALFORMED',
+      `${rel} exists and is not a regular file`);
+  }
   fs.mkdirSync(path.dirname(abs), { recursive: true });
-  const tmp = `${abs}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(index, null, 1) + '\n');
-  fs.renameSync(tmp, abs);
+  const tmp = `${abs}.tmp-${crypto.randomBytes(8).toString('hex')}`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(index, null, 1) + '\n', { flag: 'wx' });
+    fs.renameSync(tmp, abs);
+  } finally {
+    try { if (lstatOrNull(tmp)) fs.unlinkSync(tmp); } catch { /* noop */ }
+  }
   return rel;
 }
 
@@ -463,13 +473,17 @@ export function readStructureIndex(ctx) {
 }
 
 // Cheap staleness check: stat-only rescan + fingerprint compare. Never
-// reads file contents.
+// reads file contents and never writes — `context` stays strictly read-only.
 export function structureStatus(ctx) {
   const stored = readStructureIndex(ctx);
   const live = scanStructure(ctx.projectRoot, { statOnly: true });
+  const stale = stored === null || stored.fingerprint !== live.fingerprint;
   return {
     indexed: stored !== null,
-    stale: stored === null || stored.fingerprint !== live.fingerprint,
+    stale,
+    refreshPolicy: 'explicit',
+    recommendedCommand: stale
+      ? 'scopegrain structure refresh --project . --apply' : null,
     fingerprint: {
       stored: stored?.fingerprint ?? null,
       actual: live.fingerprint,
@@ -483,5 +497,38 @@ export function structureStatus(ctx) {
       filesTruncated: stored.filesTruncated,
     },
     liveFiles: live.totals.files,
+  };
+}
+
+// Bounded refresh: performs a stat-only staleness check first and returns
+// a no-op without re-reading project contents when the index is already
+// fresh. Writes only when stale AND apply=true.
+export function refreshStructureIndex(ctx, { apply = false } = {}) {
+  const status = structureStatus(ctx);
+  if (!status.stale) {
+    return {
+      mode: 'noop',
+      refreshed: false,
+      reason: 'fresh',
+      status,
+    };
+  }
+  if (!apply) {
+    return {
+      mode: 'preview',
+      refreshed: false,
+      reason: status.indexed ? 'stale' : 'missing',
+      status,
+    };
+  }
+  const index = scanStructure(ctx.projectRoot);
+  const rel = writeStructureIndex(ctx, index);
+  const { files: _files, ...summary } = index;
+  return {
+    mode: 'applied',
+    refreshed: true,
+    written: rel,
+    index: summary,
+    status: structureStatus(ctx),
   };
 }

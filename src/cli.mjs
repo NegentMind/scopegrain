@@ -97,6 +97,10 @@ const COMMANDS = {
     flags: ['--project', '--config'], pos: 0,
     usage: 'structure show --project PATH [--config REL]',
   },
+  'structure refresh': {
+    flags: ['--project', '--config', '--apply'], pos: 0,
+    usage: 'structure refresh --project PATH [--config REL] [--apply]',
+  },
   'vantadb setup': {
     flags: ['--project', '--config', '--version', '--storage', '--binary',
       '--install-dir', '--apply'], pos: 0,
@@ -1638,12 +1642,16 @@ async function cmdContext(flags) {
 
 async function cmdStructure(sub, flags) {
   const {
-    readStructureIndex, scanStructure, structureStatus, writeStructureIndex,
+    readStructureIndex, refreshStructureIndex, scanStructure,
+    structureStatus, writeStructureIndex,
   } = await import('./discovery/structure.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
   if (sub === 'status') return structureStatus(ctx);
+  if (sub === 'refresh') {
+    return refreshStructureIndex(ctx, { apply: !!flags['--apply'] });
+  }
   if (sub === 'show') {
     const idx = readStructureIndex(ctx);
     if (idx === null) {

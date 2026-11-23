@@ -165,7 +165,46 @@ test('CLI: context packet surfaces index freshness read-only', async () => {
     const packet = JSON.parse(io2.out.stdout.at(-1));
     assert.equal(packet.structure.indexed, true);
     assert.equal(packet.structure.stale, false);
+    assert.equal(packet.structure.refreshPolicy, 'explicit');
+    assert.equal(packet.structure.recommendedCommand, null);
     assert.equal(typeof packet.structure.summary.files, 'number');
+  } finally { cleanup(dir); }
+});
+
+test('CLI: structure refresh is noop when fresh and bounded preview/apply when stale', async () => {
+  const { dir } = bootstrappedCtx();
+  try {
+    const ioPreview = fakeIO();
+    assert.equal(await run(['structure', 'refresh', '--project', dir], ioPreview), 0);
+    const p = JSON.parse(ioPreview.out.stdout.at(-1));
+    assert.equal(p.mode, 'preview');
+    assert.equal(p.refreshed, false);
+    assert.equal(p.reason, 'missing');
+    assert.equal(p.status.refreshPolicy, 'explicit');
+    assert.ok(p.status.recommendedCommand);
+
+    const ioApply = fakeIO();
+    assert.equal(await run(['structure', 'refresh', '--project', dir, '--apply'], ioApply), 0);
+    const a = JSON.parse(ioApply.out.stdout.at(-1));
+    assert.equal(a.mode, 'applied');
+    assert.equal(a.refreshed, true);
+    assert.equal(a.status.stale, false);
+
+    // Calling refresh again without tree changes is a stat-only noop.
+    const ioNoop = fakeIO();
+    assert.equal(await run(['structure', 'refresh', '--project', dir, '--apply'], ioNoop), 0);
+    const n = JSON.parse(ioNoop.out.stdout.at(-1));
+    assert.equal(n.mode, 'noop');
+    assert.equal(n.refreshed, false);
+    assert.equal(n.reason, 'fresh');
+
+    // Adding a file makes it stale again; refresh updates it.
+    writeFile(dir, 'src/added.js', 'export const x = 1;\n');
+    const ioAgain = fakeIO();
+    assert.equal(await run(['structure', 'refresh', '--project', dir, '--apply'], ioAgain), 0);
+    const r = JSON.parse(ioAgain.out.stdout.at(-1));
+    assert.equal(r.mode, 'applied');
+    assert.equal(r.refreshed, true);
   } finally { cleanup(dir); }
 });
 
