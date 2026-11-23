@@ -185,6 +185,13 @@ declaran en `presets.deferred`) y el packet expone `hydrate` con los
 canales de hidratacion (`catalog show KIND ID` / `scopegrain_catalog_get`).
 El comando y el perfil siguen completos.
 
+`packet.posture` declara `{current: 'lazy'|'full', recommended: 'lazy'}` —
+lazy es la postura recomendada para hosts que pueden hidratar via
+`catalog_get`. Cuando el cuerpo renderizado del comando coincide con
+`content` (sin placeholders), el packet emite `command.sameAsContent:true`
+en vez de una segunda copia; `command.rendered` solo aparece cuando difiere
+(consumidores: `command.rendered ?? command.content`).
+
 Con `--task`, las skills declaradas en `task.skills` se auto-incluyen en
 `resources.skills` (routing por tarea, declarado en `packet.taskRouting`:
 `included` resueltos, `skipped` ids sin catalogo). Las dependencias del
