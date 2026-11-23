@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { useT } from '@/lib/i18n';
+import { useT, useTEnum } from '@/lib/i18n';
 import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
 import { usePoll } from '@/components/viz';
 import { cn } from '@/lib/utils';
@@ -79,6 +79,7 @@ function ApprovalDetail({ id, onClose }: { id: string; onClose: () => void }) {
 
 export function ApprovalsView() {
   const t = useT();
+  const te = useTEnum();
   const { data, loading, error, reload } = useApi(() => api.approvals());
   const [openId, setOpenId] = useState<string | null>(null);
   usePoll(reload);
@@ -125,7 +126,7 @@ export function ApprovalsView() {
                     onClick={() => setOpenId(openId === a.id ? null : a.id)}>
                     <TableCell>
                       <Badge variant="outline" className={cn(TONE[a.status] ?? '')}>
-                        {a.status}
+                        {te('appr', a.status)}
                       </Badge>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{a.id.slice(0, 12)}…</TableCell>

@@ -33,7 +33,7 @@ import {
   ShortId,
 } from '@/components/StatusBits';
 import { cn } from '@/lib/utils';
-import { useT } from '@/lib/i18n';
+import { useT, useTEnum } from '@/lib/i18n';
 import { Markdown } from '@/components/Markdown';
 
 const CHAIN_KINDS: ArtifactKind[] = ['spec', 'design', 'report'];
@@ -53,6 +53,7 @@ type Selection =
 
 export function ArtifactsView() {
   const t = useT();
+  const te = useTEnum();
   const [kind, setKind] = useState<ArtifactKind>('spec');
   const [sel, setSel] = useState<Selection>(null);
   const list = useApi(() => api.artifacts(kind), [kind]);
@@ -193,7 +194,7 @@ export function ArtifactsView() {
                             </span>
                             {d.status ? (
                               <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
-                                {d.status}
+                                {te('astatus', d.status)}
                               </Badge>
                             ) : null}
                             <span className="shrink-0 text-xs text-muted-foreground">
@@ -264,12 +265,13 @@ function DocPanel({ kind, name }: { kind: ArtifactKind; name: string }) {
 
 function ArtifactPanel({ artifact }: { artifact: ArtifactSummary }) {
   const t = useT();
+  const te = useTEnum();
   const data = artifact.data as Record<string, unknown> | null;
   return (
     <div className="space-y-4 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="secondary" className="font-mono">
-          {artifact.kind}
+          {te('akind', artifact.kind)}
         </Badge>
         <Badge variant="secondary" className="font-mono">
           v{artifact.schemaVersion}

@@ -113,7 +113,7 @@ unknown paths 404; unknown query parameters 400.
 | `GET /api/sessions` / `GET /api/sessions/:id` | bounded sessions + `resumeContext` (linked task, budget bar, CLI resume command) |
 | `GET /api/approvals` / `GET /api/approvals/:id` | HITL approval queue and answer/revocation detail |
 | `GET /api/catalog` | workspace resource catalog and hash verification |
-| `GET /api/catalog/:kind/:id` | projected file body of a catalog entry (confined to configDir, bounded, `sha256` included); resolves aliases; `writable` reports whether PUT is enabled for this doc |
+| `GET /api/catalog/:kind/:id` | projected file body of a catalog entry (confined to configDir, bounded, `sha256` included); resolves aliases; `writable` reports whether PUT is enabled for this doc. `?locale=xx` serves the display variant at `resources/i18n/<locale>/<entry.path>` when it exists (read-only, `writable:false`); the response `doc.locale` reports which language was served |
 | `PUT /api/catalog/:kind/:id` | projected file edit, only with `--allow-write`: `{content, expectedSha256}` → `{kind,id,path,sha256,applied}`; CAS 409 `WRITE_CONFLICT`, 403 `WRITE_DISABLED` |
 | `GET /api/verify` | discovered and approved verification commands |
 | `GET /api/vantadb` | VantaDB enrollment status (never spawns binary) |

@@ -41,7 +41,7 @@ import {
   StateBadge,
 } from '@/components/StatusBits';
 import { cn } from '@/lib/utils';
-import { useT } from '@/lib/i18n';
+import { useT, useTEnum } from '@/lib/i18n';
 import { usePoll } from '@/components/viz';
 import { consumeTaskRequest } from '@/lib/nav';
 import { Markdown } from '@/components/Markdown';
@@ -88,6 +88,7 @@ function FilterSelect({
 
 export function TasksView() {
   const t = useT();
+  const te = useTEnum();
   const [selected, setSelected] = useState<string | null>(null);
   const [fState, setFState] = useState('');
   const [fBacklog, setFBacklog] = useState('');
@@ -162,7 +163,7 @@ export function TasksView() {
             <FilterSelect label={t('tasks.priority')} value={fPriority}
               options={opts.priority} onChange={setFPriority} />
             <FilterSelect label={t('tasks.type')} value={fType}
-              options={opts.type} onChange={setFType} />
+              options={opts.type} onChange={setFType} i18nPrefix="type" />
             <FilterSelect label={t('tasks.disposition')} value={fDisposition}
               options={opts.disposition} onChange={setFDisposition} i18nPrefix="disp" />
           </div>
@@ -228,7 +229,7 @@ export function TasksView() {
                         ) : t('common.none')}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-xs">
-                        {task.type ?? t('common.none')}
+                        {task.type ? te('type', task.type) : t('common.none')}
                       </TableCell>
                       <TableCell className="hidden 2xl:table-cell text-xs">
                         {task.effort ?? t('common.none')}
@@ -362,6 +363,7 @@ function TaskDetailPanel({
   task, onSelect,
 }: { task: TaskDetail; onSelect: (id: string) => void }) {
   const t = useT();
+  const te = useTEnum();
   const relEntries = Object.entries(task.relations ?? {})
     .filter(([, ids]) => ids.length > 0);
   const analysis = task.analysis ?? null;
@@ -391,8 +393,8 @@ function TaskDetailPanel({
           <Badge variant="secondary">rev {task.revision}</Badge>
           <Badge variant="secondary">v{task.schemaVersion}</Badge>
           {task.priority && <Badge variant="outline" className="font-mono">{task.priority}</Badge>}
-          {task.severity && <Badge variant="outline">{task.severity}</Badge>}
-          {task.type && <Badge variant="outline">{task.type}</Badge>}
+          {task.severity && <Badge variant="outline">{te('sev', task.severity)}</Badge>}
+          {task.type && <Badge variant="outline">{te('type', task.type)}</Badge>}
           {task.effort && <Badge variant="outline">{task.effort}</Badge>}
           {task.disposition && (
             <Badge variant="outline"
@@ -566,7 +568,7 @@ function TaskDetailPanel({
                     c.status === 'pass'
                       ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
                       : 'border-destructive/40 text-destructive',
-                  )}>{c.status}</Badge>
+                  )}>{te('check', c.status)}</Badge>
                   <span className="font-mono">{c.command}</span>
                 </div>
                 {c.evidence ? (
@@ -669,7 +671,7 @@ function TaskDetailPanel({
               <span className="font-mono text-muted-foreground">
                 {h.at.slice(0, 19).replace('T', ' ')}
               </span>{' '}
-              {h.event}
+              {te('ev', h.event)}
               {h.state ? <> <StateBadge state={h.state} /></> : null}
             </li>
           ))}

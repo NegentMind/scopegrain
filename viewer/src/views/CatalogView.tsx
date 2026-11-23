@@ -28,7 +28,8 @@ import {
 import { buildDocIndex, resolveDocRef } from '@/lib/docIndex';
 import { Markdown } from '@/components/Markdown';
 import { useApi } from '@/lib/useApi';
-import { useT } from '@/lib/i18n';
+import { useT, useLocale } from '@/lib/i18n';
+import { CATALOG_DESC_ES } from '@/lib/catalogEs';
 import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
 
 const KIND_ORDER = [
@@ -91,9 +92,10 @@ function DocPanel({
   onInternalLink?: (href: string) => boolean;
 }) {
   const t = useT();
+  const locale = useLocale();
   const { data, loading, error, reload } = useApi(
-    () => api.catalogDoc(kind, id),
-    [kind, id],
+    () => api.catalogDoc(kind, id, locale),
+    [kind, id, locale],
   );
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -180,6 +182,11 @@ function DocPanel({
           {d.sha256 ? ` · sha256:${d.sha256.slice(0, 12)}…` : ''}
           {d.truncated ? ` · ${t('catalog.docTruncated')}` : ''}
         </div>
+        {locale === 'es' && d.locale === 'en' ? (
+          <div className="text-xs text-amber-600 dark:text-amber-400">
+            {t('catalog.docCanonical')}
+          </div>
+        ) : null}
         {canEdit && !editing ? (
           <Button
             type="button"
@@ -260,8 +267,14 @@ function DocPanel({
 
 export function CatalogView() {
   const t = useT();
+  const locale = useLocale();
   const { data, loading, error, reload } = useApi(() => api.catalog());
   const [kind, setKind] = useState<string>('command');
+  const desc = useMemo(() => {
+    if (locale !== 'es') return (e: CatalogEntry) => e.description;
+    return (e: CatalogEntry) =>
+      CATALOG_DESC_ES[`${kind}:${e.id}`] ?? e.description;
+  }, [locale, kind]);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<string | null>(null);
 
@@ -294,9 +307,9 @@ export function CatalogView() {
     if (!needle) return list;
     return list.filter((e) =>
       e.id.toLowerCase().includes(needle)
-      || e.description.toLowerCase().includes(needle)
+      || desc(e).toLowerCase().includes(needle)
       || (e.path ?? '').toLowerCase().includes(needle));
-  }, [data, kind, q]);
+  }, [data, kind, q, desc]);
 
   if (loading) return <ListSkeleton />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
@@ -375,7 +388,7 @@ export function CatalogView() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      <div>{e.description}</div>
+                      <div>{desc(e)}</div>
                       {e.path ? (
                         <div className="mt-0.5 font-mono text-xs opacity-70">
                           {e.path}

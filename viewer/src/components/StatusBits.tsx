@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { CaptureStatus } from '@/lib/api';
+import { useTEnum } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 
@@ -70,12 +71,13 @@ const OWNERSHIP_TONE: Record<CaptureStatus, string> = {
 };
 
 export function OwnershipBadge({ status }: { status: CaptureStatus }) {
+  const te = useTEnum();
   return (
     <Badge
       variant="outline"
       className={cn('font-mono', OWNERSHIP_TONE[status] ?? OWNERSHIP_TONE.error)}
     >
-      {status}
+      {te('cap', status)}
     </Badge>
   );
 }
@@ -90,6 +92,7 @@ const JOURNAL_TONE: Record<string, string> = {
 };
 
 export function JournalStateBadge({ state }: { state: string }) {
+  const te = useTEnum();
   return (
     <Badge
       variant="outline"
@@ -98,7 +101,7 @@ export function JournalStateBadge({ state }: { state: string }) {
         JOURNAL_TONE[state] ?? 'bg-zinc-500/15 text-zinc-600 border-zinc-500/30',
       )}
     >
-      {state}
+      {te('jstate', state)}
     </Badge>
   );
 }

@@ -152,8 +152,9 @@ const ROUTES = [
     handler: (q, _url, p) => q.approval(p.id) },
   { pattern: ['api', 'catalog'], query: [],
     handler: (q) => q.catalog() },
-  { pattern: ['api', 'catalog', ':kind', ':id'], query: [],
-    handler: (q, _url, p) => q.catalogDoc(p.kind, p.id),
+  { pattern: ['api', 'catalog', ':kind', ':id'], query: ['locale'],
+    handler: (q, _url, p) =>
+      q.catalogDoc(p.kind, p.id, _url.searchParams.get('locale') ?? undefined),
     put: (q, _url, p, body) => q.catalogDocWrite(p.kind, p.id, body) },
   { pattern: ['api', 'verify'], query: [],
     handler: (q) => q.verifyCommands() },
@@ -188,8 +189,7 @@ function statusFor(code) {
   if (code === 'NOT_FOUND' || code.endsWith('_NOT_FOUND')) return 404;
   if (code === 'SCOPE_DENIED' || code === 'WRITE_DISABLED') return 403;
   if (code === 'WORKSPACE_STALE' || code.endsWith('_CONFLICT')) return 409;
-  if (code.startsWith('INVALID') || code.startsWith('UNKNOWN_')
-      || code === 'CONFIG_AMBIGUOUS') {
+  if (code.startsWith('INVALID') || code.startsWith('UNKNOWN_')) {
     return 400;
   }
   if (code.includes('MALFORMED') || code === 'MALFORMED_JSON'

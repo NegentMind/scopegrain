@@ -115,7 +115,7 @@ sin `--allow-write` devuelve 403 `WRITE_DISABLED`); rutas desconocidas
 | `GET /api/sessions` / `GET /api/sessions/:id` | sesiones acotadas + `resumeContext` (tarea vinculada, presupuesto, comando de reanudacion) |
 | `GET /api/approvals` / `GET /api/approvals/:id` | cola HITL de aprobaciones y detalle con respuestas/scope/digest |
 | `GET /api/catalog` | catalogo de recursos del workspace y verificacion por hash |
-| `GET /api/catalog/:kind/:id` | cuerpo del archivo proyectado de una entrada (confinado al configDir, acotado, `sha256` incluido); resuelve aliases; `writable` indica si PUT esta habilitado para este doc |
+| `GET /api/catalog/:kind/:id` | cuerpo del archivo proyectado de una entrada (confinado al configDir, acotado, `sha256` incluido); resuelve aliases; `writable` indica si PUT esta habilitado para este doc. `?locale=xx` sirve la variante de `resources/i18n/<locale>/<entry.path>` cuando existe (solo lectura, `writable:false`); `doc.locale` en la respuesta indica el idioma servido |
 | `PUT /api/catalog/:kind/:id` | edicion del archivo proyectado, solo con `--allow-write`: `{content, expectedSha256}` → `{kind,id,path,sha256,applied}`; CAS 409 `WRITE_CONFLICT`, 403 `WRITE_DISABLED` |
 | `GET /api/verify` | comandos de verificacion descubiertos y aprobados |
 | `GET /api/vantadb` | estado de enrolamiento VantaDB (sin spawnear binario) |

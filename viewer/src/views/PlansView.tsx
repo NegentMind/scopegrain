@@ -29,7 +29,7 @@ import {
   StateBadge,
 } from '@/components/StatusBits';
 import { cn } from '@/lib/utils';
-import { useT } from '@/lib/i18n';
+import { useT, useTEnum } from '@/lib/i18n';
 import { usePoll } from '@/components/viz';
 import { openTask } from '@/lib/nav';
 import { Markdown } from '@/components/Markdown';
@@ -75,6 +75,7 @@ function ProgressBar({ pct, done }: { pct: number | null; done?: boolean }) {
 
 export function PlansView() {
   const t = useT();
+  const te = useTEnum();
   const [sel, setSel] = useState<Selection>(null);
   const plans = useApi(() => api.plans());
   const docs = useApi(() => api.planDocs());
@@ -150,7 +151,7 @@ export function PlansView() {
                         </span>
                         {d.status ? (
                           <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
-                            {d.status}
+                            {te('pdep', d.status)}
                           </Badge>
                         ) : null}
                         <span className="shrink-0 text-xs text-muted-foreground">

@@ -595,9 +595,10 @@ export const api = {
   approval: (id: string) =>
     request<{ approval: ApprovalRecord }>(`/api/approvals/${encodeURIComponent(id)}`),
   catalog: () => request<CatalogResponse>('/api/catalog'),
-  catalogDoc: (kind: string, id: string) =>
+  catalogDoc: (kind: string, id: string, locale?: string) =>
     request<CatalogDocResponse>(
-      `/api/catalog/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`),
+      `/api/catalog/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`
+      + (locale ? `?locale=${encodeURIComponent(locale)}` : '')),
   // Opt-in write channel: the API only accepts this when the server was
   // started with --allow-write; otherwise it answers WRITE_DISABLED (403).
   // expectedSha256 is the CAS token — the sha256 the GET returned.
@@ -728,6 +729,9 @@ export interface CatalogDocResponse {
     // True only when the API was started with --allow-write AND the entry
     // is pinned (the client needs sha256 for the CAS write).
     writable?: boolean;
+    // Locale of the served body: 'en' = canonical projection (may be a
+    // fallback), anything else = read-only resources/i18n/<locale>/ variant.
+    locale?: string;
     body: string;
     truncated?: boolean | null;
     bytes: number;

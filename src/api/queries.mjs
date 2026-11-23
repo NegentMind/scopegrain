@@ -1036,7 +1036,14 @@ export function createApiQueries(ctx, options = {}) {
   // `writable` reports whether this server accepts the PUT channel for the
   // doc right now: write opt-in plus a pinned sha256 the client can CAS
   // against (legacy unpinned snapshots stay read-only).
-  function catalogDoc(kind, id) {
+  // Locale variant of a catalog doc lives in the canonical source tree,
+  // not in the projection: resources/i18n/<locale>/<entry.path>. The
+  // projected (hash-pinned) English file stays the writable canonical;
+  // variants are read-only display copies. Falling back to the canonical
+  // English projection is explicit via doc.locale.
+  const LOCALE_DOC_RE = /^[a-z]{2}$/;
+
+  function catalogDoc(kind, id, locale) {
     if (!CATALOG_ID_RE.test(id)) {
       throw err('INVALID_ID', 'catalog entry id must be a lowercase slug');
     }
@@ -1046,7 +1053,17 @@ export function createApiQueries(ctx, options = {}) {
       throw err('NOT_FOUND', `catalog entry not found: ${kind}/${id}`);
     }
     const configDir = catalogConfigDir();
-    const file = resolveInside(configDir, entry.path, 'catalog doc');
+    let file = resolveInside(configDir, entry.path, 'catalog doc');
+    let servedLocale = 'en';
+    if (LOCALE_DOC_RE.test(locale ?? '') && locale !== 'en') {
+      const variant = resolveInside(ctx.projectRoot,
+        `resources/i18n/${locale}/${entry.path}`, 'catalog doc locale');
+      const vst = lstatOrNull(variant);
+      if (vst && !vst.isSymbolicLink() && vst.isFile()) {
+        file = variant;
+        servedLocale = locale;
+      }
+    }
     const st = lstatOrNull(file);
     if (!st) {
       return { doc: null,
@@ -1063,7 +1080,9 @@ export function createApiQueries(ctx, options = {}) {
       doc: {
         kind, id: entry.id, path: entry.path,
         sha256: entry.sha256 ?? null,
-        writable: allowWrite && typeof entry.sha256 === 'string',
+        locale: servedLocale,
+        writable: servedLocale === 'en' && allowWrite
+          && typeof entry.sha256 === 'string',
         body: cut.value,
         truncated: cut.truncated || limited.exceeded || null,
         bytes: st.size,
