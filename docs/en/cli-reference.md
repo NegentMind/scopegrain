@@ -324,13 +324,27 @@ newest-first (default 50).
 scopegrain activity record --project PATH --input FILE [--apply]
 ```
 
-Retroactively registers work done outside the task lifecycle: creates a
-`type: ops` task with `source: activity:<kind>` plus a `progress` log
-entry. With `taskId` it links the action to an existing task instead.
+Retroactively registers work done outside the task lifecycle as
+**bookkeeping evidence**, never as actionable work: writes an entry to
+the `activity` log (`<state>/memory/activity.jsonl`), surfaced via
+`context`, the API, MCP and the VantaDB runtime. A retroactive record
+cannot honestly produce the evidence `ACCEPT`/`CLOSE` require, so the
+default behavior **creates no tasks** — the workflow policy has no legal
+transition for them.
+
+Link resolution, in order: (1) explicit `taskId` links to that task;
+(2) without `taskId`, the active-task pointer (`SCOPEGRAIN_TASK` or
+`<state>/active-task`) links automatically — evidence lands on real
+work; (3) with no pointer the entry lands `taskId: null` — "evidence
+beats linkage": a corrupt pointer degrades to `linkWarning` without
+losing the record. Opt-in `record: "task"` preserves the legacy
+behavior (`type: ops` task in PLAN) for manual calls that do want an
+actionable item.
+
 Input: `{kind: action|commit|note, title, summary?, ref?, files?,
-taskId?, author?, methodology?}`. Under gated methodology modes it
-synthesizes a **declared** assessment (authorized by the actor - never a
-fabricated approval).
+taskId?, author?, methodology?, record?}`. Only with `record: "task"`
+and under gated methodology modes it synthesizes a **declared**
+assessment (authorized by the actor - never a fabricated approval).
 
 ### hooks install / hooks uninstall
 
@@ -343,3 +357,168 @@ Installs/removes a managed block in `.git/hooks/post-commit` that calls
 `activity record` after every commit (auto-registration of out-of-loop
 commits). Idempotent, never rewrites user hook content and never breaks
 a commit (always exits 0).
+
+## SDD cycle (spec-kit extraction waves)
+
+### task activate / task active / task deactivate
+
+```text
+scopegrain task activate --project PATH ID|SLUG
+scopegrain task active --project PATH
+scopegrain task deactivate --project PATH
+```
+
+Every task carries a monotonic `NNN-` slug derived from the title. The
+active-task pointer resolves `SCOPEGRAIN_TASK` (env) before the
+`<state>/active-task` file; a tampered pointer fails closed.
+
+### task converge / task analyze / task checklist
+
+```text
+scopegrain task converge --project PATH ID|SLUG [--record]
+scopegrain task analyze --project PATH ID|SLUG
+scopegrain task checklist --project PATH [ID] (--input FILE [--apply] |
+  ID --key CHK### --status S --revision N [--text NOTE])
+```
+
+`converge` compares the real state against spec/design/plan/tasks and
+emits typed findings with a verdict; `--record` persists a create-only
+convergence record. `analyze` produces the cross-artifact report with
+severities and coverage. `checklist` manages reviewer-owned `CHK###`
+artifacts (create-only, CAS, gated in converge).
+
+### plan stories / specification clarify / constitution
+
+```text
+scopegrain plan stories --project PATH KEY
+scopegrain specification clarify --project PATH --input FILE [--apply]
+scopegrain constitution show|set --project PATH [--input FILE]
+```
+
+`stories` renders `tasks.md` per user-story (`T###`, `[P]`, phases).
+`clarify` records dated, create-only clarification sessions on the spec.
+`constitution` manages the versioned constitution (semver + complexity
+tracking).
+
+### helper install / helper list
+
+```text
+scopegrain helper install --project PATH --input FILE
+scopegrain helper list --project PATH
+```
+
+Installs project-local helper scripts with a manifest (declarative
+contract; the harness never executes them). `list` enumerates and
+verifies integrity.
+
+## Distribution (dist)
+
+Declarative distribution machinery: `file://` catalogs only — a remote
+URI is `REMOTE_CATALOG_UNSUPPORTED`, never a download.
+
+```text
+scopegrain dist run --project PATH --input FILE [--no-resume]
+scopegrain dist stack --project PATH --input FILE
+scopegrain dist compose --project PATH --input FILE
+scopegrain dist validate --project PATH --input FILE
+scopegrain dist bundle-validate --project PATH --input FILE
+scopegrain dist bundle-install --project PATH --input FILE [--apply]
+scopegrain dist bundle-mount --project PATH ID
+scopegrain dist bundle-unmount --project PATH ID
+scopegrain dist bundle-uninstall --project PATH ID [--keep-files]
+scopegrain dist mounted-list --project PATH
+scopegrain dist extension-register --project PATH --input FILE
+scopegrain dist extension-list --project PATH
+scopegrain dist extension-activate|deactivate --project PATH ID
+scopegrain dist extension-remove --project PATH ID
+scopegrain dist preset-register --project PATH --input FILE
+scopegrain dist preset-list --project PATH
+scopegrain dist preset-remove --project PATH ID
+scopegrain dist pack --project PATH --source DIR --out FILE
+```
+
+`run` executes declarative workflows whose steps may only name
+whitelisted harness primitives (`task.transition`, `converge.evaluate`,
+`analyze.task`, `checklist.*`, `noop`, ...); never shell nor third-party
+binaries. Atomic checkpoints under `<state>/workflow-runs/` allow
+resuming without re-running completed steps. `stack` merges local
+catalogs by priority. `compose` applies `replace|prepend|append|wrap`
+layers. `validate`/`bundle-validate` check submissions (slug id, semver,
+mandatory sha256 pinning on remote sources).
+
+`bundle-install` (input `{bundle, sources:[{uri,priority}]}`) copies the
+required `file://` sources under `<configDir>/bundles/<id>/` — bounded
+(256 files / 16 MiB / 32 depth levels), create-only, idempotent
+re-install, content-addressed provenance in `provenance.json`; pinned
+sha256 is verified before copying.
+
+`bundle-mount` registers the installed bundle's typed entries in
+`<configDir>/mounted-catalog.json`, a layer `loadWorkspaceCatalog`
+merges after snapshot validation: each entry confined to `bundles/` and
+sha256-verified on every load. Re-mounting the same bundle refreshes;
+collisions with snapshot ids or other bundles are `CONFLICT`.
+Directory-type sources mount the kind's conventional file (`SKILL.md`,
+`AGENT.md`, ...); entries without a main file are reported in
+`unmounted`, never guessed. `bundle-unmount` removes only that bundle's
+entries. `bundle-uninstall` unmounts and deletes only files still
+matching provenance — divergent bytes land in `leftBehind`;
+`--keep-files` deletes nothing. Provenance tampered to point outside the
+bundle directory fails `MALFORMED`.
+
+Presets declare `overrides:[{target, op, content}]` where `target` is
+`'*'`, `'<kind>/*'` or `'<kind>/<id>'` and `op` is `replace`, `prepend`,
+`append`, `wrap` (with `{{BODY}}`) or `replace-section` (with
+`selector`, a lowercase heading anchor: replaces the section body, not
+the heading nor same/higher-level sections; empty content removes the
+body; a missing heading is a no-op). They apply to projected resources
+in the workflow packet (ascending priority, last wins) and the trace is
+declared in `packet.presets.applied`. `preset-remove` deletes a
+registered preset.
+
+Extensions follow the lifecycle `registered -> active <-> disabled`:
+`extension-activate` validates that the `contributes` (`<kind>/<id>`)
+exist in the workspace catalog before activating; an `active` extension
+contributes its declared resources to the workflow packet
+(`packet.contributedResources` + trace in `packet.extensions.applied`).
+`extension-remove` requires `disabled` state — no silent teardown. All
+registry mutations (`extensions.json`, `presets.json`, `bundles/`,
+`mounted-catalog.json`) serialize under a verified `dist.lock`. Mounted
+resources are first-class consumers: `host activate` projects them as
+native bridges through the same pipeline as snapshot resources — their
+`resourcePath` points inside `<configDir>/bundles/<id>/`, and `doctor`
+treats the mounted layer as an overlay (never an `upgradeAvailable`
+signal).
+
+`dist selftest --project PATH` exercises the full distribution cycle
+(discovery → validate → dry-run → install → mount → unmount →
+uninstall) against a fixture generated inside the project and always
+removed afterwards. Returns `{ok, steps[]}` with each step
+pass/fail — local diagnostics, no telemetry. Mutations leave a trail in
+`dist-journal.jsonl` (CAS via `previousSha256`/`newSha256`); with an
+enrolled workspace the registry write also goes through the journal
+kernel (`journaled: true`).
+
+`dist journal --project PATH [--tail N] [--registry R] [--op O] [--id I]`
+reads that trail in bounded fashion: returns `{entries, corrupt, chain}`
+where `chain` verifies the per-file CAS property
+(`previousSha256[n] == newSha256[n-1]` for the same `rel`) — `valid`,
+`broken@<revision>` or `empty`. Corrupt lines are reported in `corrupt`,
+never aborting the read.
+
+`dist pack` packages a source directory into a deterministic POSIX ustar
+tarball: identical input bytes produce identical output bytes (mtime 0,
+uid/gid 0, normalized modes, name-sorted entries, no machine-local
+fields). It is the publishable-artifact path; distribution remains
+local-only — there is no remote feed.
+
+### policy/hooks.json — declarative example
+
+```json
+{"schemaVersion": 1,
+ "hooks": {"*": {"before_": [{"id": "log", "description": "aviso"}]},
+           "implement-task": {"after_": [{"id": "check",
+             "description": "verificar"}]}}}
+```
+
+Hooks are projected into `packet.hooks` as advisory data for the host;
+the harness never executes them.
