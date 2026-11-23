@@ -3,8 +3,8 @@
 > English translation of the canonical Spanish document
 > (`../cli-reference.md`). The Spanish version prevails.
 
-Reference for the `scopegrain` binary verbs (compatible alias:
-`tasksystem`) that `doctor`'s `docs-cli-drift` check reported as
+Reference for the `scopegrain` binary verbs that `doctor`'s
+`docs-cli-drift` check reported as
 undocumented. The full command table comes from `scopegrain --help`;
 this document covers lifecycle, owned records, catalog resource
 recovery and the catalog aliases resolved at dispatch.
@@ -197,7 +197,9 @@ With `--task`, skills declared on `task.skills` auto-include into
 `resources.skills` (task-typed routing, declared on
 `packet.taskRouting`: `included` resolved ids, `skipped` ids not in the
 catalog). Command-declared dependencies still fail closed; unresolvable
-task ids are reported, never fatal.
+task ids are reported, never fatal. `taskRouting.suggested` additionally
+declares the heuristic's candidates derived from task metadata (see
+`task suggest`) — a pure trace, never entering the bucket by itself.
 
 `packet.deep` declares the opt-in mounted-bundle layer:
 `{available, mounted, bundles[], path:'bundles/'}` — entries carrying
@@ -446,6 +448,20 @@ convergence record. `analyze` produces the cross-artifact report with
 severities and coverage. `checklist` manages reviewer-owned `CHK###`
 artifacts (create-only, CAS, gated in converge).
 
+### task suggest
+
+```text
+scopegrain task suggest --project PATH ID|SLUG [--limit N]
+```
+
+Suggestive task-type -> capability heuristic (`scopegrain_task_suggest`
+in MCP): scores catalog skills against the record's `type`/`title`/
+`contract`/`scope` and returns ranked candidates with declared `reasons`
+(`type:bug~debug`, `title:…`, `scope:…`). Skills already declared on
+`task.skills` are excluded and echoed under `declared`. Read-only: it
+never writes `task.skills` or injects into packets — declaration stays
+explicit via `task meta`/`create`.
+
 ### plan stories / specification clarify / constitution
 
 ```text
@@ -622,6 +638,36 @@ Never argv, never scripts: conditions and effects are data.
 `when.skillsMissing` a skill list — matches if the task lacks any.
 Matching entries are traced on `packet.actionHooks.applied` and
 `task check-action`/`scopegrain_check_action` expose `actionHooks` + `gate`.
+
+### task gate / host gate — native interception channel
+
+```text
+scopegrain task gate --project PATH ID|SLUG|- ACTION
+scopegrain host gate --project PATH --host NAME
+```
+
+`task gate` is the decision endpoint a host hook can call before an
+action: it runs the full check (state + methodology + `preAction`) and
+emits `{decision: allow|deny|gate, exitCode, check}` with the exit
+contract `0` allow, `2` deny, `3` require-gate and `1` error —
+fail-closed: any non-zero code must block the hook. `-` as the task
+resolves `SCOPEGRAIN_TASK` then the active-task pointer.
+
+`host gate` emits the read-only merge proposal wiring each host's
+documented surface to the gate — nothing is installed and the harness
+never writes shared host configuration:
+
+- `claude`: `hooks.PreToolUse` fragment (matcher `Edit|Write|MultiEdit|
+  NotebookEdit` → `edit`) for `.claude/settings.json`.
+- `opencode`: declarative `permission` map (`edit`/`bash` → `ask`) for
+  `opencode.jsonc` — it does not call `task gate`.
+- `codex`: `approval_policy = "on-request"` for `.codex/config.toml` —
+  declarative, no gate call either.
+- `devin`/`antigravity`/`hermes`/`generic`: `documented-only`, no
+  fragment — a native pilot remains required before any claim.
+
+`interceptsNativeTools` stays `false`: interception only exists once the
+owner merges a proposal and a pilot proves it.
 
 ## Global user config, version, wave progress and VantaDB L3
 

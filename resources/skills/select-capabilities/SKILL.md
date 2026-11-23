@@ -17,6 +17,12 @@ historical ok/fail rates per skill are a real signal — prefer skills with
 a recorded success history and treat untried ones as higher-risk, not
 inferior. Record what you chose in `task.skills` so the loop stays fed.
 
+`task suggest --project PATH ID` (or `scopegrain_task_suggest`) runs the
+metadata heuristic — ranked candidates with declared `reasons` from
+`type`/`title`/`contract`/`scope`. Treat its output as a starting list to
+confirm or correct through this skill's judgment, never as the selection
+itself; the same list is also traced on `packet.taskRouting.suggested`.
+
 ## Discovery: task → phase → skills
 
 Route the task to the phase it is in, then pick the smallest skill set:

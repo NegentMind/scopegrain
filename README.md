@@ -26,12 +26,12 @@ risks.
   local journal prevent silent corruption, and every mutation leaves an
   auditable trail.
 - **Instant visibility:** a local, read-only web dashboard (`scopegrain view`,
-  15 views, EN/ES) and a 34-tool MCP server keep human operators and agents
+  15 views, EN/ES) and a 35-tool MCP server keep human operators and agents
   aligned without leaving the repository.
 
 The product is called Scopegrain. `scopegrain` is the CLI entry point
-and the MCP server name (`scopegrain_*` tools). The `tasksystem` binary
-alias and legacy `.tasksystem` paths are kept for compatibility.
+and the MCP server name (`scopegrain_*` tools). Project configuration
+lives at `.scopegrain/config.json`; no legacy paths are honored.
 
 ## For the human operator
 
@@ -74,7 +74,7 @@ Everything else is agent machinery. Boundaries worth knowing:
 - Network access, git push and host fragment activation always require
   explicit consent.
 - Operational state lives under `.scopegrain/` by default
-  (`.tasksystem/` remains a supported legacy path); `context.md` there is
+  (`.scopegrain/` remains a supported legacy path); `context.md` there is
   the owner's persistent notes file — agents read it, they do not edit it.
 - The viewer is read-only by design; mutations go through the CLI or the
   MCP tools under the workflow gates.
@@ -154,7 +154,7 @@ execution of commands nor the replacement of existing content. `--yes`
 and `--force` are not bypass options. Artifact paths must remain inside
 the project; an alternative configuration is indicated with `--config`.
 The default config is `.scopegrain/config.json`; if only
-`.tasksystem/config.json` exists, it is used without migrating it. If
+`.scopegrain/config.json` exists, it is used without migrating it. If
 both entries exist, an explicit `--config` is required; an explicit path
 has no fallback.
 See the [answers example](examples/answers.json) and its
@@ -320,7 +320,7 @@ manually only; its first remote run completed successfully on 2026-11-18.
 
 Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE),
 [NOTICE](NOTICE) and [AUTHORS](AUTHORS). `package.json` declares the
-installable CLI binaries (`scopegrain`, `tasksystem`) and bounded file
+installable CLI binaries (`scopegrain`, `scopegrain`) and bounded file
 list (`viewer/dist` included; `docs/assets` excluded from npm tarballs to
 keep installs under 1 MB). Publication to any external registry requires
 explicit owner authorization. The inherited material under `legacy/` is

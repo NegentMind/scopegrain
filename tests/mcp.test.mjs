@@ -14,6 +14,7 @@ const EXPECTED_TOOLS = [
   'scopegrain_inspect', 'scopegrain_status', 'scopegrain_context',
   'scopegrain_list_tasks',
   'scopegrain_get_task', 'scopegrain_check_action',
+  'scopegrain_task_suggest',
   'scopegrain_catalog_list', 'scopegrain_catalog_get',
   'scopegrain_workflow_packet', 'scopegrain_plan_get',
   'scopegrain_plan_next', 'scopegrain_artifact_get',
@@ -38,15 +39,15 @@ test('importing server.mjs does not start a server or require deps', async () =>
   assert.equal(typeof mod.createMCPTools, 'function');
 });
 
-test('descriptors are exactly 34 tools bound to ctx', async (t) => {
+test('descriptors are exactly 35 tools bound to ctx', async (t) => {
   const { z } = await import('zod');
   const { createMCPTools } = await import('../src/mcp/server.mjs');
   const { resolveContext } = await import('../src/core/context.mjs');
   const { dir, ctx } = bootstrappedCtx();
   try {
     const tools = createMCPTools(ctx, z);
-    assert.equal(tools.length, 34);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 34);
+    assert.equal(tools.length, 35);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 35);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     const BACKEND_TOOLS = new Set([
       'scopegrain_context', 'scopegrain_session_resume',
@@ -90,7 +91,7 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
   let server;
   let client;
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, {}));
     ({ server } = await createMCPServer({ project: dir }));
     const [clientT, serverT] = InMemoryTransport.createLinkedPair();
@@ -99,8 +100,8 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
       server.connect(serverT), client.connect(clientT),
     ]);
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 34);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 34);
+    assert.equal(tools.length, 35);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 35);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     const DISCARD_TOOLS = new Set([
       'scopegrain_task_disposition', 'scopegrain_goal_transition',
@@ -126,7 +127,7 @@ test('createMCPServer registers all tools without connecting', async (t) => {
   const dir = makeTempDir('mcp-server');
   let server;
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, {}));
     const created = await createMCPServer({ project: dir });
     server = created.server;
@@ -145,7 +146,7 @@ test('memory tools: status reports unenrolled; get/search/recall fail closed wit
   const { createMCPTools } = await import('../src/mcp/server.mjs');
   const dir = makeTempDir('mcp-memory');
   try {
-    writeJson(dir, '.tasksystem/config.json',
+    writeJson(dir, '.scopegrain/config.json',
       createConfig(dir, VALID_ANSWERS, {}));
     const ctx = resolveContext({ project: dir });
     const prepared = prepareWorkspace(ctx, { areas: [{ key: 'a', name: 'A' }] });

@@ -27,13 +27,12 @@ los hechos y riesgos declarados.
   `--apply`, los comandos descubiertos nunca se autoejecutan, locks/CAS y el
   journal local evitan corrupcion silenciosa y toda mutacion deja traza.
 - **Visibilidad inmediata:** un visor web local de solo lectura
-  (`scopegrain view`, 15 vistas, ES/EN) y un servidor MCP de 34 tools
+  (`scopegrain view`, 15 vistas, ES/EN) y un servidor MCP de 35 tools
   mantienen alineados a operadores y agentes sin salir del repositorio.
 
 El producto se llama Scopegrain. `scopegrain` es la entrada CLI y el
-nombre del servidor MCP (tools `scopegrain_*`). El alias de binario
-`tasksystem` y las rutas legadas `.tasksystem` se mantienen por
-compatibilidad.
+nombre del servidor MCP (tools `scopegrain_*`). La configuracion del
+proyecto vive en `.scopegrain/config.json`; no se honran rutas legadas.
 
 ## Para el operador humano
 
@@ -75,8 +74,8 @@ Todo lo demas es maquinaria del agente. Limites que conviene conocer:
   ejecutan.
 - El acceso a red, `git push` y la activacion de fragmentos de host
   siempre requieren consentimiento explicito.
-- El estado operativo vive bajo `.scopegrain/` por defecto
-  (`.tasksystem/` sigue siendo una ruta legacy soportada); `context.md`
+- El estado operativo vive bajo `.scopegrain/` por defecto;
+  `context.md`
   ahi es el archivo de notas persistentes del owner — los agentes lo
   leen, no lo editan.
 - El visor es de solo lectura por diseno; las mutaciones pasan por la
@@ -157,7 +156,7 @@ de comandos ni el reemplazo de contenido existente. `--yes` y `--force` no
 son opciones de bypass. Las rutas de artefactos deben permanecer dentro del
 proyecto; una configuracion alternativa se indica con `--config`.
 La config predeterminada es `.scopegrain/config.json`; si solo existe
-`.tasksystem/config.json`, se usa sin migrarla. Si existen ambas entradas,
+`.scopegrain/config.json`, se usa sin migrarla. Si existen ambas entradas,
 se requiere `--config` explicito; una ruta explicita no tiene fallback.
 Consultar el [ejemplo de respuestas](examples/answers.json) y su
 [esquema](schemas/answers.schema.json).
@@ -322,7 +321,7 @@ manualmente; su primera ejecucion remota completo con exito el 2026-11-18.
 
 Licenciado bajo Apache License, Version 2.0 — ver [LICENSE](LICENSE),
 [NOTICE](NOTICE) y [AUTHORS](AUTHORS). `package.json` declara los binarios
-CLI instalables (`scopegrain`, `tasksystem`) y una lista acotada de archivos
+CLI instalables (`scopegrain`, `scopegrain`) y una lista acotada de archivos
 (incluye `viewer/dist`; excluye `docs/assets` del tarball npm para mantener
 la descarga por debajo de 1 MB). Cualquier publicacion en registros externos
 requiere autorizacion explicita del propietario. El material heredado bajo

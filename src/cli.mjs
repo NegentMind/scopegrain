@@ -328,6 +328,14 @@ const COMMANDS = {
     flags: ['--project', '--config'], pos: 2,
     usage: 'task check-action --project PATH ID ACTION',
   },
+  'task suggest': {
+    flags: ['--project', '--config', '--limit'], pos: 1,
+    usage: 'task suggest --project PATH ID|SLUG [--limit N]  (suggestive only — never mutates task.skills)',
+  },
+  'task gate': {
+    flags: ['--project', '--config'], pos: 2,
+    usage: 'task gate --project PATH ID|SLUG|- ACTION  (exit contract: 0 allow, 2 deny, 3 require-gate; any non-zero must block a host hook)',
+  },
   'memory add': {
     flags: ['--project', '--config', '--log', '--input', '--apply'], pos: 0,
     usage: 'memory add --project PATH --log lessons|outcomes|progress --input FILE [--apply]',
@@ -623,6 +631,10 @@ const COMMANDS = {
   'host parity': {
     flags: ['--project', '--config', '--hosts'], pos: 0,
     usage: 'host parity --project PATH [--hosts CSV]',
+  },
+  'host gate': {
+    flags: ['--project', '--config', '--host'], pos: 0,
+    usage: 'host gate --project PATH --host NAME  (read-only merge proposal for the native gate channel)',
   },
   'helper install': {
     flags: ['--project', '--config', '--input'], pos: 0,
@@ -1367,6 +1379,44 @@ async function cmdTask(sub, positional, flags, io) {
       throw err('INVALID_ARGS', 'task check-action requires ID and ACTION');
     }
     return checkAction(ctx, positional[0], positional[1]);
+  }
+  if (sub === 'suggest') {
+    const { resolveTaskRef } = await import('./core/active.mjs');
+    const { suggestCapabilities } = await import('./core/task-suggest.mjs');
+    const task = resolveTaskRef(ctx, positional[0]);
+    return suggestCapabilities(ctx, task, {
+      limit: flags['--limit'] === undefined ? 5
+        : decimalInt(flags['--limit'], '--limit'),
+    });
+  }
+  if (sub === 'gate') {
+    if (positional.length !== 2) {
+      throw err('INVALID_ARGS',
+        'task gate requires TASK(ID|SLUG|-) and ACTION');
+    }
+    const { resolveTaskRef, getActiveTask }
+      = await import('./core/active.mjs');
+    const task = positional[0] === '-'
+      ? (() => {
+        const a = getActiveTask(ctx);
+        if (!a.task) {
+          throw err('INVALID_ARGS',
+            'no active task (set SCOPEGRAIN_TASK or activate one)');
+        }
+        return a.task;
+      })()
+      : resolveTaskRef(ctx, positional[0]);
+    const check = checkAction(ctx, task.id, positional[1]);
+    const decision = !check.allowed ? 'deny'
+      : check.gate ? 'gate' : 'allow';
+    io.exitCode = decision === 'deny' ? 2 : decision === 'gate' ? 3 : 0;
+    return {
+      decision, exitCode: io.exitCode, check,
+      exitContract: {
+        0: 'allow', 2: 'deny', 3: 'require-gate',
+        1: 'error — fail-closed: host hooks must block on any non-zero',
+      },
+    };
   }
   throw err('INVALID_ARGS', `unknown task subcommand '${sub}'`);
 }
@@ -2608,6 +2658,11 @@ async function cmdHelper(sub, flags) {
 }
 
 async function cmdHost(sub, flags) {
+  if (sub === 'gate') {
+    const { gateProposal } = await import('./hosts/gate-proposal.mjs');
+    const ctx = lifecycleCtx(flags);
+    return gateProposal(ctx, { host: requireFlag(flags, '--host') });
+  }
   if (sub === 'parity') {
     const { hostParity } = await import('./hosts/parity.mjs');
     const ctx = lifecycleCtx(flags);

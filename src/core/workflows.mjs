@@ -11,6 +11,7 @@ import {
 } from './catalog.mjs';
 import { loadLimits, loadPolicy } from './policy.mjs';
 import { getTask } from './tasks.mjs';
+import { suggestCapabilities } from './task-suggest.mjs';
 import { KNOWN_HOSTS, validateMethodologyMode } from './config.mjs';
 import { evaluateTaskActions } from './methodology.mjs';
 import { findPlaceholders, renderPlaceholders } from './placeholders.mjs';
@@ -141,7 +142,8 @@ export function buildWorkflowPacket(ctx, opts = {}) {
   // on the skipped list — declared, never silent; command-declared deps
   // still fail closed through resolveResources.
   const taskRouting = opts.taskId === undefined ? null
-    : { taskId: task.id, skills: [], included: [], skipped: [] };
+    : { taskId: task.id, skills: [], included: [], skipped: [],
+      suggested: [] };
   if (taskRouting) {
     const declared = Array.isArray(task.skills) ? task.skills : [];
     for (const sid of declared) {
@@ -154,6 +156,11 @@ export function buildWorkflowPacket(ctx, opts = {}) {
         taskRouting.skipped.push(sid);
       }
     }
+    // Suggestive trace: ranked capability candidates derived from task
+    // metadata (type/title/contract/scope). Declared in the packet so a
+    // reviewer sees what the heuristic would propose — it never writes
+    // task.skills and never enters the skills bucket by itself.
+    taskRouting.suggested = suggestCapabilities(ctx, task).suggestions;
   }
   const alias = catalog.aliases.find(
     (a) => a.kind === 'command'

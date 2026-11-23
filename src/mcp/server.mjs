@@ -14,6 +14,8 @@ import { runDoctor } from '../core/doctor.mjs';
 import { inspectProject } from '../discovery/inspect.mjs';
 import { getTask, listTasks } from '../core/tasks.mjs';
 import { checkAction, updateTaskMeta } from '../core/transition.mjs';
+import { resolveTaskRef } from '../core/active.mjs';
+import { suggestCapabilities } from '../core/task-suggest.mjs';
 import {
   appendWorklog, readWorklog, listGoals, createGoal, transitionGoal,
   taskMetrics,
@@ -208,6 +210,20 @@ export function createMCPTools(ctx, z) {
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ taskId, action }) => checkAction(ctx, taskId, action)),
+    },
+    {
+      name: 'scopegrain_task_suggest',
+      config: {
+        description: 'Suggest capabilities from task metadata (type/title/contract/scope). Suggestive only — never mutates task.skills; declaration stays explicit.',
+        inputSchema: {
+          taskId: z.string().max(MAX_ARG_CHARS).describe('task UUID or slug'),
+          limit: z.number().int().min(1).max(50).optional().describe('max suggestions (default 5)'),
+        },
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async ({ taskId, limit }) =>
+        suggestCapabilities(ctx, resolveTaskRef(ctx, taskId),
+          { limit: limit ?? 5 })),
     },
     {
       name: 'scopegrain_catalog_list',

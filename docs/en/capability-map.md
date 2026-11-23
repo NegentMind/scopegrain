@@ -18,8 +18,8 @@ this is its English twin.
 
 | Surface | Inventory | Access |
 |---|---|---|
-| CLI `bin/scopegrain.mjs` (alias `bin/tasksystem.mjs`) | 138 registered subcommands, lazy per-command imports | Human and agent |
-| MCP `src/mcp/server.mjs` | 34 `scopegrain_*` tools: 22 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 6 writers (4 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
+| CLI `bin/scopegrain.mjs` | 138 registered subcommands, lazy per-command imports | Human and agent |
+| MCP `src/mcp/server.mjs` | 35 `scopegrain_*` tools: 23 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 6 writers (4 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
 | Local API `src/api/server.mjs` | 30 GET routes `/api/*` | Loopback-only, GET-only |
 | Viewer `viewer/` (`scopegrain view`) | 15 views, React 19 + TS + Vite + Tailwind | Read-only, human |
 | Catalog `resources/manifest.json` | 140 entries + 32 aliases | Projectable into the project |
@@ -49,6 +49,9 @@ this is its English twin.
 | `context [--tail N] [--no-vantadb] [--no-structure]` | Session-start packet: instructions, user's `context.md`, `locale`, workspace, ready tasks, goals, pending journal, recent worklog (degradable, never aborts). `--no-structure` serves the persisted index without rescanning (`structureDebounceMs` exists at API level); `tokenEstimate` declares `excludesSelf:true` plus the self-inclusive `wire` figure; `warnings[]` flags the wire exceeding the advisory `packetBudgetTokens` budget (16000, `policy/operation-limits.json`) |
 | `workflow COMMAND` | Packet for an installed command: resources + modes + host + profile + interaction |
 | `task check-action` | Gate: may ACTION run against the task now? (abstract actions read/edit/propose/…; `interceptsNativeTools:false`) |
+| `task gate` | Decision endpoint for host hooks: same check plus exit contract 0/2/3/1 (fail-closed) |
+| `host gate` | Read-only merge proposal wiring the host's documented surface to the gate; `documented-only` when no verified surface exists |
+| `task suggest` | Suggestive task-type → capability heuristic: ranked candidates with declared `reasons`; never injects into `task.skills` or the packet |
 | `methodology check` | Task readiness toward `ACT`/`ACCEPT` per methodological mode; `--outcome-evidence` simulates the report |
 
 ### 2.3 Tasks, plans, sessions
@@ -159,15 +162,15 @@ committed+acked events.
 
 ---
 
-## 3. MCP — 34 `scopegrain_*` tools
+## 3. MCP — 35 `scopegrain_*` tools
 
-### Local read-only (22) — `readOnlyHint`, `openWorldHint:false`
+### Local read-only (23) — `readOnlyHint`, `openWorldHint:false`
 
 `approval_get`, `artifact_get`, `catalog_get`, `catalog_list`, `check_action`,
 `get_task`, `goal_list`, `inspect`, `list_tasks`, `mcp_inventory`, `memory_read`,
 `memory_status`, `methodology_check`, `metrics`, `plan_get`, `plan_next`,
 `resource_diagnose`, `resource_search`, `session_get`, `specification_get`,
-`status`, `workflow_packet`
+`status`, `task_suggest`, `workflow_packet`
 
 ### Backend read-only (6) — `readOnlyHint` + `openWorldHint:true`
 
@@ -292,8 +295,6 @@ every packet).
 | `decisions` | `.scopegrain/decisions/` | `approvals/` |
 | `memory` | `.scopegrain/memory/` | JSONL worklogs, `archive/`, `captures/`, goals |
 | config dir | `.scopegrain/` | config.json, instructions.md, discovery.json, catalog.json, installed resources, policy, context.md |
-
-Legacy `.tasksystem/` remains honored as an alternative state path.
 
 ## 11. Known debt and gaps (audit 2026-11-20, updated 2026-11-22)
 
