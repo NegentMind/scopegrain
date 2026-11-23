@@ -159,8 +159,9 @@ export function createMCPTools(ctx, z) {
           + 'read as the CLI `context` command — call it at the top of '
           + 'a session before the first task action. When the VantaDB '
           + 'backend is enrolled this tool spawns the enrolled '
-          + 'vantadb-server binary and sends a bounded recall query to '
-          + 'it; pass noVantadb to keep the call fully local.',
+          + 'vantadb-server binary and sends a bounded project-scoped '
+          + 'memory_search to it (per-project namespace); pass noVantadb '
+          + 'to keep the call fully local.',
         inputSchema: {
           tail: z.number().int().min(1).max(100).optional()
             .describe('worklog tail size (default 5)'),

@@ -299,9 +299,10 @@ context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--timeout MS]
 session resume UUID [--no-vantadb] [--timeout MS]
 ```
 
-- `context` adds `vantadb`: a bounded `memory_recall` (top_k 5, agent
-  scope) over distilled L1 memories, so the session-start packet carries
-  verified episodic context.
+- `context` adds `vantadb`: a bounded `memory_search` (top_k 5, in the
+  per-project namespace `l1/sg-<projectHash>`) over distilled L1
+  memories, so the session-start packet carries verified, project-
+  isolated episodic context.
 - `session resume` adds `vantadb`: `memory_context` by `recordId` over
   the `sg-formal-v1-*` namespaces — every remotely projected journal
   event for that task.

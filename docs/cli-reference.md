@@ -299,9 +299,10 @@ context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--timeout MS]
 session resume UUID [--no-vantadb] [--timeout MS]
 ```
 
-- `context` anade `vantadb`: `memory_recall` acotado (top_k 5, scope
-  agent) sobre las memorias L1 destiladas, para que el packet de inicio
-  de sesion traiga contexto episodico verificado.
+- `context` anade `vantadb`: `memory_search` acotado (top_k 5, en el
+  namespace por-proyecto `l1/sg-<projectHash>`) sobre las memorias L1
+  destiladas, para que el packet de inicio de sesion traiga contexto
+  episodico verificado y aislado por proyecto.
 - `session resume` anade `vantadb`: `memory_context` por `recordId`
   sobre los namespaces `sg-formal-v1-*` — todos los eventos de journal
   proyectados remotamente para esa tarea.
