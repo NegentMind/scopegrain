@@ -436,22 +436,26 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_memory_recall',
       config: {
-        description: 'L1 memory recall (dual-pool RRF) over the enrolled VantaDB backend; returns recalled hits plus prepend_context; spawns the enrolled vantadb-server binary and sends the query to it',
+        description: 'L1 recall over the enrolled VantaDB backend. Default: project-scoped memory_search at l1/sg-<projectHash> (only this project\'s records); an explicit scope opts into the engine\'s memory_recall pool, machine-global at agent/team. Returns recalled hits plus prepend_context',
         inputSchema: {
           query: z.string().max(MAX_ARG_CHARS).describe('raw recall query text'),
           scope: z.enum(['session', 'agent', 'team']).optional()
-            .describe('cross-session reach of the L1 recall pool, default agent'),
+            .describe('opt into the engine memory_recall pool reach; omit for the project-scoped default'),
           topK: z.number().int().min(1).max(100).optional()
             .describe('maximum memories returned, default 5'),
         },
         annotations: READ_BACKEND,
       },
       handler: wrap(async ({ query, scope, topK }) => {
-        const args = { query };
-        if (scope !== undefined) args.scope = scope;
-        if (topK !== undefined) args.top_k = topK;
-        return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
-          name: 'memory_recall', arguments: args });
+        if (scope !== undefined) {
+          const args = { query, scope };
+          if (topK !== undefined) args.top_k = topK;
+          return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
+            name: 'memory_recall', arguments: args });
+        }
+        const { projectScopedRecall } = await import(
+          '../integrations/vantadb-rehydrate.mjs');
+        return projectScopedRecall({ ctx, query, topK });
       }),
     },
     {

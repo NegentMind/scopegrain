@@ -39,9 +39,11 @@ nada descarga, instala ni sincroniza sin un comando explicito.
   memorias de otros proyectos. `memory_search` acotada al namespace del
   proyecto sigue siendo recall cross-session (los registros persisten
   en el storage compartido) pero no puede exponer registros ajenos.
-  Por simetria, `vantadb recall`/`scopegrain_memory_recall` siguen
-  siendo proxies del pool global del engine: su salida puede incluir
-  registros `l1/*` de otros proyectos o herramientas.
+  `vantadb recall`/`scopegrain_memory_recall` usan el mismo default:
+  sin `scope` consultan el namespace del proyecto via `memory_search`;
+  un `--scope session|agent|team` explicito opta por el pool global
+  del engine (`memory_recall`), que puede incluir registros `l1/*` de
+  otros proyectos o herramientas.
 - **Auto-spawn por operacion**: `sync`/`get` lanzan `vantadb-server --mcp`
   con `VANTADB_STORAGE_PATH`, hablan JSON-RPC por stdio y el proceso muere
   al cerrar. El writer-discovery de VantaDB (`.vanta.server.json`) cubre
@@ -110,7 +112,8 @@ scopegrain vantadb list --project PATH --namespace NS [--cursor N]
 # --mode keyword|vector|hybrid fuerza el search_profile del engine)
 scopegrain vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--mode keyword|vector|hybrid]
 
-# Recall de memoria L1 con RRF dual-pool (memory_recall)
+# Recall L1: namespace del proyecto por defecto (memory_search); --scope
+# opta por el RRF dual-pool del engine (memory_recall; agent = global)
 scopegrain vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N]
 
 # Refuerzo de confianza declarado por el host (memory_reinforce;

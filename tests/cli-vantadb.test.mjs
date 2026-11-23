@@ -57,7 +57,7 @@ test('help lists exactly the authored vantadb usages', async () => {
   assert.ok(usages.includes('vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--mode keyword|vector|hybrid] [--timeout MS]'));
   assert.ok(usages.includes('vantadb list --project PATH --namespace NS [--cursor N] [--timeout MS]'));
   assert.ok(usages.includes('vantadb reinforce --project PATH --namespace NS --key K --outcome used|corrected|unused [--timeout MS] [--apply]'));
-  assert.ok(usages.includes('vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N] [--timeout MS]'));
+  assert.ok(usages.includes('vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N] [--timeout MS]  (default: project namespace; --scope opts into the engine pool)'));
   assert.ok(usages.includes('vantadb context --project PATH --record-id ID [--top-k N] [--limit N] [--timeout MS]'));
   assert.ok(usages.includes('vantadb distill --project PATH [--limit N] [--timeout MS] [--apply]'));
   assert.ok(usages.includes('vantadb sync-memory --project PATH [--limit N] [--timeout MS] [--apply]'));

@@ -17,6 +17,7 @@
 
 import {
   loadVantaDBConfig, callVantaDBTool, vantaDBContext, projectL1Namespace,
+  requireVantaDBConfig,
 } from './vantadb-runtime.mjs';
 import { getWorkspace } from '../core/workspaces.mjs';
 import { estimateTokens } from '../core/tokens.mjs';
@@ -116,6 +117,29 @@ export async function projectRehydration({ ctx, query, topK, timeoutMs,
   } catch (e) {
     return { enrolled: true, recall: null, error: marker(e) };
   }
+}
+
+// Explicit recall (`vantadb recall` / scopegrain_memory_recall) with the
+// project default: without an explicit `scope` the query searches the
+// project's own l1/sg-<projectHash> namespace — the memory_recall agent
+// pool is machine-global and would surface other projects' memories.
+// scope=session|agent|team remains an opt-in passthrough to the engine.
+// Unlike projectRehydration this fails LOUD: a dead backend on an
+// operator-driven recall is an error, not a degraded packet field.
+export async function projectScopedRecall({ ctx, query, topK, timeoutMs,
+  spawnImpl }) {
+  const namespace = projectL1Namespace(getWorkspace(ctx));
+  const res = await callVantaDBTool({
+    cfg: requireVantaDBConfig(ctx), name: 'memory_search',
+    arguments: {
+      namespace,
+      text_query: typeof query === 'string' && query.length > 0
+        ? query.slice(0, 512) : 'scopegrain',
+      top_k: topK ?? REHYDRATE_RECALL_TOP_K,
+    },
+    timeoutMs, spawnImpl,
+  });
+  return scopedRecall(namespace, res);
 }
 
 // Record-level rehydration for `session resume`: scans every projected

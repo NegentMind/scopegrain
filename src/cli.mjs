@@ -184,7 +184,7 @@ const COMMANDS = {
   'vantadb recall': {
     flags: ['--project', '--config', '--query', '--scope', '--top-k',
       '--timeout'], pos: 0,
-    usage: 'vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N] [--timeout MS]',
+    usage: 'vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N] [--timeout MS]  (default: project namespace; --scope opts into the engine pool)',
   },
   'vantadb context': {
     flags: ['--project', '--config', '--record-id', '--top-k', '--limit',
@@ -686,7 +686,6 @@ function helpResult() {
       description: name,
     })),
     notes: [
-      'tasksystem remains a compatible CLI alias',
       '--yes and --force are not supported; confirmation is always explicit',
       'results are JSON on stdout; errors are JSON on stderr with exit code 1',
       'JSON creation previews do not reserve IDs; use IDs returned by --apply',
@@ -2127,16 +2126,24 @@ async function cmdVantaDB(sub, positional, flags) {
   }
   if (sub === 'recall') {
     const args = { query: requireFlag(flags, '--query') };
+    if (flags['--top-k'] !== undefined) args.top_k = Number(flags['--top-k']);
+    // Explicit --scope opts INTO the engine's memory_recall pool
+    // (machine-global at scope=agent); the default is project-scoped
+    // memory_search at l1/sg-<projectHash> — see the module comment in
+    // vantadb-rehydrate.mjs for why recall cannot isolate by project.
     if (flags['--scope'] !== undefined) {
       if (!RECALL_SCOPES.includes(flags['--scope'])) {
         throw err('INVALID_ARGS',
           `--scope must be one of ${RECALL_SCOPES.join(',')}`);
       }
       args.scope = flags['--scope'];
+      return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
+        name: 'memory_recall', arguments: args, timeoutMs });
     }
-    if (flags['--top-k'] !== undefined) args.top_k = Number(flags['--top-k']);
-    return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
-      name: 'memory_recall', arguments: args, timeoutMs });
+    const { projectScopedRecall } = await import(
+      './integrations/vantadb-rehydrate.mjs');
+    return projectScopedRecall({ ctx, query: args.query,
+      topK: args.top_k, timeoutMs });
   }
   if (sub === 'reinforce') {
     const cfg = requireVantaDBConfig(ctx);

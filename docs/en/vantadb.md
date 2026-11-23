@@ -37,9 +37,11 @@ or syncs without an explicit command.
   so the pool is machine-global and would inject other projects'
   memories. `memory_search` addressed at the project namespace is
   still cross-session recall (records persist in shared storage) but
-  cannot surface foreign records. Symmetrically,
-  `vantadb recall`/`scopegrain_memory_recall` remain proxies of the
-  engine's global pool: their output may include `l1/*` records from
+  cannot surface foreign records. `vantadb recall` and
+  `scopegrain_memory_recall` share the same default: without `scope`
+  they query the project namespace via `memory_search`; an explicit
+  `--scope session|agent|team` opts into the engine's global pool
+  (`memory_recall`), whose output may include `l1/*` records from
   other projects or tools.
 - **Auto-spawn per operation**: `sync`/`get` launch `vantadb-server --mcp`
   with `VANTADB_STORAGE_PATH`, speak JSON-RPC over stdio and the process
@@ -108,7 +110,8 @@ scopegrain vantadb list --project PATH --namespace NS [--cursor N]
 # --mode keyword|vector|hybrid forces the engine search_profile)
 scopegrain vantadb search --project PATH --namespace NS --query TEXT [--top-k N] [--mode keyword|vector|hybrid]
 
-# L1 memory recall with dual-pool RRF (memory_recall)
+# L1 recall: project namespace by default (memory_search); --scope opts
+# into the engine's dual-pool RRF memory_recall (agent = machine-global)
 scopegrain vantadb recall --project PATH --query TEXT [--scope session|agent|team] [--top-k N]
 
 # Host-declared confidence reinforcement (memory_reinforce;
