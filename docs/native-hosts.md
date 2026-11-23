@@ -29,18 +29,21 @@ sesion fresca real de Antigravity App/CLI el 2026-11-19 auto-descubrio
 las 72 skills `scopegrain-*` y 15 subagentes bajo `.agents/`, activo el
 MCP `scopegrain` desde `.agents/mcp_config.json` (22 herramientas de solo
 lectura) e invoco `scopegrain_status` y `scopegrain_catalog_list` en
-vivo. Los demas hosts y superficies — Claude, Codex, OpenCode, la
+vivo. Los demas hosts y superficies — Claude, Codex, la
 superficie IDE de Antigravity y el provisional Hermes — aun carecen de
 piloto nativo. La suite de fundacion completo localmente con un archivo
 de test a la vez; ver
 [verificacion](verification.md) para su alcance y ejecuciones anteriores
 separadas.
 
-OpenCode V2 fue ademas observado contra una instalacion real de
-`opencode v2.3.2` el 2026-11-23. Los hechos de nivel de adaptador de
+OpenCode V2 ejecuto su piloto sobre una instalacion real de
+`opencode v2.3.2` el 2026-11-23: ver
 [Limites de superficie de OpenCode V2](#limites-de-superficie-de-opencode-v2)
-provienen de ese binario real, pero ninguna sesion interactiva fresca ha
-certificado el piloto; la observacion de adaptador no es certificacion.
+y [verificacion](verification.md). Quedaron verificados la preparacion
+aislada, el descubrimiento de skills y subagentes, la invocacion, las
+denegaciones y la evidencia. Siguen sin ejecutar los comandos en la TUI, la
+interrupcion/reanudacion y la limpieza, de modo que OpenCode V2 queda como
+piloto ejecutado y NO certificado — nunca "certificado parcial".
 Ningun host fue activado por estos cambios. La inicializacion crea
 propuestas bajo el directorio de configuracion seleccionado, normalmente
 `.scopegrain/integrations/`; las rutas activas previstas abajo NO se
@@ -239,6 +242,17 @@ denegar solo las herramientas mutantes de Scopegrain sin bloquear las de
 solo lectura es posible. Es una decision de semantica de rol, asi que no
 se aplica aqui.
 
+En una sesion hija real lanzada como `scopegrain-reviewer` el 2026-11-23 se
+midio el efecto concreto: los tools `edit` y `shell` **no existen** en el
+contexto del hijo (no piden aprobacion, no estan disponibles) y el loader
+deniega `fs`, `node:fs`, `node:child_process`, `path` y `os`. Tampoco
+aparecio `todowrite` ni el tool de subagentes. En cambio siguen disponibles
+`read`, `glob`, `grep`, `webfetch`, `websearch`, `skill`, `question` y todo
+el catalogo MCP: las 6 tools de escritura local de Scopegrain mas los
+escritores de notion, todoist, tui, chrome-devtools, playwright, argus y
+opencode. La postura de solo lectura es efectiva para disco y shell, y no
+es un sandbox de solo lectura sobre MCP ni sobre red.
+
 ### Descubrimiento de skills entre hosts
 
 OpenCode tambien indexa `.claude/skills` y `.agents/skills` por
@@ -248,8 +262,16 @@ skills se seleccionan por ID. Activar varios hosts en un mismo proyecto
 expone por tanto los mismos IDs `scopegrain-*` a traves de mas de una
 raiz: se carga la copia de mayor precedencia, pero las raices solapadas no
 son aislamiento y la superficie duplicada es especifica de cada proyecto.
-Confirmar esa deduplicacion en vivo, en un workspace que ya tiene
-`.agents/skills/`, corresponde al piloto pendiente.
+
+Medido en este workspace el 2026-11-23, con `.agents/skills/` ya poblado
+por el piloto Antigravity (74 IDs) y `.opencode/skills/` recien activado
+(44 IDs, todos ya presentes en `.agents`): el conteo visible fue **74**, no
+118, de modo que la deduplicacion por ID ocurre; y la skill
+`scopegrain-unified-review` cargo desde
+`.opencode/skills/scopegrain-unified-review`, confirmando que gana la raiz
+de mayor precedencia. El efecto practico es que activar OpenCode no agrega
+IDs nuevos cuando Antigravity ya proyecto las mismas skills, pero si
+reemplaza la copia cargada.
 
 ## Contrato de activacion
 
@@ -360,16 +382,18 @@ Ver [onboarding](onboarding.md), [seguridad](security.md) y
 
 Devin Local completo su piloto en una sesion fresca real el 2026-11-17 y
 Antigravity App/CLI completo el suyo el 2026-11-19 (ver Estado arriba);
-Devin Cloud permanece fuera del alcance del piloto de Devin. Para cada
-otra version/superficie seleccionada — Claude, Codex, OpenCode, la
-superficie IDE de Antigravity y el provisional Hermes — aprobar
-separadamente un piloto aislado:
-verificar descubrimiento e invocacion, herramientas reales de roles y
-denegaciones de escritura, efectos MCP/red no aprobados, delegacion,
-interrupcion/reanudacion, recuperacion sin repetir efectos y limpieza
-solo de la configuracion propia aprobada. Conservar transcripts,
-versiones reales, logs y diffs completos. El exito en un host o
-superficie no certifica a otro.
+Devin Cloud permanece fuera del alcance del piloto de Devin. OpenCode V2
+ejecuto su piloto el 2026-11-23 con tres pasos aun pendientes
+(descubrimiento de comandos en la TUI, interrupcion/reanudacion y
+limpieza): cerrar esos tres es lo que lo promueve, y nada mas. Para cada
+otra version/superficie seleccionada — Claude, Codex, la superficie IDE de
+Antigravity y el provisional Hermes — aprobar separadamente un piloto
+aislado: verificar descubrimiento e invocacion, herramientas reales de
+roles y denegaciones de escritura, efectos MCP/red no aprobados,
+delegacion, interrupcion/reanudacion, recuperacion sin repetir efectos y
+limpieza solo de la configuracion propia aprobada. Conservar transcripts,
+versiones reales, logs y diffs completos. El exito en un host o superficie
+no certifica a otro.
 
 ### Procedimiento de certificacion de piloto
 
