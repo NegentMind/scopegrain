@@ -832,6 +832,137 @@ export function runDoctor(ctx, opts = {}) {
     }
   }
 
+  // Optional MCP server dependencies declared in package.json.
+  // Resolved purely via filesystem walks (no child_process, no import).
+  {
+    const expected = ['@modelcontextprotocol/sdk', 'zod'];
+    const hasPkg = (pkgName) => {
+      const rootAbs = path.resolve(installRoot);
+      const local = path.join(
+        rootAbs, 'node_modules', ...pkgName.split('/'), 'package.json');
+      const localSt = lstatOrNull(local);
+      if (localSt && localSt.isFile()) return true;
+      // Only walk upward when installRoot itself lives inside a node_modules
+      // tree (hoisted npm install), never into arbitrary user home dirs.
+      const parts = rootAbs.split(path.sep);
+      if (!parts.includes('node_modules')) return false;
+      let cur = path.dirname(rootAbs);
+      for (let depth = 0; depth < 8; depth++) {
+        const candidate = path.join(
+          cur, 'node_modules', ...pkgName.split('/'), 'package.json');
+        const st = lstatOrNull(candidate);
+        if (st && st.isFile()) return true;
+        const parent = path.dirname(cur);
+        if (parent === cur) break;
+        cur = parent;
+      }
+      return false;
+    };
+    const installed = expected.filter(hasPkg);
+    const missing = expected.filter((p) => !installed.includes(p));
+    if (missing.length === 0) {
+      push('mcp-deps', true,
+        `MCP dependencies installed (${installed.join(', ')})`,
+        { installed, missing });
+    } else {
+      push('mcp-deps', false,
+        `optional MCP dependencies missing: ${missing.join(', ')}`,
+        { severity: 'warning', installed, missing });
+    }
+  }
+
+  // Viewer SPA build presence under installRoot/viewer/dist. Informational
+  // (never fails ready status because the viewer is optional and the API
+  // still serves /api/* without a built SPA).
+  {
+    const indexAbs = path.join(installRoot, 'viewer', 'dist', 'index.html');
+    const st = lstatOrNull(indexAbs);
+    const built = !!st && st.isFile();
+    push('viewer-build', true,
+      built
+        ? 'viewer/dist/index.html present'
+        : 'viewer/dist not built (API-only; run npm run build in viewer/)',
+      { built });
+  }
+
+  // User artifacts integrity: optional <configDir>/context.md plus JSON
+  // records under user-owned artifact stores (tasks, plans, specs, designs,
+  // reports, approvals). Bounded, read-only, rejects symlinks and bad JSON.
+  {
+    const bad = [];
+    let checked = 0;
+    const cap = 500;
+    const contextRel = ctx.configDir === '.'
+      ? 'context.md' : `${ctx.configDir}/context.md`;
+    let contextAbs = null;
+    try { contextAbs = resolveInside(projectRoot, contextRel, 'doctor:context.md'); }
+    catch { contextAbs = null; }
+    const ctxSt = contextAbs ? lstatOrNull(contextAbs) : null;
+    if (ctxSt) {
+      checked++;
+      if (ctxSt.isSymbolicLink() || !ctxSt.isFile()) {
+        bad.push('context.md: not a regular file');
+      } else {
+        try {
+          readFileLimited(contextAbs, limits.maxDocumentBytes, 'context.md');
+        } catch (e) {
+          bad.push(`context.md: ${e.code ?? e.message}`);
+        }
+      }
+    }
+    const scanDirs = [
+      { label: 'tasks', rel: config.paths.tasks },
+      { label: 'plans', rel: config.paths.plans },
+      { label: 'specs', rel: `${config.paths.plans}/specs` },
+      { label: 'designs', rel: `${config.paths.plans}/designs` },
+      { label: 'reports', rel: config.paths.reports },
+      { label: 'approvals', rel: `${config.paths.decisions}/approvals` },
+    ];
+    for (const { label, rel } of scanDirs) {
+      if (checked >= cap) break;
+      let dirAbs;
+      try { dirAbs = resolveInside(projectRoot, rel, `doctor:${label}`); }
+      catch { continue; }
+      const st = lstatOrNull(dirAbs);
+      if (!st || !st.isDirectory()) continue;
+      let entries;
+      try { entries = readDirBounded(dirAbs, cap - checked).entries; }
+      catch (e) { bad.push(`${label}: ${e.code ?? e.message}`); continue; }
+      for (const e of entries) {
+        if (checked >= cap) break;
+        if (!e.name.endsWith('.json')) continue;
+        checked++;
+        const fAbs = path.join(dirAbs, e.name);
+        if (e.isSymbolicLink() || !e.isFile()) {
+          bad.push(`${label}/${e.name}: not a regular file`);
+          continue;
+        }
+        try {
+          const raw = readFileLimited(
+            fAbs, limits.maxDocumentBytes, `${label}/${e.name}`);
+          const parsed = JSON.parse(raw);
+          if (parsed === null || typeof parsed !== 'object'
+              || Array.isArray(parsed)) {
+            bad.push(`${label}/${e.name}: not a JSON object`);
+          }
+        } catch (err2) {
+          bad.push(`${label}/${e.name}: ${err2.code ?? 'MALFORMED_JSON'}`);
+        }
+      }
+    }
+    if (bad.length === 0) {
+      push('user-artifacts', true,
+        checked === 0
+          ? 'no user artifacts yet'
+          : `${checked} user artifact(s) valid`,
+        { checked });
+    } else {
+      push('user-artifacts', false,
+        `${bad.length} malformed user artifact(s): ${bad.slice(0, 5).join('; ')}`,
+        { checked, malformed: bad.slice(0, 20) });
+    }
+  }
+
   let current = null;
   try {
     current = inspectProject(projectRoot);

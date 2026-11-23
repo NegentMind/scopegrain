@@ -34,6 +34,20 @@ test('inspect prints JSON to stdout and writes nothing', async () => {
   } finally { cleanup(dir); }
 });
 
+test('--version / -v / -V returns package version and -h returns help', async () => {
+  for (const flag of ['--version', '-v', '-V']) {
+    const io = fakeIO();
+    assert.equal(await run([flag], io), 0);
+    const out = lastJson(io);
+    assert.equal(out.name, 'scopegrain');
+    assert.match(out.version, /^\d+\.\d+\.\d+/);
+    assert.equal(out.node, process.version);
+  }
+  const ioH = fakeIO();
+  assert.equal(await run(['-h'], ioH), 0);
+  assert.ok(lastJson(ioH).commands.length >= 8);
+});
+
 test('--help lists commands; unknown commands and flags fail', async () => {
   const io = fakeIO();
   assert.equal(await run(['--help'], io), 0);

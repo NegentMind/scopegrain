@@ -247,3 +247,38 @@ test('marker-less diverged AGENTS.md still fails the generated check', () => {
       'a marker-less file that differs stays flagged');
   } finally { cleanup(dir); }
 });
+
+test('operational checks: mcp-deps, viewer-build, and user-artifacts', async () => {
+  const os = await import('node:os');
+  const { dir, ctx } = bootstrapped();
+  try {
+    const clean = runDoctor(ctx);
+    const mcpOk = clean.checks.find((c) => c.name === 'mcp-deps');
+    assert.ok(mcpOk && mcpOk.ok, 'mcp-deps passes in installed repo');
+    const viewerChk = clean.checks.find((c) => c.name === 'viewer-build');
+    assert.ok(viewerChk && viewerChk.ok && typeof viewerChk.built === 'boolean');
+    const artOk = clean.checks.find((c) => c.name === 'user-artifacts');
+    assert.ok(artOk && artOk.ok);
+
+    // Corrupt user artifact JSON under tasks fails user-artifacts check.
+    writeFile(dir, 'docs/agent/tasks/bad-task.json', '{corrupt');
+    const badArt = runDoctor(ctx);
+    assert.equal(badArt.status, 'needs-attention');
+    const artBad = badArt.checks.find((c) => c.name === 'user-artifacts');
+    assert.ok(artBad && !artBad.ok);
+    assert.ok(artBad.detail.includes('bad-task.json'));
+
+    // Missing MCP deps in an isolated installRoot outside node_modules warns.
+    const isoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sg-nomcp-'));
+    try {
+      const noMcp = runDoctor(ctx, { installRoot: isoRoot });
+      const mcpWarn = noMcp.checks.find((c) => c.name === 'mcp-deps');
+      assert.ok(mcpWarn && !mcpWarn.ok && mcpWarn.severity === 'warning');
+      assert.ok(mcpWarn.missing.includes('@modelcontextprotocol/sdk'));
+      const viewerNo = noMcp.checks.find((c) => c.name === 'viewer-build');
+      assert.ok(viewerNo && viewerNo.ok && viewerNo.built === false);
+    } finally {
+      fs.rmSync(isoRoot, { recursive: true, force: true });
+    }
+  } finally { cleanup(dir); }
+});

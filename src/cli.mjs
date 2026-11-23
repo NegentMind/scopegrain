@@ -2556,6 +2556,21 @@ async function cmdView(flags, io) {
 
 export async function run(argv, io) {
   try {
+    if (argv.length === 1
+        && (argv[0] === '--version' || argv[0] === '-v' || argv[0] === '-V')) {
+      const pkg = JSON.parse(fs.readFileSync(
+        new URL('../package.json', import.meta.url), 'utf8'));
+      io.stdout(JSON.stringify({
+        name: pkg.name,
+        version: pkg.version,
+        node: process.version,
+      }, null, 2));
+      return 0;
+    }
+    if (argv.length === 1 && argv[0] === '-h') {
+      io.stdout(JSON.stringify(helpResult(), null, 2));
+      return 0;
+    }
 
     const { flags, positional } = parseArgs(argv);
     if (flags['--help'] || positional.length === 0) {
