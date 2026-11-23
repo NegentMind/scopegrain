@@ -91,3 +91,29 @@ test('loadConfig rejects missing and non-file configs', () => {
     assert.throws(() => loadConfig(dir), (e) => e.code === 'MALFORMED_JSON');
   } finally { cleanup(dir); }
 });
+
+test('intake block is optional and validates the mode enum', () => {
+  const dir = makeTempDir('cfg-intake');
+  try {
+    const good = createConfig(dir, VALID_ANSWERS, {});
+    writeJson(dir, '.tasksystem/config.json', good);
+    // Absent -> safe default, never activates implicitly.
+    assert.deepEqual(loadConfig(dir).config.intake, { mode: 'off' });
+    for (const mode of ['off', 'capture', 'suggest', 'auto']) {
+      writeJson(dir, '.tasksystem/config.json',
+        { ...good, intake: { mode } });
+      assert.equal(loadConfig(dir).config.intake.mode, mode);
+    }
+    writeJson(dir, '.tasksystem/config.json',
+      { ...good, intake: { mode: 'always' } });
+    assert.throws(() => loadConfig(dir), (e) => e.code === 'INVALID_VALUE');
+    writeJson(dir, '.tasksystem/config.json',
+      { ...good, intake: { mode: 'off', extra: true } });
+    assert.throws(() => loadConfig(dir), (e) => e.code === 'UNKNOWN_KEY');
+    writeJson(dir, '.tasksystem/config.json', { ...good, intake: 'auto' });
+    assert.throws(() => loadConfig(dir), (e) => e.code === 'INVALID_VALUE');
+    writeJson(dir, '.tasksystem/config.json',
+      { ...good, intake: { other: 'off' } });
+    assert.throws(() => loadConfig(dir), (e) => e.code === 'UNKNOWN_KEY');
+  } finally { cleanup(dir); }
+});

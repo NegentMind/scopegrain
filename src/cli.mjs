@@ -1581,6 +1581,8 @@ async function cmdContext(flags) {
     generatedAt: new Date().toISOString(),
     instructions: configRel(ctx, `instructions.md`),
     config: configRel(ctx, `config.json`),
+    methodology: ctx.config.methodology,
+    intake: ctx.config.intake,
     userContext, sessions,
     project: { name: ctx.projectName ?? null, root: ctx.projectRoot },
     workspace: {

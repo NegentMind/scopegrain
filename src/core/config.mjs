@@ -90,7 +90,7 @@ const ANSWER_KEYS = new Set([
   'name', 'locale', 'hosts', 'paths', 'versioning', 'methodology']);
 const CONFIG_KEYS = new Set([
   'schemaVersion', 'project', 'locale', 'hosts', 'paths', 'verification',
-  'discovery', 'versioning', 'methodology',
+  'discovery', 'versioning', 'methodology', 'intake',
 ]);
 
 // Methodology mode: undefined means the authored legacy default (manual);
@@ -108,6 +108,27 @@ export function validateMethodologyMode(value, label = 'methodology') {
       `${label} must be one of ${modes.join(', ')}${shown}`);
   }
   return value;
+}
+
+const INTAKE_MODES = ['off', 'capture', 'suggest', 'auto'];
+
+// intake is OPTIONAL (old configs). Absent -> {mode:'off'}: prompt
+// classification never activates implicitly.
+export function validateIntake(value, label = 'intake') {
+  if (value === undefined) return { mode: 'off' };
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw err('INVALID_VALUE', `${label} must be an object`);
+  }
+  for (const key of Object.keys(value)) {
+    if (key !== 'mode') {
+      throw err('UNKNOWN_KEY', `${label} contains unknown key '${key}'`);
+    }
+  }
+  if (!INTAKE_MODES.includes(value.mode)) {
+    throw err('INVALID_VALUE',
+      `${label}.mode must be one of: ${INTAKE_MODES.join(', ')}`);
+  }
+  return { mode: value.mode };
 }
 
 function rejectUnknownKeys(obj, allowed, label) {
@@ -275,6 +296,7 @@ export function validateConfigObject(config) {
   validateHosts(config.hosts);
   config.methodology = validateMethodologyMode(
     config.methodology, 'config.methodology');
+  config.intake = validateIntake(config.intake, 'config.intake');
   validateArtifactPaths(config.paths);
   rejectUnknownKeys(
     config.verification, new Set(['mode', 'commands']), 'config.verification');
