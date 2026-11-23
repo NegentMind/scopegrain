@@ -91,3 +91,27 @@ test('version-unavailable when install SHA differs; link/sentinel rejected', (t)
     fs.writeFileSync(abs, orig);
   } finally { cleanup(dir); }
 });
+
+test('diagnose ranks probable alternatives and hints the action', () => {
+  const { dir, ctx } = bootstrappedCtx();
+  try {
+    const abs = `${dir}/${target}`;
+    const orig = fs.readFileSync(abs);
+    fs.rmSync(abs);
+    const d = diagnoseResource(ctx, { kind: 'command', id: 'plan-work' });
+    assert.equal(d.status, 'missing');
+    assert.equal(typeof d.hint, 'string');
+    assert.ok(Array.isArray(d.suggestions) && d.suggestions.length > 0);
+    const top = d.suggestions[0];
+    assert.equal(top.id, 'plan-work'); // same-id/same-kind scores highest
+    assert.ok(top.score > 0 && Array.isArray(top.reasons));
+    assert.ok(top.reasons.includes('same-kind'));
+    fs.writeFileSync(abs, orig);
+    // Unknown id still fails closed, but the error names near matches.
+    assert.throws(
+      () => diagnoseResource(ctx, { kind: 'command', id: 'plan-wrok' }),
+      (e) => e.code === 'CATALOG_UNKNOWN_ID'
+        && e.message.includes('did you mean')
+        && e.message.includes('plan-work'));
+  } finally { cleanup(dir); }
+});

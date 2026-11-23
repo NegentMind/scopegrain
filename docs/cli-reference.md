@@ -142,7 +142,12 @@ aunque el cuerpo del recurso falte en disco.
 Informe de salud de solo lectura de un recurso instalado:
 `missing`, `invalid-form`, `legacy-unpinned`, `unreadable`,
 `oversized`, `drift` (con `actualSha256`) o `healthy` comparando el
-contenido con el sha256 fijado por el snapshot.
+contenido con el sha256 fijado por el snapshot. Los estados no-healthy
+incluyen `hint` (accion recomendada) y `suggestions`: ranking
+determinista de hasta 5 recursos probables puntuado sobre metadatos del
+catalogo (tokens de id, descripcion, mismo kind, modo, bindings) con
+`reasons` declaradas por candidato. Un id desconocido sigue siendo
+`CATALOG_UNKNOWN_ID`, ahora con los candidatos cercanos en el mensaje.
 
 ### resource restore-plan
 

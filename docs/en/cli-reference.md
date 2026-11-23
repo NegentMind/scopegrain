@@ -142,7 +142,12 @@ a resource body is missing on disk.
 Read-only health report for one installed resource:
 `missing`, `invalid-form`, `legacy-unpinned`, `unreadable`,
 `oversized`, `drift` (with `actualSha256`) or `healthy`, comparing the
-content against the snapshot-pinned sha256.
+content against the snapshot-pinned sha256. Non-healthy statuses
+include `hint` (recommended action) and `suggestions`: a deterministic
+ranking of up to 5 probable resources scored over catalog metadata
+(id tokens, description, same kind, mode, bindings) with per-candidate
+`reasons` declared. An unknown id still throws `CATALOG_UNKNOWN_ID`,
+now naming the near matches in the message.
 
 ### resource restore-plan
 

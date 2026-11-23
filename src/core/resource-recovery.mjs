@@ -57,10 +57,72 @@ function readProjectFile(ctx, rel) {
   return readFileLimited(abs, loadLimits().maxDocumentBytes);
 }
 
+const SUGGEST_STOPWORDS = new Set([
+  'the', 'a', 'an', 'of', 'for', 'and', 'to', 'in', 'on', 'with', 'is',
+  'are', 'or', 'when', 'that', 'this', 'it', 'as', 'be', 'by', 'at',
+]);
+const sugTok = (s) => new Set(String(s).toLowerCase()
+  .split(/[^a-z0-9]+/)
+  .filter((t) => t !== '' && !SUGGEST_STOPWORDS.has(t)));
+
+// Deterministic relevance ranking over catalog metadata. Scores are
+// declared with their reasons so a suggestion is auditable, never opaque.
+// Catalog has no recency data — that signal is intentionally absent.
+function scoreSuggestions(catalog, kind, id, limit = 5) {
+  const idToks = sugTok(id);
+  const low = id.toLowerCase();
+  const out = [];
+  for (const e of catalog.entries) {
+    let score = 0;
+    const reasons = [];
+    const shared = [...idToks].filter((t) => sugTok(e.id).has(t));
+    if (shared.length) {
+      score += shared.length * 3;
+      reasons.push(`id:${shared.join(',')}`);
+    }
+    const eLow = e.id.toLowerCase();
+    if (eLow.includes(low) || low.includes(eLow)) {
+      score += 2;
+      reasons.push('id-substring');
+    }
+    const dShared = [...idToks]
+      .filter((t) => sugTok(e.description ?? '').has(t));
+    if (dShared.length) {
+      score += dShared.length;
+      reasons.push(`desc:${dShared.join(',')}`);
+    }
+    if (e.kind === kind) { score += 2; reasons.push('same-kind'); }
+    if (Array.isArray(e.modes) && e.modes.includes(low)) {
+      score += 3;
+      reasons.push(`mode:${low}`);
+    }
+    const deps = ['agents', 'skills', 'rules', 'references', 'prompts']
+      .flatMap((k) => (Array.isArray(e[k]) ? e[k] : []));
+    if (deps.includes(id)) { score += 4; reasons.push('binds-id'); }
+    if (score > 0) out.push({ kind: e.kind, id: e.id, score, reasons });
+  }
+  out.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+  return out.slice(0, limit);
+}
+
+const STATUS_HINT = {
+  'missing': 'run `resource restore` to rewrite snapshot-pinned bytes from this installation',
+  'drift': 'diff the body, then `resource restore` with the current sha256 as expectedCurrentHash — or re-pin the catalog if the drift is intended',
+  'invalid-form': 'path is a link or non-file; remove it and `resource restore`',
+  'unreadable': 'fix read access, then re-diagnose',
+  'oversized': 'body exceeds maxDocumentBytes; shrink the resource or raise the limit deliberately',
+  'legacy-unpinned': 'snapshot v1 entry without sha256; migrate the snapshot before restore is possible',
+};
+
 function resolveEntry(catalog, kind, id) {
   const { entry } = resolveCatalogEntry(catalog, kind, id);
   if (!entry) {
-    throw err('CATALOG_UNKNOWN_ID', `unknown ${kind} '${id}'`);
+    const near = scoreSuggestions(catalog, kind, id, 3);
+    throw err('CATALOG_UNKNOWN_ID',
+      `unknown ${kind} '${id}'`
+        + (near.length
+          ? ` — did you mean ${near.map((s) => s.id).join(', ')}?`
+          : ''));
   }
   return entry;
 }
@@ -108,23 +170,29 @@ export function diagnoseResource(ctx, input) {
     transport: 'not-probed',
     requiresSeparateActivation: true,
   };
-  if (!st) return { ...base, status: 'missing' };
+  const withDiagnosis = (status, extra = {}) => ({
+    ...base, status,
+    hint: STATUS_HINT[status] ?? null,
+    suggestions: scoreSuggestions(catalog, kind, e.id),
+    ...extra,
+  });
+  if (!st) return withDiagnosis('missing');
   if (!st.isFile() || st.isSymbolicLink()) {
-    return { ...base, status: 'invalid-form' };
+    return withDiagnosis('invalid-form');
   }
   if (catalog.snapshotVersion === 1) {
-    return { ...base, status: 'legacy-unpinned' };
+    return withDiagnosis('legacy-unpinned');
   }
   let limited;
   try {
     limited = readProjectFile(ctx, rel);
   } catch (e) {
-    return { ...base, status: 'unreadable', error: e.code ?? 'READ_FAILED' };
+    return withDiagnosis('unreadable', { error: e.code ?? 'READ_FAILED' });
   }
-  if (limited.exceeded) return { ...base, status: 'oversized' };
+  if (limited.exceeded) return withDiagnosis('oversized');
   const actual = sha(limited.content);
   if (actual !== e.sha256.toLowerCase()) {
-    return { ...base, status: 'drift', actualSha256: actual };
+    return withDiagnosis('drift', { actualSha256: actual });
   }
   return { ...base, status: 'healthy', actualSha256: actual };
 }
