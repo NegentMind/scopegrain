@@ -105,21 +105,17 @@ test('SCOPEGRAIN_* env vars do not alter context resolution', async () => {
   // Environment isolation: a hostile/polluted env must not redirect
   // resolution away from the explicit --project boundary.
   const { resolveContext } = await import('../src/core/context.mjs');
-  const { bootstrappedCtx, cleanup, VALID_ANSWERS } =
+  const { bootstrappedCtx, cleanup, VALID_ANSWERS, withEnv } =
     await import('./helpers.mjs');
   const { dir } = bootstrappedCtx(VALID_ANSWERS);
-  const saved = { ...process.env };
   try {
-    process.env.SCOPEGRAIN_TASK = 'forged-task';
-    process.env.SCOPEGRAIN_PROJECT = '/etc/passwd';
-    process.env.SCOPEGRAIN_CONFIG = 'evil.json';
-    const ctx = resolveContext({ project: dir });
-    assert.equal(ctx.projectRoot, fs.realpathSync(dir));
+    withEnv({ SCOPEGRAIN_TASK: 'forged-task',
+      SCOPEGRAIN_PROJECT: '/etc/passwd', SCOPEGRAIN_CONFIG: 'evil.json' },
+      () => {
+        const ctx = resolveContext({ project: dir });
+        assert.equal(ctx.projectRoot, fs.realpathSync(dir));
+      });
   } finally {
-    for (const k of Object.keys(process.env)) {
-      if (k.startsWith('SCOPEGRAIN_')) delete process.env[k];
-    }
-    Object.assign(process.env, saved);
     cleanup(dir);
   }
 });

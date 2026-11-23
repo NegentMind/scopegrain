@@ -165,3 +165,36 @@ export function bootstrappedCtx(answers) {
   // absolute path still points at the shared template directory.
   return { dir, ctx: resolveContext({ project: dir }), plan: entry.plan };
 }
+
+// Scoped env fixture: `vars` maps name -> value (`null`/`undefined` deletes
+// the variable). The exact prior state — presence and value — is restored
+// when `fn` returns, throws, or (async callbacks) when its promise settles.
+// Without `fn`, returns a restore() handle for manual try/finally use.
+// Purpose: a developer-exported SCOPEGRAIN_*/VANTADB_* must never make a
+// test nondeterministic, and mutations must not leak across tests.
+export function withEnv(vars, fn) {
+  const prior = new Map();
+  for (const key of Object.keys(vars)) {
+    prior.set(key,
+      Object.prototype.hasOwnProperty.call(process.env, key)
+        ? process.env[key] : null);
+    const value = vars[key];
+    if (value === null || value === undefined) delete process.env[key];
+    else process.env[key] = String(value);
+  }
+  const restore = () => {
+    for (const [key, value] of prior) {
+      if (value === null) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
+  if (typeof fn !== 'function') return restore;
+  let result;
+  try { result = fn(); }
+  catch (err) { restore(); throw err; }
+  if (result && typeof result.then === 'function') {
+    return Promise.resolve(result).finally(restore);
+  }
+  restore();
+  return result;
+}

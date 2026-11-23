@@ -19,7 +19,9 @@ import {
   vantaDBReinforce, vantaDBStatus, vantaDBSyncWorklogs,
 } from '../src/integrations/vantadb-runtime.mjs';
 import { appendWorklog } from '../src/core/worklog.mjs';
-import { VALID_ANSWERS, cleanup, makeTempDir, writeJson } from './helpers.mjs';
+import {
+  VALID_ANSWERS, cleanup, makeTempDir, writeJson, withEnv,
+} from './helpers.mjs';
 
 const FAKE_SERVER = fileURLToPath(
   new URL('./fixtures/fake-vantadb-mcp.mjs', import.meta.url));
@@ -434,31 +436,28 @@ test('vantaDBReinforce proxies memory_reinforce and validates outcome locally', 
 
 test('spawn env pins brain profile, l1 injection ACL and strips overrides', async () => {
   const f = fixture();
-  const prev = { ...process.env };
   let captured = null;
   try {
-    process.env.VANTADB_MCP_PROFILE = 'memory';
-    process.env.VANTADB_MCP_INJECT_NAMESPACES = 'evil/';
-    process.env.VANTADB_MCP_BYTE_BUDGET = '1';
-    const c = cfg(f.dir);
-    fs.writeFileSync(c.binaryPath, 'placeholder');
-    const spawnImpl = (bin, args, opts) => {
-      captured = opts.env;
-      return spawn(process.execPath, ['-e', 'setTimeout(()=>{},3000)'], opts);
-    };
-    await assert.rejects(callVantaDBTool({ cfg: c, name: 'memory_get',
-      arguments: { namespace: 'n', key: 'k', },
-      timeoutMs: 1500, spawnImpl }));
-    assert.equal(captured.VANTADB_MCP_PROFILE, 'brain');
-    assert.equal(captured.VANTADB_MCP_INJECT_NAMESPACES, 'l1/');
-    assert.equal(captured.VANTADB_MCP_BYTE_BUDGET, undefined);
-    assert.equal(captured.VANTADB_STORAGE_PATH, c.storagePath);
-    assert.equal(captured.VANTADB_QUIET, '1');
+    await withEnv({ VANTADB_MCP_PROFILE: 'memory',
+      VANTADB_MCP_INJECT_NAMESPACES: 'evil/',
+      VANTADB_MCP_BYTE_BUDGET: '1' }, async () => {
+      const c = cfg(f.dir);
+      fs.writeFileSync(c.binaryPath, 'placeholder');
+      const spawnImpl = (bin, args, opts) => {
+        captured = opts.env;
+        return spawn(process.execPath,
+          ['-e', 'setTimeout(()=>{},3000)'], opts);
+      };
+      await assert.rejects(callVantaDBTool({ cfg: c, name: 'memory_get',
+        arguments: { namespace: 'n', key: 'k', },
+        timeoutMs: 1500, spawnImpl }));
+      assert.equal(captured.VANTADB_MCP_PROFILE, 'brain');
+      assert.equal(captured.VANTADB_MCP_INJECT_NAMESPACES, 'l1/');
+      assert.equal(captured.VANTADB_MCP_BYTE_BUDGET, undefined);
+      assert.equal(captured.VANTADB_STORAGE_PATH, c.storagePath);
+      assert.equal(captured.VANTADB_QUIET, '1');
+    });
   } finally {
-    for (const k of Object.keys(process.env)) {
-      if (!(k in prev)) delete process.env[k];
-    }
-    Object.assign(process.env, prev);
     cleanup(f.dir);
   }
 });

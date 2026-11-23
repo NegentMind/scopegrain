@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createConfig } from '../src/core/config.mjs';
 import {
-  VALID_ANSWERS, cleanup, makeTempDir, writeJson, fakeIO,
+  VALID_ANSWERS, cleanup, makeTempDir, writeJson, fakeIO, withEnv,
 } from './helpers.mjs';
 import { run } from '../src/cli.mjs';
 import {
@@ -142,14 +142,14 @@ test('recordActivity links via SCOPEGRAIN_TASK env, which beats the file', () =>
     const a = recordActivity(ctx, { title: 'task A', record: 'task' });
     const b = recordActivity(ctx, { title: 'task B', record: 'task' });
     setActiveTask(ctx, a.taskId);
-    process.env.SCOPEGRAIN_TASK = b.taskId;
-    const r = recordActivity(ctx, { title: 'env-linked', ref: 'e1' });
-    assert.equal(r.taskId, b.taskId);
-    assert.equal(r.linkedVia, 'env');
-  } finally {
-    delete process.env.SCOPEGRAIN_TASK;
-    cleanup(dir);
-  }
+    withEnv({ SCOPEGRAIN_TASK: b.taskId }, () => {
+      const r = recordActivity(ctx, { title: 'env-linked', ref: 'e1' });
+      assert.equal(r.taskId, b.taskId);
+      assert.equal(r.linkedVia, 'env');
+    });
+    // Restored to the fixture baseline: absent, whatever the outer env was.
+    assert.equal(process.env.SCOPEGRAIN_TASK, undefined);
+  } finally { cleanup(dir); }
 });
 
 test('recordActivity survives a corrupt active pointer (linkWarning)', () => {
