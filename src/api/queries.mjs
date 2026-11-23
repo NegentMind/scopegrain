@@ -15,7 +15,9 @@ import {
 } from '../core/worklog.mjs';
 import { resolveInside } from '../core/paths.mjs';
 import { getTask, listTasks } from '../core/tasks.mjs';
-import { getPlan, listPlans, nextPlanTasks, planWaves } from '../core/plans.mjs';
+import {
+  getPlan, listPlans, nextPlanTasks, planRunState, planWaves,
+} from '../core/plans.mjs';
 import { artifactDirRel, getArtifact, listArtifacts } from '../core/artifacts.mjs';
 import { getJournalOperation } from '../core/journal.mjs';
 import { bindWorkspace, getWorkspace } from '../core/workspaces.mjs';
@@ -674,13 +676,17 @@ export function createApiQueries(ctx) {
     const p = getPlan(ctx, key);
     let waves = null;
     let wavesError = null;
+    let runState = null;
     try { waves = planWaves(ctx, key); } catch (e) {
       wavesError = toErrorPayload(e);
+    }
+    try { runState = planRunState(ctx, key); } catch {
+      runState = null;
     }
     return {
       plan: p,
       readiness: nextPlanTasks(ctx, key),
-      waves, wavesError,
+      waves, wavesError, runState,
       ...planTaskBreakdown(p),
     };
   }

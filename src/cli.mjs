@@ -222,8 +222,8 @@ const COMMANDS = {
       + 'ID --key CHK### --status S --revision N [--text NOTE] to mark)',
   },
   'plan run': {
-    flags: ['--project', '--config'], pos: 1,
-    usage: 'plan run --project PATH KEY',
+    flags: ['--project', '--config', '--apply'], pos: 1,
+    usage: 'plan run --project PATH KEY [--apply]',
   },
   'plan stories': {
     flags: ['--project', '--config'], pos: 1,
@@ -1403,7 +1403,9 @@ async function cmdWorkflow(command, flags) {
 
 async function cmdPlan(sub, positional, flags) {
   const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
-  const { getPlan, listPlans, nextPlanTasks, planWaves, preparePlan } = await import('./core/plans.mjs');
+  const {
+    getPlan, listPlans, nextPlanTasks, preparePlan, recordPlanRun,
+  } = await import('./core/plans.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'),
     config: flags['--config'],
@@ -1424,7 +1426,9 @@ async function cmdPlan(sub, positional, flags) {
   if (sub === 'list') return listPlans(ctx);
   if (sub === 'show') return getPlan(ctx, positional[0]);
   if (sub === 'next') return { tasks: nextPlanTasks(ctx, positional[0]) };
-  if (sub === 'run') return planWaves(ctx, positional[0]);
+  if (sub === 'run') {
+    return recordPlanRun(ctx, positional[0], { apply: !!flags['--apply'] });
+  }
   if (sub === 'stories') {
     const { renderStoryTaskList } = await import('./core/story-tasks.mjs');
     return renderStoryTaskList(ctx, positional[0]);

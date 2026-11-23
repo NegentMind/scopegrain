@@ -889,6 +889,7 @@ export function runDoctor(ctx, opts = {}) {
   // records under user-owned artifact stores (tasks, plans, specs, designs,
   // reports, approvals). Bounded, read-only, rejects symlinks and bad JSON.
   {
+    const limits = loadLimits();
     const bad = [];
     let checked = 0;
     const cap = 500;
@@ -904,7 +905,12 @@ export function runDoctor(ctx, opts = {}) {
         bad.push('context.md: not a regular file');
       } else {
         try {
-          readFileLimited(contextAbs, limits.maxDocumentBytes, 'context.md');
+          const lim = readFileLimited(contextAbs, limits.maxDocumentBytes);
+          if (lim.exceeded) {
+            bad.push('context.md: DOCUMENT_TOO_LARGE');
+          } else {
+            decodeUtf8Strict(lim.content, 'INVALID_UTF8', 'context.md');
+          }
         } catch (e) {
           bad.push(`context.md: ${e.code ?? e.message}`);
         }
@@ -938,8 +944,13 @@ export function runDoctor(ctx, opts = {}) {
           continue;
         }
         try {
-          const raw = readFileLimited(
-            fAbs, limits.maxDocumentBytes, `${label}/${e.name}`);
+          const lim = readFileLimited(fAbs, limits.maxDocumentBytes);
+          if (lim.exceeded) {
+            bad.push(`${label}/${e.name}: DOCUMENT_TOO_LARGE`);
+            continue;
+          }
+          const raw = decodeUtf8Strict(
+            lim.content, 'INVALID_UTF8', `${label}/${e.name}`);
           const parsed = JSON.parse(raw);
           if (parsed === null || typeof parsed !== 'object'
               || Array.isArray(parsed)) {

@@ -260,6 +260,13 @@ test('operational checks: mcp-deps, viewer-build, and user-artifacts', async () 
     const artOk = clean.checks.find((c) => c.name === 'user-artifacts');
     assert.ok(artOk && artOk.ok);
 
+    // Valid context.md + valid JSON user artifact stay green.
+    writeFile(dir, '.tasksystem/context.md', '# Notes\n');
+    writeJson(dir, 'docs/agent/tasks/valid-task.json', { id: 'ok' });
+    const withValid = runDoctor(ctx);
+    const artValid = withValid.checks.find((c) => c.name === 'user-artifacts');
+    assert.ok(artValid && artValid.ok && artValid.checked === 2);
+
     // Corrupt user artifact JSON under tasks fails user-artifacts check.
     writeFile(dir, 'docs/agent/tasks/bad-task.json', '{corrupt');
     const badArt = runDoctor(ctx);

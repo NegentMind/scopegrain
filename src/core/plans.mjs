@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
-import { decodeUtf8Strict, lstatOrNull, readFileLimited } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited } from './fsx.mjs';
+import { acquireVerifiedLock, releaseVerifiedLock } from './locks.mjs';
 import {
   assertDestination, resolveInside,
 } from './paths.mjs';
@@ -1114,4 +1115,175 @@ export function planWaves(ctx, key) {
     triaged: [...statuses.values()].filter((t) => t.status === 'triaged')
       .map((t) => ({ key: t.key, triage: t.triage, reason: t.triageReason })),
   };
+}
+
+const MAX_PLAN_RUN_CHECKPOINTS = 50;
+
+export function planRunRel(ctx, key) {
+  if (typeof key !== 'string' || !KEY_RE.test(key)) {
+    throw err('INVALID_VALUE', 'plan key must be a lowercase slug');
+  }
+  return `${ctx.config.paths.state}/plan-runs/${key}.json`;
+}
+
+function validatePlanRunRecord(raw, key) {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw err('PLAN_RUN_MALFORMED', `plan run record for '${key}' must be an object`);
+  }
+  if (raw.schemaVersion !== 1 || raw.planKey !== key
+      || !Number.isSafeInteger(raw.revision) || raw.revision < 0
+      || !Array.isArray(raw.checkpoints)
+      || raw.checkpoints.length > MAX_PLAN_RUN_CHECKPOINTS) {
+    throw err('PLAN_RUN_MALFORMED', `plan run record for '${key}' has invalid shape`);
+  }
+  return raw;
+}
+
+function readPlanRunRecord(ctx, key) {
+  const rel = planRunRel(ctx, key);
+  const abs = resolveInside(ctx.projectRoot, rel, 'plan run');
+  const st = lstatOrNull(abs);
+  if (!st) return { abs, rel, record: null };
+  if (st.isSymbolicLink() || !st.isFile()) {
+    throw err('PLAN_RUN_MALFORMED', `plan run path is not a regular file: ${rel}`);
+  }
+  const limits = loadLimits();
+  let parsed;
+  try {
+    const limited = readFileLimited(abs, limits.maxDocumentBytes);
+    if (limited.exceeded) {
+      throw err('DOCUMENT_TOO_LARGE',
+        `plan run '${key}' exceeds ${limits.maxDocumentBytes} bytes`);
+    }
+    const text = decodeUtf8Strict(limited.content, 'PLAN_RUN_MALFORMED', rel);
+    parsed = JSON.parse(text);
+  } catch (e) {
+    if (e && e.code) throw e;
+    throw err('PLAN_RUN_MALFORMED', `plan run '${key}' is not valid JSON`);
+  }
+  return { abs, rel, record: validatePlanRunRecord(parsed, key) };
+}
+
+function summarizeResume(schedule, record) {
+  const remainingTasks = schedule.waves.flatMap((w) => w.tasks.map((t) => t.key));
+  const totalTasks = remainingTasks.length + schedule.closed.length
+    + schedule.triaged.length + schedule.unscheduled.length;
+  const completedTasks = schedule.closed.length;
+  const percent = totalTasks === 0 ? 100
+    : Math.round((completedTasks / totalTasks) * 100);
+  const prevClosed = new Set(record?.latest?.closed ?? []);
+  const completedSinceLastCheckpoint = schedule.closed.filter(
+    (k) => !prevClosed.has(k));
+  return {
+    totalTasks,
+    completedTasks,
+    remainingTasks,
+    remainingWaves: schedule.waves.length,
+    percent,
+    nextWave: schedule.waves[0] ?? null,
+    completedSinceLastCheckpoint,
+    complete: remainingTasks.length === 0 && schedule.unscheduled.length === 0,
+  };
+}
+
+// Read-only view of persisted plan-run progress combined with live wave
+// readiness so interrupted multi-task runs can resume accurately.
+export function planRunState(ctx, key) {
+  const schedule = planWaves(ctx, key);
+  const { rel, record } = readPlanRunRecord(ctx, key);
+  const resume = summarizeResume(schedule, record);
+  return {
+    persisted: record !== null,
+    path: rel,
+    run: record,
+    resume,
+  };
+}
+
+// Computes the wave schedule and builds a bounded execution checkpoint.
+// Without apply=true it is strictly read-only (preview); with apply=true
+// it persists atomically under a verified lock at <state>/plan-runs/<key>.json.
+export function recordPlanRun(ctx, key, { apply = false, now } = {}) {
+  const schedule = planWaves(ctx, key);
+  const ts = typeof now === 'string' && now ? now : new Date().toISOString();
+  const buildNext = (existing) => {
+    const resume = summarizeResume(schedule, existing);
+    const checkpoint = {
+      at: ts,
+      waveCount: schedule.waves.length,
+      closed: [...schedule.closed],
+      remaining: [...resume.remainingTasks],
+      completedTasks: resume.completedTasks,
+      totalTasks: resume.totalTasks,
+      percent: resume.percent,
+      waves: schedule.waves.map((w) => ({
+        wave: w.wave,
+        parallel: w.parallel,
+        tasks: w.tasks.map((t) => ({
+          key: t.key, id: t.id, state: t.state, status: t.status,
+        })),
+      })),
+    };
+    const prevCheckpoints = existing ? existing.checkpoints : [];
+    const checkpoints = [...prevCheckpoints, checkpoint]
+      .slice(-MAX_PLAN_RUN_CHECKPOINTS);
+    return {
+      resume,
+      record: {
+        schemaVersion: 1,
+        planKey: schedule.plan.key,
+        planTitle: schedule.plan.title,
+        revision: existing ? existing.revision + 1 : 0,
+        createdAt: existing ? existing.createdAt : ts,
+        updatedAt: ts,
+        checkpoints,
+        latest: checkpoint,
+      },
+    };
+  };
+
+  if (!apply) {
+    const { rel, record: existing } = readPlanRunRecord(ctx, key);
+    const { resume, record } = buildNext(existing);
+    return {
+      ...schedule,
+      mode: 'preview',
+      persisted: existing !== null,
+      path: rel,
+      run: existing,
+      proposedCheckpoint: record.latest,
+      resume,
+    };
+  }
+
+  const rel = planRunRel(ctx, key);
+  const abs = resolveInside(ctx.projectRoot, rel, 'plan run');
+  mkdirpSync(path.dirname(abs));
+  const lock = acquireVerifiedLock(
+    `${abs}.lock`, 'PLAN_RUN_LOCKED',
+    `plan run for '${key}' is locked by another writer`);
+  const tmpAbs = `${abs}.tmp.${crypto.randomBytes(8).toString('hex')}`;
+  try {
+    const { record: existing } = readPlanRunRecord(ctx, key);
+    const { resume, record } = buildNext(existing);
+    const payload = JSON.stringify(record, null, 2) + '\n';
+    const limits = loadLimits();
+    if (Buffer.byteLength(payload, 'utf8') > limits.maxDocumentBytes) {
+      throw err('DOCUMENT_TOO_LARGE',
+        `plan run record for '${key}' exceeds ${limits.maxDocumentBytes} bytes`);
+    }
+    fs.writeFileSync(tmpAbs, payload, { flag: 'wx' });
+    fs.renameSync(tmpAbs, abs);
+    return {
+      ...schedule,
+      mode: 'applied',
+      persisted: true,
+      path: rel,
+      run: record,
+      resume,
+    };
+  } finally {
+    try { if (lstatOrNull(tmpAbs)) fs.unlinkSync(tmpAbs); } catch { /* noop */ }
+    releaseVerifiedLock(lock);
+  }
 }

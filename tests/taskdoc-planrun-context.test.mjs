@@ -7,7 +7,10 @@ import path from 'node:path';
 import { applyPlan, preflightPlan } from '../src/core/bootstrap.mjs';
 import { createConfig } from '../src/core/config.mjs';
 import { resolveContext } from '../src/core/context.mjs';
-import { getPlan, planWaves, preparePlan } from '../src/core/plans.mjs';
+import {
+  getPlan, planRunState, planWaves, preparePlan, recordPlanRun,
+} from '../src/core/plans.mjs';
+import { transitionTask } from '../src/core/transition.mjs';
 import { renderTaskDoc, writeTaskDoc } from '../src/core/taskdoc.mjs';
 import { getTask } from '../src/core/tasks.mjs';
 import { prepareWorkspace } from '../src/core/workspaces.mjs';
@@ -95,5 +98,65 @@ test('context assembles the session-start packet read-only', async () => {
     assert.equal(typeof out.progress.truncated, 'boolean');
     assert.ok(Array.isArray(out.progress.entries));
     assert.ok(Array.isArray(out.goals));
+  } finally { cleanup(dir); }
+});
+
+test('plan run preview writes nothing; --apply persists checkpoints and tracks resume progress', async () => {
+  const { dir, ctx } = fixture();
+  try {
+    const preview = recordPlanRun(ctx, 'rel-2');
+    assert.equal(preview.mode, 'preview');
+    assert.equal(preview.persisted, false);
+    assert.equal(preview.run, null);
+    assert.equal(preview.resume.remainingWaves, 2);
+    assert.ok(!fs.existsSync(path.join(dir, preview.path)));
+
+    const first = recordPlanRun(ctx, 'rel-2', { apply: true });
+    assert.equal(first.mode, 'applied');
+    assert.equal(first.persisted, true);
+    assert.equal(first.run.revision, 0);
+    assert.equal(first.run.checkpoints.length, 1);
+    assert.equal(first.resume.completedTasks, 0);
+    assert.ok(fs.existsSync(path.join(dir, first.path)));
+
+    // Close task 'a' through the legal lifecycle and check resume delta.
+    const plan = getPlan(ctx, 'rel-2');
+    const aId = plan.tasks.find((t) => t.key === 'a').id;
+    let rev = 0;
+    for (const st of ['ACT', 'VERIFY', 'EVALUATE', 'REVIEW']) {
+      rev = transitionTask(ctx, { id: aId, to: st, expectedRevision: rev }).revision;
+    }
+    rev = transitionTask(ctx, {
+      id: aId,
+      to: 'REVIEW',
+      expectedRevision: rev,
+      verification: {
+        checks: [{ command: 'test', cwd: '.', status: 'pass', evidence: 'ok' }],
+      },
+      review: {
+        mode: 'fresh', reviewer: 'r', authorContext: 'ctx',
+        reviewerContext: 'other', verdict: 'approve',
+      },
+    }).revision;
+    rev = transitionTask(ctx, { id: aId, to: 'ACCEPT', expectedRevision: rev }).revision;
+    transitionTask(ctx, { id: aId, to: 'CLOSE', expectedRevision: rev });
+
+    const beforeSecond = planRunState(ctx, 'rel-2');
+    assert.equal(beforeSecond.persisted, true);
+    assert.deepEqual(beforeSecond.resume.completedSinceLastCheckpoint, ['a']);
+    assert.equal(beforeSecond.resume.completedTasks, 1);
+
+    // CLI plan run --apply persists checkpoint #2.
+    const io = fakeIO();
+    assert.equal(await run(['plan', 'run', '--project', dir, 'rel-2', '--apply'], io), 0);
+    const out = JSON.parse(io.out.stdout.at(-1));
+    assert.equal(out.mode, 'applied');
+    assert.equal(out.run.revision, 1);
+    assert.equal(out.run.checkpoints.length, 2);
+    assert.deepEqual(out.closed, ['a']);
+
+    // Tampered run record fails closed with PLAN_RUN_MALFORMED.
+    fs.writeFileSync(path.join(dir, first.path), '{corrupt');
+    assert.throws(() => planRunState(ctx, 'rel-2'), { code: 'PLAN_RUN_MALFORMED' });
   } finally { cleanup(dir); }
 });
