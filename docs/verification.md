@@ -2,17 +2,23 @@
 
 ## Estado Actual
 
-La ultima ejecucion integral (`npm test`, serial por archivo, commit
-`ca27e26`, 2026-11-22) termino con **1411 pruebas aprobadas, 0 fallidas,
-0 omitidas y 0 canceladas** (831.6 s) en Windows, Node.js v26.8.1 y
-npm 11.6.0. La suite del visor (`viewer/`: `eslint`, `tsc --noEmit`,
-`vitest run`, `vite build`) paso con **17/17 pruebas en 5 archivos**,
-0 errores y build en 816 ms; la auditoria visual en Chromium real
-(Playwright, 1440×900 y 390×844) verifico las 15 vistas en ingles y
-espanol (30 pantallas) con 0 errores de consola/red y 0 overflow.
-Las integrales anteriores (`1152`, `813`, `770`, `699`, `673`, `536`) se
-conservan como referencias pasadas. No sumar tandas acotadas ni resultados
-historicos.
+La ultima ejecucion integral (`npm test`, serial por archivo,
+2026-11-23, rama de conteo de tokens) reporto **1440 pruebas: 1435
+aprobadas y 5 fallidas**. De los 5 fallos, 4 son inestables de la tanda
+larga (cli-lifecycle `update previews`, config-methodology `legacy
+no-op` y dos de docs-cli-drift): aislados en el mismo arbol pasan 40/40.
+El restante, `host-variants` "opencode emits only the documented V2
+variant", falla identicamente en un worktree limpio de `HEAD` sin los
+cambios: es una regresion pre-existente (posterior al resync de
+bridges/enriquecimiento de referencias) y no atribuible a esta tanda.
+Los 29 tests nuevos de tokens (estimador, paquete de contexto,
+resourceCost, sesiones v2) pasan 36/36 en su gate focalizado y el visor
+(`tsc --noEmit` + `vite build`) queda en verde. La integral previa
+(`npm test`, commit `ca27e26`, 2026-11-22) termino con 1411/1411 en
+831.6 s y el visor completo (`eslint`, `tsc --noEmit`, `vitest run`,
+`vite build`, auditoria Chromium 1440×900/390×844, 30 pantallas EN/ES)
+con 0 errores; ambos se conservan como referencias. No sumar tandas
+acotadas ni resultados historicos.
 
 ### Piloto nativo de OpenCode V2 (2026-11-23) — certificado
 
@@ -89,6 +95,7 @@ deriva `0.1.0 -> 0.1.1` de `.devin`/`.agents`; `opencode:v2` queda en
 | Remediacion FMEA F-01..F-07 | Wave Antigravity + gates focalizados, 2026-11-18 | locks 6/6; plans 7/7; paths+digests 16/16; verify+methodology 152/152; journal 38/38; workspaces 27/27 |
 | Integral previa | `npm test` serial, 2026-11-18 | Exit 0: 1152 pass, 0 fail, 0 skipped, 0 cancelled |
 | Integral actual (release v0.1.0 prep) | `npm test` serial (`ca27e26`), 2026-11-22 | Exit 0: 1411 pass, 0 fail, 0 skipped, 0 cancelled (831.6 s); `npm run test:smoke` 215/215 pass (43.2 s) |
+| Integral tokens (estimacion + sesiones v2) | `npm test` serial, 2026-11-23 | Exit 1: 1440 tests, 1435 pass, 5 fail (4 inestables que pasan aislados; 1 pre-existente en `host-variants`, reproducible en `HEAD` limpio); gate focalizado 36/36; `cd viewer && npm run build` en verde |
 | Visor (lint + typecheck + vitest + build + Chromium EN/ES) | `viewer/` + Playwright, 2026-11-22 | Exit 0: eslint 0, tsc 0, vitest 17/17 (5 archivos), build 816 ms; 30 vistas EN/ES sin errores ni overflow |
 | E2E proyecto limpio + `npm pack --dry-run` | CLI global `scopegrain@0.1.0`, 2026-11-22 | Exit 0: inspect/investigate/init/workspace/doctor/structure/context/dist selftest/light CLOSE/formal SDD plan+waves/backup; tarball 978.9 kB (341 archivos) |
 | Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |

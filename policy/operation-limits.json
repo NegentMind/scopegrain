@@ -5,6 +5,7 @@
   "maxSessionEvents": 10000,
   "sessionBudgetDefault": null,
   "budgetMeasures": "explicitly-recorded-operations-only",
+  "tokenMeasures": "self-reported-unverified",
   "executesProjectCommands": false,
   "authenticatesEvidence": false,
   "interceptsNativeTools": false

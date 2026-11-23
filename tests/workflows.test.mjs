@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildWorkflowPacket } from '../src/core/workflows.mjs';
+import { TOKEN_ESTIMATOR } from '../src/core/tokens.mjs';
 import { createTask } from '../src/core/tasks.mjs';
 import { checkAction, transitionTask } from '../src/core/transition.mjs';
 import { checkMethodology } from '../src/core/methodology.mjs';
@@ -180,6 +181,31 @@ test('core profile dependencies always supplement the selected profile', () => {
       assert.ok(webSkills.has(id),
         `core skill ${id} must survive in web packet`);
     }
+  } finally { cleanup(dir); }
+});
+
+test('workflow packet reports estimated resource cost per bucket', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    const p = buildWorkflowPacket(ctx, { command: 'pipeline' });
+    assert.equal(p.resourceCost.estimator, TOKEN_ESTIMATOR);
+    assert.ok(Number.isInteger(p.resourceCost.total)
+      && p.resourceCost.total > 0);
+    assert.deepEqual(Object.keys(p.resourceCost.byBucket).sort(),
+      ['agents', 'command', 'mcps', 'profile', 'prompts',
+        'references', 'rules', 'skills'].sort());
+    let sum = 0;
+    for (const [bucket, est] of Object.entries(p.resourceCost.byBucket)) {
+      assert.ok(Number.isInteger(est.estimatedTokens)
+        && est.estimatedTokens >= 0, bucket);
+      assert.ok(Number.isInteger(est.bytes) && est.bytes >= 0, bucket);
+      sum += est.estimatedTokens;
+    }
+    assert.equal(sum, p.resourceCost.total);
+    // The command bucket measures the post-compose content shipped.
+    assert.ok(p.resourceCost.byBucket.command.estimatedTokens > 0);
+    assert.equal(p.resourceCost.byBucket.command.bytes,
+      Buffer.byteLength(p.command.content.replace(/\r\n/g, '\n'), 'utf8'));
   } finally { cleanup(dir); }
 });
 

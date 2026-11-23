@@ -63,7 +63,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, suite `1411/1411` test
 | `plan create/list/show/next` | Planes con tasks y dependencias |
 | `plan stories` | Render `tasks.md` por user-story (`T###`, `[P]`, fases) |
 | `plan run` | Scheduling por olas respetando el DAG de dependencias |
-| `session create/show/record/resume` | Sesiones con presupuesto explícito de operaciones (límite `maxSessionEvents`), CAS, lock propio, eventos ACT |
+| `session create/show/record/resume` | Sesiones con presupuesto explícito de operaciones (límite `maxSessionEvents`), CAS, lock propio, eventos ACT; presupuesto de tokens auto-reportados opcional (`tokenLimit`, `self-reported-unverified`) |
 
 ### 2.4 Journal (integridad transaccional)
 

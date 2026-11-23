@@ -15,7 +15,8 @@ import { renderTaskDoc, writeTaskDoc } from '../src/core/taskdoc.mjs';
 import { getTask } from '../src/core/tasks.mjs';
 import { prepareWorkspace } from '../src/core/workspaces.mjs';
 import { run } from '../src/cli.mjs';
-import { VALID_ANSWERS, cleanup, fakeIO, makeTempDir, writeJson }
+import { estimateJson, TOKEN_ESTIMATOR } from '../src/core/tokens.mjs';
+import { VALID_ANSWERS, cleanup, fakeIO, makeTempDir, writeFile, writeJson }
   from './helpers.mjs';
 
 const PLAN = {
@@ -98,6 +99,40 @@ test('context assembles the session-start packet read-only', async () => {
     assert.equal(typeof out.progress.truncated, 'boolean');
     assert.ok(Array.isArray(out.progress.entries));
     assert.ok(Array.isArray(out.goals));
+    // Advisory tokenEstimate: every assembled section plus a packet
+    // total over the JSON without the tokenEstimate key itself.
+    const { tokenEstimate, ...rest } = out;
+    assert.equal(tokenEstimate.estimator, TOKEN_ESTIMATOR);
+    assert.ok(Number.isInteger(tokenEstimate.total)
+      && tokenEstimate.total >= 0);
+    assert.deepEqual(Object.keys(tokenEstimate.sections).sort(),
+      Object.keys(rest).sort());
+    for (const est of Object.values(tokenEstimate.sections)) {
+      assert.equal(est.estimator, TOKEN_ESTIMATOR);
+      assert.ok(Number.isInteger(est.estimatedTokens)
+        && est.estimatedTokens >= 0);
+      assert.ok(Number.isInteger(est.bytes) && est.bytes >= 0);
+    }
+    assert.equal(tokenEstimate.total,
+      estimateJson(rest).estimatedTokens);
+  } finally { cleanup(dir); }
+});
+
+test('context tokenEstimate measures post-cap userContext content only', async () => {
+  const { dir } = fixture();
+  try {
+    writeFile(dir, '.tasksystem/context.md', 'a'.repeat(33 * 1024));
+    const io = fakeIO();
+    assert.equal(await run(['context', '--project', dir], io), 0);
+    const out = JSON.parse(io.out.stdout.at(-1));
+    assert.equal(out.userContext.truncated, true);
+    const est = out.tokenEstimate.sections.userContext;
+    assert.equal(est.coversTruncatedContent, true);
+    assert.equal(est.bytes,
+      Buffer.byteLength(out.userContext.content.replace(/\r\n/g, '\n'),
+        'utf8'));
+    assert.equal(est.estimatedTokens, Math.ceil(est.bytes / 4));
+    assert.equal(est.estimator, TOKEN_ESTIMATOR);
   } finally { cleanup(dir); }
 });
 

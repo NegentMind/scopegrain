@@ -436,7 +436,8 @@ export interface CaptureList {
   truncated: boolean;
 }
 
-export type MemoryLogName = 'lessons' | 'outcomes' | 'progress' | 'goals';
+export type MemoryLogName =
+  | 'lessons' | 'outcomes' | 'progress' | 'goals' | 'activity';
 
 export interface MemoryLogResult {
   log: MemoryLogName;
@@ -603,8 +604,19 @@ export interface SessionSummary {
   updatedAt: string;
   events: number;
 }
-export interface SessionEvent { action: string; evidence: string; context: string; at: string }
-export interface SessionRecord extends Omit<SessionSummary, 'events'> { events: SessionEvent[] }
+export interface SessionEvent {
+  action: string;
+  evidence: string;
+  context: string;
+  at: string;
+  // Self-reported caller declaration (v2 sessions only); never observed.
+  tokens?: { prompt: number; completion: number; total: number };
+}
+export interface SessionRecord extends Omit<SessionSummary, 'events'> {
+  events: SessionEvent[];
+  // Writer schema is v2; stored v1 documents lack tokenLimit entirely.
+  tokenLimit?: number | null;
+}
 export interface SessionResumeContext {
   task: {
     id: string;
@@ -618,6 +630,13 @@ export interface SessionResumeContext {
     goalIds: string[];
   } | null;
   budget: { used: number; limit: number; remaining: number; percent: number };
+  tokenUsage?: {
+    reported: number;
+    limit: number | null;
+    remaining: number | null;
+    percent: number | null;
+    measures: string;
+  };
   lastEvent: SessionEvent | null;
   resumeCommand: string;
 }
@@ -640,9 +659,37 @@ export interface ApprovalRecord extends Omit<ApprovalSummary, 'answers'> {
 }
 export interface ApprovalList { approvals: ApprovalSummary[]; malformed: { file: string }[]; truncated: boolean }
 
-export interface CatalogEntry { id: string; description: string; path: string | null }
+export type CatalogDepKey =
+  | 'agents' | 'skills' | 'rules' | 'references' | 'prompts' | 'mcps';
+export interface CatalogEntry {
+  id: string;
+  description: string;
+  path: string | null;
+  modes?: string[];
+  // Manifest bindings surfaced verbatim (only the keys the entry declares).
+  agents?: string[];
+  skills?: string[];
+  rules?: string[];
+  references?: string[];
+  prompts?: string[];
+  mcps?: string[];
+}
+export interface CatalogAlias {
+  kind: string;
+  id: string;
+  target: string;
+  mode?: string;
+  default?: boolean;
+  targetMode?: string;
+  parameters?: Record<string, string>;
+}
 export interface CatalogResponse {
-  catalog: { counts: Record<string, number>; entries: Record<string, CatalogEntry[]>; aliases: Record<string, string> };
+  catalog: {
+    counts: Record<string, number>;
+    entries: Record<string, CatalogEntry[]>;
+    truncated?: boolean | null;
+    aliases: CatalogAlias[];
+  };
 }
 
 export interface VerifyCommand {

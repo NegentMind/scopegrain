@@ -99,6 +99,27 @@ respuestas sobre un registro no `pending` (o `custom`) exigen
 Devuelve el registro de sesion acotada almacenado con id `UUID`. Solo
 lectura: valida el esquema del archivo y que el id interno coincida.
 
+### session create / session record
+
+`session create --task UUID --limit N [--token-limit N] [--apply]`
+`session record UUID --revision N --input FILE [--apply]`
+
+`create` abre una sesion acotada (`schemaVersion` 2; los documentos v1
+almacenados siguen siendo legibles y se promueven al registrar). La flag
+opcional `--token-limit N` declara un presupuesto de tokens
+auto-reportados (entero >= 1; `null` cuando se omite). `record` anexa un
+evento `{action, evidence, context?, tokens?}` donde `tokens` es un
+objeto cerrado `{prompt, completion, total}` de enteros >= 0 con
+`total === prompt + completion`. Los tokens son declarados por el
+llamador, nunca observados: `tokenUsage.measures` vale
+`self-reported-unverified`. El evento que alcanza el presupuesto se
+acepta (el consumo declarado ya ocurrio); un evento que empujaria la
+suma por encima y todo registro posterior a un presupuesto ya alcanzado
+fallan con `SESSION_TOKEN_BUDGET_EXHAUSTED`, de modo que un documento
+almacenado nunca supera su propio `tokenLimit`. `resume` y el dry-run
+de `record` exponen `usage.tokenUsage` / `tokenUsage` con `reported`,
+`limit`, `remaining`, `percent` (`null` sin presupuesto) y `measures`.
+
 ## Recuperacion de recursos del catalogo
 
 Los cuatro subcomandos leen el snapshot del workspace y nunca descargan

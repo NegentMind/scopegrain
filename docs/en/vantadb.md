@@ -103,6 +103,14 @@ The read verbs (`get`/`list`/`search`/`recall`) are bounded proxies over the
 same stdio channel: server auto-spawn, argument validation before config
 access, no local writes.
 
+The rehydration surfaces (the `vantadb.recall` section of the `context`
+packet and `session resume`'s `vantadb.context`) attach
+`prependContextEstimate` (`{estimatedTokens, estimator, bytes}`) whenever
+the response carries a string `prepend_context`, measured after the
+harness character cap. It is a local `utf8-bytes/4` heuristic estimate,
+never the host tokenizer count; an absent or non-string `prepend_context`
+produces no field.
+
 ## `scopegrain_memory_*` MCP tools
 
 The MCP server exposes additional `memory_*` tools. Five are read-only:

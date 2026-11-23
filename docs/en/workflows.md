@@ -30,6 +30,14 @@ destinations relative to the project root. The core profile always
 complements any chosen profile. No instruction is executed
 automatically and no agent is created.
 
+The packet carries `resourceCost`: a local `utf8-bytes/4` heuristic
+estimate over the resolved contents (post `composeResource`/presets) —
+never the host tokenizer count. It reports a `total` and a `byBucket`
+breakdown (`command`, `profile`, `agents`, `skills`, `rules`,
+`references`, `prompts`, `mcps`); resources contributed by active
+extensions add into their bucket. Advisory metadata counted inside the
+packet document limit.
+
 Compatible aliases use the same `workflow` interface, not divergent
 implementations. Declared modes are validated; unknown names or modes
 are rejected. The web/rust/python/database profiles are optional and do
@@ -153,6 +161,9 @@ without reordering history or modifying existing bytes.
 budget; it does not repeat commands, clean locks or reactivate work on
 its own. Operational documents have a 1 MiB limit. The budget does not
 count unregistered native calls, tokens, money or time.
+The optional per-event `tokens` field and `tokenLimit` are caller
+self-reported declarations (`self-reported-unverified`), never observed
+by the harness.
 
 ## Integrations
 

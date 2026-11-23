@@ -925,11 +925,26 @@ export function createApiQueries(ctx) {
     }
     const remaining = Math.max(0, s.limit - s.used);
     const pct = s.limit > 0 ? Math.min(100, Math.round((s.used / s.limit) * 100)) : 0;
+    // Self-reported token accounting: caller-declared totals, never
+    // observed; percent stays null when no tokenLimit was declared.
+    const reported = s.events.reduce(
+      (n, ev) => n + (ev.tokens ? ev.tokens.total : 0), 0);
+    const tokenLimit = s.tokenLimit ?? null;
+    const tokenPct = tokenLimit === null || tokenLimit === 0
+      ? null : Math.min(100, Math.round((reported / tokenLimit) * 100));
     return {
       session: s,
       resumeContext: {
         task,
         budget: { used: s.used, limit: s.limit, remaining, percent: pct },
+        tokenUsage: {
+          reported,
+          limit: tokenLimit,
+          remaining: tokenLimit === null
+            ? null : Math.max(0, tokenLimit - reported),
+          percent: tokenPct,
+          measures: loadLimits().tokenMeasures,
+        },
         lastEvent: s.events.length > 0 ? s.events[s.events.length - 1] : null,
         resumeCommand: `scopegrain session resume --project . ${s.id}`,
       },
@@ -959,20 +974,33 @@ export function createApiQueries(ctx) {
     return { approval: getApproval(ctx, id) };
   }
 
+  // Manifest dependency keys surfaced verbatim so the viewer can render
+  // bindings (e.g. command -> prompts) without re-reading the catalog.
+  const CATALOG_DEP_KEYS = Object.freeze(
+    ['agents', 'skills', 'rules', 'references', 'prompts', 'mcps']);
+
   function catalog() {
     const c = loadWorkspaceCatalog(ctx);
     const byKind = {};
+    const totals = {};
+    let dropped = 0;
     for (const e of c.entries ?? []) {
+      totals[e.kind] = (totals[e.kind] ?? 0) + 1;
       const list = byKind[e.kind] ?? (byKind[e.kind] = []);
-      if (list.length < LIMITS.maxListLimit) {
-        const desc = truncateString(e.description ?? '', LIMITS.maxFieldChars);
-        list.push({ id: e.id, description: desc.value, path: e.path ?? null });
+      if (list.length >= LIMITS.maxListLimit) {
+        dropped += 1;
+        continue;
       }
+      const desc = truncateString(e.description ?? '', LIMITS.maxFieldChars);
+      const item = { id: e.id, description: desc.value, path: e.path ?? null };
+      if (Array.isArray(e.modes)) item.modes = e.modes;
+      for (const dk of CATALOG_DEP_KEYS) {
+        if (Array.isArray(e[dk]) && e[dk].length > 0) item[dk] = e[dk];
+      }
+      list.push(item);
     }
-    const counts = Object.fromEntries(
-      Object.entries(byKind).map(([k, v]) => [k, v.length]));
-    return { catalog: { counts, entries: byKind,
-      aliases: c.aliases ?? {} } };
+    return { catalog: { counts: totals, entries: byKind,
+      truncated: dropped > 0 || null, aliases: c.aliases ?? {} } };
   }
 
   function verifyCommands() {

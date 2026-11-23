@@ -37,9 +37,13 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SESSION_KEYS = new Set([
   'schemaVersion', 'id', 'taskId', 'limit', 'used', 'revision',
-  'events', 'createdAt', 'updatedAt',
+  'events', 'createdAt', 'updatedAt', 'tokenLimit',
 ]);
-const EVENT_KEYS = new Set(['action', 'evidence', 'context', 'at']);
+const EVENT_KEYS = new Set(['action', 'evidence', 'context', 'at', 'tokens']);
+// Writer schema version: v1 documents (no tokenLimit, no event tokens)
+// stay readable; every write emits v2.
+const SESSION_SCHEMA_VERSION = 2;
+const TOKEN_KEY_SET = ['prompt', 'completion', 'total'];
 
 export function sessionsDirAbs(ctx) {
   return resolveInside(
@@ -64,7 +68,8 @@ export function validateSessionShape(s, label = 'session') {
   }
   const max = loadLimits().maxSessionEvents;
   const actions = knownActions(); // loaded once, not per event
-  if (s.schemaVersion !== 1 || !UUID_RE.test(s.id || '')
+  if ((s.schemaVersion !== 1 && s.schemaVersion !== SESSION_SCHEMA_VERSION)
+      || !UUID_RE.test(s.id || '')
       || !UUID_RE.test(s.taskId || '')
       || !Number.isInteger(s.limit) || s.limit <= 0 || s.limit > max
       || !Number.isInteger(s.used) || s.used < 0 || s.used > s.limit
@@ -78,13 +83,33 @@ export function validateSessionShape(s, label = 'session') {
         && typeof ev.action === 'string' && actions.has(ev.action)
         && typeof ev.evidence === 'string' && ev.evidence !== ''
         && typeof ev.context === 'string'
-        && typeof ev.at === 'string' && isCanon(ev.at))) {
+        && typeof ev.at === 'string' && isCanon(ev.at)
+        // ev.tokens is a v2-only key; in v1 its mere presence is malformed.
+        && (s.schemaVersion === SESSION_SCHEMA_VERSION
+          || ev.tokens === undefined)
+        && (ev.tokens === undefined || isTokenReport(ev.tokens)))) {
     throw err('SESSION_MALFORMED', `${label} has invalid fields`);
+  }
+  // tokenLimit: required on v2 (null or integer >= 1); on v1 the key is
+  // optional but validated identically when present.
+  const tokenLimitValid = s.tokenLimit === null
+    || (Number.isInteger(s.tokenLimit) && s.tokenLimit >= 1);
+  if ((s.schemaVersion === SESSION_SCHEMA_VERSION && !tokenLimitValid)
+      || (s.schemaVersion === 1 && s.tokenLimit !== undefined
+        && !tokenLimitValid)) {
+    throw err('SESSION_MALFORMED', `${label} has invalid tokenLimit`);
   }
   // Append-only invariants: usage and revision track recorded events.
   if (s.used !== s.events.length || s.revision !== s.events.length) {
     throw err('SESSION_MALFORMED',
       `${label}: used/revision do not match events.length`);
+  }
+  // Reported tokens are caller-declared, never observed; the stored
+  // invariant is that their sum stays within the declared budget.
+  if (Number.isInteger(s.tokenLimit)
+      && reportedTokensUsed(s) > s.tokenLimit) {
+    throw err('SESSION_MALFORMED',
+      `${label}: reported tokens exceed tokenLimit`);
   }
   const isoOk = typeof s.createdAt === 'string' && isCanon(s.createdAt)
     && typeof s.updatedAt === 'string' && isCanon(s.updatedAt);
@@ -115,6 +140,56 @@ const isCanon = (v) => {
   const t = Date.parse(v);
   return !Number.isNaN(t) && new Date(t).toISOString() === v;
 };
+
+// Closed self-reported token shape: exactly {prompt, completion, total},
+// integers >= 0, with total === prompt + completion.
+function isTokenReport(t) {
+  return t !== null && typeof t === 'object' && !Array.isArray(t)
+    && Object.keys(t).length === TOKEN_KEY_SET.length
+    && TOKEN_KEY_SET.every((k) => Number.isInteger(t[k]) && t[k] >= 0)
+    && t.total === t.prompt + t.completion;
+}
+
+// Sum of caller-declared token totals across recorded events.
+function reportedTokensUsed(session) {
+  let total = 0;
+  for (const ev of session.events) {
+    total += ev.tokens ? ev.tokens.total : 0;
+  }
+  return total;
+}
+
+// Token gate: the event that REACHES the declared budget is accepted —
+// the consumption it reports already happened; what the gate blocks is
+// the NEXT append (stored sum >= limit) and any event that would push
+// the stored sum PAST the limit, so a stored document never records a
+// state exceeding its own declared budget.
+function assertTokenBudgetAvailable(session, input) {
+  if (!Number.isInteger(session.tokenLimit)) return;
+  const stored = reportedTokensUsed(session);
+  const incoming = input && input.tokens ? input.tokens.total : 0;
+  if (stored >= session.tokenLimit
+      || stored + incoming > session.tokenLimit) {
+    throw err('SESSION_TOKEN_BUDGET_EXHAUSTED',
+      `reported token budget ${session.tokenLimit} reached`);
+  }
+}
+
+// Self-reported token accounting surfaced to resumes and dry-runs:
+// `reported` is the sum of caller-declared ev.tokens.total, labeled so it
+// can never be mistaken for observed metering.
+function tokenUsageSummary(session) {
+  const reported = reportedTokensUsed(session);
+  const limit = session.tokenLimit ?? null;
+  return {
+    reported,
+    limit,
+    remaining: limit === null ? null : Math.max(0, limit - reported),
+    percent: limit === null ? null
+      : Math.min(100, Math.round((reported / limit) * 100)),
+    measures: loadLimits().tokenMeasures,
+  };
+}
 
 function readSessionFile(file, id) {
   const st = lstatOrNull(file);
@@ -156,7 +231,7 @@ export function prepareSession(ctx, input) {
     throw err('INVALID_SESSION', 'session input must be an object');
   }
   for (const k of Object.keys(input)) {
-    if (!['taskId', 'limit'].includes(k)) {
+    if (!['taskId', 'limit', 'tokenLimit'].includes(k)) {
       throw err('UNKNOWN_KEY', `session input has unknown key '${k}'`);
     }
   }
@@ -164,10 +239,15 @@ export function prepareSession(ctx, input) {
   if (!Number.isInteger(input.limit) || input.limit <= 0 || input.limit > max) {
     throw err('INVALID_VALUE', `limit must be an integer in 1..${max}`);
   }
+  if (input.tokenLimit !== undefined && input.tokenLimit !== null
+      && (!Number.isInteger(input.tokenLimit) || input.tokenLimit < 1)) {
+    throw err('INVALID_VALUE',
+      'tokenLimit must be null or an integer >= 1');
+  }
   const task = getTask(ctx, input.taskId); // must exist (throws otherwise)
   const at = new Date().toISOString();
   const session = {
-    schemaVersion: 1,
+    schemaVersion: SESSION_SCHEMA_VERSION,
     id: crypto.randomUUID(),
     taskId: task.id,
     limit: input.limit,
@@ -176,6 +256,7 @@ export function prepareSession(ctx, input) {
     events: [],
     createdAt: at,
     updatedAt: at,
+    tokenLimit: input.tokenLimit ?? null,
   };
   const rel = `${ctx.config.paths.state}/sessions/${session.id}.json`;
   return {
@@ -193,8 +274,8 @@ function validateRecordInput(input) {
     throw err('INVALID_SESSION', 'record input must be an object');
   }
   for (const k of Object.keys(input)) {
-    if (!['id', 'expectedRevision', 'action', 'evidence', 'context']
-      .includes(k)) {
+    if (!['id', 'expectedRevision', 'action', 'evidence', 'context',
+      'tokens'].includes(k)) {
       throw err('UNKNOWN_KEY', `record input has unknown key '${k}'`);
     }
   }
@@ -207,6 +288,11 @@ function validateRecordInput(input) {
   }
   if (input.context !== undefined && typeof input.context !== 'string') {
     throw err('INVALID_VALUE', 'context must be a string');
+  }
+  if (input.tokens !== undefined && !isTokenReport(input.tokens)) {
+    throw err('INVALID_VALUE',
+      'tokens must be {prompt, completion, total} integers >= 0 '
+      + 'with total === prompt + completion');
   }
   if (!Number.isInteger(input.expectedRevision)
       || input.expectedRevision < 0) {
@@ -234,16 +320,21 @@ export function prepareSessionRecord(ctx, input) {
     throw err('SESSION_LIMIT_EXHAUSTED',
       `operation limit ${session.limit} reached`);
   }
+  assertTokenBudgetAvailable(session, input);
   // Prospective append is built+serialized exactly as apply would: dry-run
   // sees the same DOCUMENT_TOO_LARGE/clock failures with no writes.
   const prospective = buildNextSession(session, input, new Date().toISOString());
   assertSessionFits(prospective);
-  return { session, check, prospective };
+  return { session, check, prospective, tokenUsage: tokenUsageSummary(session) };
 }
 
+// The prospective is always the writer version: a stored v1 record
+// promotes to v2 here, gaining tokenLimit (null when never declared).
 function buildNextSession(session, input, at) {
   return {
     ...session,
+    schemaVersion: SESSION_SCHEMA_VERSION,
+    tokenLimit: session.tokenLimit ?? null,
     used: session.used + 1,
     revision: session.revision + 1,
     updatedAt: at,
@@ -252,6 +343,7 @@ function buildNextSession(session, input, at) {
       evidence: input.evidence,
       context: input.context || '',
       at,
+      ...(input.tokens !== undefined && { tokens: { ...input.tokens } }),
     }],
   };
 }
@@ -294,6 +386,7 @@ export function recordSession(ctx, input) {
       throw err('SESSION_LIMIT_EXHAUSTED',
         `operation limit ${session.limit} reached`);
     }
+    assertTokenBudgetAvailable(session, input);
     const at = new Date().toISOString();
     next = buildNextSession(session, input, at);
     const serialized = assertSessionFits(next);
@@ -335,6 +428,7 @@ export function resumeSession(ctx, id) {
       limit: session.limit,
       remaining: session.limit - session.used,
       measures: loadLimits().budgetMeasures,
+      tokenUsage: tokenUsageSummary(session),
     },
     resourceRoot: ctx.configDir,
     recovery: { reference: 'references/task-system.md' },
@@ -565,6 +659,7 @@ export function createOwnedSessionStore(ctx, options) {
       throw err('SESSION_LIMIT_EXHAUSTED',
         `operation limit ${session.limit} reached`);
     }
+    assertTokenBudgetAvailable(session, record);
     const next = buildNextSession(session, record, identity.createdAt);
     const nextBytes = assertSessionFits(next);
     const nextSidecar = sidecarDocument({
@@ -807,6 +902,7 @@ export function createOwnedSessionStore(ctx, options) {
         used: session.used, limit: session.limit,
         remaining: session.limit - session.used,
         measures: loadLimits().budgetMeasures,
+        tokenUsage: tokenUsageSummary(session),
       },
       resourceRoot,
       recovery: { reference: 'references/task-system.md' },

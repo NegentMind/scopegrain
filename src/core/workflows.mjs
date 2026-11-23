@@ -15,6 +15,7 @@ import { KNOWN_HOSTS, validateMethodologyMode } from './config.mjs';
 import { evaluateTaskActions } from './methodology.mjs';
 import { findPlaceholders, renderPlaceholders } from './placeholders.mjs';
 import { hooksFor } from './hooks-policy.mjs';
+import { estimateTokens, TOKEN_ESTIMATOR } from './tokens.mjs';
 import {
   presetLayers, listRegistry, composeResource,
 } from './distribution.mjs';
@@ -260,6 +261,43 @@ export function buildWorkflowPacket(ctx, opts = {}) {
       'Dependency resources supplement the selected profile; core safety '
         + 'resources always apply.',
     ],
+  };
+  // Estimated resource cost over the resolved contents — post
+  // composeResource/presets — so hosts can budget before interpreting
+  // them. Local utf8-bytes/4 heuristic, never the host's real tokenizer.
+  // Computed before the document cap so the limit covers the final
+  // packet including this block.
+  const costTexts = {
+    command: [commandBase],
+    profile: [Buffer.isBuffer(profileEntry.content)
+      ? decodeUtf8Strict(profileEntry.content,
+        'PROFILE_MALFORMED', `profile ${profile.id}`)
+      : profileEntry.content],
+  };
+  for (const bucket of [
+    'agents', 'skills', 'rules', 'references', 'prompts', 'mcps',
+  ]) {
+    costTexts[bucket] = [
+      ...packet.resources[bucket].map((r) => r.content),
+      ...contributedResources[bucket].map((r) => r.content),
+    ];
+  }
+  const byBucket = {};
+  let costTotal = 0;
+  for (const [bucket, texts] of Object.entries(costTexts)) {
+    let estimatedTokens = 0;
+    let bytes = 0;
+    for (const text of texts) {
+      if (typeof text !== 'string') continue;
+      const est = estimateTokens(text);
+      estimatedTokens += est.estimatedTokens;
+      bytes += est.bytes;
+    }
+    byBucket[bucket] = { estimatedTokens, bytes };
+    costTotal += estimatedTokens;
+  }
+  packet.resourceCost = {
+    estimator: TOKEN_ESTIMATOR, total: costTotal, byBucket,
   };
   const bytes = Buffer.byteLength(JSON.stringify(packet), 'utf8');
   if (bytes > limits.maxDocumentBytes) {

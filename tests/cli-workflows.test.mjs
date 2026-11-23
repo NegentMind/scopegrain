@@ -189,6 +189,53 @@ test('session create/record/resume: policy + dry-run validation + decimal', asyn
   } finally { cleanup(dir); cleanup(ev); }
 });
 
+test('session create --token-limit and record input tokens through CLI', async () => {
+  const dir = bootstrapped();
+  const ev = `${dir}-tok.json`;
+  try {
+    const ctx = (await import('../src/core/context.mjs'))
+      .resolveContext({ project: dir });
+    const task = createTask(ctx, {
+      title: 'T', contract: 'C', authorContext: 'a', scope: [],
+    });
+    let io = fakeIO();
+    assert.equal(await run(['session', 'create', '--project', dir,
+      '--task', task.id, '--limit', '5', '--token-limit', '100',
+      '--apply'], io), 0);
+    const session = lastJson(io).session;
+    assert.equal(session.schemaVersion, 2);
+    assert.equal(session.tokenLimit, 100);
+    // Self-reported tokens travel inside the record input file.
+    fs.writeFileSync(ev, JSON.stringify({ action: 'read', evidence: 'x',
+      tokens: { prompt: 2, completion: 3, total: 5 } }));
+    io = fakeIO();
+    assert.equal(await run(['session', 'record', session.id,
+      '--project', dir, '--revision', '0', '--input', ev], io), 0);
+    assert.equal(lastJson(io).mode, 'dry-run');
+    assert.equal(lastJson(io).tokenUsage.reported, 0);
+    assert.equal(lastJson(io).tokenUsage.limit, 100);
+    io = fakeIO();
+    assert.equal(await run(['session', 'record', session.id,
+      '--project', dir, '--revision', '0', '--input', ev, '--apply'], io), 0);
+    assert.equal(lastJson(io).events[0].tokens.total, 5);
+    // A malformed report is rejected before touching the stored bytes.
+    fs.writeFileSync(ev, JSON.stringify({ action: 'read', evidence: 'x',
+      tokens: { prompt: 2, completion: 3, total: 6 } }));
+    const bad = fakeIO();
+    assert.equal(await run(['session', 'record', session.id,
+      '--project', dir, '--revision', '1', '--input', ev, '--apply'], bad), 1);
+    assert.equal(errCode(bad), 'INVALID_VALUE');
+    io = fakeIO();
+    assert.equal(await run(['session', 'resume', session.id,
+      '--project', dir, '--no-vantadb'], io), 0);
+    assert.equal(lastJson(io).usage.tokenUsage.reported, 5);
+    assert.equal(lastJson(io).usage.tokenUsage.limit, 100);
+    assert.equal(lastJson(io).usage.tokenUsage.remaining, 95);
+    assert.equal(lastJson(io).usage.tokenUsage.measures,
+      'self-reported-unverified');
+  } finally { cleanup(dir); cleanup(ev); }
+});
+
 test('interactive versioning asks each category and rejects bad replies', async () => {
   const dir = makeTempDir('cliw-io');
   try {

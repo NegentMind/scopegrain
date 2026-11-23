@@ -10,6 +10,7 @@
 import {
   loadVantaDBConfig, callVantaDBTool, vantaDBContext,
 } from './vantadb-runtime.mjs';
+import { estimateTokens } from '../core/tokens.mjs';
 
 // Bounded defaults: session-start packets must stay fast even when the
 // backend takes the full timeout. Callers may override with their own
@@ -33,6 +34,11 @@ function boundRecall(res) {
       && out.prepend_context.length > PREPEND_CAP_CHARS) {
     out.prepend_context = out.prepend_context.slice(0, PREPEND_CAP_CHARS);
     out.prependContextTruncated = true;
+  }
+  // Local estimate over the post-cap prepend_context — heuristic, never
+  // the host tokenizer. Absent/non-string fields simply carry no estimate.
+  if (typeof out.prepend_context === 'string') {
+    out.prependContextEstimate = estimateTokens(out.prepend_context);
   }
   return out;
 }

@@ -14,6 +14,7 @@ import { createCaptureStore } from '../core/captures.mjs';
 import { loadJournalPolicy } from '../core/policy.mjs';
 import { canonicalDigest } from '../core/digests.mjs';
 import { readWorklog } from '../core/worklog.mjs';
+import { estimateTokens } from '../core/tokens.mjs';
 import { createVantaDBProjector, projectionScopeHash } from './vantadb.mjs';
 
 export const DEFAULT_VANTADB_VERSION = '0.9.0';
@@ -596,10 +597,17 @@ export async function vantaDBContext({ cfg, recordId, topK, maxNamespaces,
           reason: 'response byte budget exhausted' });
       }
     }
-    return { recordId, namespacesFound: names.length,
+    const result = { recordId, namespacesFound: names.length,
       namespacesScanned: scanned.length,
       truncated: names.length > cap || warnings.some((w) => w.signal === 'truncated'),
       hits, warnings };
+    // Local estimate over prepend_context when a backend shape carries
+    // one — heuristic, never the host tokenizer. Absent/non-string
+    // fields simply carry no estimate.
+    if (typeof result.prepend_context === 'string') {
+      result.prependContextEstimate = estimateTokens(result.prepend_context);
+    }
+    return result;
   });
 }
 

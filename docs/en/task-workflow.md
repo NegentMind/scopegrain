@@ -153,6 +153,16 @@ Hosts invoke it at session start per the generated instruction in
 AGENTS.md/CLAUDE.md and `.scopegrain/instructions.md`; it never executes
 commands or mutates state.
 
+The packet also carries `tokenEstimate`: a local heuristic estimate
+`utf8-bytes/4` (UTF-8 bytes after CRLF normalization, divided by four,
+rounded up) — never the host tokenizer count, which the harness cannot
+observe. `tokenEstimate.sections` reports `{estimatedTokens, estimator,
+bytes}` per assembled section; for `userContext` the measurement covers
+only the returned `content` (post 32 KiB cap) and
+`coversTruncatedContent` says so. `tokenEstimate.total` estimates the
+whole packet without the `tokenEstimate` key itself. Advisory and
+degradable: on failure it is `null` instead of aborting the packet.
+
 ## Operational memory, goals and metrics
 
 Bounded append-only JSONL logs under `paths.memory`

@@ -542,9 +542,14 @@ twelve closed keys, including `previousOperationId` and
   (`session` + `session-ownership`).
 - **`record`** emits one operation with two update events over both
   files. All domain gates — `expectedRevision` CAS, `checkAction`
-  against the live task, `used < limit` budget and full prospective
-  shape — run inside the kernel callback, before reserving journal
-  state. The recorded scope must equal the enrolled scope exactly
+  against the live task, `used < limit` budget, the reported-token
+  budget — denied when the stored sum already reached `tokenLimit` or
+  when the incoming event would push it above — and full prospective
+  shape — run inside the kernel callback,
+  before reserving journal state. The source document travels as
+  `schemaVersion` 2 on write (dual 1/2 read); per-event `tokens` and
+  `tokenLimit` are self-reported declarations
+  (`self-reported-unverified`). The recorded scope must equal the enrolled scope exactly
   (`INVALID_OWNED_SESSION_INPUT` if it differs). **`prepareRecord`**
   is the dry-run: it proves only the tip (O(1) writes; reads walk the
   chain, deliberate).

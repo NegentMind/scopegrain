@@ -27,6 +27,14 @@ destinos de artefactos relativos a la raiz del proyecto.
 El perfil core siempre complementa cualquier perfil elegido.
 No se ejecuta automaticamente ninguna instruccion ni se crea un agente.
 
+El paquete incorpora `resourceCost`: una estimacion local heuristica
+`utf8-bytes/4` sobre los contenidos resueltos (tras `composeResource` y
+los presets aplicados) — nunca el conteo del tokenizer del anfitrion.
+Reporta `total` y un desglose `byBucket` (`command`, `profile`, `agents`,
+`skills`, `rules`, `references`, `prompts`, `mcps`); los recursos
+aportados por extensiones activas se suman a su bucket. Es metadato
+consultivo incluido dentro del limite de documento del paquete.
+
 Los aliases compatibles usan la misma interfaz `workflow`, no implementaciones
 divergentes. Los modos declarados se validan; nombres o modos desconocidos
 se rechazan. Los perfiles web/rust/python/database son optativos y no
@@ -150,6 +158,9 @@ sin reordenar la historia ni modificar los bytes existentes.
 restante; no repite comandos, limpia locks ni reactiva trabajo por su cuenta.
 Los documentos operativos tienen un limite de 1 MiB. El presupuesto no
 cuenta llamadas nativas no registradas, tokens, dinero ni tiempo.
+El campo opcional `tokens` por evento y `tokenLimit` son declaraciones
+auto-reportadas del llamador (`self-reported-unverified`), nunca
+observadas por el harness.
 
 ## Integraciones
 

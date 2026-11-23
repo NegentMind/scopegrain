@@ -58,6 +58,11 @@ alcance probado y las limitaciones se registran en
 - **Attestations, no identidad.** `authorContext`/`reviewerContext` y las
   evidencias son declaraciones registradas; no hay autenticacion
   criptografica ni observacion de lo que el anfitrion hizo fuera del flujo.
+- **Tokens declarados, no medidos.** Los `tokens` por evento de sesion y
+  el `tokenLimit` son declaraciones del llamador; el harness no observa
+  ni autentica el consumo real del anfitrion
+  (`tokenMeasures: self-reported-unverified`), coherente con
+  `authenticatesEvidence:false` e `interceptsNativeTools:false`.
 - **Contencion vs. escritura in-situ.** La validacion se repite justo antes
   de escribir, pero sigue existiendo una ventana residual: cualquier
   proceso local con capacidad de escritura (no necesariamente privilegiado

@@ -16,8 +16,8 @@ import { resolveContext } from '../src/core/context.mjs';
 import { loadLimits } from '../src/core/policy.mjs';
 import { bindWorkspace, prepareWorkspace } from '../src/core/workspaces.mjs';
 import {
-  applyJournaledRecordUpdate, getJournalOperation,
-  recoverJournalOperation,
+  applyJournaledRecordCreation, applyJournaledRecordUpdate,
+  getJournalOperation, recoverJournalOperation,
 } from '../src/core/journal.mjs';
 import { validateRecordTransition } from '../src/core/record-history.mjs';
 import { createOwnedSessionStore } from '../src/core/sessions.mjs';
@@ -460,6 +460,101 @@ test('drift outside the journal breaks the proof closed', () => {
     assert.equal(updated.status, 'committed');
     assert.throws(() => store.get(id),
       (e) => e.code === 'OWNED_SESSION_SOURCE_CHANGED');
+  } finally { cleanup(f.dir); }
+});
+
+test('v1 source bytes promote to v2; tokens ride inside the 2-event update op', () => {
+  const f = fixture();
+  try {
+    const store = f.make();
+    const id = crypto.randomUUID();
+    const sourceRel = `${f.state}/sessions/${id}.json`;
+    const ownershipRel = `${f.state}/session-ownership/${id}.json`;
+    // Simulate an owned session opened by the v1 writer: same create op
+    // shape, but the source document carries no token fields.
+    const created = applyJournaledRecordCreation(f.bound, (identity) => {
+      const v1 = {
+        schemaVersion: 1, id, taskId: f.task.id, limit: 5,
+        used: 0, revision: 0, events: [],
+        createdAt: identity.createdAt, updatedAt: identity.createdAt,
+      };
+      const sourceBytes = Buffer.from(
+        JSON.stringify(v1, null, 2) + '\n', 'utf8');
+      const sidecarBytes = Buffer.from(JSON.stringify({
+        schemaVersion: 1, sourceKind: 'session', recordId: id,
+        sourceRevision: 0, sourceRel,
+        sourceHash: sha256(sourceBytes),
+        operationId: identity.operationId,
+        previousOperationId: null,
+        createOperationId: identity.operationId,
+        scope: scopeOf(f, [f.a, f.b]),
+        createdAt: identity.createdAt, updatedAt: identity.createdAt,
+      }, null, 2) + '\n', 'utf8');
+      return [
+        { sourceKind: 'session', recordId: id, sourceRevision: 0,
+          areaIds: [f.a, f.b],
+          file: { rel: sourceRel, content: sourceBytes } },
+        { sourceKind: 'session-ownership', recordId: id, sourceRevision: 0,
+          areaIds: [f.a, f.b],
+          file: { rel: ownershipRel, content: sidecarBytes } },
+      ];
+    });
+    assert.equal(created.status, 'committed');
+    assert.equal(created.eventIds.length, 2);
+    // A plain record promotes the stored source to the writer version.
+    const first = store.record(recordIn(f, id, 0));
+    assert.equal(first.journal.eventIds.length, 2);
+    assert.equal(first.record.schemaVersion, 2);
+    assert.equal(first.record.tokenLimit, null);
+    const srcBytes = fs.readFileSync(
+      path.join(f.dir, ...sourceRel.split('/')));
+    const stored = JSON.parse(srcBytes.toString('utf8'));
+    assert.equal(stored.schemaVersion, 2);
+    assert.equal(stored.tokenLimit, null);
+    // A record carrying self-reported tokens stays inside the source JSON;
+    // the update is still exactly two journal events.
+    const second = store.record(recordIn(f, id, 1, 'read',
+      { tokens: { prompt: 2, completion: 3, total: 5 } }));
+    assert.equal(second.journal.eventIds.length, 2);
+    assert.deepEqual(second.record.events[1].tokens,
+      { prompt: 2, completion: 3, total: 5 });
+    const op = getJournalOperation(f.bound, second.journal.operationId);
+    assert.equal(op.intent.events.length, 2);
+    assert.deepEqual(op.intent.events.map((e) => e.sourceKind).sort(),
+      ['session', 'session-ownership']);
+    // resume over the proven record exposes self-reported token usage.
+    const resumed = store.resume(id);
+    assert.deepEqual(resumed.usage.tokenUsage, {
+      reported: 5, limit: null, remaining: null, percent: null,
+      measures: 'self-reported-unverified',
+    });
+  } finally { cleanup(f.dir); }
+});
+
+test('owned session token budget exhausts inside the kernel callback', () => {
+  const f = fixture();
+  try {
+    const store = f.make();
+    const created = store.create({ areaIds: [f.a, f.b],
+      session: { taskId: f.task.id, limit: 10, tokenLimit: 5 } });
+    const id = created.record.id;
+    assert.equal(created.record.schemaVersion, 2);
+    assert.equal(created.record.tokenLimit, 5);
+    const intentCount = () => Object.keys(tree(f.dir)).filter((rel) =>
+      rel.endsWith('intent.json')).length;
+    assert.equal(intentCount(), 1);
+    const first = store.record(recordIn(f, id, 0, 'read',
+      { tokens: { prompt: 2, completion: 3, total: 5 } }));
+    assert.equal(first.journal.eventIds.length, 2);
+    // Stored total reached the budget: the NEXT append is denied before
+    // any journal state is reserved — still exactly 2 ops on disk.
+    for (const fn of [
+      () => store.prepareRecord(recordIn(f, id, 1)),
+      () => store.record(recordIn(f, id, 1)),
+    ]) {
+      assert.throws(fn, (e) => e.code === 'SESSION_TOKEN_BUDGET_EXHAUSTED');
+    }
+    assert.equal(intentCount(), 2); // create + one update only
   } finally { cleanup(f.dir); }
 });
 

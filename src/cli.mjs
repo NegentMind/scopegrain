@@ -13,6 +13,8 @@ import {
 } from './core/fsx.mjs';
 import fs from 'node:fs';
 import { loadLimits, loadMethodologyPolicy } from './core/policy.mjs';
+import { estimateJson, estimateTokens, TOKEN_ESTIMATOR }
+  from './core/tokens.mjs';
 
 const PATH_LABELS = {
   plans: 'Ruta de planes',
@@ -35,6 +37,7 @@ const VALUE_FLAGS = new Set([
   '--reason', '--by', '--log', '--tail', '--backlog', '--status', '--index',
   '--text', '--outcome', '--cursor', '--arguments', '--script',
   '--assessment', '--source', '--out', '--registry', '--op', '--id',
+  '--token-limit',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -510,8 +513,9 @@ const COMMANDS = {
     flags: ['--project', '--config'], pos: 2, usage: 'artifact show KIND UUID',
   },
   'session create': {
-    flags: ['--project', '--config', '--task', '--limit', '--apply'], pos: 0,
-    usage: 'session create --task UUID --limit N [--apply]',
+    flags: ['--project', '--config', '--task', '--limit', '--token-limit',
+      '--apply'], pos: 0,
+    usage: 'session create --task UUID --limit N [--token-limit N] [--apply]',
   },
   'session show': {
     flags: ['--project', '--config'], pos: 1, usage: 'session show UUID',
@@ -2140,6 +2144,9 @@ async function cmdSession(sub, positional, flags) {
     const prepared = prepareSession(ctx, {
       taskId: requireFlag(flags, '--task'),
       limit: decimalInt(requireFlag(flags, '--limit'), '--limit'),
+      ...(Object.hasOwn(flags, '--token-limit')
+        ? { tokenLimit: decimalInt(flags['--token-limit'], '--token-limit') }
+        : {}),
     });
     const planned = preflightPlan(ctx.projectRoot, [prepared.file]);
     if (!flags['--apply']) {
@@ -2161,7 +2168,7 @@ async function cmdSession(sub, positional, flags) {
       throw err('INVALID_SESSION', 'record input must be an object');
     }
     for (const k of Object.keys(input)) {
-      if (!['action', 'evidence', 'context'].includes(k)) {
+      if (!['action', 'evidence', 'context', 'tokens'].includes(k)) {
         throw err('UNKNOWN_KEY', `record input has unknown key '${k}'`);
       }
     }
@@ -2172,6 +2179,7 @@ async function cmdSession(sub, positional, flags) {
       action: input.action,
       evidence: input.evidence,
       context: input.context,
+      ...(input.tokens !== undefined ? { tokens: input.tokens } : {}),
     };
     // Dry-run validates against CURRENT state exactly like apply does.
     const prep = prepareSessionRecord(ctx, recordInput);
@@ -2180,6 +2188,7 @@ async function cmdSession(sub, positional, flags) {
         mode: 'dry-run', applied: false,
         session: { id: prep.session.id, used: prep.session.used,
           limit: prep.session.limit, revision: prep.session.revision },
+        tokenUsage: prep.tokenUsage,
       };
     }
     return recordSession(ctx, recordInput);

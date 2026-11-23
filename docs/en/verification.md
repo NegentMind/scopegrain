@@ -5,16 +5,22 @@
 
 ## Current Status
 
-The latest full run (`npm test`, serial per file, commit `ca27e26`,
-2026-11-22) finished with **1411 passing tests, 0 failed, 0 skipped and
-0 cancelled** (831.6 s) on Windows, Node.js v26.8.1 and npm 11.6.0. The
-viewer lane (`viewer/`: `eslint`, `tsc --noEmit`, `vitest run`,
-`vite build`) passed with **17/17 tests across 5 files**, 0 errors and an
-816 ms build; the headless Chromium visual audit (Playwright, 1440×900
-and 390×844) verified all 15 views in English and Spanish (30 screens)
-with 0 console/network errors and 0 horizontal overflow. Earlier full
-runs (`1152`, `813`, `770`, `699`, `673`, `536`) are kept as past
-references. Do not sum scoped runs or historic results.
+The latest full run (`npm test`, serial per file, 2026-11-23, token
+counting branch) reported **1440 tests: 1435 passing and 5 failing**. Of
+the 5 failures, 4 are long-run flakes (cli-lifecycle `update previews`,
+config-methodology `legacy no-op` and two docs-cli-drift cases): run
+standalone on the same tree they pass 40/40. The remaining one,
+`host-variants` "opencode emits only the documented V2 variant", fails
+identically on a clean `HEAD` worktree without the changes: it is a
+pre-existing regression (after the bridge resync/reference enrichment)
+not attributable to this batch. The 29 new token tests (estimator,
+context packet, resourceCost, sessions v2) pass 36/36 in their focused
+gate and the viewer (`tsc --noEmit` + `vite build`) is green. The
+previous full run (`npm test`, commit `ca27e26`, 2026-11-22) finished
+1411/1411 in 831.6 s with the complete viewer lane (`eslint`,
+`tsc --noEmit`, `vitest run`, `vite build`, Chromium audit 1440×900/
+390×844, 30 EN/ES screens) at 0 errors; both are kept as references. Do
+not sum scoped runs or historic results.
 
 ### OpenCode V2 native pilot (2026-11-23) — certified
 
@@ -90,6 +96,7 @@ test:smoke` → 215 pass, 0 fail. `doctor` keeps 438 failures: 436
 | FMEA remediation F-01..F-07 | Antigravity wave + focused gates, 2026-11-18 | locks 6/6; plans 7/7; paths+digests 16/16; verify+methodology 152/152; journal 38/38; workspaces 27/27 |
 | Prior full run | `npm test` serial, 2026-11-18 | Exit 0: 1152 pass, 0 fail, 0 skipped, 0 cancelled |
 | Current full run (v0.1.0 prep) | `npm test` serial (`ca27e26`), 2026-11-22 | Exit 0: 1411 pass, 0 fail, 0 skipped, 0 cancelled (831.6 s); `npm run test:smoke` 215/215 pass (43.2 s) |
+| Token full run (estimation + sessions v2) | `npm test` serial, 2026-11-23 | Exit 1: 1440 tests, 1435 pass, 5 fail (4 flakes that pass standalone; 1 pre-existing `host-variants` failure, reproducible on clean `HEAD`); focused gate 36/36; `cd viewer && npm run build` green |
 | Viewer (lint + typecheck + vitest + build + Chromium EN/ES) | `viewer/` + Playwright, 2026-11-22 | Exit 0: eslint 0, tsc 0, vitest 17/17 (5 files), build 816 ms; 30 EN/ES views with 0 errors and 0 overflow |
 | Clean-project E2E + `npm pack --dry-run` | Global CLI `scopegrain@0.1.0`, 2026-11-22 | Exit 0: inspect/investigate/init/workspace/doctor/structure/context/dist selftest/light CLOSE/formal SDD plan+waves/backup; tarball 978.9 kB (341 files) |
 | Isolated native MCP pilot | Windows, advertised server 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; embeddings and hosts not certified |

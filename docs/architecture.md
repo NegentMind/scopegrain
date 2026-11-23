@@ -281,6 +281,13 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operaciones
   el temporal propios.
 - **Evidencia:** verification y review son attestations declaradas; `ACT`
   las invalida y una verificacion nueva invalida la review previa.
+- **Sesiones:** el writer emite `schemaVersion: 2` y el lector acepta 1 y
+  2; un append promueve una v1 almacenada a v2. `tokenLimit` y el campo
+  `tokens` por evento (`{prompt, completion, total}`) son valores
+  auto-reportados por el llamador, nunca observados por el harness: la
+  medida declarada es `self-reported-unverified` y el presupuesto bloquea
+  el siguiente append cuando la suma almacenada alcanza el limite, o un
+  evento que la empujaria por encima.
 - **Metodologia:** el clasificador puro no importa almacenamiento ni gates.
   Los getters validan la forma de registros historicos; los gates resuelven
   sus referencias actuales sin convertir una perdida ajena en TypeError.

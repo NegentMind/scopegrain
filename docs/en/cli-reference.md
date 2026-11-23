@@ -99,6 +99,27 @@ answers on a non-`pending` record (or `custom`) require a non-empty
 Returns the stored bounded session record with id `UUID`. Read-only:
 validates the file shape and that the internal id matches.
 
+### session create / session record
+
+`session create --task UUID --limit N [--token-limit N] [--apply]`
+`session record UUID --revision N --input FILE [--apply]`
+
+`create` opens a bounded session (`schemaVersion` 2; stored v1 documents
+stay readable and are promoted on record). The optional
+`--token-limit N` flag declares a self-reported token budget (integer
+>= 1; `null` when omitted). `record` appends an event
+`{action, evidence, context?, tokens?}` where `tokens` is a closed
+`{prompt, completion, total}` object of integers >= 0 with
+`total === prompt + completion`. Tokens are caller-declared, never
+observed: `tokenUsage.measures` is `self-reported-unverified`. The event
+that reaches the budget is accepted (the declared consumption already
+happened); an event that would push the stored sum above it, and any
+record after the budget is reached, fail with
+`SESSION_TOKEN_BUDGET_EXHAUSTED` — a stored document never exceeds its
+own `tokenLimit`. `resume` and the `record` dry-run expose
+`usage.tokenUsage` / `tokenUsage` with `reported`, `limit`, `remaining`,
+`percent` (`null` without a budget) and `measures`.
+
 ## Catalog resource recovery
 
 All four subcommands read the workspace snapshot and never download or

@@ -534,9 +534,14 @@ sidecar rev0 exige `operationId === createOperationId`,
   (`session` + `session-ownership`).
 - **`record`** emite una operacion con dos eventos update sobre ambos
   archivos. Todos los gates de dominio — CAS de `expectedRevision`,
-  `checkAction` contra la tarea viva, presupuesto `used < limit` y forma
-  prospectiva completa — corren dentro del callback del kernel, antes de
-  reservar estado del journal. El scope grabado debe igualar
+  `checkAction` contra la tarea viva, presupuesto `used < limit`,
+  presupuesto de tokens reportados — se rechaza cuando la suma
+  almacenada ya alcanzo `tokenLimit` o cuando el evento entrante la
+  empujaria por encima — y forma prospectiva completa — corren
+  dentro del callback del kernel, antes de reservar estado del journal.
+  El documento fuente viaja como `schemaVersion` 2 en escritura (lectura
+  dual 1/2); `tokens` por evento y `tokenLimit` son declaraciones
+  auto-reportadas (`self-reported-unverified`). El scope grabado debe igualar
   exactamente el scope enrolado (`INVALID_OWNED_SESSION_INPUT` si
   difiere). **`prepareRecord`** es el dry-run: prueba solo la punta
   (escrituras O(1); las lecturas recorren la cadena, deliberado).

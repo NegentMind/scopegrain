@@ -103,6 +103,14 @@ Los verbos de lectura (`get`/`list`/`search`/`recall`) son proxies acotados
 sobre el mismo canal stdio: auto-spawn del servidor, validacion de
 argumentos antes de tocar config, sin escrituras locales.
 
+Las superficies de rehidratacion (la seccion `vantadb.recall` del paquete
+`context` y `vantadb.context` de `session resume`) adjuntan
+`prependContextEstimate` (`{estimatedTokens, estimator, bytes}`) cuando la
+respuesta incluye un `prepend_context` en texto, medido tras el cap de
+caracteres aplicado por el harness. Es una estimacion heuristica local
+`utf8-bytes/4`, nunca el conteo del tokenizer del anfitrion; un
+`prepend_context` ausente o no texto no produce el campo.
+
 ## Tools MCP `scopegrain_memory_*`
 
 El servidor MCP expone herramientas `memory_*` adicionales. Cinco son de

@@ -49,6 +49,14 @@ function SessionDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 style={{ width: `${ctx.budget.percent}%` }}
               />
             </div>
+            {ctx.tokenUsage && (ctx.tokenUsage.limit != null || ctx.tokenUsage.reported > 0) ? (
+              <p className="font-mono text-muted-foreground">
+                {t('sessions.tokens')}: {ctx.tokenUsage.reported}
+                {ctx.tokenUsage.limit != null ? `/${ctx.tokenUsage.limit}` : ''}
+                {ctx.tokenUsage.remaining != null ? ` (${ctx.tokenUsage.remaining} ${t('sessions.remaining')})` : ''}
+                {' '}— {t('sessions.selfReported')}
+              </p>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-muted-foreground">{t('sessions.linkedTask')}:</span>
               {ctx.task ? (

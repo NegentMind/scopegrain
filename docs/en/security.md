@@ -64,6 +64,11 @@ not amount to a security certification.
   the evidence are registered declarations; there is no cryptographic
   authentication nor observation of what the host did outside the
   flow.
+- **Declared, not measured, tokens.** Per-event session `tokens` and
+  `tokenLimit` are caller declarations; the harness neither observes nor
+  authenticates the host's real consumption
+  (`tokenMeasures: self-reported-unverified`), consistent with
+  `authenticatesEvidence:false` and `interceptsNativeTools:false`.
 - **Containment vs. in-situ writing.** Validation is repeated just
   before writing, but a residual window still exists: any local process
   with write capability (not necessarily privileged or malicious)

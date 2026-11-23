@@ -296,6 +296,14 @@ CLI task/doctor/mcp -> resolveContext -> loadConfig -> operations
 - **Evidence:** verification and review are declared attestations;
   `ACT` invalidates them and a new verification invalidates the
   previous review.
+- **Sessions:** the writer emits `schemaVersion: 2` and the reader
+  accepts 1 and 2; an append promotes a stored v1 record to v2.
+  `tokenLimit` and the per-event `tokens` field
+  (`{prompt, completion, total}`) are caller self-reported values, never
+  observed by the harness: the declared measure is
+  `self-reported-unverified` and the budget blocks the next append once
+  the stored sum reaches the limit, or an event that would push it
+  above.
 - **Methodology:** the pure classifier does not import storage or
   gates. Getters validate the shape of historic records; gates resolve
   their current references without turning someone else's loss into a

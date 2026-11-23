@@ -194,3 +194,222 @@ test('resume returns actual state and remaining budget without mutation', () => 
     assert.ok(fs.readFileSync(sessionFileAbs(ctx, s.id)).equals(before));
   } finally { cleanup(dir); }
 });
+
+// --- schemaVersion 2: self-reported token accounting ---
+
+// Writes literal session bytes (any schema version) to the stored file.
+function writeStored(ctx, id, doc) {
+  fs.writeFileSync(
+    sessionFileAbs(ctx, id), JSON.stringify(doc, null, 2) + '\n');
+}
+
+function v1Doc(s, task, extra = {}) {
+  return {
+    schemaVersion: 1, id: s.id, taskId: task.id, limit: s.limit,
+    used: 0, revision: 0, events: [],
+    createdAt: s.createdAt, updatedAt: s.createdAt, ...extra,
+  };
+}
+
+test('stored v1 session without token fields reads and validates', () => {
+  const { dir, ctx, task } = fixture();
+  try {
+    const s = makeSession(ctx, task, 5);
+    writeStored(ctx, s.id, v1Doc(s, task));
+    const got = getSession(ctx, s.id);
+    assert.equal(got.schemaVersion, 1);
+    assert.equal(got.tokenLimit, undefined);
+    assert.deepEqual(got.events, []);
+  } finally { cleanup(dir); }
+});
+
+test('recording onto a stored v1 session promotes it to v2 with tokenLimit null', () => {
+  const { dir, ctx, task } = fixture();
+  try {
+    const s = makeSession(ctx, task, 5);
+    writeStored(ctx, s.id, v1Doc(s, task));
+    const next = recordSession(ctx, {
+      id: s.id, expectedRevision: 0, action: 'read', evidence: 'x',
+    });
+    assert.equal(next.schemaVersion, 2);
+    assert.equal(next.tokenLimit, null);
+    const stored = getSession(ctx, s.id);
+    assert.equal(stored.schemaVersion, 2);
+    assert.equal(stored.tokenLimit, null);
+    assert.equal(stored.events.length, 1);
+  } finally { cleanup(dir); }
+});
+
+test('stored events with malformed tokens fail closed; bytes never touched', () => {
+  const { dir, ctx, task } = fixture();
+  try {
+    const s = makeSession(ctx, task, 5);
+    const evAt = new Date(Date.parse(s.createdAt) + 1000).toISOString();
+    const base = (version, tokens) => ({
+      schemaVersion: version,
+      ...(version === 2 ? { tokenLimit: null } : {}),
+      id: s.id, taskId: task.id, limit: 5, used: 1, revision: 1,
+      events: [{ action: 'read', evidence: 'x', context: '', at: evAt,
+        tokens }],
+      createdAt: s.createdAt, updatedAt: evAt,
+    });
+    const badReports = [
+      { prompt: 2, completion: 3, total: 6 }, // total !== prompt+completion
+      { prompt: 2, completion: 3, total: 5, extra: 1 }, // extra key
+      { prompt: 2.5, completion: 2.5, total: 5 }, // non-integer
+      { prompt: 5, completion: -5, total: 0 }, // negative
+      { prompt: 2, completion: 3 }, // missing key
+      'not-an-object',
+      [1, 2, 3],
+    ];
+    for (const tokens of badReports) {
+      writeStored(ctx, s.id, base(2, tokens));
+      const before = fs.readFileSync(sessionFileAbs(ctx, s.id));
+      assert.throws(() => getSession(ctx, s.id),
+        (e) => e.code === 'SESSION_MALFORMED', JSON.stringify(tokens));
+      assert.throws(() => recordSession(ctx, {
+        id: s.id, expectedRevision: 1, action: 'read', evidence: 'y',
+      }), (e) => e.code === 'SESSION_MALFORMED', JSON.stringify(tokens));
+      assert.ok(fs.readFileSync(sessionFileAbs(ctx, s.id)).equals(before));
+    }
+    // ev.tokens is a v2-only key: even a well-formed report is malformed
+    // under schemaVersion 1.
+    writeStored(ctx, s.id, base(1, { prompt: 1, completion: 1, total: 2 }));
+    assert.throws(() => getSession(ctx, s.id),
+      (e) => e.code === 'SESSION_MALFORMED');
+  } finally { cleanup(dir); }
+});
+
+test('record input.tokens malformed is INVALID_VALUE before any read', () => {
+  const { dir, ctx, task } = fixture();
+  try {
+    const s = makeSession(ctx, task, 5);
+    const before = fs.readFileSync(sessionFileAbs(ctx, s.id));
+    const badInputs = [
+      'x', 5, null, [1, 2], {},
+      { prompt: 1, completion: 2, total: 4 }, // total !== sum
+      { prompt: 1, completion: 2 }, // missing key
+      { prompt: 1, completion: 2, total: 3, extra: 1 }, // extra key
+      { prompt: -1, completion: 1, total: 0 }, // negative
+      { prompt: 0.5, completion: 0.5, total: 1 }, // non-integer
+    ];
+    for (const tokens of badInputs) {
+      const input = { id: s.id, expectedRevision: 0, action: 'read',
+        evidence: 'x', tokens };
+      for (const fn of [prepareSessionRecord, recordSession]) {
+        assert.throws(() => fn(ctx, input),
+          (e) => e.code === 'INVALID_VALUE', JSON.stringify(tokens));
+      }
+    }
+    assert.ok(fs.readFileSync(sessionFileAbs(ctx, s.id)).equals(before));
+    // A well-formed report records and persists.
+    const next = recordSession(ctx, {
+      id: s.id, expectedRevision: 0, action: 'read', evidence: 'x',
+      tokens: { prompt: 2, completion: 3, total: 5 },
+    });
+    assert.deepEqual(next.events[0].tokens,
+      { prompt: 2, completion: 3, total: 5 });
+    assert.deepEqual(getSession(ctx, s.id).events[0].tokens,
+      { prompt: 2, completion: 3, total: 5 });
+  } finally { cleanup(dir); }
+});
+
+test('reported token budget gates appends; stored docs never exceed it', () => {
+  const { dir, ctx, task } = fixture();
+  try {
+    const prepared = prepareSession(ctx,
+      { taskId: task.id, limit: 10, tokenLimit: 10 });
+    applyPlan(dir, preflightPlan(dir, [prepared.file]));
+    const s = prepared.session;
+    assert.equal(s.schemaVersion, 2);
+    assert.equal(s.tokenLimit, 10);
+    recordSession(ctx, { id: s.id, expectedRevision: 0, action: 'read',
+      evidence: 'x', tokens: { prompt: 2, completion: 3, total: 5 } });
+    // An event whose report would push the stored sum PAST the limit is
+    // refused with the domain code — persisting it would store a
+    // document that violates its own declared budget (shape invariant).
+    for (const fn of [prepareSessionRecord, recordSession]) {
+      assert.throws(() => fn(ctx, { id: s.id, expectedRevision: 1,
+        action: 'read', evidence: 'y',
+        tokens: { prompt: 4, completion: 4, total: 8 } }),
+        (e) => e.code === 'SESSION_TOKEN_BUDGET_EXHAUSTED', fn.name);
+    }
+    assert.equal(getSession(ctx, s.id).events.length, 1); // bytes untouched
+    // The event that REACHES the budget is accepted — the consumption it
+    // declares already happened; the gate then blocks the NEXT append.
+    const reached = recordSession(ctx, { id: s.id, expectedRevision: 1,
+      action: 'read', evidence: 'y',
+      tokens: { prompt: 3, completion: 2, total: 5 } });
+    assert.equal(reached.events.length, 2); // stored total is now 10 = limit
+    const input = { id: s.id, expectedRevision: 2, action: 'read',
+      evidence: 'z' };
+    for (const fn of [prepareSessionRecord, recordSession]) {
+      assert.throws(() => fn(ctx, input),
+        (e) => e.code === 'SESSION_TOKEN_BUDGET_EXHAUSTED', fn.name);
+    }
+    assert.equal(getSession(ctx, s.id).events.length, 2);
+  } finally { cleanup(dir); }
+});
+
+test('create validates tokenLimit input shape', () => {
+  const { dir, ctx, task } = fixture();
+  try {
+    for (const tokenLimit of [0, -1, 1.5, 'x', NaN]) {
+      assert.throws(() => prepareSession(ctx,
+        { taskId: task.id, limit: 3, tokenLimit }),
+        (e) => e.code === 'INVALID_VALUE', String(tokenLimit));
+    }
+    // null and absent both store null; a positive integer is honored.
+    for (const tokenLimit of [null, undefined]) {
+      const p = prepareSession(ctx, { taskId: task.id, limit: 3, tokenLimit });
+      assert.equal(p.session.tokenLimit, null);
+    }
+    const p = prepareSession(ctx,
+      { taskId: task.id, limit: 3, tokenLimit: 42 });
+    assert.equal(p.session.tokenLimit, 42);
+  } finally { cleanup(dir); }
+});
+
+test('resume exposes self-reported tokenUsage with declared measures', () => {
+  const { dir, ctx, task } = fixture();
+  try {
+    const prepared = prepareSession(ctx,
+      { taskId: task.id, limit: 10, tokenLimit: 10 });
+    applyPlan(dir, preflightPlan(dir, [prepared.file]));
+    const s = prepared.session;
+    recordSession(ctx, { id: s.id, expectedRevision: 0, action: 'read',
+      evidence: 'x', tokens: { prompt: 2, completion: 3, total: 5 } });
+    const r = resumeSession(ctx, s.id);
+    assert.deepEqual(r.usage.tokenUsage, {
+      reported: 5, limit: 10, remaining: 5, percent: 50,
+      measures: 'self-reported-unverified',
+    });
+    // No declared budget: null limit/remaining/percent, still labeled.
+    const s2 = makeSession(ctx, task, 3);
+    const r2 = resumeSession(ctx, s2.id);
+    assert.deepEqual(r2.usage.tokenUsage, {
+      reported: 0, limit: null, remaining: null, percent: null,
+      measures: 'self-reported-unverified',
+    });
+  } finally { cleanup(dir); }
+});
+
+test('stored v2 with reported totals above tokenLimit is malformed', () => {
+  const { dir, ctx, task } = fixture();
+  try {
+    const s = makeSession(ctx, task, 5);
+    const evAt = new Date(Date.parse(s.createdAt) + 1000).toISOString();
+    writeStored(ctx, s.id, {
+      schemaVersion: 2, tokenLimit: 4, id: s.id, taskId: task.id,
+      limit: 5, used: 1, revision: 1,
+      events: [{ action: 'read', evidence: 'x', context: '', at: evAt,
+        tokens: { prompt: 2, completion: 3, total: 5 } }],
+      createdAt: s.createdAt, updatedAt: evAt,
+    });
+    assert.throws(() => getSession(ctx, s.id),
+      (e) => e.code === 'SESSION_MALFORMED');
+    assert.throws(() => recordSession(ctx, {
+      id: s.id, expectedRevision: 1, action: 'read', evidence: 'y',
+    }), (e) => e.code === 'SESSION_MALFORMED');
+  } finally { cleanup(dir); }
+});

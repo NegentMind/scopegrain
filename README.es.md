@@ -280,11 +280,14 @@ equivalente a Local/CLI. Ver [formatos nativos](docs/native-hosts.md).
 ## Verificacion
 
 La ultima ejecucion integral local (`npm test`, serial por archivo,
-2026-11-22, commit `ca27e26`) termino con **1411 pruebas aprobadas**,
-0 fallidas y 0 omitidas en Windows, Node.js v26.8.1 y npm 11.6.0, junto
-con el carril del visor (**17/17 pruebas Vitest**, 0 errores de
-lint/typecheck, build Vite en verde y auditoria visual Playwright de 30
-pantallas EN/ES con 0 errores y 0 overflow). Las integrales
+2026-11-23) reporto **1440 pruebas: 1435 aprobadas y 5 fallidas** en
+Windows, Node.js v26.8.1 y npm 11.6.0 — de los 5 fallos, 4 son
+inestables de la tanda larga (pasan aislados) y 1 es un fallo
+pre-existente de `host-variants` reproducible en un worktree limpio de
+`HEAD`. La integral certificada previa (commit `ca27e26`, 2026-11-22)
+termino 1411/1411 junto con el carril del visor (**17/17 pruebas
+Vitest**, 0 errores de lint/typecheck, build Vite en verde y auditoria
+visual Playwright de 30 pantallas EN/ES con 0 errores y 0 overflow). Las integrales
 intermedias y las tandas anteriores son ejecuciones separadas; su alcance
 y resultados historicos estan en [verificacion](docs/verification.md).
 El piloto nativo de Devin Local quedo certificado en una sesion fresca

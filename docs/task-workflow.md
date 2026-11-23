@@ -146,6 +146,17 @@ eventos pendientes del journal. Los hosts lo invocan al inicio de sesion
 segun la instruccion generada en AGENTS.md/CLAUDE.md y
 `.scopegrain/instructions.md`; nunca ejecuta comandos ni modifica estado.
 
+El paquete incluye `tokenEstimate`: una estimacion local heuristica
+`utf8-bytes/4` (bytes UTF-8 tras normalizar CRLF, divididos por cuatro y
+redondeados al alza) — nunca el conteo del tokenizer del anfitrion, que
+el harness no observa. `tokenEstimate.sections` reporta
+`{estimatedTokens, estimator, bytes}` por cada seccion presente; en
+`userContext` la medicion cubre solo el `content` devuelto (tras el cap
+de 32 KiB) y `coversTruncatedContent` lo declara. `tokenEstimate.total`
+estima el paquete completo sin la propia clave `tokenEstimate`. Es
+metadato consultivo y degradable: si falla sale `null` sin abortar el
+paquete.
+
 ## Memoria operativa, metas y metricas
 
 Logs JSONL acotados y append-only bajo `paths.memory`

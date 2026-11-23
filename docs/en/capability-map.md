@@ -62,7 +62,7 @@ this is its English twin.
 | `task doc` | Renders the task's contract document |
 | `plan create/list/show/next` | Plans with tasks and dependencies |
 | `plan run` | Wave scheduling honoring the dependency DAG |
-| `session create/show/record/resume` | Sessions with explicit operation budget (`maxSessionEvents` limit), CAS, own lock, ACT events |
+| `session create/show/record/resume` | Sessions with explicit operation budget (`maxSessionEvents` limit), CAS, own lock, ACT events; optional self-reported token budget (`tokenLimit`, `self-reported-unverified`) |
 
 ### 2.4 Journal (transactional integrity)
 

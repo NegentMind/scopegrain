@@ -19,6 +19,7 @@ import {
 import {
   projectRehydration, recordRehydration,
 } from '../src/integrations/vantadb-rehydrate.mjs';
+import { TOKEN_ESTIMATOR } from '../src/core/tokens.mjs';
 import { createConfig } from '../src/core/config.mjs';
 import { VALID_ANSWERS, cleanup, makeTempDir, writeJson }
   from './helpers.mjs';
@@ -95,6 +96,16 @@ test('projectRehydration recalls seeded L1 memories over a real stdio session', 
     assert.equal(out.recall.recalled.length, 1);
     assert.match(out.recall.recalled[0].content, /rehydration test/);
     assert.equal(typeof out.recall.prepend_context, 'string');
+    // Advisory estimate over the (post-cap) prepend_context string.
+    assert.deepEqual(out.recall.prependContextEstimate, {
+      estimatedTokens: 1, estimator: TOKEN_ESTIMATOR, bytes: 3,
+    });
+
+    // No hits -> null prepend_context -> no estimate field at all.
+    const empty = await projectRehydration({ ctx: f.ctx,
+      query: 'no-such-memory', spawnImpl: fakeSpawn() });
+    assert.equal(empty.recall.prepend_context, null);
+    assert.equal('prependContextEstimate' in empty.recall, false);
   } finally {
     cleanup(f.dir);
   }
@@ -110,6 +121,8 @@ test('recordRehydration scans sg-formal namespaces for the record', async () => 
     assert.equal(out.enrolled, true);
     assert.equal(out.context.recordId, 'rec-abcdef');
     assert.ok(out.context.namespacesScanned >= 0);
+    // Record context carries no prepend_context -> no estimate field.
+    assert.equal('prependContextEstimate' in out.context, false);
   } finally {
     cleanup(f.dir);
   }
