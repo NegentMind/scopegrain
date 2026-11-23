@@ -27,7 +27,8 @@ import {
 
 const SEMVER_RE = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 const SHA_RE = /^[0-9a-f]{64}$/;
-const OPS = new Set(['replace', 'prepend', 'append', 'wrap']);
+const OPS = new Set(['replace', 'prepend', 'append', 'wrap',
+  'replace-section']);
 
 // ---- D7: catalog submission validation ---------------------------------
 // {id, version, source:{uri, sha256}, description?}
@@ -144,10 +145,56 @@ export function composeResource(base, layers) {
         text = pre + text + post;
         break;
       }
+      case 'replace-section': {
+        text = replaceSection(text, layer.selector, layer.content);
+        break;
+      }
       default: break;
     }
   }
   return text;
+}
+
+// replace-section: bounded Markdown section override (spec-kit parity).
+// `selector` is a lowercase heading anchor; the override replaces the BODY
+// under the first matching heading — everything from after the heading line
+// to the next heading at the same or higher level, or EOF. Subordinate
+// sections are part of that body; the heading itself is preserved. An empty
+// content deletes the body. No matching heading leaves the text unchanged —
+// a '*' target must not fail per-resource on documents lacking the section.
+const SELECTOR_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const HEADING_RE = /^(#{1,6})[ \t]+(.*?)[ \t]*$/;
+const anchorOf = (h) => h.toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+function replaceSection(text, selector, content) {
+  if (typeof selector !== 'string' || !SELECTOR_RE.test(selector)) {
+    throw err('INVALID_VALUE',
+      'replace-section requires a lowercase anchor selector');
+  }
+  const lines = String(text).split('\n');
+  let head = -1;
+  let level = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const m = HEADING_RE.exec(lines[i]);
+    if (m && anchorOf(m[2]) === selector) {
+      head = i;
+      level = m[1].length;
+      break;
+    }
+  }
+  if (head === -1) return String(text);
+  let end = lines.length;
+  for (let j = head + 1; j < lines.length; j++) {
+    const m = HEADING_RE.exec(lines[j]);
+    if (m && m[1].length <= level) { end = j; break; }
+  }
+  const body = String(content);
+  const merged = body === ''
+    ? [...lines.slice(0, head + 1), ...lines.slice(end)]
+    : [...lines.slice(0, head + 1),
+      ...body.replace(/\n+$/, '').split('\n'), '', ...lines.slice(end)];
+  return merged.join('\n');
 }
 
 // Preset override targets: '*', '<kind>/*' or '<kind>/<id>'.
@@ -564,6 +611,11 @@ export function registerPreset(ctx, input) {
         `preset.overrides[${i}] requires a valid op`);
     }
     validateOverrideTarget(o.target, `preset.overrides[${i}].target`);
+    if (o.op === 'replace-section'
+        && (typeof o.selector !== 'string' || !SELECTOR_RE.test(o.selector))) {
+      throw err('INVALID_VALUE',
+        `preset.overrides[${i}].selector must be a lowercase anchor`);
+    }
   }
   return withDistLock(ctx, () => {
     const reg = loadRegistry(ctx, 'presets');

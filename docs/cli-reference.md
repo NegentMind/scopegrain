@@ -466,7 +466,11 @@ que aun coinciden con la provenance — bytes divergentes quedan en
 apuntar fuera del directorio del bundle falla `MALFORMED`.
 
 Los presets declaran `overrides:[{target, op, content}]` donde `target`
-es `'*'`, `'<kind>/*'` o `'<kind>/<id>'`; se aplican a los recursos
+es `'*'`, `'<kind>/*'` o `'<kind>/<id>'` y `op` es `replace`, `prepend`,
+`append`, `wrap` (con `{{BODY}}`) o `replace-section` (con `selector`,
+anchor de heading en minusculas: sustituye el cuerpo de la seccion, no el
+heading ni las secciones de igual o mayor nivel; contenido vacio borra el
+cuerpo; heading ausente = sin efecto). Se aplican a los recursos
 proyectados en el workflow packet (prioridad ascendente, el ultimo gana)
 y la traza sale declarada en `packet.presets.applied`. `preset-remove`
 elimina un preset registrado.

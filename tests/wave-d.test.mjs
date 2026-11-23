@@ -69,6 +69,35 @@ test('D2 compose: replace/prepend/append/wrap ops apply in order', () => {
     /op/);
 });
 
+test('D2 compose: replace-section swaps one section body, keeps heading', () => {
+  const doc = '# Title\n\nintro\n\n## Requirements\n\nold body\n\n### Details\n\nsub\n\n## Next\n\ntail\n';
+  // Replace body under '## Requirements' — subordinate sections go with it,
+  // the heading and following sections are preserved.
+  const out = composeResource(doc, [
+    { op: 'replace-section', selector: 'requirements', content: 'NEW BODY' },
+  ]);
+  assert.equal(out,
+    '# Title\n\nintro\n\n## Requirements\nNEW BODY\n\n## Next\n\ntail\n');
+  // Heading text anchors through slugification, not literal match.
+  const out2 = composeResource('## My Section!\n\nold\n', [
+    { op: 'replace-section', selector: 'my-section', content: 'x' },
+  ]);
+  assert.equal(out2, '## My Section!\nx\n');
+  // Empty content deletes the body but keeps the heading.
+  const out3 = composeResource('## A\n\nbody\n## B\n\ntail\n', [
+    { op: 'replace-section', selector: 'a', content: '' },
+  ]);
+  assert.equal(out3, '## A\n## B\n\ntail\n');
+  // No matching heading: unchanged (a '*' target cannot fail per-resource).
+  const same = '## Other\n\nbody\n';
+  assert.equal(composeResource(same, [
+    { op: 'replace-section', selector: 'missing', content: 'x' },
+  ]), same);
+  assert.throws(() => composeResource('b', [
+    { op: 'replace-section', selector: 'BAD SEL', content: 'x' }]),
+    /selector/);
+});
+
 test('D3 catalog stack: file:// only, remote refused hard', () => {
   const { dir, ctx } = bootstrappedCtx(VALID_ANSWERS);
   try {
