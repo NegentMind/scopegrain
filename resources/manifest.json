@@ -11,25 +11,52 @@
     "default"
    ],
    "agents": [
-    "lead",
-    "architect"
+    "architect",
+    "lead"
    ],
    "skills": [
+    "clarify-intent",
+    "code-review-and-quality",
+    "code-simplification",
+    "doubt-driven-development",
+    "independent-review",
+    "performance-optimization",
+    "plan-design-review",
     "planning-and-task-breakdown",
-    "writing-plans",
-    "plan-design-review"
+    "review-deep",
+    "security-and-hardening",
+    "select-capabilities",
+    "session-handoff",
+    "source-driven-development",
+    "spec-driven-development",
+    "systematic-debugging",
+    "test-driven-development",
+    "unified-review",
+    "web-research",
+    "writing-plans"
    ],
    "rules": [
-    "workflow",
-    "api-contract"
+    "api-contract",
+    "methodology",
+    "workflow"
    ],
    "references": [
     "architecture",
-    "backlog-format"
+    "backlog-format",
+    "graph-investigation",
+    "research-modules"
    ],
    "prompts": [
-    "task-brief",
-    "decision-request"
+    "decision-request",
+    "finding-record",
+    "plan-brief",
+    "plan-execution",
+    "recovery-brief",
+    "research-brief",
+    "review-request",
+    "session-recitation",
+    "spec-brief",
+    "task-brief"
    ]
   },
   {
@@ -45,23 +72,49 @@
     "reviewer"
    ],
    "skills": [
+    "code-review-and-quality",
+    "code-simplification",
     "contract-execution",
+    "doubt-driven-development",
     "incremental-implementation",
+    "independent-review",
+    "performance-optimization",
+    "review-deep",
+    "security-and-hardening",
+    "select-capabilities",
+    "session-handoff",
+    "source-driven-development",
+    "systematic-debugging",
     "test-driven-development",
-    "systematic-debugging"
+    "unified-review",
+    "web-research",
+    "work-unit-commits"
    ],
    "rules": [
-    "workflow",
     "evidence",
-    "review"
+    "methodology",
+    "research-escalation",
+    "review",
+    "workflow"
    ],
    "references": [
+    "backlog-format",
     "definition-of-done",
+    "graph-investigation",
+    "research-modules",
     "testing-patterns"
    ],
    "prompts": [
-    "task-brief",
-    "review-request"
+    "decision-request",
+    "finding-record",
+    "iteration-loop",
+    "plan-execution",
+    "recovery-brief",
+    "research-brief",
+    "review-request",
+    "session-recitation",
+    "spec-brief",
+    "task-brief"
    ]
   },
   {
@@ -76,20 +129,23 @@
     "lead"
    ],
    "skills": [
-    "planning-and-task-breakdown",
+    "clarify-intent",
     "organic-driven-development",
-    "clarify-intent"
+    "planning-and-task-breakdown",
+    "systematic-debugging"
    ],
    "rules": [
-    "workflow",
+    "human-decisions",
     "methodology",
-    "human-decisions"
+    "workflow"
    ],
    "references": [
     "task-system"
    ],
    "prompts": [
-    "decision-request"
+    "decision-request",
+    "finding-record",
+    "spec-brief"
    ]
   },
   {
@@ -104,20 +160,45 @@
     "lead"
    ],
    "skills": [
+    "code-review-and-quality",
+    "code-simplification",
+    "context-engineering",
+    "doubt-driven-development",
+    "independent-review",
+    "performance-optimization",
     "plan-coordination",
-    "context-engineering"
+    "review-deep",
+    "security-and-hardening",
+    "select-capabilities",
+    "session-handoff",
+    "source-driven-development",
+    "systematic-debugging",
+    "test-driven-development",
+    "unified-review",
+    "web-research",
+    "work-unit-commits"
    ],
    "rules": [
-    "workflow",
-    "memory-budget"
+    "memory-budget",
+    "workflow"
    ],
    "references": [
+    "graph-investigation",
     "orchestration-patterns",
+    "research-modules",
     "task-system"
    ],
    "prompts": [
-    "task-brief",
-    "recovery-brief"
+    "decision-request",
+    "finding-record",
+    "iteration-loop",
+    "plan-execution",
+    "recovery-brief",
+    "research-brief",
+    "review-request",
+    "session-recitation",
+    "spec-brief",
+    "task-brief"
    ]
   },
   {
@@ -129,14 +210,17 @@
     "default"
    ],
    "agents": [
-    "requirements-analyst",
-    "architect"
+    "architect",
+    "requirements-analyst"
    ],
    "skills": [
-    "spec-driven-development",
-    "outcome-driven-development",
     "clarify-intent",
-    "resolve-ambiguity"
+    "documentation-and-adrs",
+    "outcome-driven-development",
+    "resolve-ambiguity",
+    "spec-driven-development",
+    "systematic-debugging",
+    "web-research"
    ],
    "rules": [
     "api-contract",
@@ -144,10 +228,13 @@
    ],
    "references": [
     "architecture",
-    "definition-of-done"
+    "definition-of-done",
+    "graph-investigation"
    ],
    "prompts": [
-    "decision-request"
+    "decision-request",
+    "finding-record",
+    "spec-brief"
    ]
   },
   {
@@ -162,7 +249,8 @@
     "lead"
    ],
    "skills": [
-    "planning-and-task-breakdown"
+    "planning-and-task-breakdown",
+    "systematic-debugging"
    ],
    "rules": [
     "evidence"
@@ -171,7 +259,9 @@
     "backlog-format"
    ],
    "prompts": [
-    "decision-request"
+    "decision-request",
+    "finding-record",
+    "spec-brief"
    ]
   },
   {
@@ -186,8 +276,9 @@
     "lead"
    ],
    "skills": [
+    "context-engineering",
     "session-handoff",
-    "context-engineering"
+    "systematic-debugging"
    ],
    "rules": [
     "evidence"
@@ -196,7 +287,10 @@
     "task-system"
    ],
    "prompts": [
-    "decision-request"
+    "decision-request",
+    "finding-record",
+    "session-recitation",
+    "spec-brief"
    ]
   },
   {
@@ -212,15 +306,22 @@
     "verification-engineer"
    ],
    "skills": [
-    "test-driven-development"
+    "systematic-debugging",
+    "unified-review"
    ],
    "rules": [
     "evidence"
    ],
    "references": [
-    "test-suite",
+    "backlog-format",
+    "build-system",
     "quality-floor",
+    "test-suite",
     "testing-patterns"
+   ],
+   "prompts": [
+    "finding-record",
+    "session-recitation"
    ]
   },
   {
@@ -232,22 +333,31 @@
     "default"
    ],
    "agents": [
-    "reviewer",
-    "architect"
+    "architect",
+    "reviewer"
    ],
    "skills": [
     "code-review-and-quality",
-    "independent-review"
+    "code-simplification",
+    "independent-review",
+    "performance-optimization",
+    "review-deep",
+    "security-and-hardening",
+    "session-handoff",
+    "systematic-debugging",
+    "unified-review"
    ],
    "rules": [
-    "review",
-    "api-contract"
+    "api-contract",
+    "review"
    ],
    "references": [
+    "backlog-format",
     "clean-code-clean-architecture",
     "definition-of-done"
    ],
    "prompts": [
+    "finding-record",
     "review-request"
    ]
   },
@@ -264,17 +374,29 @@
     "security-auditor"
    ],
    "skills": [
+    "code-review-and-quality",
+    "code-simplification",
+    "performance-optimization",
     "review-deep",
-    "security-and-hardening"
+    "security-and-hardening",
+    "session-handoff",
+    "systematic-debugging",
+    "unified-review"
    ],
    "rules": [
-    "safety",
-    "evidence"
+    "evidence",
+    "safety"
    ],
    "references": [
     "architecture",
+    "backlog-format",
+    "quality-floor",
     "security-checklist",
     "test-suite"
+   ],
+   "prompts": [
+    "finding-record",
+    "review-request"
    ]
   },
   {
@@ -289,16 +411,43 @@
     "harness-maintainer"
    ],
    "skills": [
+    "code-review-and-quality",
+    "code-simplification",
     "context-engineering",
-    "select-capabilities"
+    "doubt-driven-development",
+    "independent-review",
+    "performance-optimization",
+    "review-deep",
+    "security-and-hardening",
+    "select-capabilities",
+    "session-handoff",
+    "source-driven-development",
+    "systematic-debugging",
+    "test-driven-development",
+    "unified-review",
+    "web-research"
    ],
    "rules": [
-    "resource-integrity",
-    "mcp-integration"
+    "mcp-integration",
+    "resource-integrity"
    ],
    "references": [
-    "skills-engineering",
-    "mcp-tools"
+    "backlog-format",
+    "graph-investigation",
+    "mcp-tools",
+    "research-modules",
+    "skills-engineering"
+   ],
+   "prompts": [
+    "decision-request",
+    "finding-record",
+    "plan-execution",
+    "recovery-brief",
+    "research-brief",
+    "review-request",
+    "session-recitation",
+    "spec-brief",
+    "task-brief"
    ]
   },
   {
@@ -313,15 +462,41 @@
     "researcher"
    ],
    "skills": [
-    "web-research",
-    "source-driven-development"
+    "code-review-and-quality",
+    "code-simplification",
+    "documentation-and-adrs",
+    "doubt-driven-development",
+    "independent-review",
+    "performance-optimization",
+    "review-deep",
+    "security-and-hardening",
+    "select-capabilities",
+    "session-handoff",
+    "source-driven-development",
+    "systematic-debugging",
+    "test-driven-development",
+    "unified-review",
+    "web-research"
    ],
    "rules": [
     "evidence",
     "research-escalation"
    ],
    "references": [
+    "backlog-format",
+    "graph-investigation",
     "research-modules"
+   ],
+   "prompts": [
+    "decision-request",
+    "finding-record",
+    "plan-execution",
+    "recovery-brief",
+    "research-brief",
+    "review-request",
+    "session-recitation",
+    "spec-brief",
+    "task-brief"
    ]
   },
   {
@@ -333,22 +508,47 @@
     "default"
    ],
    "agents": [
-    "researcher",
-    "lead"
+    "lead",
+    "researcher"
    ],
    "skills": [
+    "code-review-and-quality",
+    "code-simplification",
     "discernment-nudge",
-    "outcome-driven-development"
+    "documentation-and-adrs",
+    "doubt-driven-development",
+    "independent-review",
+    "outcome-driven-development",
+    "performance-optimization",
+    "resolve-ambiguity",
+    "review-deep",
+    "security-and-hardening",
+    "select-capabilities",
+    "session-handoff",
+    "source-driven-development",
+    "systematic-debugging",
+    "test-driven-development",
+    "unified-review",
+    "web-research"
    ],
    "rules": [
     "evidence",
     "human-decisions"
    ],
    "references": [
+    "graph-investigation",
     "research-modules"
    ],
    "prompts": [
-    "decision-request"
+    "decision-request",
+    "finding-record",
+    "plan-execution",
+    "recovery-brief",
+    "research-brief",
+    "review-request",
+    "session-recitation",
+    "spec-brief",
+    "task-brief"
    ]
   },
   {
@@ -360,22 +560,27 @@
     "default"
    ],
    "agents": [
+    "performance-engineer",
     "release-engineer",
+    "resilience-tester",
     "security-auditor"
    ],
    "skills": [
-    "shipping-and-launch"
+    "shipping-and-launch",
+    "systematic-debugging"
    ],
    "rules": [
-    "release-ci",
-    "licensing-and-provenance"
+    "licensing-and-provenance",
+    "release-ci"
    ],
    "references": [
-    "ship-runbook",
-    "definition-of-done"
+    "definition-of-done",
+    "ship-runbook"
    ],
    "prompts": [
-    "decision-request"
+    "decision-request",
+    "finding-record",
+    "spec-brief"
    ]
   },
   {
@@ -391,18 +596,42 @@
     "resilience-tester"
    ],
    "skills": [
-    "debugging-and-error-recovery"
+    "code-review-and-quality",
+    "code-simplification",
+    "debugging-and-error-recovery",
+    "doubt-driven-development",
+    "independent-review",
+    "performance-optimization",
+    "review-deep",
+    "security-and-hardening",
+    "select-capabilities",
+    "session-handoff",
+    "shipping-and-launch",
+    "source-driven-development",
+    "systematic-debugging",
+    "test-driven-development",
+    "unified-review",
+    "web-research"
    ],
    "rules": [
     "durability",
     "human-decisions"
    ],
    "references": [
+    "graph-investigation",
+    "research-modules",
     "ship-runbook"
    ],
    "prompts": [
+    "decision-request",
+    "finding-record",
+    "plan-execution",
     "recovery-brief",
-    "decision-request"
+    "research-brief",
+    "review-request",
+    "session-recitation",
+    "spec-brief",
+    "task-brief"
    ]
   },
   {
@@ -418,18 +647,27 @@
     "reviewer"
    ],
    "skills": [
+    "code-review-and-quality",
     "code-simplification",
-    "test-driven-development"
+    "deprecation-and-migration",
+    "performance-optimization",
+    "review-deep",
+    "security-and-hardening",
+    "session-handoff",
+    "systematic-debugging",
+    "test-driven-development",
+    "unified-review"
    ],
    "rules": [
     "api-contract",
     "review"
    ],
    "references": [
-    "testing-patterns",
-    "clean-code-clean-architecture"
+    "clean-code-clean-architecture",
+    "testing-patterns"
    ],
    "prompts": [
+    "finding-record",
     "review-request"
    ]
   },
@@ -445,15 +683,20 @@
     "architect"
    ],
    "skills": [
-    "context-engineering"
+    "context-engineering",
+    "systematic-debugging"
    ],
    "rules": [
-    "evidence",
-    "api-contract"
+    "api-contract",
+    "evidence"
    ],
    "references": [
     "architecture",
+    "backlog-format",
     "graph-investigation"
+   ],
+   "prompts": [
+    "finding-record"
    ]
   },
   {
@@ -469,15 +712,21 @@
     "performance-engineer"
    ],
    "skills": [
-    "performance-optimization"
+    "observability-and-instrumentation",
+    "performance-optimization",
+    "systematic-debugging"
    ],
    "rules": [
-    "frontend-web",
-    "evidence"
+    "evidence",
+    "frontend-web"
    ],
    "references": [
-    "performance-checklist",
-    "observability-checklist"
+    "backlog-format",
+    "observability-checklist",
+    "performance-checklist"
+   ],
+   "prompts": [
+    "finding-record"
    ]
   },
   {
@@ -508,25 +757,67 @@
    "kind": "prompt",
    "id": "task-brief",
    "path": "resources/prompts/task-brief.md",
-   "description": "Structure a bounded implementation brief from settled inputs."
+   "description": "Structure a bounded implementation brief from settled inputs and define the complete task record through gated phases."
   },
   {
    "kind": "prompt",
    "id": "decision-request",
    "path": "resources/prompts/decision-request.md",
-   "description": "Ask a consequential question with explicit alternatives and authority."
+   "description": "Ask a consequential question with explicit alternatives and authority; canonical contract for gates P, D, V, C and H."
   },
   {
    "kind": "prompt",
    "id": "review-request",
    "path": "resources/prompts/review-request.md",
-   "description": "Supply an independent reviewer with the contract and actual evidence."
+   "description": "Supply an independent reviewer with the contract and actual evidence; also orchestrates the phased audit pipeline."
   },
   {
    "kind": "prompt",
    "id": "recovery-brief",
    "path": "resources/prompts/recovery-brief.md",
-   "description": "Resume from preserved evidence without replaying uncertain effects."
+   "description": "Resume from preserved evidence without replaying uncertain effects; includes the RESUME-RETRY-STRATEGY-ESCALATE delegate ladder."
+  },
+  {
+   "kind": "prompt",
+   "id": "plan-brief",
+   "path": "resources/prompts/plan-brief.md",
+   "description": "Build a verified execution plan from a backlog with triage gates, risks and stop conditions."
+  },
+  {
+   "kind": "prompt",
+   "id": "plan-execution",
+   "path": "resources/prompts/plan-execution.md",
+   "description": "Execute an approved plan end to end with delegated tasks, gates, recovery and close-out."
+  },
+  {
+   "kind": "prompt",
+   "id": "iteration-loop",
+   "path": "resources/prompts/iteration-loop.md",
+   "description": "Run one lifecycle iteration per invocation for step-by-step debugging."
+  },
+  {
+   "kind": "prompt",
+   "id": "finding-record",
+   "path": "resources/prompts/finding-record.md",
+   "description": "Route discovered defects into backlog records at discovery time."
+  },
+  {
+   "kind": "prompt",
+   "id": "session-recitation",
+   "path": "resources/prompts/session-recitation.md",
+   "description": "Canonical continuation block, runtime field mapping and parseable RESULT contract."
+  },
+  {
+   "kind": "prompt",
+   "id": "spec-brief",
+   "path": "resources/prompts/spec-brief.md",
+   "description": "Guided mini-specification for feature-adds with owner-resolved open decisions."
+  },
+  {
+   "kind": "prompt",
+   "id": "research-brief",
+   "path": "resources/prompts/research-brief.md",
+   "description": "Read-only digest delegate, module/product investigation and decision synthesis."
   },
   {
    "kind": "rule",
