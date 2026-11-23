@@ -102,7 +102,11 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
     assert.equal(tools.length, 34);
     assert.equal(new Set(tools.map((x) => x.name)).size, 34);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
-    assert.ok(tools.every((x) => x.annotations?.destructiveHint === false));
+    const DISCARD_TOOLS = new Set([
+      'scopegrain_task_disposition', 'scopegrain_goal_transition',
+    ]);
+    assert.ok(tools.every((x) =>
+      x.annotations?.destructiveHint === DISCARD_TOOLS.has(x.name)));
     const res = await client.callTool({
       name: 'scopegrain_check_action',
       arguments: { taskId: '00000000-0000-4000-8000-000000000000', action: 'read' },
