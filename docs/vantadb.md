@@ -49,9 +49,24 @@ nada descarga, instala ni sincroniza sin un comando explicito.
   una allowlist explicita — el hijo solo recibe las claves pineadas
   (`VANTADB_STORAGE_PATH`, `VANTADB_QUIET`, `VANTADB_MCP_PROFILE=brain`
   para que los perfiles restringidos rechacen tools no listadas,
-  `VANTADB_MCP_INJECT_NAMESPACES=l1/` como ACL de inyeccion): nada mas se
-  hereda del padre, asi ni `VANTADB_MCP_*` externos ni variables con
-  credenciales pueden filtrarse al proceso.
+  `VANTADB_MCP_INJECT_NAMESPACES=l1/,l3/` como ACL de inyeccion — el pool
+  l1/* mas la proyeccion persona l3/sg-persona-*, nunca namespaces
+  arbitrarios como `sg-formal-v1-*`,
+  `VANTADB_MCP_ALLOW_TOOLS=capabilities,memory_get,memory_list,`
+  `memory_list_namespaces,memory_put,memory_recall,memory_reinforce,`
+  `memory_search` como allowlist dura server-side — exactamente las tools
+  que este cliente invoca; una deriva de contrato rechaza con -32601 en
+  lugar de despachar un tool renombrado,
+  `VANTADB_DEDUP_POLICY=off` porque el proyector ya aplica upserts
+  idempotentes por clave exacta con readback — el dedup semantico
+  reescribiria payloads silenciosamente, y
+  `VANTADB_STRICT_EMBEDDINGS=true` para embeddings fail-closed — bajo
+  modo estricto el servidor rechaza `embed_texts` y persiste registros
+  sin vector con `fallback:true`+`warning` en lugar de vectores
+  sinteticos — contrato VB-6 verificado en vivo sobre
+  `vantadb-server 0.9.0`): nada mas se hereda del padre, asi ni
+  `VANTADB_MCP_*` externos ni variables con credenciales pueden
+  filtrarse al proceso.
 - **Egreso sin secretos**: antes de proyectar o sincronizar cualquier
   payload hacia el backend, `secretEgressCheck` lo criba contra nombres
   de fichero sensibles (`.pem`, `id_rsa`, `credentials`, ...) y patrones

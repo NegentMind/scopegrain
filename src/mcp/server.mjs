@@ -5,6 +5,7 @@
 // Importing this module does not start the server and does not load the
 // optional dependencies.
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { toErrorPayload } from '../core/errors.mjs';
 import { decodeUtf8Strict } from '../core/fsx.mjs';
@@ -661,13 +662,18 @@ export function createMCPTools(ctx, z) {
   return strictify(tools);
 }
 
+// Server version reported to MCP clients — read from the package
+// manifest so it cannot drift behind the released version.
+const PKG_VERSION = JSON.parse(fs.readFileSync(
+  new URL('../../package.json', import.meta.url), 'utf8')).version;
+
 // Constructs the MCP server and registers all tools WITHOUT connecting a
 // transport. Returns {server, ctx} so callers/tests can inspect registration.
 export async function createMCPServer({ project, config }) {
   const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
   const { z } = await import('zod');
   const ctx = resolveContext({ project, config });
-  const server = new McpServer({ name: 'scopegrain', version: '0.1.0' });
+  const server = new McpServer({ name: 'scopegrain', version: PKG_VERSION });
   for (const tool of createMCPTools(ctx, z)) {
     // Explicit strict object schema: the SDK preserves it, so unknown wire
     // args are rejected BEFORE the handler (raw shape would strip them).

@@ -14,7 +14,6 @@ import { createCaptureStore } from '../core/captures.mjs';
 import { loadJournalPolicy } from '../core/policy.mjs';
 import { canonicalDigest } from '../core/digests.mjs';
 import { readWorklog } from '../core/worklog.mjs';
-import { estimateTokens } from '../core/tokens.mjs';
 import { controlledSpawnEnv } from '../core/verify-commands.mjs';
 import { createVantaDBProjector, projectionProjectHash, projectionScopeHash,
   secretEgressCheck } from './vantadb.mjs';
@@ -22,6 +21,11 @@ import { createVantaDBProjector, projectionProjectHash, projectionScopeHash,
 export const DEFAULT_VANTADB_VERSION = '0.9.0';
 export const VANTADB_REPO = 'ness-e/Vantadb';
 export const VANTADB_BACKEND_ID = 'vantadb';
+
+// Client identity reported in the MCP handshake — read from the package
+// manifest so it cannot drift behind the released version.
+const INSTALL_VERSION = JSON.parse(fs.readFileSync(
+  new URL('../../package.json', import.meta.url), 'utf8')).version;
 
 const CONFIG_REL = 'vantadb.json';
 const CONFIG_KEYS = ['schemaVersion', 'backendId', 'version', 'binaryPath', 'storagePath'];
@@ -321,9 +325,25 @@ function controlledEnv(storagePath) {
     VANTADB_QUIET: '1',
     VANTADB_MCP_PROFILE: 'brain',
     // Injection ACL: recall/context may only inject the engine's own
-    // l1/* memory pool, never arbitrary namespaces such as
-    // sg-formal-v1-*.
-    VANTADB_MCP_INJECT_NAMESPACES: 'l1/',
+    // l1/* memory pool and the persona projection l3/sg-persona-* —
+    // never arbitrary namespaces such as sg-formal-v1-*.
+    VANTADB_MCP_INJECT_NAMESPACES: 'l1/,l3/',
+    // Hard tool allowlist (server-side, pre-effects): exactly the verbs
+    // this client invokes — probe, projector reads/writes, worklog and
+    // persona sync, context/rehydrate search, recall, list and
+    // reinforce. Contract drift rejects loudly (-32601) rather than
+    // dispatching a renamed or wider tool set.
+    VANTADB_MCP_ALLOW_TOOLS:
+      'capabilities,memory_get,memory_list,memory_list_namespaces,'
+      + 'memory_put,memory_recall,memory_reinforce,memory_search',
+    // Server-side dedup rewriting stays off: the projector enforces
+    // idempotent exact-key upserts with readback itself; semantic
+    // reinforce/supersede would mutate payloads silently.
+    VANTADB_DEDUP_POLICY: 'off',
+    // Fail-closed embeddings: strict mode rejects embed_texts and
+    // stores vectorless fallback:true records instead of synthetic
+    // vectors (VB-6 contract, verified live on vantadb-server 0.9.0).
+    VANTADB_STRICT_EMBEDDINGS: 'true',
   });
 }
 
@@ -433,7 +453,7 @@ export function createStdioMcpClient({
       const init = await request('initialize', {
         protocolVersion: '2025-06-18',
         capabilities: {},
-        clientInfo: { name: 'scopegrain', version: '0.1.0' },
+        clientInfo: { name: 'scopegrain', version: INSTALL_VERSION },
       });
       serverInfo = init && typeof init === 'object' ? init.serverInfo ?? null : null;
       child.stdin.write(JSON.stringify({
@@ -637,17 +657,12 @@ export async function vantaDBContext({ cfg, recordId, topK, maxNamespaces,
           reason: 'response byte budget exhausted' });
       }
     }
-    const result = { recordId, namespacesFound: names.length,
+    // This context shape has no prepend_context field — the estimate
+    // lives in the rehydrate packet, which does build one.
+    return { recordId, namespacesFound: names.length,
       namespacesScanned: scanned.length,
       truncated: names.length > cap || warnings.some((w) => w.signal === 'truncated'),
       hits, warnings };
-    // Local estimate over prepend_context when a backend shape carries
-    // one — heuristic, never the host tokenizer. Absent/non-string
-    // fields simply carry no estimate.
-    if (typeof result.prepend_context === 'string') {
-      result.prependContextEstimate = estimateTokens(result.prepend_context);
-    }
-    return result;
   });
 }
 

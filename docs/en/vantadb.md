@@ -48,8 +48,22 @@ or syncs without an explicit command.
   explicit allowlist — the child receives only the pinned keys
   (`VANTADB_STORAGE_PATH`, `VANTADB_QUIET`, `VANTADB_MCP_PROFILE=brain`
   so restricted profiles reject unlisted tools,
-  `VANTADB_MCP_INJECT_NAMESPACES=l1/` as the injection ACL): nothing else
-  is inherited from the parent, so neither external `VANTADB_MCP_*`
+  `VANTADB_MCP_INJECT_NAMESPACES=l1/,l3/` as the injection ACL — the l1/*
+  pool plus the persona projection l3/sg-persona-*, never arbitrary
+  namespaces such as `sg-formal-v1-*`,
+  `VANTADB_MCP_ALLOW_TOOLS=capabilities,memory_get,memory_list,`
+  `memory_list_namespaces,memory_put,memory_recall,memory_reinforce,`
+  `memory_search` as a hard server-side allowlist — exactly the tools
+  this client invokes; contract drift rejects with -32601 rather than
+  dispatching a renamed tool,
+  `VANTADB_DEDUP_POLICY=off` because the projector already enforces
+  idempotent exact-key upserts with readback — semantic dedup would
+  rewrite payloads silently, and
+  `VANTADB_STRICT_EMBEDDINGS=true` for fail-closed embeddings — under
+  strict mode the server rejects `embed_texts` and persists vectorless
+  records with `fallback:true`+`warning` instead of synthetic vectors —
+  the VB-6 contract verified live on `vantadb-server 0.9.0`): nothing
+  else is inherited from the parent, so neither external `VANTADB_MCP_*`
   overrides nor credential-bearing variables can leak into the process.
 - **Secret-free egress**: before any payload is projected or synced to
   the backend, `secretEgressCheck` screens it against sensitive file

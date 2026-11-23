@@ -442,12 +442,15 @@ test('vantaDBReinforce proxies memory_reinforce and validates outcome locally', 
   }
 });
 
-test('spawn env pins brain profile, l1 injection ACL and strips overrides', async () => {
+test('spawn env pins brain profile, injection ACL, tool allowlist, dedup and strict embeddings; strips overrides', async () => {
   const f = fixture();
   let captured = null;
   try {
     await withEnv({ VANTADB_MCP_PROFILE: 'memory',
       VANTADB_MCP_INJECT_NAMESPACES: 'evil/',
+      VANTADB_MCP_ALLOW_TOOLS: 'evil_tool',
+      VANTADB_DEDUP_POLICY: 'semantic',
+      VANTADB_STRICT_EMBEDDINGS: '0',
       VANTADB_MCP_BYTE_BUDGET: '1' }, async () => {
       const c = cfg(f.dir);
       fs.writeFileSync(c.binaryPath, 'placeholder');
@@ -460,7 +463,12 @@ test('spawn env pins brain profile, l1 injection ACL and strips overrides', asyn
         arguments: { namespace: 'n', key: 'k', },
         timeoutMs: 1500, spawnImpl }));
       assert.equal(captured.VANTADB_MCP_PROFILE, 'brain');
-      assert.equal(captured.VANTADB_MCP_INJECT_NAMESPACES, 'l1/');
+      assert.equal(captured.VANTADB_MCP_INJECT_NAMESPACES, 'l1/,l3/');
+      assert.equal(captured.VANTADB_MCP_ALLOW_TOOLS,
+        'capabilities,memory_get,memory_list,memory_list_namespaces,'
+        + 'memory_put,memory_recall,memory_reinforce,memory_search');
+      assert.equal(captured.VANTADB_DEDUP_POLICY, 'off');
+      assert.equal(captured.VANTADB_STRICT_EMBEDDINGS, 'true');
       assert.equal(captured.VANTADB_MCP_BYTE_BUDGET, undefined);
       assert.equal(captured.VANTADB_STORAGE_PATH, c.storagePath);
       assert.equal(captured.VANTADB_QUIET, '1');
