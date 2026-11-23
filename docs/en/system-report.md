@@ -223,21 +223,29 @@ node ./bin/scopegrain.mjs methodology check --project "C:\ruta\proyecto" UUID --
 
 These are examples, not execution evidence. JSON creations preview by
 default and use explicit `--apply` to write; previewed IDs are not
-reserved. Legacy task-creation options keep their direct write.
+reserved. Mutating verbs preview as dry-run unless `--apply` — including
+`task create` (both flag and `--input` forms), meta/disposition/note/
+step/transition, goal create/transition, memory add, journal compact,
+constitution set and the VantaDB verbs.
 Discovery never executes the commands it finds.
 See [onboarding](onboarding.md) and [workflows](workflows.md).
 
 ## 11. Optional MCP
 
-The MCP server offers 32 tools, strictly bound to the project and
-configuration selected at startup. 26 are read-only; 6 mutate under the
-same CAS/lock discipline as the CLI (`scopegrain_next_task` with
-`claimBy`, `scopegrain_task_meta`, `scopegrain_task_disposition`,
+The MCP server offers 34 tools, strictly bound to the project and
+configuration selected at startup: 22 read-only (`READ_ONLY`), 6 that
+write local state under the same CAS/lock discipline as the CLI
+(`WRITE_LOCAL`: `scopegrain_next_task` with `claimBy`,
+`scopegrain_task_meta`, `scopegrain_task_disposition`,
 `scopegrain_memory_add`, `scopegrain_goal_create`,
-`scopegrain_goal_transition`). Among the read-only tools are
-`scopegrain_specification_get`, `scopegrain_approval_get`,
-`scopegrain_methodology_check`, `scopegrain_memory_read`,
-`scopegrain_goal_list` and `scopegrain_metrics`.
+`scopegrain_goal_transition`) and 6 backend reads (`READ_BACKEND`) that
+spawn the enrolled `vantadb-server` binary and are annotated
+`openWorldHint: true`. `task_disposition` and `goal_transition` carry
+`destructiveHint: true` for their discard/drop semantics. Among the
+read-only tools are `scopegrain_specification_get`,
+`scopegrain_approval_get`, `scopegrain_methodology_check`,
+`scopegrain_memory_read`, `scopegrain_goal_list`,
+`scopegrain_context` and `scopegrain_metrics`.
 
 The optional transport is stdio. SDK loading is lazy; the declared
 dependencies are `@modelcontextprotocol/sdk` 1.27.1 and `zod`

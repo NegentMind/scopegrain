@@ -264,6 +264,13 @@ generated native proposals into project-local host destinations:
   where `action` is `create`, `conflict` or `noop` under the same checks
   as `preflightPlan` (planned collisions, containment, links/non-files,
   bounded identical-bytes comparison). It writes nothing.
+- Every manifest proposal declares `activationMode`: `apply` (whole file
+  `host activate --apply` may create), `merge` (fragment merged by hand
+  into shared host configuration — Claude `.mcp.json`, Codex
+  `.codex/config.toml`, OpenCode `opencode.jsonc` — listed under
+  `skipped` by activation) or `manual` (disclosure/review only). The
+  legacy `manualMerge` key is retained only for consumers of the older
+  schema and is deprecated in favor of `activationMode`.
 - `applyActivation(ctx, {host, surface?})` re-runs the throwing preflight
   immediately before writing (`PLAN_CONFLICT` aborts everything), then
   creates files with exclusive `wx` descriptors and rolls back only the
@@ -338,6 +345,10 @@ explicit step.
 
 MCP configuration is machine-local. Relocation can leave absolute paths
 pointing to the old project or installation; `doctor` reports that condition.
+The `host-merge-targets` check also inspects every declared `merge`/`manual`
+destination (`.mcp.json`, `.codex/config.toml`, `.devin/config.json`,
+`opencode.jsonc`, ...) and verifies the merged `scopegrain` block is still
+present and intact — a missing destination or a lost merge fails the check.
 Rebinding requires review of the new destination, not silent replacement.
 Resource restoration only recovers compatible missing canonical bytes; it
 does not overwrite divergent files or reconnect a remote MCP service.

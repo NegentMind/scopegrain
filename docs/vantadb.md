@@ -11,8 +11,13 @@ nada descarga, instala ni sincroniza sin un comando explicito.
 - `src/integrations/vantadb-runtime.mjs` — runtime: descarga verificada del
   binario, cliente MCP stdio (JSON-RPC NDJSON), enrolamiento y sync.
 - `.scopegrain/vantadb.json` (o el dir de config elegido) — enrolamiento del
-  backend: `{schemaVersion, backendId, version, binaryPath, storagePath}`.
-  Documento cerrado; rutas absolutas obligatorias.
+  backend: `{schemaVersion, backendId, version, binaryPath, binarySha256,
+  storagePath}`. Documento cerrado; rutas absolutas obligatorias.
+  `binarySha256` es obligatorio: el digest 64-hex pineado en el
+  enrolamiento se verifica contra el binario antes de cada spawn, asi
+  que un binario sustituido tras el enrolamiento falla
+  (`VANTADB_HASH_MISMATCH`/`VANTADB_CONFIG_MALFORMED`) en vez de
+  ejecutarse.
 
 ## Modelo de despliegue
 
@@ -24,9 +29,19 @@ nada descarga, instala ni sincroniza sin un comando explicito.
   con `VANTADB_STORAGE_PATH`, hablan JSON-RPC por stdio y el proceso muere
   al cerrar. El writer-discovery de VantaDB (`.vanta.server.json`) cubre
   clientes concurrentes sobre el mismo storage. El entorno del spawn es
-  controlado: `VANTADB_MCP_PROFILE` se fija a `brain` (los perfiles
-  restringidos rechazan tools no listadas), la ACL de inyeccion queda en
-  `l1/` y cualquier `VANTADB_MCP_*` heredado se descarta.
+  una allowlist explicita — el hijo solo recibe las claves pineadas
+  (`VANTADB_STORAGE_PATH`, `VANTADB_QUIET`, `VANTADB_MCP_PROFILE=brain`
+  para que los perfiles restringidos rechacen tools no listadas,
+  `VANTADB_MCP_INJECT_NAMESPACES=l1/` como ACL de inyeccion): nada mas se
+  hereda del padre, asi ni `VANTADB_MCP_*` externos ni variables con
+  credenciales pueden filtrarse al proceso.
+- **Egreso sin secretos**: antes de proyectar o sincronizar cualquier
+  payload hacia el backend, `secretEgressCheck` lo criba contra nombres
+  de fichero sensibles (`.pem`, `id_rsa`, `credentials`, ...) y patrones
+  de contenido credencial de alta confianza (claves privadas PEM, tokens
+  GitHub/Slack/Google, `password=`/`"apiKey":` con valor largo, ...). Un
+  hit bloquea la proyeccion devolviendo solo una etiqueta de patron —
+  los bytes coincidentes nunca se copian a reportes ni logs.
 - **Distribucion**: assets oficiales de GitHub releases (`ness-e/Vantadb`),
   verificados contra el sidecar `.sha256` antes de adoptarse. Un mismatch
   produce `VANTADB_HASH_MISMATCH` y no adopta nada.

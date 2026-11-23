@@ -295,7 +295,7 @@ proyecto se inyecta sola en los dos puntos de reanudacion — sin
 consultas manuales al CLI:
 
 ```
-context --project PATH [--tail N] [--no-vantadb] [--timeout MS]
+context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--timeout MS]
 session resume UUID [--no-vantadb] [--timeout MS]
 ```
 
@@ -310,6 +310,10 @@ session resume UUID [--no-vantadb] [--timeout MS]
   `{ enrolled: true, error: {...} }` sin abortar el packet.
 - `--no-vantadb` omite por completo el spawn del backend;
   `--timeout MS` acota la espera (15 s por defecto).
+- `--no-structure` sirve el indice estructural persistido sin
+  re-escanear el arbol (equivale al argumento MCP `noStructure`); la API
+  admite ademas `structureDebounceMs` para acotar el refresco en
+  procesos largos.
 - La herramienta MCP `scopegrain_session_resume` aplica la misma
   rehidratacion por record. La superficie MCP sigue siendo solo lectura.
 
@@ -492,10 +496,16 @@ scopegrain dist pack --project PATH --source DIR --out FILE
 ```
 
 `run` ejecuta workflows declarativos cuyos pasos solo nombran primitivas
-whitelisted del harness (`task.transition`, `converge.evaluate`,
-`analyze.task`, `checklist.*`, `noop`, ...); nunca shell ni binarios de
-terceros. Checkpoints atomicos bajo `<state>/workflow-runs/` permiten
-reanudar sin re-ejecutar pasos completados. `stack` fusiona catalogos
+whitelisted del harness (`task.transition`, `methodology.check`,
+`converge.evaluate`, `converge.record`, `analyze.task`,
+`checklist.mark`, `checklist.findings`, `noop`); nunca shell ni
+binarios de terceros. Los `args` de cada paso son cerrados por op: una
+clave desconocida se rechaza en la validacion del documento en vez de
+descartarse en silencio. En `task.transition`, `verification` y `review`
+mapean al DTO de transicion y `evidence` es alias legacy de
+`verification` — declarar ambos es ambiguo y se rechaza. Checkpoints
+atomicos bajo `<state>/workflow-runs/` permiten reanudar sin
+re-ejecutar pasos completados. `stack` fusiona catalogos
 locales por prioridad. `compose` aplica capas `replace|prepend|append|
 wrap`. `validate`/`bundle-validate` verifican submissions (id slug,
 semver, pinning sha256 obligatorio en fuentes remotas).

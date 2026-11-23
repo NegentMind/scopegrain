@@ -43,6 +43,14 @@ verificacion admiten `status` `pass`/`fail`/`error` como registro
 honesto; la aceptacion sigue exigiendo `pass`. Los veredictos de
 revision admiten `approve`/`reject`/`changes-requested`; la aceptacion
 sigue exigiendo `approve`.
+
+El bloque `constraints` de la politica fija las guardas de contenido que
+las aristas no pueden expresar; el runtime las lee y fija
+(`transition.mjs`, divergencia = `POLICY_INVALID`):
+`terminalDispositions` = `discarded`/`cancelled` con
+`terminalDispositionTarget` = `ABANDON`, y
+`methodologyRevalidatedTargets` = `ACT`/`ACCEPT`/`CLOSE` (los destinos
+que requieren gate metodologico revalidado).
 ```
 
 Existe una excepcion que no es arista de la politica: `REVIEW -> REVIEW`

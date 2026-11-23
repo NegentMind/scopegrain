@@ -49,6 +49,13 @@ the disposition first. Verification checks admit `status`
 `pass`. Review verdicts admit `approve`/`reject`/`changes-requested`;
 acceptance still requires `approve`.
 
+The policy `constraints` block pins the content guards that edges
+cannot express; the runtime reads and pins them (`transition.mjs`,
+divergence = `POLICY_INVALID`): `terminalDispositions` =
+`discarded`/`cancelled` with `terminalDispositionTarget` = `ABANDON`,
+and `methodologyRevalidatedTargets` = `ACT`/`ACCEPT`/`CLOSE` (the
+targets requiring a revalidated methodology gate).
+
 There is one exception that is not a policy edge: `REVIEW -> REVIEW`
 is admitted in code exclusively as an evidence attachment. It allows
 accumulating `verification` and/or `review` while the task is parked

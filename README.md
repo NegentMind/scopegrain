@@ -227,8 +227,10 @@ deliver procedures and context; they do not execute models, agents or
 scripts. Plans store dependencies; artifacts keep specifications,
 designs, reports and other records. Sessions register operations and an
 explicit budget; resuming them recovers context, it does not repeat
-actions. JSON creations use preview by default and require `--apply`;
-historic task operations keep their previous behavior.
+actions. Every mutating verb previews by default and requires `--apply`
+— including `task create` (both forms), task meta/disposition/note/
+step/transition, goal create/transition, memory add, journal compact,
+constitution set and the VantaDB verbs.
 
 The full CLI surface at a glance — every verb previews by default and
 writes only with `--apply` (detail: [CLI reference](docs/en/cli-reference.md)):

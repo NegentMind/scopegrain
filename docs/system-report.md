@@ -216,21 +216,28 @@ node ./bin/scopegrain.mjs methodology check --project "C:\ruta\proyecto" UUID --
 
 Son ejemplos, no evidencia de ejecucion. Las creaciones JSON se previsualizan
 por defecto y usan `--apply` explicito para escribir; los IDs previsualizados
-no quedan reservados. Las opciones legacy de creacion de tarea mantienen su
-escritura directa. El descubrimiento nunca ejecuta los comandos encontrados.
+no quedan reservados. Los verbos mutantes previsualizan en seco salvo
+`--apply` — incluye `task create` (ambas formas), meta/disposition/note/
+step/transition, goal create/transition, memory add, journal compact,
+constitution set y los verbos VantaDB. El descubrimiento nunca ejecuta
+los comandos encontrados.
 Ver [onboarding](onboarding.md) y [workflows](workflows.md).
 
 ## 11. MCP opcional
 
-El servidor MCP ofrece 32 herramientas estrictamente vinculadas al
-proyecto y configuracion seleccionados al iniciar. 26 son de solo
-lectura; 6 mutan bajo la misma disciplina CAS/lock que el CLI
-(`scopegrain_next_task` con `claimBy`, `scopegrain_task_meta`,
-`scopegrain_task_disposition`, `scopegrain_memory_add`,
-`scopegrain_goal_create`, `scopegrain_goal_transition`). Entre las de
+El servidor MCP ofrece 34 herramientas estrictamente vinculadas al
+proyecto y configuracion seleccionados al iniciar: 22 de solo lectura
+(`READ_ONLY`), 6 que escriben estado local bajo la misma disciplina
+CAS/lock que el CLI (`WRITE_LOCAL`: `scopegrain_next_task` con
+`claimBy`, `scopegrain_task_meta`, `scopegrain_task_disposition`,
+`scopegrain_memory_add`, `scopegrain_goal_create`,
+`scopegrain_goal_transition`) y 6 de lectura de backend (`READ_BACKEND`)
+que lanzan el binario `vantadb-server` enrolado y llevan
+`openWorldHint: true`. `task_disposition` y `goal_transition` llevan
+`destructiveHint: true` por sus semanticas de descarte. Entre las de
 lectura estan `scopegrain_specification_get`, `scopegrain_approval_get`,
 `scopegrain_methodology_check`, `scopegrain_memory_read`,
-`scopegrain_goal_list` y `scopegrain_metrics`.
+`scopegrain_goal_list`, `scopegrain_context` y `scopegrain_metrics`.
 
 El transporte opcional es stdio. La carga del SDK es perezosa; las
 dependencias declaradas son `@modelcontextprotocol/sdk` 1.27.1 y `zod`

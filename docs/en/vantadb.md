@@ -12,7 +12,11 @@ or syncs without an explicit command.
   download, MCP stdio client (NDJSON JSON-RPC), enrollment and sync.
 - `.scopegrain/vantadb.json` (or the chosen config dir) — backend
   enrollment: `{schemaVersion, backendId, version, binaryPath,
-  storagePath}`. Closed document; absolute paths required.
+  binarySha256, storagePath}`. Closed document; absolute paths required.
+  `binarySha256` is mandatory: the 64-hex digest pinned at enrollment is
+  verified against the binary before every spawn, so a binary swapped
+  after enrollment fails (`VANTADB_HASH_MISMATCH`/
+  `VANTADB_CONFIG_MALFORMED`) instead of executing.
 
 ## Deployment model
 
@@ -23,10 +27,20 @@ or syncs without an explicit command.
 - **Auto-spawn per operation**: `sync`/`get` launch `vantadb-server --mcp`
   with `VANTADB_STORAGE_PATH`, speak JSON-RPC over stdio and the process
   exits on close. VantaDB's writer discovery (`.vanta.server.json`) covers
-  concurrent clients on the same storage. The spawn environment is
-  controlled: `VANTADB_MCP_PROFILE` is pinned to `brain` (restricted
-  profiles reject unlisted tools), the injection ACL is `l1/` and any
-  inherited `VANTADB_MCP_*` override is stripped.
+  concurrent clients on the same storage. The spawn environment is an
+  explicit allowlist — the child receives only the pinned keys
+  (`VANTADB_STORAGE_PATH`, `VANTADB_QUIET`, `VANTADB_MCP_PROFILE=brain`
+  so restricted profiles reject unlisted tools,
+  `VANTADB_MCP_INJECT_NAMESPACES=l1/` as the injection ACL): nothing else
+  is inherited from the parent, so neither external `VANTADB_MCP_*`
+  overrides nor credential-bearing variables can leak into the process.
+- **Secret-free egress**: before any payload is projected or synced to
+  the backend, `secretEgressCheck` screens it against sensitive file
+  names (`.pem`, `id_rsa`, `credentials`, ...) and high-confidence
+  credential content patterns (PEM private keys, GitHub/Slack/Google
+  tokens, `password=`/`"apiKey":` with long values, ...). A hit blocks
+  the projection returning only a pattern tag — the matched bytes are
+  never copied into reports or logs.
 - **Distribution**: official GitHub release assets (`ness-e/Vantadb`),
   verified against the `.sha256` sidecar before adoption. A mismatch
   yields `VANTADB_HASH_MISMATCH` and adopts nothing.

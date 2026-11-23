@@ -295,7 +295,7 @@ When a VantaDB backend is enrolled, the projected project history is
 injected automatically at both resume points — no manual CLI queries:
 
 ```
-context --project PATH [--tail N] [--no-vantadb] [--timeout MS]
+context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--timeout MS]
 session resume UUID [--no-vantadb] [--timeout MS]
 ```
 
@@ -310,6 +310,10 @@ session resume UUID [--no-vantadb] [--timeout MS]
   `{ enrolled: true, error: {...} }` without aborting the packet.
 - `--no-vantadb` skips the backend spawn entirely; `--timeout MS`
   bounds the wait (15 s default).
+- `--no-structure` serves the persisted structural index without
+  rescanning the tree (equivalent to the MCP `noStructure` argument);
+  the API also accepts `structureDebounceMs` to bound refresh inside
+  long-lived processes.
 - The MCP tool `scopegrain_session_resume` applies the same
   record-level rehydration. The MCP surface stays read-only.
 
@@ -492,10 +496,16 @@ scopegrain dist pack --project PATH --source DIR --out FILE
 ```
 
 `run` executes declarative workflows whose steps may only name
-whitelisted harness primitives (`task.transition`, `converge.evaluate`,
-`analyze.task`, `checklist.*`, `noop`, ...); never shell nor third-party
-binaries. Atomic checkpoints under `<state>/workflow-runs/` allow
-resuming without re-running completed steps. `stack` merges local
+whitelisted harness primitives (`task.transition`, `methodology.check`,
+`converge.evaluate`, `converge.record`, `analyze.task`,
+`checklist.mark`, `checklist.findings`, `noop`); never shell nor
+third-party binaries. Step `args` are closed per op: an unknown key is
+rejected at document validation instead of being silently dropped. In
+`task.transition`, `verification` and `review` map onto the transition
+DTO and `evidence` is a legacy alias for `verification` — declaring both
+is ambiguous and rejected. Atomic checkpoints under
+`<state>/workflow-runs/` allow resuming without re-running completed
+steps. `stack` merges local
 catalogs by priority. `compose` applies `replace|prepend|append|wrap`
 layers. `validate`/`bundle-validate` check submissions (slug id, semver,
 mandatory sha256 pinning on remote sources).

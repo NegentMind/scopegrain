@@ -283,6 +283,14 @@ del proyecto:
   comprobaciones que `preflightPlan` (colisiones planeadas, contencion,
   links/no-archivos, comparacion acotada de bytes identicos). No escribe
   nada.
+- Cada propuesta del manifiesto declara `activationMode`:
+  `apply` (archivo completo que `host activate --apply` puede crear),
+  `merge` (fragmento que se fusiona a mano en configuracion compartida —
+  `.mcp.json` de Claude, `.codex/config.toml` de Codex, `opencode.jsonc`
+  de OpenCode — y que la activacion lista en `skipped`) o `manual`
+  (divulgacion/revision solamente). La clave legacy `manualMerge` se
+  conserva solo para consumidores del esquema anterior y esta
+  deprecada en favor de `activationMode`.
 - `applyActivation(ctx, {host, surface?})` reejecuta el preflight que
   lanza errores inmediatamente antes de escribir (`PLAN_CONFLICT` aborta
   todo), luego crea archivos con descriptores exclusivos `wx` y hace
@@ -365,10 +373,15 @@ lectura; escribir o aplicar sigue siendo un paso explicito aparte.
 
 La configuracion MCP es machine-local. Una reubicacion puede dejar rutas
 absolutas apuntando al proyecto o instalacion anterior; `doctor` reporta
-esa condicion. El rebinding requiere revision del nuevo destino, no un
-reemplazo silencioso. La restauracion de recursos solo recupera bytes
-canonicos ausentes compatibles; no sobrescribe archivos divergentes ni
-reconecta un servicio MCP remoto.
+esa condicion. El check `host-merge-targets` inspecciona ademas cada
+destino `merge`/`manual` declarado (`.mcp.json`,
+`.codex/config.toml`, `.devin/config.json`, `opencode.jsonc`, ...) y
+verifica que el bloque `scopegrain` fusionado siga presente e integro —
+un destino ausente o con la fusion perdida falla el check. El rebinding
+requiere revision del nuevo destino, no un reemplazo silencioso. La
+restauracion de recursos solo recupera bytes canonicos ausentes
+compatibles; no sobrescribe archivos divergentes ni reconecta un
+servicio MCP remoto.
 
 `uninstall` deriva su conjunto de borrado de la configuracion actual, no del
 journal de lo generado. Si el conjunto de `hosts` se reduce despues de
