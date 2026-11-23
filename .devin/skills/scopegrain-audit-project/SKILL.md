@@ -3,6 +3,10 @@ name: "scopegrain-audit-project"
 description: "Assess an agreed project surface and report evidence-based risks."
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/audit-project"
 ---
 
 # Scopegrain Resource Bridge

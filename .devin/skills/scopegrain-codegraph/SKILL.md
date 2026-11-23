@@ -3,6 +3,10 @@ name: "scopegrain-codegraph"
 description: "Compatibility alias: codeGraph"
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/codeGraph"
 ---
 
 # Scopegrain Resource Bridge

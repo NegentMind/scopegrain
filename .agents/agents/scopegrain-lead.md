@@ -3,6 +3,10 @@ name: "scopegrain-lead"
 description: "Coordinate work, human decisions, scoped delegation and delivery."
 mainAgent: false
 subagent: true
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "agent/lead"
 ---
 
 # Scopegrain Role Bridge

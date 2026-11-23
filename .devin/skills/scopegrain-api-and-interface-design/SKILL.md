@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-api-and-interface-design"
 description: "Use when establishing a public interface or module boundary before implementation"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/api-and-interface-design"
 ---
 
 # Scopegrain Resource Bridge

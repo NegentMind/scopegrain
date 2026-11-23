@@ -3,6 +3,10 @@ name: "scopegrain-rollback"
 description: "Compatibility alias: rollback"
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/rollback"
 ---
 
 # Scopegrain Resource Bridge

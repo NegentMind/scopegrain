@@ -3,6 +3,10 @@ name: "scopegrain-research"
 description: "Compatibility alias: research"
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/research"
 ---
 
 # Scopegrain Resource Bridge

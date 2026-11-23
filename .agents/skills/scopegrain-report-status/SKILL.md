@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-report-status"
 description: "Report actual progress, verification gaps and the next decision."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/report-status"
 ---
 
 # Scopegrain Resource Bridge

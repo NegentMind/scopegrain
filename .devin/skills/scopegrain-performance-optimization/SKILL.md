@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-performance-optimization"
 description: "Use when a performance claim or optimization needs workload-specific measured evidence"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/performance-optimization"
 ---
 
 # Scopegrain Resource Bridge

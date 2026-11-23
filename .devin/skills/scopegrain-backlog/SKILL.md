@@ -3,6 +3,10 @@ name: "scopegrain-backlog"
 description: "Compatibility alias: backlog"
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/backlog"
 ---
 
 # Scopegrain Resource Bridge

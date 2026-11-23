@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-pipeline"
 description: "Compatibility alias: pipeline"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/pipeline"
 ---
 
 # Scopegrain Resource Bridge

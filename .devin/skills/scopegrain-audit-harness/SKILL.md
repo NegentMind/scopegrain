@@ -3,6 +3,10 @@ name: "scopegrain-audit-harness"
 description: "Inspect harness contracts, resources and capability claims."
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/audit-harness"
 ---
 
 # Scopegrain Resource Bridge

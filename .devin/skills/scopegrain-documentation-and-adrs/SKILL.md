@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-documentation-and-adrs"
 description: "Use when documenting actual APIs, changing architecture records or explaining a consequential design choice"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/documentation-and-adrs"
 ---
 
 # Scopegrain Resource Bridge

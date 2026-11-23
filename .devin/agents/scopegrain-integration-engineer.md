@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-integration-engineer"
 description: "Implement approved host adapters with explicit version and permission boundaries."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "agent/integration-engineer"
 ---
 
 # Scopegrain Role Bridge

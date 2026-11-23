@@ -3,6 +3,10 @@ name: "scopegrain-documentation"
 description: "Document actual behavior, public contracts and limitations."
 mainAgent: false
 subagent: true
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "agent/documentation"
 ---
 
 # Scopegrain Role Bridge

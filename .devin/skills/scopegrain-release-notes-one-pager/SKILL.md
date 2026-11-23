@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-release-notes-one-pager"
 description: "Use when preparing release communication to describe actual delivered changes and upgrade risks without inventing a release"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/release-notes-one-pager"
 ---
 
 # Scopegrain Resource Bridge

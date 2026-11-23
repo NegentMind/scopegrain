@@ -3,6 +3,10 @@ name: "scopegrain-harness"
 description: "Compatibility alias: harness"
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/harness"
 ---
 
 # Scopegrain Resource Bridge

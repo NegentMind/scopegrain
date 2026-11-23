@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-spec"
 description: "Compatibility alias: spec"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/spec"
 ---
 
 # Scopegrain Resource Bridge

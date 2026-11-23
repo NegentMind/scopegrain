@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-context-engineering"
 description: "Use to assemble task-relevant context or recover work after a context interruption"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/context-engineering"
 ---
 
 # Scopegrain Resource Bridge

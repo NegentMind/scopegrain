@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-project-onboarding"
 description: "Investigate an unfamiliar repository and configure Scopegrain with explicit owner consent before generating artifacts."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/project-onboarding"
 ---
 
 # Scopegrain Resource Bridge

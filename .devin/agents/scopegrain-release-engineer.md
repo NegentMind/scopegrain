@@ -5,6 +5,10 @@ allowed-tools:
   - read
   - grep
   - glob
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "agent/release-engineer"
 ---
 
 # Scopegrain Role Bridge

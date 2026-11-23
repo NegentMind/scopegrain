@@ -3,6 +3,10 @@ name: "scopegrain-specify-change"
 description: "Define an observable outcome and falsifiable change requirements."
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/specify-change"
 ---
 
 # Scopegrain Resource Bridge

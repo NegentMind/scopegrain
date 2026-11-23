@@ -3,6 +3,10 @@ name: "scopegrain-verification-engineer"
 description: "Produce scoped verification evidence without changing the acceptance floor."
 mainAgent: false
 subagent: true
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "agent/verification-engineer"
 ---
 
 # Scopegrain Role Bridge

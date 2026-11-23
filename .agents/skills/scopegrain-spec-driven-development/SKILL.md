@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-spec-driven-development"
 description: "Use for explicitly requested formal specifications or sensitive and substantial changes that require a falsifiable change contract."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/spec-driven-development"
 ---
 
 # Scopegrain Resource Bridge

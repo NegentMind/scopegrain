@@ -3,6 +3,10 @@ name: "scopegrain-audit-web-performance"
 description: "Assess an authorized web workload with reproducible performance evidence."
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/audit-web-performance"
 ---
 
 # Scopegrain Resource Bridge

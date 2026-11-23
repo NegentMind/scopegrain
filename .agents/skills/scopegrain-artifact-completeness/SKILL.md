@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-artifact-completeness"
 description: "Use when completeness matters and large tool output or generated files risk silent truncation"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/artifact-completeness"
 ---
 
 # Scopegrain Resource Bridge

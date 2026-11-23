@@ -3,6 +3,10 @@ name: "scopegrain-coordinate-plan"
 description: "Coordinate ready tasks within an approved plan and explicit limits."
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/coordinate-plan"
 ---
 
 # Scopegrain Resource Bridge

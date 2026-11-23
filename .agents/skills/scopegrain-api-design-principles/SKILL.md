@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-api-design-principles"
 description: "Use to review an existing HTTP or GraphQL API for consistency, authority boundaries and evolution"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/api-design-principles"
 ---
 
 # Scopegrain Resource Bridge

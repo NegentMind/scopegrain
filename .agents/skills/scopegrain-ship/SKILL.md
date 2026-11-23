@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-ship"
 description: "Compatibility alias: ship"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/ship"
 ---
 
 # Scopegrain Resource Bridge

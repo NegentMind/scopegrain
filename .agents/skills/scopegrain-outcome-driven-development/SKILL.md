@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-outcome-driven-development"
 description: "Use when agreeing observable acceptance criteria and result evidence, independently of the selected engineering methodology."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/outcome-driven-development"
 ---
 
 # Scopegrain Resource Bridge

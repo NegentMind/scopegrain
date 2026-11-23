@@ -3,6 +3,10 @@ name: "scopegrain-cleanca"
 description: "Compatibility alias: cleanCA"
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/cleanCA"
 ---
 
 # Scopegrain Resource Bridge

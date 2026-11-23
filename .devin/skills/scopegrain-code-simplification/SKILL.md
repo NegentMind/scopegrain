@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-code-simplification"
 description: "Use to remove demonstrated duplication or complexity from an approved change scope"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/code-simplification"
 ---
 
 # Scopegrain Resource Bridge

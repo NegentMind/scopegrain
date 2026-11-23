@@ -3,6 +3,10 @@ name: "scopegrain-implementer"
 description: "Implement the approved scope in small verified slices."
 mainAgent: false
 subagent: true
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "agent/implementer"
 ---
 
 # Scopegrain Role Bridge

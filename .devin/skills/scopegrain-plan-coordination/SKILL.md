@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-plan-coordination"
 description: "Use when executing one or more dependent tasks and preserving continuation across interruptions"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/plan-coordination"
 ---
 
 # Scopegrain Resource Bridge

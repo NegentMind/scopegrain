@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-review-feedback"
 description: "Use when evaluating review feedback and preparing a coherent response and correction batch"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/review-feedback"
 ---
 
 # Scopegrain Resource Bridge

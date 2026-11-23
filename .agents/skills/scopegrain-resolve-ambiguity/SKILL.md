@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-resolve-ambiguity"
 description: "Use when a consequential ambiguity remains after inspecting the project and available decisions"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/resolve-ambiguity"
 ---
 
 # Scopegrain Resource Bridge

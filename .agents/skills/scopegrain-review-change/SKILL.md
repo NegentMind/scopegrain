@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-review-change"
 description: "Review a change for behavioral risks and missing verification."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/review-change"
 ---
 
 # Scopegrain Resource Bridge

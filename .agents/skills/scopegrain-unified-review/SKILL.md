@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-unified-review"
 description: "Use to choose quick verification, certification, focused review or wider inspection proportional to evidenced risk, without duplicating audit procedures"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/unified-review"
 ---
 
 # Scopegrain Resource Bridge

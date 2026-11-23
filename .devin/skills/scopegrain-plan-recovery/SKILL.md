@@ -3,6 +3,10 @@ name: "scopegrain-plan-recovery"
 description: "Prepare a recovery plan from observed state without applying it."
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/plan-recovery"
 ---
 
 # Scopegrain Resource Bridge

@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-debugging-and-error-recovery"
 description: "Use after interruption, partial work or an unexpected failure to choose safe continuation"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/debugging-and-error-recovery"
 ---
 
 # Scopegrain Resource Bridge

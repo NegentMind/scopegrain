@@ -3,6 +3,10 @@ name: "scopegrain-triage-work"
 description: "Recommend backlog priorities from current evidence without applying them."
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/triage-work"
 ---
 
 # Scopegrain Resource Bridge

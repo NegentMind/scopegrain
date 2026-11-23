@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-test-driven-development"
 description: "Use to prove an intended behavior gap with a regression test before changing implementation"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/test-driven-development"
 ---
 
 # Scopegrain Resource Bridge

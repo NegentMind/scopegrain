@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-doubt-driven-development"
 description: "Use when a consequential technical claim remains uncertain or contradictory"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/doubt-driven-development"
 ---
 
 # Scopegrain Resource Bridge

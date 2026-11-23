@@ -3,6 +3,10 @@ name: "scopegrain-investigate"
 description: "Answer a bounded research question using inspectable evidence."
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/investigate"
 ---
 
 # Scopegrain Resource Bridge

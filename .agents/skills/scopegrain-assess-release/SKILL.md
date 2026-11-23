@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-assess-release"
 description: "Assess release readiness without publishing or deploying."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/assess-release"
 ---
 
 # Scopegrain Resource Bridge

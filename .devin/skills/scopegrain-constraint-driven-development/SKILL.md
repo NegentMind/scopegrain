@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-constraint-driven-development"
 description: "Use when a change must preserve explicit product, security, compatibility or operational invariants"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/constraint-driven-development"
 ---
 
 # Scopegrain Resource Bridge

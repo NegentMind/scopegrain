@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-organic-driven-development"
 description: "Use for engineering requests to establish authority, inspect existing behavior, resolve uncertainty and select proportionate light or SDD work."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/organic-driven-development"
 ---
 
 # Scopegrain Resource Bridge

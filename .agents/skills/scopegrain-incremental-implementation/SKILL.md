@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-incremental-implementation"
 description: "Use for changes that can be delivered as small vertical slices without broad unrelated churn"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/incremental-implementation"
 ---
 
 # Scopegrain Resource Bridge

@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-resilience-tester"
 description: "Test failure handling in explicitly disposable environments."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "agent/resilience-tester"
 ---
 
 # Scopegrain Role Bridge

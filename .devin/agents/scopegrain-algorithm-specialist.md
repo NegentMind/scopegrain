@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-algorithm-specialist"
 description: "Design domain algorithms with stated invariants and complexity."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "agent/algorithm-specialist"
 ---
 
 # Scopegrain Role Bridge

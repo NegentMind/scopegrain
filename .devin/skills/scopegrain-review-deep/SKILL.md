@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-review-deep"
 description: "Use when a high-risk change needs deeper causal and boundary review than a quick check"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/review-deep"
 ---
 
 # Scopegrain Resource Bridge

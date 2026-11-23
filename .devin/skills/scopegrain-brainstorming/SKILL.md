@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-brainstorming"
 description: "Use before choosing a feature design when requirements or tradeoffs remain unsettled"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/brainstorming"
 ---
 
 # Scopegrain Resource Bridge

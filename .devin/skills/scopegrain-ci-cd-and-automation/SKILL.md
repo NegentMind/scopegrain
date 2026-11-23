@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-ci-cd-and-automation"
 description: "Use when a change affects an existing verification or delivery pipeline"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/ci-cd-and-automation"
 ---
 
 # Scopegrain Resource Bridge

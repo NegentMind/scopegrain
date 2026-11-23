@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-implement-task"
 description: "Implement one authorized dependency-ready task using its selected light or SDD route."
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/implement-task"
 ---
 
 # Scopegrain Resource Bridge

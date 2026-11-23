@@ -3,6 +3,10 @@ name: "scopegrain-code-simplify"
 description: "Compatibility alias: code-simplify"
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/code-simplify"
 ---
 
 # Scopegrain Resource Bridge

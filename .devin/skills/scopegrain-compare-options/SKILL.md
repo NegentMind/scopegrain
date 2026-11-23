@@ -3,6 +3,10 @@ name: "scopegrain-compare-options"
 description: "Compare existing evidence and recommend an explicit owner decision."
 triggers:
   - user
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "command/compare-options"
 ---
 
 # Scopegrain Resource Bridge

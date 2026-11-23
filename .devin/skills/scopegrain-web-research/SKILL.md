@@ -1,6 +1,10 @@
 ---
 name: "scopegrain-web-research"
 description: "Use for an explicit external research question after network access has been authorized"
+metadata:
+  generated-by: "scopegrain"
+  scopegrain-version: "0.1.0"
+  source: "skill/web-research"
 ---
 
 # Scopegrain Resource Bridge
