@@ -752,6 +752,10 @@ export function runDoctor(ctx, opts = {}) {
   // which share the same escaping for the subset we emit.
   const QUOTED_STRING = /"((?:[^"\\]|\\.)*)"/g;
   const ABSOLUTE_PREFIX = /^([A-Za-z]:[\\/]|\\\\|\/)/;
+  // Separator-equivalent comparison: hand-edited merges legitimately use
+  // '/' where the generator emits '\\' on Windows — same path, false
+  // divergence otherwise.
+  const normalizeLit = (s) => s.replace(/\\/g, '/');
   const absoluteLiterals = (text) => {
     const out = new Set();
     for (const m of text.matchAll(QUOTED_STRING)) {
@@ -883,7 +887,7 @@ export function runDoctor(ctx, opts = {}) {
             const sl = readFileLimited(sAbs, loadLimits().maxDocumentBytes);
             if (sl.exceeded) continue;
             for (const lit of absoluteLiterals(
-              sl.content.toString('utf8'))) fragLits.add(lit);
+              sl.content.toString('utf8'))) fragLits.add(normalizeLit(lit));
           } catch { /* fragment unavailable: nothing to compare against */ }
         }
         for (const lit of absoluteLiterals(
@@ -891,7 +895,7 @@ export function runDoctor(ctx, opts = {}) {
           // Fragment literals are the ground truth for this machine: they
           // may legitimately resolve outside projectRoot (the server path
           // points at the installation, not the project).
-          if (fragLits.has(lit)) continue;
+          if (fragLits.has(normalizeLit(lit))) continue;
           if (!isInside(projectRoot, path.resolve(lit))) {
             stale.push(`${dest}: absolute path outside project root `
               + `and generated fragment: ${lit}`);
