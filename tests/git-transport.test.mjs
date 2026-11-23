@@ -57,7 +57,7 @@ test('escaped literal rules for brackets in config filename', () => {
   } finally { cleanup(dir); }
 });
 
-test('doctor: root AGENTS/CLAUDE with flipped EOL ready; edit is not', () => {
+test('doctor: root AGENTS/CLAUDE EOL-insensitive; managed edit is not', () => {
   const dir = makeTempDir('dr');
   try {
     const plan = prepareInit({ projectRoot: dir,
@@ -78,9 +78,18 @@ test('doctor: root AGENTS/CLAUDE with flipped EOL ready; edit is not', () => {
       const r1 = runDoctor(resolveContext({ project: dir }));
       assert.equal(r1.status, 'ready', JSON.stringify(
         r1.checks.filter((c) => !c.ok).slice(0, 4)));
+      // Bytes after the END marker are user-owned: still ready.
       fs.writeFileSync(abs, Buffer.concat([orig, Buffer.from('\nE\n')]));
       const r2 = runDoctor(resolveContext({ project: dir }));
-      assert.equal(r2.status, 'needs-attention');
+      assert.equal(r2.status, 'ready');
+      // An edit INSIDE the managed region is real divergence.
+      const inside = orig.toString('latin1').replace(
+        '<!-- SCOPEGRAIN:END -->', 'E\n<!-- SCOPEGRAIN:END -->');
+      assert.ok(inside !== orig.toString('latin1'),
+        `${root} must carry managed markers`);
+      fs.writeFileSync(abs, Buffer.from(inside, 'latin1'));
+      const r3 = runDoctor(resolveContext({ project: dir }));
+      assert.equal(r3.status, 'needs-attention');
       fs.writeFileSync(abs, orig);
     }
   } finally { cleanup(dir); }

@@ -139,7 +139,9 @@ test('codex TOML roles use JSON-quoted strings + declaration fragments', () => {
     f.rel.endsWith('/codex/.codex/agents/scopegrain-reviewer.toml'));
   assert.ok(role);
   const text = role.content.toString('utf8');
-  assert.ok(text.startsWith('name = "scopegrain-reviewer"'));
+  // Provenance stamp leads the file; `name` is the first declared key.
+  assert.ok(text.startsWith('# generated-by: scopegrain v'));
+  assert.ok(text.includes('name = "scopegrain-reviewer"'));
   assert.ok(text.includes('description = "'));
   assert.ok(text.includes('developer_instructions = "'));
   assert.ok(text.includes('sandbox_mode = "read-only"'));

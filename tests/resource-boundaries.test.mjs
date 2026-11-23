@@ -351,6 +351,10 @@ test('doctor notices added resources and alias-only installation changes', () =>
     for (const component of ['policy', 'templates', 'resources']) {
       fs.cpSync(component, `${fake}/${component}`, { recursive: true });
     }
+    // A real install root carries package.json — the renderer reads the
+    // provenance version from it; without it fragments render 'unknown'
+    // and every generated file diverges from the stamped projection.
+    fs.cpSync('package.json', `${fake}/package.json`);
     assert.equal(runDoctor(ctx, { installRoot: fake }).status, 'ready');
     const file = `${fake}/resources/manifest.json`;
     const original = JSON.parse(fs.readFileSync(file, 'utf8'));
