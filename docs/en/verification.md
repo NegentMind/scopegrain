@@ -16,6 +16,41 @@ with 0 console/network errors and 0 horizontal overflow. Earlier full
 runs (`1152`, `813`, `770`, `699`, `673`, `536`) are kept as past
 references. Do not sum scoped runs or historic results.
 
+### OpenCode V2 native pilot (2026-11-23) — executed, not certified
+
+Run against a real `opencode v2.3.2` (`@opencode/cli` distribution,
+node v26.8.1, Windows 10.0.26200) in this project at commit `fd347dd`.
+The evidence comes from the installed binary, not from fixtures.
+
+| Procedure step | Observed result |
+| --- | --- |
+| 1. Isolated setup | `host activate --host opencode --apply`: 89 `create` destinations, 0 conflict, 1 `skipped` (the `opencode.jsonc` manual merge). The earlier isolated fixture produced the same result |
+| 2. Discovery (skills and subagents) | 15/15 `scopegrain-*` subagents resolved by `opencode debug agents`; 74 visible `scopegrain-*` skill IDs — 44 loaded from `.opencode/skills` and 30 that only exist as Antigravity command bridges under `.agents/skills` |
+| 2. Discovery (commands) | NOT VERIFIED. OpenCode dispatches commands only from the interactive composer and the owner has not run that probe yet (D5) |
+| 3. Invocation | the `scopegrain-unified-review` skill loaded live — the `skill` tool reported the base directory `.../.opencode/skills/scopegrain-unified-review`, proving precedence; `scopegrain_status`, `scopegrain_catalog_list` and `scopegrain_list_tasks` invoked over MCP |
+| 4. Denials | in `scopegrain-reviewer` the `edit` and `shell` tools do not exist in the child context (they do not ask for approval: they are absent) and `fs`/`child_process` imports were denied by the loader; all 6 Scopegrain local-write tools and the notion/todoist/tui/chrome-devtools/playwright/argus MCP writers stay reachable |
+| 5. Interruption and resumption | NOT EXECUTED |
+| 6. Cleanup | NOT EXECUTED |
+| 7. Evidence | this record plus the tables in this section |
+
+Literal counts observed: `scopegrain_status` → `ok=30, warnings=4,
+failures=438`; catalog → 132 entries and 32 aliases; tasks → 76 records and
+0 malformed; `scopegrain_mcp_inventory` → 33 tools, 27 `read-only` and 6
+`local-write` (`next_task`, `task_meta`, `task_disposition`, `memory_add`,
+`goal_create`, `goal_transition`).
+
+The documented criterion requires all 7 steps with archived evidence. The
+TUI command probe, interruption/resumption and cleanup are still missing,
+so OpenCode V2 stands as an **executed pilot, NOT certified** — never
+"partially certified".
+
+Tests run alongside this pilot: `native-adapters`, `host-activation`,
+`host-cli`, `doctor` and `docs-cli-drift` → 61 pass, 0 fail; `npm run
+test:smoke` → 215 pass, 0 fail. `doctor` keeps 438 failures: 436
+`generated` plus `upgrade` and `host-fragments`, all from the
+`0.1.0 -> 0.1.1` drift in `.devin`/`.agents`; `opencode:v2` stands at
+`89 ok, 0 pending, 0 divergent`.
+
 | Block | Reference | Observed evidence |
 | --- | --- | --- |
 | Evidence, formal relations and outcomes | `4a2f3e9` | 73 pass, 0 fail, 0 skipped |
