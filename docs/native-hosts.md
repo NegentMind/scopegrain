@@ -217,6 +217,12 @@ del proyecto:
 - Los bytes de la propuesta se re-derivan del catalogo y la politica en
   el momento de la llamada; un archivo de propuesta editado a mano nunca
   se propaga a un destino.
+- Todo artefacto generado lleva sello de provenance: frontmatter
+  `metadata.generated-by`/`scopegrain-version`/`source` en Markdown,
+  comentario `# generated-by` en TOML y la clave `x-scopegrain-version`
+  en los `mcp_config.json` de archivo completo. Determinista (sin
+  timestamps) — un archivo stale o copiado a mano se diagnostica sin
+  re-renderizar.
 
 Aplicar la activacion crea raices de host dentro del proyecto solamente
 (`.claude/`, `.codex/`, `.opencode/`, `.devin/`, `.agents/`). Nunca

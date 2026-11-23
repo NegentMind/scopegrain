@@ -191,6 +191,11 @@ generated native proposals into project-local host destinations:
   nothing is auto-applied.
 - Proposal bytes are re-derived from catalog and policy at call time; a
   hand-edited proposal file never propagates into a destination.
+- Every generated artifact carries a provenance stamp: frontmatter
+  `metadata.generated-by`/`scopegrain-version`/`source` in Markdown, a
+  `# generated-by` comment in TOML and the `x-scopegrain-version` key in
+  whole-file `mcp_config.json`. Deterministic (no timestamps) — a stale
+  or hand-copied file is diagnosable without re-rendering.
 
 Applying activation creates host roots inside the project only
 (`.claude/`, `.codex/`, `.opencode/`, `.devin/`, `.agents/`). It never

@@ -20,6 +20,24 @@ const POLICY_REL = 'policy/native-adapters.json';
 const TPL_RESOURCE = 'templates/hosts/native-resource.md';
 const TPL_AGENT = 'templates/hosts/native-agent.md';
 
+// Provenance stamp for generated host artifacts (spec-kit upstream C1):
+// every projected file identifies the generator + version so a stale or
+// hand-copied artifact is instantly diagnosable without re-rendering.
+// Deterministic — no timestamps, version comes from the install package.
+function harnessVersion(installRoot) {
+  try {
+    const l = readFileLimited(
+      path.join(installRoot, 'package.json'), 64 * 1024);
+    if (l.exceeded) return 'unknown';
+    const doc = JSON.parse(
+      decodeUtf8Strict(l.content, 'MALFORMED', 'package.json'));
+    return typeof doc.version === 'string' && doc.version !== ''
+      ? doc.version : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 // Provisional hosts: admitted targets whose native format has NOT been
 // verified against an in-repo spec (and which therefore have no
 // policy/native-adapters.json block). They emit a minimal, clearly marked
@@ -473,6 +491,12 @@ export function renderNativeAdapters(config, {
   const cfgPrefix = configDirPrefix(configRel);
   const tplResource = readTemplate(installRoot, TPL_RESOURCE);
   const tplAgent = readTemplate(installRoot, TPL_AGENT);
+  const version = harnessVersion(installRoot);
+  const provComment = `# generated-by: scopegrain v${version}\n`;
+  const provFm = (kind, id) =>
+    'metadata:\n  generated-by: "scopegrain"\n'
+    + `  scopegrain-version: ${JSON.stringify(version)}\n`
+    + `  source: ${JSON.stringify(`${kind}/${id}`)}\n`;
   const files = [];
   const seenDest = new Set();
   const entries = [];
@@ -542,7 +566,8 @@ export function renderNativeAdapters(config, {
       });
       files.push({
         rel: `${base}/instructions.md`,
-        content: provisionalInstructions(host, cfgPrefix),
+        content: `<!-- generated-by: scopegrain v${version} -->\n`
+          + provisionalInstructions(host, cfgPrefix),
       });
       const meta = {
         format: 'provisional', compatibility: 'provisional',
@@ -612,7 +637,8 @@ export function renderNativeAdapters(config, {
         const body = renderTemplate(tplText(tplResource), v);
         emitV('skill', e.id,
           `${hp.skillRoot}/${name}/SKILL.md`,
-          frontmatter([['name', name], ['description', descFor(e)]]) + body);
+          frontmatter([['name', name], ['description', descFor(e)]],
+            provFm('skill', e.id)) + body);
       } else if (e.kind === 'command') {
         const body = renderTemplate(tplText(tplResource), v);
         if (hp.commandFormat === 'skill') {
@@ -620,12 +646,12 @@ export function renderNativeAdapters(config, {
           emitV('command', e.id,
             `${hp.skillRoot}/${name}/SKILL.md`,
             frontmatter([['name', name], ['description', descFor(e)]],
-              hp.commandFrontmatter || '') + body);
+              (hp.commandFrontmatter || '') + provFm('command', e.id)) + body);
         } else {
           emitV('command', e.id,
             `${hp.commandRoot}/${name}.md`,
             frontmatter([['description', descFor(e)]],
-              hp.commandFrontmatter || '') + body);
+              (hp.commandFrontmatter || '') + provFm('command', e.id)) + body);
         }
       } else if (e.kind === 'agent' && va.emitAgents !== false) {
         const extras = agentFm + (readOnly.has(e.id) ? roFm : '');
@@ -639,12 +665,12 @@ export function renderNativeAdapters(config, {
             '',
           ].join('\n');
           emitV('agent', e.id,
-            `${hp.agentRoot}/${name}.toml`, toml);
+            `${hp.agentRoot}/${name}.toml`, provComment + toml);
         } else {
           emitV('agent', e.id,
             `${hp.agentRoot}/${name}.md`,
             frontmatter([['name', name], ['description', e.description]],
-              extras) + body);
+              extras + provFm('agent', e.id)) + body);
         }
       }
       }
@@ -663,7 +689,7 @@ export function renderNativeAdapters(config, {
             : `${hp.commandRoot}/${an}.md`,
           frontmatter([['name', an],
             ['description', `Compatibility alias: ${a.id}`]],
-            hp.commandFrontmatter || '') + body);
+            (hp.commandFrontmatter || '') + provFm('command', a.id)) + body);
       }
     }
     // Codex: ONE declaration fragment outside the agent dir — it must not
@@ -681,7 +707,8 @@ export function renderNativeAdapters(config, {
         }).join('\n\n');
       files.push({
         rel: `${cfgPrefix}integrations/native/${host}/agents-fragment.toml`,
-        content: `# manual merge into .codex/config.toml\n${decls}\n`,
+        content: provComment
+          + `# manual merge into .codex/config.toml\n${decls}\n`,
       });
       entries.push({
         host, kind: 'agent-declaration', id: '*',
@@ -706,6 +733,7 @@ export function renderNativeAdapters(config, {
     files.push({
       rel,
       content: JSON.stringify({
+        'x-scopegrain-version': version,
         mcpServers: {
           scopegrain: {
             command: 'node',
@@ -741,6 +769,7 @@ export function renderNativeAdapters(config, {
   // templating is possible.
   if (config.hosts.includes('devin')) {
     const mcpContent = JSON.stringify({
+      'x-scopegrain-version': version,
       mcpServers: {
         scopegrain: {
           command: 'node',
