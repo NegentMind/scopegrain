@@ -734,6 +734,7 @@ export function renderNativeAdapters(config, {
     const rel = `${cfgPrefix}integrations/opencode-mcp.json`;
     entries.push({
       host: 'opencode', kind: 'mcp', id: 'scopegrain',
+      variant: 'v2', selectionRequired: false,
       compatibility: 'documented-only', modelSelection: 'host-policy',
       permissionScope: policy.hosts.opencode.permissionScope,
       source: rel, destination: 'opencode.jsonc',
