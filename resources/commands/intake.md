@@ -13,7 +13,8 @@ requests implicitly.
 Load `clarify-intent`, `organic-driven-development` and
 `planning-and-task-breakdown` for the classification; an ambiguous
 request is asked, not guessed (`prompts/decision-request`). Task record
-semantics: `references/task-system`.
+semantics: `references/task-system`. Governing rules: `rules/workflow`,
+`rules/methodology`, `rules/human-decisions`. Role: `lead`.
 
 ## Step 1 — Classify the request
 
@@ -154,3 +155,8 @@ scopegrain capture create --project . --input <file>.json --apply
   bookkeeping, not authorization.
 - An inflated `methodology` assessment used to keep named-risk work on
   the light route — `risk: "named"` or `sdd` routes back to formal work.
+
+## Handoff
+
+Persisted tasks and plans stay in `PLAN`; `implement-task` or
+`coordinate-plan` pick them up under their own gates.
