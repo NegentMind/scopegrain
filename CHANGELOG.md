@@ -5,7 +5,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-11-22
+## [0.1.1] - 2026-11-22
 
 ### Added
 
@@ -48,6 +48,23 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   at **1411/1411 pass** plus **17/17 viewer tests** and 30-screen EN/ES
   Playwright visual audit with screenshots and walkthrough video under
   `docs/assets/`.
+
+### Fixed
+
+- **POSIX shebang in `bin/tasksystem.mjs`** — normalized CRLF to LF to
+  match `bin/scopegrain.mjs` so global installs execute cleanly on
+  Linux/macOS.
+- **Trimmed npm tarball (<1 MB)** — excluded `docs/assets/` media from
+  `package.json` `files` while keeping `viewer/dist` and all written docs.
+- **Viewer layout & reload bugs** — fixed `TasksView` split-pane column
+  clipping, `SessionsView` `[id]` reload dependency and `Close` header
+  alignment, `PlansView` wave task object rendering, and `App.tsx`
+  distinct header/boundary keys.
+
+## [0.1.0] - 2026-11-21
+
+### Added
+
 - **Automatic context rehydration (VantaDB)** — when a backend is
   enrolled, `context` injects a bounded `memory_recall` over distilled
   L1 memories and `session resume` plus MCP `scopegrain_session_resume`

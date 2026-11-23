@@ -1,7 +1,7 @@
 # Scopegrain — Mapa completo de capacidades
 
 Catálogo detallado de superficies, subsistemas, comandos y garantías del harness.
-Estado de referencia: rama `develop`, `scopegrain@0.1.0`, suite `1411/1411` tests + `17/17` viewer tests, catálogo `132` entradas (`v0.1.1`).
+Estado de referencia: rama `develop`, `scopegrain@0.1.1`, suite `1411/1411` tests + `17/17` viewer tests, catálogo `132` entradas (`v0.1.1`).
 
 > Convenciones: *(write)* = muta estado; *(preview/apply)* = dry-run por defecto,
 > `--apply` confirma; lo demás es read-only. `--yes`/`--force` no existen: toda

@@ -1,7 +1,7 @@
 # Scopegrain — Complete capability map
 
 Detailed catalog of surfaces, subsystems, commands and guarantees of the
-harness. Reference state: `develop` branch, `scopegrain@0.1.0`, suite
+harness. Reference state: `develop` branch, `scopegrain@0.1.1`, suite
 `1411/1411` tests + `17/17` viewer tests, catalog `132` entries (`v0.1.1`).
 Canonical Spanish version: `docs/capability-map.md`;
 this is its English twin.
