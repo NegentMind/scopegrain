@@ -266,7 +266,7 @@ export default function App() {
             </div>
 
             <div
-              key={view}
+              key={`header-${view}`}
               className="mb-5 flex items-start gap-3 animate-in fade-in-50 slide-in-from-top-1 duration-300"
             >
               <div
@@ -286,7 +286,7 @@ export default function App() {
             </div>
 
             <ErrorBoundary
-              key={view}
+              key={`boundary-${view}`}
               region={t(current.labelKey)}
               locale={locale}
             >

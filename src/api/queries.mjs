@@ -905,7 +905,35 @@ export function createApiQueries(ctx) {
   }
 
   function session(id) {
-    return { session: getSession(ctx, requireUuid(id, 'session id')) };
+    const s = getSession(ctx, requireUuid(id, 'session id'));
+    let task = null;
+    try {
+      const t = getTask(ctx, s.taskId);
+      task = {
+        id: t.id,
+        title: truncateString(t.title, 256, 'title').value,
+        state: t.state,
+        revision: t.revision,
+        scope: Array.isArray(t.scope) ? t.scope : [],
+        planKey: t.planKey ?? null,
+        specId: t.specId ?? null,
+        designId: t.designId ?? null,
+        goalIds: Array.isArray(t.goalIds) ? t.goalIds : [],
+      };
+    } catch {
+      task = null;
+    }
+    const remaining = Math.max(0, s.limit - s.used);
+    const pct = s.limit > 0 ? Math.min(100, Math.round((s.used / s.limit) * 100)) : 0;
+    return {
+      session: s,
+      resumeContext: {
+        task,
+        budget: { used: s.used, limit: s.limit, remaining, percent: pct },
+        lastEvent: s.events.length > 0 ? s.events[s.events.length - 1] : null,
+        resumeCommand: `scopegrain session resume --project . ${s.id}`,
+      },
+    };
   }
 
   function approvals({ limit, offset }) {

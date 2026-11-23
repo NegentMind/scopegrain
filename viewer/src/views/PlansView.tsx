@@ -238,7 +238,7 @@ function PlanDetail({ planKey }: { planKey: string }) {
     return <ErrorBox error={detail.error} onRetry={detail.reload} />;
   }
   if (!detail.data) return null;
-  const { plan, readiness, waves } = detail.data;
+  const { plan, readiness, waves, runState } = detail.data;
   const byId = new Map(readiness.map((r) => [r.id, r]));
   const members = detail.data.tasks;
   return (
@@ -258,6 +258,8 @@ function PlanDetail({ planKey }: { planKey: string }) {
         ) : null}
         {plan.specId ? <Badge variant="outline">spec {plan.specId.slice(0, 8)}</Badge> : null}
         {plan.designId ? <Badge variant="outline">design {plan.designId.slice(0, 8)}</Badge> : null}
+        {plan.appetite ? <Badge variant="outline">appetite: {plan.appetite}</Badge> : null}
+        {plan.cynefin ? <Badge variant="outline">cynefin: {plan.cynefin}</Badge> : null}
         <span className="text-xs text-muted-foreground">
           {plan.createdAt.slice(0, 16).replace('T', ' ')}
         </span>
@@ -337,14 +339,75 @@ function PlanDetail({ planKey }: { planKey: string }) {
               className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-1.5 text-xs"
             >
               <Badge variant="secondary" className="font-mono">
-                {t('plans.wave')} {i}
+                {t('plans.wave')} {w.wave ?? i}
                 {w.parallel ? ` · ${t('plans.parallel')}` : ''}
               </Badge>
-              <span className="font-mono text-muted-foreground">
-                {w.tasks.join(', ')}
-              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {w.tasks.map((item, idx) => {
+                  const key = typeof item === 'string' ? item : item.key;
+                  const id = typeof item === 'string' ? undefined : item.id;
+                  const state = typeof item === 'string' ? undefined : item.state;
+                  return id ? (
+                    <button
+                      key={`${key}-${idx}`}
+                      type="button"
+                      onClick={() => openTask(id)}
+                      className="inline-flex items-center gap-1 rounded border bg-muted/40 px-1.5 py-0.5 font-mono text-xs text-primary hover:bg-muted"
+                    >
+                      <span>{key}</span>
+                      {state ? <span className="text-muted-foreground">({state})</span> : null}
+                    </button>
+                  ) : (
+                    <Badge key={`${key}-${idx}`} variant="outline" className="font-mono">
+                      {key}
+                    </Badge>
+                  );
+                })}
+              </div>
             </div>
           ))}
+        </div>
+      ) : null}
+
+      {runState ? (
+        <div className="space-y-1.5 rounded-md border bg-muted/30 p-3 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-medium text-foreground">{t('plans.runTracking')}</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {runState.persisted && runState.run ? (
+                <Badge variant="secondary" className="font-mono">
+                  {runState.run.checkpoints.length} {t('plans.checkpoints')} · rev {runState.run.revision}
+                </Badge>
+              ) : null}
+              <Badge variant="outline" className="font-mono">
+                {runState.resume.complete
+                  ? t('plans.allDone')
+                  : `${runState.resume.remainingWaves} ${t('plans.remainingWaves')} · ${runState.resume.percent}%`}
+              </Badge>
+            </div>
+          </div>
+          {runState.persisted && runState.run ? (
+            <div className="space-y-1 text-muted-foreground">
+              <p className="font-mono">
+                {runState.run.updatedAt.slice(0, 19).replace('T', ' ')} · {runState.path}
+              </p>
+              {runState.resume.completedSinceLastCheckpoint.length > 0 ? (
+                <p>
+                  {t('plans.sinceCheckpoint')}:{' '}
+                  <span className="font-mono text-foreground">
+                    {runState.resume.completedSinceLastCheckpoint.join(', ')}
+                  </span>
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">
+              {t('plans.notPersisted')}{' '}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
+                scopegrain plan run --project . {plan.key} --apply
+              </code>
+            </p>
+          )}
         </div>
       ) : null}
     </div>

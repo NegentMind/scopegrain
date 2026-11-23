@@ -176,16 +176,16 @@ export function TasksView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-20">{t('common.id')}</TableHead>
-                    <TableHead className="min-w-48">{t('common.title')}</TableHead>
+                    <TableHead className="min-w-44">{t('common.title')}</TableHead>
                     <TableHead>{t('common.state')}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('tasks.priority')}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('tasks.type')}</TableHead>
-                    <TableHead className="hidden lg:table-cell">{t('tasks.effort')}</TableHead>
-                    <TableHead className="hidden lg:table-cell">{t('tasks.backlog')}</TableHead>
-                    <TableHead className="hidden xl:table-cell">{t('tasks.disposition')}</TableHead>
-                    <TableHead className="hidden xl:table-cell">{t('tasks.deps')}</TableHead>
+                    <TableHead className="hidden 2xl:table-cell">{t('tasks.effort')}</TableHead>
+                    <TableHead className="hidden 2xl:table-cell">{t('tasks.backlog')}</TableHead>
+                    <TableHead className="hidden 2xl:table-cell">{t('tasks.disposition')}</TableHead>
+                    <TableHead className="hidden 2xl:table-cell">{t('tasks.deps')}</TableHead>
                     <TableHead className="hidden 2xl:table-cell">{t('tasks.steps')}</TableHead>
-                    <TableHead className="hidden text-right md:table-cell">{t('common.updated')}</TableHead>
+                    <TableHead className="hidden text-right 2xl:table-cell">{t('common.updated')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -206,7 +206,7 @@ export function TasksView() {
                       <TableCell>
                         <ShortId id={task.id} />
                       </TableCell>
-                      <TableCell className="max-w-72 font-medium">
+                      <TableCell className="max-w-56 font-medium">
                         <span className="block truncate" title={task.title}>
                           {task.title}
                         </span>
@@ -227,15 +227,15 @@ export function TasksView() {
                       <TableCell className="hidden md:table-cell text-xs">
                         {task.type ?? t('common.none')}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell text-xs">
+                      <TableCell className="hidden 2xl:table-cell text-xs">
                         {task.effort ?? t('common.none')}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell">
+                      <TableCell className="hidden 2xl:table-cell">
                         {task.backlog ? (
                           <Badge variant="secondary" className="font-mono">{task.backlog}</Badge>
                         ) : t('common.none')}
                       </TableCell>
-                      <TableCell className="hidden xl:table-cell">
+                      <TableCell className="hidden 2xl:table-cell">
                         {task.disposition ? (
                           <Badge variant="outline"
                             className={cn(DISPOSITION_TONE[task.disposition.kind] ?? '')}>
@@ -243,7 +243,7 @@ export function TasksView() {
                           </Badge>
                         ) : t('common.none')}
                       </TableCell>
-                      <TableCell className="hidden xl:table-cell text-xs">
+                      <TableCell className="hidden 2xl:table-cell text-xs">
                         {task.dependsOn.length > 0 ? task.dependsOn.length : t('common.none')}
                       </TableCell>
                       <TableCell className="hidden 2xl:table-cell text-xs">
@@ -251,7 +251,7 @@ export function TasksView() {
                           ? `${task.stepsDone}/${task.stepsTotal}`
                           : t('common.none')}
                       </TableCell>
-                      <TableCell className="hidden text-right text-xs text-muted-foreground md:table-cell">
+                      <TableCell className="hidden text-right text-xs text-muted-foreground 2xl:table-cell">
                         {task.updatedAt.slice(0, 10)}
                       </TableCell>
                     </TableRow>

@@ -238,11 +238,53 @@ export interface PlanBreakdown {
   status: PlanStatus;
 }
 
+export interface PlanWaveTask {
+  key: string;
+  id?: string;
+  state?: string;
+  status?: string;
+  triage?: string;
+}
+
 export interface PlanWaves {
-  plan: string;
-  waves: { parallel: boolean; tasks: string[] }[];
-  triaged?: { key: string; triage: string }[];
-  unscheduled?: string[];
+  plan: string | { key: string; title: string };
+  waves: { wave?: number; parallel: boolean; tasks: (string | PlanWaveTask)[] }[];
+  triaged?: { key: string; triage: string; reason?: string }[];
+  unscheduled?: (string | PlanWaveTask)[];
+  closed?: string[];
+}
+
+export interface PlanRunCheckpoint {
+  at: string;
+  waveCount: number;
+  closed: string[];
+  remaining: string[];
+  completedTasks: number;
+  totalTasks: number;
+  percent: number;
+}
+
+export interface PlanRunState {
+  persisted: boolean;
+  path: string;
+  run: {
+    schemaVersion: number;
+    planKey: string;
+    revision: number;
+    createdAt: string;
+    updatedAt: string;
+    checkpoints: PlanRunCheckpoint[];
+    latest: PlanRunCheckpoint;
+  } | null;
+  resume: {
+    totalTasks: number;
+    completedTasks: number;
+    remainingTasks: string[];
+    remainingWaves: number;
+    percent: number;
+    completedSinceLastCheckpoint: string[];
+    complete: boolean;
+  };
 }
 
 export interface PlanSummary extends PlanBreakdown {
@@ -275,10 +317,14 @@ export interface PlanDetail extends PlanBreakdown {
     createdAt: string;
     specId?: string;
     designId?: string;
+    appetite?: string | null;
+    cynefin?: string | null;
+    stopConditions?: string[] | null;
   };
   readiness: PlanReadiness[];
   waves: PlanWaves | null;
   wavesError: { code: string; message: string } | null;
+  runState?: PlanRunState | null;
 }
 
 export type ArtifactKind =
@@ -535,7 +581,8 @@ export const api = {
   sessions: (limit = 200) =>
     request<SessionList>(`/api/sessions?limit=${encodeURIComponent(limit)}`),
   session: (id: string) =>
-    request<{ session: SessionRecord }>(`/api/sessions/${encodeURIComponent(id)}`),
+    request<{ session: SessionRecord; resumeContext?: SessionResumeContext }>(
+      `/api/sessions/${encodeURIComponent(id)}`),
   approvals: (limit = 200) =>
     request<ApprovalList>(`/api/approvals?limit=${encodeURIComponent(limit)}`),
   approval: (id: string) =>
@@ -558,6 +605,22 @@ export interface SessionSummary {
 }
 export interface SessionEvent { action: string; evidence: string; context: string; at: string }
 export interface SessionRecord extends Omit<SessionSummary, 'events'> { events: SessionEvent[] }
+export interface SessionResumeContext {
+  task: {
+    id: string;
+    title: string;
+    state: string;
+    revision: number;
+    scope: string[];
+    planKey: string | null;
+    specId: string | null;
+    designId: string | null;
+    goalIds: string[];
+  } | null;
+  budget: { used: number; limit: number; remaining: number; percent: number };
+  lastEvent: SessionEvent | null;
+  resumeCommand: string;
+}
 export interface SessionList { sessions: SessionSummary[]; malformed: { file: string }[]; truncated: boolean }
 
 export interface ApprovalSummary {
