@@ -249,6 +249,18 @@ const COMMANDS = {
     flags: ['--project', '--config', '--input'], pos: 0,
     usage: 'constitution set --project PATH --input FILE',
   },
+  'config path': {
+    flags: [], pos: 0,
+    usage: 'config path',
+  },
+  'config show': {
+    flags: [], pos: 0,
+    usage: 'config show',
+  },
+  'config set': {
+    flags: ['--input', '--apply'], pos: 0,
+    usage: 'config set --input FILE [--apply]',
+  },
   'context': {
     flags: ['--project', '--config', '--tail', '--no-vantadb', '--timeout'],
     pos: 0,
@@ -717,6 +729,13 @@ async function askInteractive(io, projectRoot, configFlag, existing,
     session = null) {
   const { answer: sessionAnswer, status: sessionStatus } = await import('./core/init-session.mjs');
   const { investigateProject, suggestAnswers } = await import('./discovery/semantic.mjs');
+  let userCfg = null;
+  if (!existing) {
+    try {
+      const { loadUserConfig } = await import('./core/user-config.mjs');
+      userCfg = loadUserConfig().config;
+    } catch { userCfg = null; }
+  }
   const st = session === null ? null : sessionStatus(session);
   const answered = new Set(st === null ? [] : st.answered);
   const leaf = (id) => id.split('.').reduce((o, k) => o?.[k], st.answers);
@@ -742,18 +761,21 @@ async function askInteractive(io, projectRoot, configFlag, existing,
   answers.name = await askOrReplay('name', () => io.ask('Nombre del proyecto',
     existing ? existing.project.name : path.basename(projectRoot)));
   answers.locale = await askOrReplay('locale', () => io.ask('Idioma (es/en)',
-    existing ? existing.locale : 'es'));
+    existing ? existing.locale : (userCfg?.locale ?? 'es')));
   const hostList = KNOWN_HOSTS.join(',');
   answers.hosts = await askOrReplay('hosts', async () => {
-    const hostsRaw = await io.ask(`Anfitriones (${hostList})`,
-      existing ? existing.hosts.join(',') : hostList);
+    const defaultHosts = existing
+      ? existing.hosts.join(',')
+      : (userCfg?.hosts ? userCfg.hosts.join(',') : hostList);
+    const hostsRaw = await io.ask(`Anfitriones (${hostList})`, defaultHosts);
     return hostsRaw.split(',').map((h) => h.trim()).filter(Boolean);
   });
   // Methodology question: existing normalized mode wins, otherwise the
-  // authored interactive default (organic-sdd). Re-prompt on invalid.
+  // user global default (when set) or authored interactive default.
   const existingMode = existing
     ? validateMethodologyMode(existing.methodology) : null;
   const modeDefault = existingMode
+    ?? userCfg?.methodology
     ?? loadMethodologyPolicy().interactiveDefault;
   answers.methodology = await askOrReplay('methodology', async () => {
     for (;;) {
@@ -775,7 +797,9 @@ async function askInteractive(io, projectRoot, configFlag, existing,
   // Optional versioning: eight yes/no questions, never guessed defaults.
   answers.versioning = {};
   for (const key of VERSIONING_KEYS) {
-    const def = existing ? (existing.versioning[key] ? 'yes' : 'no') : 'no';
+    const def = existing
+      ? (existing.versioning[key] ? 'yes' : 'no')
+      : (userCfg?.versioning?.[key] ? 'yes' : 'no');
     answers.versioning[key] = await askOrReplay(`versioning.${key}`,
       async () => {
         for (;;) {
@@ -863,15 +887,25 @@ async function defaultAnswers(projectRoot, configRel) {
     };
   }
   const suggestions = suggestAnswers(investigateProject(projectRoot, {}));
+  let userCfg = null;
+  try {
+    const { loadUserConfig } = await import('./core/user-config.mjs');
+    userCfg = loadUserConfig().config;
+  } catch { userCfg = null; }
   return {
     name: suggestions.name.value,
-    locale: 'es',
+    locale: userCfg?.locale ?? 'es',
     hosts: suggestions.hosts.value.length > 0
-      ? [...suggestions.hosts.value] : [...KNOWN_HOSTS],
+      ? [...suggestions.hosts.value]
+      : (userCfg?.hosts ? [...userCfg.hosts] : [...KNOWN_HOSTS]),
     paths: Object.fromEntries(
       PATH_KEYS.map((key) => [key, suggestions.paths[key].value])),
-    versioning: { ...suggestions.versioning.value },
-    methodology: loadMethodologyPolicy().interactiveDefault,
+    versioning: {
+      ...suggestions.versioning.value,
+      ...(userCfg?.versioning ?? {}),
+    },
+    methodology: userCfg?.methodology
+      ?? loadMethodologyPolicy().interactiveDefault,
   };
 }
 
@@ -1673,6 +1707,30 @@ async function cmdStructure(sub, flags) {
   const rel = writeStructureIndex(ctx, index);
   const { files: _files, ...summary } = index;
   return { mode: 'applied', index: summary, written: rel };
+}
+
+async function cmdUserConfig(sub, flags) {
+  const {
+    loadUserConfig, resolveUserConfigPath, saveUserConfig,
+  } = await import('./core/user-config.mjs');
+  if (sub === 'path') {
+    const info = resolveUserConfigPath();
+    return {
+      ...info,
+      exists: info.path ? fs.existsSync(info.path) : false,
+    };
+  }
+  if (sub === 'show') {
+    return {
+      ...loadUserConfig(),
+      precedence: ['workspace', 'answers', 'repo-signals', 'user-global', 'policy-defaults'],
+    };
+  }
+  if (sub === 'set') {
+    const input = readInputFile(requireFlag(flags, '--input'), 'user config');
+    return saveUserConfig(input, { apply: !!flags['--apply'] });
+  }
+  throw err('INVALID_ARGS', `unknown config subcommand '${sub}'`);
 }
 
 async function cmdWorkspace(sub, flags) {
@@ -2604,7 +2662,7 @@ export async function run(argv, io) {
       'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb',
       'helper', 'dist',
       'memory', 'goal', 'report', 'activity', 'hooks', 'structure',
-      'constitution']);
+      'constitution', 'config']);
     let cmdKey;
     let spec;
     let aliasCommand = null;
@@ -2683,6 +2741,8 @@ export async function run(argv, io) {
       result = await cmdJournal(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('structure ')) {
       result = await cmdStructure(cmdKey.slice(10), flags);
+    } else if (cmdKey.startsWith('config ')) {
+      result = await cmdUserConfig(cmdKey.slice(7), flags);
     } else if (cmdKey.startsWith('vantadb ')) {
       result = await cmdVantaDB(cmdKey.slice(8), rest, flags);
     } else if (cmdKey.startsWith('capture ')) {

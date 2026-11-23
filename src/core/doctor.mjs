@@ -27,6 +27,7 @@ import { loadNativeVariants } from '../hosts/native.mjs';
 import {
   hasManagedSection, managedBody, managedEquals,
 } from './managed-section.mjs';
+import { loadUserConfig } from './user-config.mjs';
 
 const MAX_LIST = 100000;
 const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals',
@@ -971,6 +972,23 @@ export function runDoctor(ctx, opts = {}) {
       push('user-artifacts', false,
         `${bad.length} malformed user artifact(s): ${bad.slice(0, 5).join('; ')}`,
         { checked, malformed: bad.slice(0, 20) });
+    }
+  }
+
+  // Optional global user config (~/.config/scopegrain/config.json). Never
+  // overrides workspace config; malformed global file surfaces as warning.
+  {
+    try {
+      const uc = loadUserConfig();
+      push('user-config', true,
+        uc.exists
+          ? `valid user defaults at ${uc.path} (workspace always takes precedence)`
+          : 'no global user config (using workspace/policy defaults)',
+        { path: uc.path, exists: uc.exists, source: uc.source });
+    } catch (e) {
+      push('user-config', false,
+        `malformed global user config: ${e.code ?? 'ERROR'}: ${e.message}`,
+        { severity: 'warning' });
     }
   }
 
