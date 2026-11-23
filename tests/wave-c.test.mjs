@@ -71,7 +71,7 @@ test('C2 hooks policy: empty policy valid; hooksFor merges * then cmd', () => {
   const { dir } = bootstrappedCtx(VALID_ANSWERS);
   try {
     const p = loadHooksPolicy();
-    assert.deepEqual(p, { before: {}, after: {} });
+    assert.deepEqual(p, { before: {}, after: {}, preAction: [] });
     // Inject a fixture policy through a temp install root
     const ir = path.join(dir, 'ir');
     fs.mkdirSync(path.join(ir, 'policy'), { recursive: true });

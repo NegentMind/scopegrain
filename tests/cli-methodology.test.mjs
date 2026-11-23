@@ -135,7 +135,9 @@ async function advance(f, task, to, evidence) {
   const args = ['task', 'transition', task.id, to,
     '--revision', String(task.revision)];
   if (evidence) args.push('--evidence', input(f, evidence, 'evidence.json'));
-  return invoke(f, args);
+  // Transitions follow the same dry-run/--apply gate as the other
+  // mutating verbs (FIND-028); the helper applies the evaluated record.
+  return invoke(f, [...args, '--apply']);
 }
 
 test('C2-E help exposes exact eleven usages, JSON task usage and notes', async () => {
@@ -187,8 +189,10 @@ test('JSON task combinations reject all legacy fields before input file access',
       assert.equal(inputReads, 0);
     } finally { mock.mock.restore(); }
     const e = await readonly(f, ['task', 'create', '--apply'], 1);
+    // The flag form also honors --apply (FIND-028): with neither --input
+    // nor flags the first missing required flag is named.
     assert.deepEqual(e, { code: 'INVALID_ARGS',
-      message: '--apply requires --input for task create; legacy flags create directly',
+      message: '--title is required',
       retryable: false });
   } finally { cleanup(f.dir); }
 });
@@ -230,26 +234,32 @@ for (const mode of ['manual', 'organic-sdd', 'sdd']) {
   });
 }
 
-test('legacy task flags still write directly, preserve V1 shape and pass formal pair only when present', async () => {
+test('legacy task flags apply through the write gate, preserve V1 shape and pass formal pair only when present', async () => {
   const f = fixture('manual');
   try {
+    // The flag form follows the same preview/--apply contract as --input
+    // (FIND-028): it returns the {mode,applied,task} envelope.
     const flags = ['task', 'create', '--title', 'T', '--contract', 'C',
       '--author', 'fixture-author', '--scope', 'src/a'];
-    const legacy = await invoke(f, flags);
+    const preview = await invoke(f, flags);
+    assert.equal(preview.mode, 'dry-run');
+    assert.equal(preview.applied, false);
+    assert.throws(() => getTask(f.ctx, preview.task.id), { code: 'TASK_NOT_FOUND' });
+    const legacy = (await invoke(f, [...flags, '--apply'])).task;
     assert.equal(legacy.schemaVersion, 1);
-    assert.equal(Object.hasOwn(legacy, 'mode'), false);
     assert.equal(Object.hasOwn(legacy, 'methodology'), false);
     assert.equal(Object.hasOwn(legacy, 'specId'), false);
     assert.deepEqual(getTask(f.ctx, legacy.id), legacy);
     const { spec, design } = await structuredPair(f);
-    const formal = await invoke(f, [...flags, '--spec', spec.id, '--design', design.id]);
+    const formal = (await invoke(f, [...flags, '--spec', spec.id,
+      '--design', design.id, '--apply'])).task;
     assert.equal(formal.schemaVersion, 2);
     assert.equal(formal.specId, spec.id);
     assert.equal(formal.designId, design.id);
     assert.equal(formal.planKey, null);
     assert.equal(formal.methodology, null);
-    const planned = await invoke(f, [...flags, '--spec', spec.id,
-      '--design', design.id, '--plan', 'explicit-plan-key']);
+    const planned = (await invoke(f, [...flags, '--spec', spec.id,
+      '--design', design.id, '--plan', 'explicit-plan-key', '--apply'])).task;
     assert.equal(planned.planKey, 'explicit-plan-key');
     for (const [extra, code] of [
       [['--spec', spec.id], 'INVALID_ID'],
@@ -282,9 +292,9 @@ test('formal --spec/--design pair via flags still works under gated modes', asyn
     const f = fixture(mode);
     try {
       const { spec, design } = await structuredPair(f);
-      const task = await invoke(f, ['task', 'create', '--title', 'T',
+      const task = (await invoke(f, ['task', 'create', '--title', 'T',
         '--contract', 'C', '--author', 'fixture-author', '--scope', 'src/a',
-        '--spec', spec.id, '--design', design.id]);
+        '--spec', spec.id, '--design', design.id, '--apply'])).task;
       assert.equal(task.schemaVersion, 2);
       assert.equal(task.specId, spec.id);
       assert.equal(task.designId, design.id);

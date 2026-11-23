@@ -374,7 +374,7 @@ test('approveDiscoveredCommands without candidates approves stored inferred only
     // Blind bulk approval requires the explicit all opt-in.
     assert.throws(
       () => applyApproveDiscoveredCommands(ctx),
-      /VERIFY_BULK_REQUIRES_ALL/);
+      { code: 'VERIFY_BULK_REQUIRES_ALL' });
     const res = applyApproveDiscoveredCommands(ctx, { all: true });
     assert.equal(res.approved.length, 2);
     assert.ok(res.approved.every((r) => r.source === 'inferred'));

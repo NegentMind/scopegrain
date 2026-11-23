@@ -723,10 +723,14 @@ function parseArgs(argv) {
       flags[a] = true;
     } else if (VALUE_FLAGS.has(a)) {
       const next = argv[i + 1];
-      if (next === undefined || next.startsWith('--')) {
+      if (typeof next !== 'string' || next.startsWith('--')) {
         throw err('INVALID_ARGS', `${a} requires a value`);
       }
       flags[a] = argv[++i];
+    } else if (typeof a !== 'string') {
+      // Programmatic callers (tests, embedders) may pass non-string argv
+      // elements; reject structurally instead of crashing on .startsWith.
+      throw err('INVALID_ARGS', 'argv elements must be strings');
     } else if (a.startsWith('--')) {
       throw err('INVALID_ARGS', `unknown flag ${a}`);
     } else {

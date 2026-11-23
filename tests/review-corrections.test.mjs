@@ -284,7 +284,15 @@ test('catalog list --project uses workspace snapshot and does not write', async 
       description);
     assert.deepEqual(fs.readFileSync(configFile), configBefore);
     assert.deepEqual(fs.readFileSync(catalogFile), catalogBefore);
-    assert.deepEqual(fs.readdirSync(dir, { recursive: true }).sort(), entriesBefore);
+    // The cross-process verified-catalog fingerprint (FIND-022) is a
+    // documented cache write under <paths.state>/cache on first verify;
+    // nothing else may appear from a read verb.
+    const stateDir = path.join('.tasksystem', 'state');
+    const cacheDir = path.join(stateDir, 'cache');
+    const entriesAfter = fs.readdirSync(dir, { recursive: true }).sort()
+      .filter((rel) => rel !== stateDir && rel !== cacheDir
+        && !rel.startsWith(`${cacheDir}${path.sep}`));
+    assert.deepEqual(entriesAfter, entriesBefore);
 
     const emptyBefore = fs.readdirSync(empty, { recursive: true }).sort();
     const missing = fakeIO();

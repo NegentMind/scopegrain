@@ -275,9 +275,12 @@ test('both entrypoints delegate to the shared CLI and preserve package metadata'
     scopegrain: 'bin/scopegrain.mjs',
     tasksystem: 'bin/tasksystem.mjs',
   });
+  // provenance is deliberately excluded from the package (FIND-026): the
+  // archive is local-only pending provenance/license review, so it must
+  // not ship in the npm tarball.
   assert.deepEqual(pkg.files, [
     'bin', 'src', 'resources', 'policy', 'templates', 'schemas',
-    'provenance', 'docs/*.md', 'docs/en/*.md', 'viewer/dist', 'examples',
+    'docs/*.md', 'docs/en/*.md', 'viewer/dist', 'examples',
     'CHANGELOG.md', 'AUTHORS', 'NOTICE',
   ]);
   assert.equal(pkg.license, 'Apache-2.0');
