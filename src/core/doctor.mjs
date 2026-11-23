@@ -18,6 +18,8 @@ import {
 import { loadLimits } from './policy.mjs';
 import { validateWorkspace, workspaceFileRel } from './workspaces.mjs';
 import { checkDocsCliDrift } from './docs-cli-drift.mjs';
+import { failureSignatures } from './error-signature.mjs';
+import { readWorklog } from './worklog.mjs';
 import { validateSessionShape } from './sessions.mjs';
 import { validateVerifyStore, verifyStoreRel } from './verify-commands.mjs';
 import { gitHooksDir } from './hooks.mjs';
@@ -547,6 +549,29 @@ export function runDoctor(ctx, opts = {}) {
       push('worklogs', true, `${entries} entries well-formed`);
     } else {
       for (const b of bad) push('worklogs', false, b);
+    }
+  }
+
+  // Error-signature dedup: a failure signature repeating in recent
+  // worklog entries means the same error keeps reoccurring — escalate
+  // instead of letting it blend into the log (workflow.md stop-retry
+  // rule made executable). Read-only: scans the bounded tail.
+  {
+    const tail = [];
+    for (const name of ['activity', 'progress', 'outcomes']) {
+      tail.push(...readWorklog(ctx, name, { tail: 200 }).entries);
+    }
+    const sigs = failureSignatures(tail);
+    const repeated = [...sigs.entries()].filter(([, r]) => r.count >= 2);
+    if (repeated.length === 0) {
+      push('error-signatures', true,
+        `${sigs.size} unique failure signature(s), none repeated`);
+    } else {
+      for (const [sig, r] of repeated
+        .sort((a, b) => b[1].count - a[1].count).slice(0, 5)) {
+        push('error-signatures', false,
+          `signature repeated x${r.count}: ${sig.slice(0, 80)}`);
+      }
     }
   }
 
