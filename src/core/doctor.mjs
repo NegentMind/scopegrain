@@ -24,6 +24,9 @@ import { gitHooksDir } from './hooks.mjs';
 import { detectHostClis } from './host-cli.mjs';
 import { prepareActivation } from '../hosts/activation.mjs';
 import { loadNativeVariants } from '../hosts/native.mjs';
+import {
+  hasManagedSection, managedBody, managedEquals,
+} from './managed-section.mjs';
 
 const MAX_LIST = 100000;
 const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals',
@@ -244,11 +247,25 @@ export function runDoctor(ctx, opts = {}) {
     if (s !== 'file') {
       push('generated', false, `${f.rel} -> ${s}`);
     } else {
+      const isMd = f.rel === 'AGENTS.md' || f.rel === 'CLAUDE.md';
       let same;
       try {
-        same = bytesEqualOnDisk(abs, f.content, {
-          allowCRLF: f.rel === 'AGENTS.md' || f.rel === 'CLAUDE.md',
-        });
+        const incomingText = decodeUtf8Strict(
+          Buffer.isBuffer(f.content) ? f.content : Buffer.from(f.content),
+          'MANAGED_MALFORMED', f.rel);
+        if (hasManagedSection(incomingText)) {
+          // Files that opted into managed refresh are judged on the managed
+          // body alone: every byte outside the markers is user content.
+          const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
+          const diskText = limited.exceeded ? null
+            : decodeUtf8Strict(limited.content, 'MANAGED_MALFORMED', f.rel)
+              .replace(/\r\n/g, '\n');
+          same = diskText !== null && hasManagedSection(diskText)
+            ? managedEquals(diskText, managedBody(incomingText))
+            : bytesEqualOnDisk(abs, f.content, { allowCRLF: isMd });
+        } else {
+          same = bytesEqualOnDisk(abs, f.content, { allowCRLF: isMd });
+        }
       } catch {
         push('generated', false, `${f.rel} -> read failed during compare`);
         continue;

@@ -209,3 +209,41 @@ test('missing required template is needs-attention without touching it', () => {
     } finally { cleanup(fakeRoot); }
   } finally { cleanup(dir); }
 });
+
+test('user content outside managed markers does not trip the generated check', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    const agents = fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
+    assert.ok(agents.includes('SCOPEGRAIN:BEGIN'));
+    fs.writeFileSync(path.join(dir, 'AGENTS.md'),
+      `${agents}\n# Project-owned rules\n\nExtra user content.\n`, 'utf8');
+    const report = runDoctor(ctx);
+    assert.ok(!report.warnings.some((w) => w.includes('AGENTS.md')),
+      'managed-body equality must ignore user bytes outside markers');
+    const gen = report.checks.filter((c) => c.name === 'generated');
+    assert.ok(gen.every((c) => c.ok), 'generated check stays green');
+  } finally { cleanup(dir); }
+});
+
+test('stale managed body still fails the generated check', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    const agents = fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
+    fs.writeFileSync(path.join(dir, 'AGENTS.md'),
+      agents.replace('Session start', 'Session STALE'), 'utf8');
+    const report = runDoctor(ctx);
+    assert.ok(report.warnings.some((w) => w.includes('AGENTS.md')),
+      'a diverged managed body is still reported');
+  } finally { cleanup(dir); }
+});
+
+test('marker-less diverged AGENTS.md still fails the generated check', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    fs.writeFileSync(path.join(dir, 'AGENTS.md'),
+      '# my own rules\n\nNo managed section here.\n', 'utf8');
+    const report = runDoctor(ctx);
+    assert.ok(report.warnings.some((w) => w.includes('AGENTS.md')),
+      'a marker-less file that differs stays flagged');
+  } finally { cleanup(dir); }
+});
