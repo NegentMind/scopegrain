@@ -49,7 +49,7 @@ scopegrain config set --input user-defaults.json --apply
 1. **Inspeccionar** (solo lectura):
 
    ```powershell
-   node .\bin\tasksystem.mjs inspect --project "C:\ruta\mi-proyecto"
+   node .\bin\scopegrain.mjs inspect --project "C:\ruta\mi-proyecto"
    ```
 
    El JSON resultante muestra stacks detectados por manifiestos, evidencia
@@ -59,9 +59,9 @@ scopegrain config set --input user-defaults.json --apply
 2. **Inicializar** (interactivo o con respuestas):
 
    ```powershell
-   node .\bin\tasksystem.mjs init --project "C:\ruta\mi-proyecto"
-   node .\bin\tasksystem.mjs init --project "C:\ruta\mi-proyecto" --answers "C:\ruta\answers.json"
-   node .\bin\tasksystem.mjs init --project "C:\ruta\mi-proyecto" --answers "C:\ruta\answers.json" --apply
+   node .\bin\scopegrain.mjs init --project "C:\ruta\mi-proyecto"
+   node .\bin\scopegrain.mjs init --project "C:\ruta\mi-proyecto" --answers "C:\ruta\answers.json"
+   node .\bin\scopegrain.mjs init --project "C:\ruta\mi-proyecto" --answers "C:\ruta\answers.json" --apply
    ```
 
    - Interactivo: pregunta nombre, idioma, anfitriones, metodologia, ruta de
@@ -113,7 +113,7 @@ scopegrain config set --input user-defaults.json --apply
    vigencia del fingerprint sin ejecutar nada.
 
    ```powershell
-   node .\bin\tasksystem.mjs doctor --project "C:\ruta\mi-proyecto"
+   node .\bin\scopegrain.mjs doctor --project "C:\ruta\mi-proyecto"
    ```
 
 ## Identidad de workspace
@@ -162,6 +162,19 @@ Este bloque no conecta VantaDB, journal, sincronizacion o autorizacion MCP.
   Las rutas custom fuera del espacio producen propuestas para aplicar
   manualmente. Un ignore anidado no deshace un ignore del padre ni
   retira archivos que Git ya seguia; eso requiere decision del propietario.
+- El versionado de raices de host y de `.scopegrain/` debe decidirse de
+  forma consistente: los puentes activados referencian recursos bajo
+  `.scopegrain/`, asi que versionar los puentes ignorando `.scopegrain/`
+  deja un clon limpio con referencias colgadas. Las opciones coherentes
+  son versionar ambos o ninguno (los puentes se regeneran con
+  `host activate`). Los merge targets machine-local (`.mcp.json`,
+  `.codex/config.toml`, `opencode.jsonc`, `.devin/config.json`,
+  `.agents/mcp_config.json`, `.devin/mcp_config.json`) llevan rutas
+  absolutas y se ignoran siempre. La eleccion auto-hospedada de este
+  repositorio — raices de host versionadas, `.scopegrain/` ignorado —
+  es deliberada: quien contribuye regenera el estado con
+  `init`/`update`/`host activate`; no copiarla a ciegas a proyectos
+  huesped.
 - Config fuera de la ruta por defecto: `--config "ruta/relativa/config.json"`
   en `init` (pregunta interactiva o flag) y en los comandos posteriores.
 - Sin `--config`, se usa `.scopegrain/config.json`, o el archivo legacy

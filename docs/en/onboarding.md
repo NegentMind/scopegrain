@@ -52,7 +52,7 @@ scopegrain config set --input user-defaults.json --apply
 1. **Inspect** (read-only):
 
    ```powershell
-   node .\bin\tasksystem.mjs inspect --project "C:\path\my-project"
+   node .\bin\scopegrain.mjs inspect --project "C:\path\my-project"
    ```
 
    The resulting JSON shows stacks detected from manifests, evidence
@@ -62,9 +62,9 @@ scopegrain config set --input user-defaults.json --apply
 2. **Initialize** (interactive or with answers):
 
    ```powershell
-   node .\bin\tasksystem.mjs init --project "C:\path\my-project"
-   node .\bin\tasksystem.mjs init --project "C:\path\my-project" --answers "C:\path\answers.json"
-   node .\bin\tasksystem.mjs init --project "C:\path\my-project" --answers "C:\path\answers.json" --apply
+   node .\bin\scopegrain.mjs init --project "C:\path\my-project"
+   node .\bin\scopegrain.mjs init --project "C:\path\my-project" --answers "C:\path\answers.json"
+   node .\bin\scopegrain.mjs init --project "C:\path\my-project" --answers "C:\path\answers.json" --apply
    ```
 
    - Interactive: asks for name, language, hosts, methodology, config
@@ -116,7 +116,7 @@ scopegrain config set --input user-defaults.json --apply
    and fingerprint currency without executing anything.
 
    ```powershell
-   node .\bin\tasksystem.mjs doctor --project "C:\path\my-project"
+   node .\bin\scopegrain.mjs doctor --project "C:\path\my-project"
    ```
 
 ## Workspace identity
@@ -170,6 +170,18 @@ connect VantaDB, journal, synchronization or MCP authorization.
   paths outside the space produce proposals to apply manually. A nested
   ignore does not undo a parent ignore nor untrack files Git already
   tracks; that requires an owner decision.
+- Host-root and `.scopegrain/` versioning must be decided consistently:
+  activated bridges reference resources under `.scopegrain/`, so
+  versioning the bridges while ignoring `.scopegrain/` leaves a clean
+  clone with dangling references. The coherent options are versioning
+  both or neither (bridges are regenerated with `host activate`).
+  Machine-local merge targets (`.mcp.json`, `.codex/config.toml`,
+  `opencode.jsonc`, `.devin/config.json`, `.agents/mcp_config.json`,
+  `.devin/mcp_config.json`) carry absolute paths and are always ignored.
+  This repository's self-hosted choice — versioned host roots, ignored
+  `.scopegrain/` — is deliberate: contributors regenerate state with
+  `init`/`update`/`host activate`; do not copy it blindly to guest
+  projects.
 - Config outside the default path: `--config "relative/path/config.json"`
   in `init` (interactive question or flag) and in later commands.
 - Without `--config`, `.scopegrain/config.json` is used, or the legacy

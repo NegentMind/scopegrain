@@ -208,17 +208,17 @@ turning the operator-supplied body into proof of truth.
 Syntax examples from the repository root:
 
 ```powershell
-node ./bin/tasksystem.mjs inspect --project "C:\ruta\proyecto"
-node ./bin/tasksystem.mjs init --project "C:\ruta\proyecto"
-node ./bin/tasksystem.mjs doctor --project "C:\ruta\proyecto"
-node ./bin/tasksystem.mjs catalog list command
-node ./bin/tasksystem.mjs pipeline --project "C:\ruta\proyecto" --mode plan
-node ./bin/tasksystem.mjs specification create --project "C:\ruta\proyecto" --input spec.json
-node ./bin/tasksystem.mjs design create --project "C:\ruta\proyecto" --input design.json
-node ./bin/tasksystem.mjs approval target --project "C:\ruta\proyecto" --input target.json
-node ./bin/tasksystem.mjs approval create --project "C:\ruta\proyecto" --input approval.json
-node ./bin/tasksystem.mjs outcome create --project "C:\ruta\proyecto" --input outcome.json
-node ./bin/tasksystem.mjs methodology check --project "C:\ruta\proyecto" UUID --to ACT
+node ./bin/scopegrain.mjs inspect --project "C:\ruta\proyecto"
+node ./bin/scopegrain.mjs init --project "C:\ruta\proyecto"
+node ./bin/scopegrain.mjs doctor --project "C:\ruta\proyecto"
+node ./bin/scopegrain.mjs catalog list command
+node ./bin/scopegrain.mjs pipeline --project "C:\ruta\proyecto" --mode plan
+node ./bin/scopegrain.mjs specification create --project "C:\ruta\proyecto" --input spec.json
+node ./bin/scopegrain.mjs design create --project "C:\ruta\proyecto" --input design.json
+node ./bin/scopegrain.mjs approval target --project "C:\ruta\proyecto" --input target.json
+node ./bin/scopegrain.mjs approval create --project "C:\ruta\proyecto" --input approval.json
+node ./bin/scopegrain.mjs outcome create --project "C:\ruta\proyecto" --input outcome.json
+node ./bin/scopegrain.mjs methodology check --project "C:\ruta\proyecto" UUID --to ACT
 ```
 
 These are examples, not execution evidence. JSON creations preview by

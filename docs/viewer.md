@@ -1,8 +1,5 @@
 # Visor (bloque G)
 
-> Traduccion al espanol del documento canonico en ingles
-> (`en/viewer.md`). La version en ingles prevalece.
-
 Visor local de solo lectura para los stores de Scopegrain. Dos piezas:
 
 - `src/api/` - una API JSON solo-localhost sobre los stores configurados
@@ -203,7 +200,7 @@ Capturas verificadas en navegador real (Chromium 1440×900, 0 errores de consola
 
 ```text
 viewer/
-  src/lib/api.ts       cliente tipado sincronizado con los 29 endpoints GET
+  src/lib/api.ts       cliente tipado sincronizado con los 30 endpoints GET
   src/lib/i18n.ts      diccionarios EN/ES con paridad 100%
   src/lib/useApi.ts    hook de carga/error/refresco
   src/components/ui/   componentes shadcn/ui

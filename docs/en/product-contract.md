@@ -71,6 +71,12 @@ not authorization to implement — lifecycle transitions, verification,
 review and side effects still require their gates and explicit
 authorization.
 
+Modes: `off` (default when the key is absent — classification never
+activates implicitly), `capture`, `suggest` and `auto`. It lives in
+`.scopegrain/config.json` under `"intake"` and is edited directly on the
+key: it is not an `init` wizard question and does not travel in
+`init --answers` (the wizard declares it in its closing summary).
+
 ## Initial customization and evolution
 
 Available as configuration data: name, language, hosts, methodology,
@@ -78,6 +84,12 @@ paths, per-category versioning and verification proposals. Operational
 artifacts use `.scopegrain/` by default; product documentation is a
 separate deliverable. Owner decisions must not be recalculated or
 silently replaced.
+
+Language policy (owner decision): internal/canonical instructions and
+resources stay in English; generated operational records and interactive
+surfaces (the `init` wizard, taskdoc headers and, in the future, CLI
+errors) follow `config.locale`; the viewer and approval prompts already
+honor it.
 
 Pending a later version: composable organizational policies, audited
 domain profiles, global preference synchronization, native hook

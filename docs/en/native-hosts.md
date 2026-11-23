@@ -4,6 +4,9 @@ kind: guide
 ---
 # Native Host Projections
 
+> English translation of the canonical Spanish document
+> (`../native-hosts.md`). The Spanish version prevails.
+
 Scopegrain shares canonical procedures and project snapshots across five
 documented hosts, plus one admitted provisional host (Hermes) and an
 uncertified `generic` fallback adapter (scaffold for stdio MCP hosts

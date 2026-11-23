@@ -91,7 +91,7 @@ upserts idempotentes. La verdad formal sigue en `sg-formal-v1-*`; los
 registros L1 son derivados y su metadata apunta al registro formal.
 
 `sync-memory` proyecta los worklogs operativos locales
-(`.tasksystem/memory/{lessons,outcomes,progress,goals}.jsonl` — el almacen
+(`.scopegrain/memory/{lessons,outcomes,progress,goals}.jsonl` — el almacen
 autoritativo, sin cambios) al mismo namespace `l1/sg-<scopeHash>` del
 proyecto, clave `sg-worklog-<log>-<digest16>` derivada del contenido:
 entradas sin cambios se reportan como `skipped` y las re-ejecuciones no

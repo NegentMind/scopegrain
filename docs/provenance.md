@@ -283,7 +283,8 @@ procedimental legacy a los recursos activos (`resources/agents/`,
 **Alcance:** ~120 recursos activos enriquecidos o creados a partir de sus
 contrapartes legacy, más 7 prompts nuevos (`plan-brief`, `plan-execution`,
 `iteration-loop`, `finding-record`, `session-recitation`, `spec-brief`,
-`research-brief`) añadidos al catálogo (`manifest.json`, 139 entradas).
+`research-brief`) añadidos al catálogo (`manifest.json`, 139 entradas en
+ese momento; 140 hoy).
 
 **Naturaleza del port (clasificación b):** el contenido fue adaptado, no
 copiado literalmente — se eliminaron o generalizaron todas las referencias
@@ -296,8 +297,9 @@ propio del propietario. Esto no altera la política de exclusiones:
 
 **Excepción de terceros:** `resources/skills/discernment-nudge/SKILL.md`
 deriva de una skill externa licenciada **Apache-2.0**; el archivo lleva un
-aviso de procedencia HTML en el pie. Mantener ese aviso si el recurso se
-redistribuye.
+aviso de procedencia HTML en el pie y distribuye su `LICENSE.txt`
+(espejada en `provenance/licenses/discernment-nudge/`). Mantener ese
+aviso si el recurso se redistribuye.
 
 **Reclasificación de `freshReplacement`:** las 4 entradas colgantes de
 `provenance/legacy-classification.json` apuntaban a rutas inexistentes;

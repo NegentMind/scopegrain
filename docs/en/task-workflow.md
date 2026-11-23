@@ -69,7 +69,7 @@ COLLATERAL/RESEARCH; `edit` only in ACT; `verify` in VERIFY;
 ```powershell
 # Create (PLAN state, revision 0, own UUID): via --input JSON with
 # preview by default; --apply persists
-node .\bin\tasksystem.mjs task create --project P --input task.json [--apply]
+node .\bin\scopegrain.mjs task create --project P --input task.json [--apply]
 ```
 
 `task.json` carries `{title, contract, authorContext, scope}` plus
@@ -83,15 +83,15 @@ under `organic-sdd` or `sdd` without the formal pair it fails with
 
 ```powershell
 # List / show
-node .\bin\tasksystem.mjs task list --project P
-node .\bin\tasksystem.mjs task show --project P <UUID>
+node .\bin\scopegrain.mjs task list --project P
+node .\bin\scopegrain.mjs task show --project P <UUID>
 
 # Transition (mandatory CAS with --revision N)
-node .\bin\tasksystem.mjs task transition --project P <UUID> ACT --revision 0
-node .\bin\tasksystem.mjs task transition --project P <UUID> VERIFY --revision 1 [--evidence evidence.json]
+node .\bin\scopegrain.mjs task transition --project P <UUID> ACT --revision 0
+node .\bin\scopegrain.mjs task transition --project P <UUID> VERIFY --revision 1 [--evidence evidence.json]
 
 # Check an action in the current state
-node .\bin\tasksystem.mjs task check-action --project P <UUID> edit
+node .\bin\scopegrain.mjs task check-action --project P <UUID> edit
 ```
 
 `--config` points to an alternative config in any of them.
@@ -112,21 +112,21 @@ records null it out). Full field table:
 ```powershell
 # Metadata patch (CAS with --revision N): {set:{...}, disposition?,
 # addNote?, stepStatus?} in the --input file
-node .\bin\tasksystem.mjs task meta --project P <UUID> --revision 2 --input meta.json
+node .\bin\scopegrain.mjs task meta --project P <UUID> --revision 2 --input meta.json
 
 # Disposition shortcut: deferred|icebox|future|discarded|cancelled;
 # 'active' clears the disposition
-node .\bin\tasksystem.mjs task disposition --project P <UUID> deferred --revision 2 --reason "waiting on owner" --by agent
+node .\bin\scopegrain.mjs task disposition --project P <UUID> deferred --revision 2 --reason "waiting on owner" --by agent
 
 # Note and step status
-node .\bin\tasksystem.mjs task note --project P <UUID> --revision 3 --text "root cause confirmed"
-node .\bin\tasksystem.mjs task step --project P <UUID> --revision 4 --index 0 --status done
+node .\bin\scopegrain.mjs task note --project P <UUID> --revision 3 --text "root cause confirmed"
+node .\bin\scopegrain.mjs task step --project P <UUID> --revision 4 --index 0 --status done
 
 # List a named backlog (no filter = all)
-node .\bin\tasksystem.mjs task list --project P --backlog future
+node .\bin\scopegrain.mjs task list --project P --backlog future
 
 # Human-readable task document (Markdown rendered from the record)
-node .\bin\tasksystem.mjs task doc --project P <UUID>
+node .\bin\scopegrain.mjs task doc --project P <UUID>
 ```
 
 `task doc` writes `.scopegrain/tasks/<uuid>.md` (or the destination
@@ -140,18 +140,22 @@ the file.
 
 ```powershell
 # Session-start packet (read-only)
-node .\bin\tasksystem.mjs context --project P [--tail N]
+node .\bin\scopegrain.mjs context --project P [--tail N] [--no-vantadb] [--no-structure]
 ```
 
 `context` returns a bounded JSON packet (`schemaVersion: 1`) with the
-instructions and config paths, the user knowledge file
-`.scopegrain/context.md` (when present; read, never written — content
-capped at 32 KiB), a task summary (totals, open by state and the `ready`
-list: PLAN tasks with no disposition), open goals, the latest `progress`
-entries, up to 3 resumable sessions and the pending journal event count.
-Hosts invoke it at session start per the generated instruction in
-AGENTS.md/CLAUDE.md and `.scopegrain/instructions.md`; it never executes
-commands or mutates state.
+instructions and config paths, `locale` (the user's preferred language:
+generated operational artifacts and interactive surfaces follow it), the
+user knowledge file `.scopegrain/context.md` (when present; read, never
+written — content capped at 32 KiB), a task summary (totals, open by
+state and the `ready` list: PLAN tasks with no disposition), open goals,
+the latest `progress` entries, up to 3 resumable sessions and the pending
+journal event count. Hosts invoke it at session start per the generated
+instruction in AGENTS.md/CLAUDE.md and `.scopegrain/instructions.md`; it
+never executes commands or mutates state. `--no-structure` serves the
+persisted structure index without rescanning (the `structureDebounceMs`
+option exists at API level for a time-window cache); the equivalent MCP
+argument is `noStructure`.
 
 The packet also carries `tokenEstimate`: a local heuristic estimate
 `utf8-bytes/4` (UTF-8 bytes after CRLF normalization, divided by four,
@@ -160,24 +164,30 @@ observe. `tokenEstimate.sections` reports `{estimatedTokens, estimator,
 bytes}` per assembled section; for `userContext` the measurement covers
 only the returned `content` (post 32 KiB cap) and
 `coversTruncatedContent` says so. `tokenEstimate.total` estimates the
-whole packet without the `tokenEstimate` key itself. Advisory and
-degradable: on failure it is `null` instead of aborting the packet.
+whole packet without the `tokenEstimate` key itself
+(`excludesSelf: true`); `tokenEstimate.wire` is the honest self-inclusive
+figure — the serialized packet including the block, iterated to a fixed
+point. When `wire` exceeds the advisory `packetBudgetTokens` budget
+(16000, `policy/operation-limits.json`), the packet declares it in
+`warnings[]`. Advisory and degradable: on failure it is `null` instead
+of aborting the packet.
 
 ## Operational memory, goals and metrics
 
 Bounded append-only JSONL logs under `paths.memory`
-(`.tasksystem/memory/`): `lessons` (durable learnings), `outcomes`
+(`.scopegrain/memory/`; the legacy `.tasksystem/` path remains honored):
+`lessons` (durable learnings), `outcomes`
 (ok/fail per skills used), `progress` (advance archive — written
 automatically when a task reaches CLOSE), `goals` (meta-level objectives;
 tasks link via `goalIds`, latest entry per `id` wins).
 
 ```powershell
-node .\bin\tasksystem.mjs memory add --project P --log lessons --input lesson.json
-node .\bin\tasksystem.mjs memory list --project P --log outcomes [--tail 20]
-node .\bin\tasksystem.mjs goal create --project P --input goal.json
-node .\bin\tasksystem.mjs goal list --project P
-node .\bin\tasksystem.mjs goal transition --project P <UUID> --to achieved
-node .\bin\tasksystem.mjs metrics --project P
+node .\bin\scopegrain.mjs memory add --project P --log lessons --input lesson.json
+node .\bin\scopegrain.mjs memory list --project P --log outcomes [--tail 20]
+node .\bin\scopegrain.mjs goal create --project P --input goal.json
+node .\bin\scopegrain.mjs goal list --project P
+node .\bin\scopegrain.mjs goal transition --project P <UUID> --to achieved
+node .\bin\scopegrain.mjs metrics --project P
 ```
 
 `metrics` aggregates the store on read: counts by state/backlog/type/

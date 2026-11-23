@@ -67,6 +67,12 @@ contabilidad, no autorizacion de implementar — las transiciones de ciclo
 de vida, verificacion, revision y efectos laterales siguen exigiendo sus
 gates y autorizacion explicita.
 
+Modos: `off` (defecto cuando la clave esta ausente — la clasificacion
+nunca se activa implicitamente), `capture`, `suggest` y `auto`. Vive en
+`.scopegrain/config.json` bajo `"intake"` y se edita directamente en la
+clave: no es una pregunta del asistente `init` ni viaja en
+`init --answers` (el asistente la declara en su resumen final).
+
 ## Personalizacion inicial y evolucion
 
 Disponibles como datos de configuracion: nombre, idioma, anfitriones, metodologia,
@@ -74,6 +80,12 @@ rutas, versionado por categoria y propuestas de verificacion. Los
 artefactos operativos usan `.scopegrain/` por defecto; la documentacion
 del producto es un entregable separado. Las decisiones del propietario no
 deben recalcularse ni reemplazarse silenciosamente.
+
+Politica de idioma (decision del propietario): las instrucciones y los
+recursos canonicos/internos permanecen en ingles; los registros
+operativos generados y las superficies interactivas (asistente `init`,
+cabeceras de taskdocs y, en el futuro, errores del CLI) siguen
+`config.locale`; el visor y los prompts de aprobacion ya lo honran.
 
 Pendientes de una version posterior: politicas organizativas componibles,
 perfiles de dominio auditados, sincronizacion de preferencias globales,

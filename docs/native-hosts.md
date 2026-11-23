@@ -4,9 +4,6 @@ kind: guide
 ---
 # Proyecciones de hosts nativos
 
-> Traduccion al espanol del documento canonico en ingles
-> (`en/native-hosts.md`). La version en ingles prevalece.
-
 Scopegrain comparte procedimientos canonicos y snapshots de proyecto entre
 cinco hosts documentados, mas un host provisional admitido (Hermes) y un
 adaptador de reserva `generic` no certificado (scaffold para hosts MCP

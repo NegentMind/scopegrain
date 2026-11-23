@@ -47,6 +47,7 @@ only the verbs below.
 | Dashboard | `view` | Starts the local, read-only web dashboard (15 views, EN/ES); it never mutates state |
 | Verification | `verify approve` + `verify run` | Whitelists a verification command, then runs only approved commands with bounded output |
 | Decisions | `approval answer` | Resolves pending human-in-the-loop approvals |
+| Request intake | `intake.mode` in `.scopegrain/config.json` | `off\|capture\|suggest\|auto` — classifies each request and persists a record; edit the `"intake"` key directly (not a wizard question, not carried by `--answers`) |
 
 ## Read-only web viewer
 
@@ -54,7 +55,7 @@ Run `scopegrain view --project .` to inspect tasks, DAG plans, persisted
 execution waves, goals, sessions, approvals, artifacts, journal operations
 and system health in English or Spanish. See
 [Read-only viewer and API](docs/en/viewer.md) for the full what-you-can /
-cannot-do matrix and all 29 endpoints.
+cannot-do matrix and all 30 endpoints.
 
 - Walkthrough recording (EN + ES): [`docs/assets/viewer-walkthrough.webm`](docs/assets/viewer-walkthrough.webm)
 

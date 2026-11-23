@@ -1,5 +1,8 @@
 # Viewer (block G)
 
+> English translation of the canonical Spanish document
+> (`../viewer.md`). The Spanish version prevails.
+
 Read-only local viewer for Scopegrain stores. Two pieces:
 
 - `src/api/` - a localhost-only JSON API over the configured stores
@@ -188,7 +191,7 @@ Verified in headless Chromium (1440×900 desktop & 390×844 mobile, 0 console/pa
 
 ```text
 viewer/
-  src/lib/api.ts       typed client mirroring the 29 GET endpoints
+  src/lib/api.ts       typed client mirroring the 30 GET endpoints
   src/lib/i18n.ts      EN/ES dictionaries with 100% key parity
   src/lib/useApi.ts    loading/error/reload fetch hook
   src/components/ui/   shadcn/ui components

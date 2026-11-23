@@ -91,7 +91,7 @@ idempotent upserts. The formal truth stays in `sg-formal-v1-*`; L1
 records are derived and their metadata points back to the formal record.
 
 `sync-memory` projects the local operational worklogs
-(`.tasksystem/memory/{lessons,outcomes,progress,goals}.jsonl` — the
+(`.scopegrain/memory/{lessons,outcomes,progress,goals}.jsonl` — the
 authoritative store, unchanged) into the same project-scope
 `l1/sg-<scopeHash>` namespace, keyed `sg-worklog-<log>-<digest16>` from the
 entry content: unchanged entries report `skipped` and re-runs produce no

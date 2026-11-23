@@ -11,12 +11,12 @@ sinteticos, no evidencia de ejecucion.
 ## Catalogo y procedimientos
 
 ```powershell
-node bin/tasksystem.mjs catalog list
-node bin/tasksystem.mjs catalog show agent reviewer
-node bin/tasksystem.mjs catalog check
-node bin/tasksystem.mjs catalog legacy skill
-node bin/tasksystem.mjs catalog legacy-show skill ponytail
-node bin/tasksystem.mjs workflow audit --project P --mode review --profile core
+node bin/scopegrain.mjs catalog list
+node bin/scopegrain.mjs catalog show agent reviewer
+node bin/scopegrain.mjs catalog check
+node bin/scopegrain.mjs catalog legacy skill
+node bin/scopegrain.mjs catalog legacy-show skill ponytail
+node bin/scopegrain.mjs workflow audit --project P --mode review --profile core
 ```
 
 Un paquete resuelve comando, roles, skills, reglas, referencias, perfil,
@@ -83,9 +83,9 @@ transiciones y evidencia por su cuenta; Scopegrain ordena, no ejecuta.
 ## Artefactos inmutables
 
 ```powershell
-node bin/tasksystem.mjs artifact add review --project P --input review.json
-node bin/tasksystem.mjs artifact list review --project P
-node bin/tasksystem.mjs artifact show review UUID --project P
+node bin/scopegrain.mjs artifact add review --project P --input review.json
+node bin/scopegrain.mjs artifact list review --project P
+node bin/scopegrain.mjs artifact show review UUID --project P
 ```
 
 Entrada: `{"title":"Revision","body":"Hallazgos y limites","references":[]}`.
@@ -141,9 +141,9 @@ del anfitrion. Los presupuestos de sesiones usan esas acciones efectivas.
 ## Sesiones y recuperacion
 
 ```powershell
-node bin/tasksystem.mjs session create --project P --task UUID --limit 20
-node bin/tasksystem.mjs session record SESSION_UUID --project P --revision 0 --input event.json
-node bin/tasksystem.mjs session resume SESSION_UUID --project P
+node bin/scopegrain.mjs session create --project P --task UUID --limit 20
+node bin/scopegrain.mjs session record SESSION_UUID --project P --revision 0 --input event.json
+node bin/scopegrain.mjs session resume SESSION_UUID --project P
 ```
 
 Evento: `{"action":"read","evidence":"Fuente inspeccionada","context":"paso-1"}`.
