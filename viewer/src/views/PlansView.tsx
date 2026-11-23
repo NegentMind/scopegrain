@@ -119,7 +119,10 @@ export function PlansView() {
         <Card>
           <CardHeader>
             <CardTitle>{t('plans.docs')}</CardTitle>
-            <CardDescription>{t('nav.plans.desc')}</CardDescription>
+            <CardDescription>
+              {t('nav.plans.desc')}
+              {docs.data?.truncated ? t('common.truncatedByApi') : ''}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {docList.length === 0 ? (

@@ -125,7 +125,10 @@ export function SystemView() {
       <Card>
         <CardHeader>
           <CardTitle>{t('system.verify')}</CardTitle>
-          <CardDescription>{vc.data?.store}</CardDescription>
+          <CardDescription>
+            {vc.data?.store}
+            {vc.data?.truncated ? t('common.truncatedByApi') : ''}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {commands.length === 0 ? (

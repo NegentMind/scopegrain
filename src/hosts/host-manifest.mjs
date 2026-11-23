@@ -34,6 +34,8 @@ export function hostManifest(ctx, { host, surface, installRoot } = {}) {
     reason: s.reason,
     source: s.source,
   }));
+  // No generatedAt: the manifest is a deterministic render artifact —
+  // hashing/diffing must not drift on wall-clock time.
   return Object.freeze({
     schemaVersion: 1,
     host,
@@ -41,6 +43,5 @@ export function hostManifest(ctx, { host, surface, installRoot } = {}) {
     generated,
     shared,
     warnings: [...plan.warnings],
-    generatedAt: new Date().toISOString(),
   });
 }

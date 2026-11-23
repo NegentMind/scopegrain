@@ -164,11 +164,14 @@ export function uninstallHooks(ctx) {
   const next = out.join('\n').replace(/\n{3,}/g, '\n\n').trim() === ''
     ? null
     : out.join('\n');
-  const tmp = `${file}.scopegrain-tmp`;
   if (next === null) {
     fs.unlinkSync(file); // the hook was only our block
   } else {
-    fs.writeFileSync(tmp, next, 'utf8');
+    // Random exclusive tmp name, same discipline as installHooks: a
+    // fixed predictable name lets foreign or concurrent content slip
+    // into the rewrite.
+    const tmp = `${file}.tmp-${crypto.randomBytes(6).toString('hex')}`;
+    writeFileExclusive(tmp, next);
     fs.renameSync(tmp, file);
   }
   return { file, applied: true };

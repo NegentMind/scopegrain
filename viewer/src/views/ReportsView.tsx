@@ -45,13 +45,16 @@ export function ReportsView() {
       <Card>
         <CardHeader>
           <CardTitle>{t('reports.title')}</CardTitle>
-          <CardDescription>{t('reports.selectReport')}</CardDescription>
+          <CardDescription>
+            {t('reports.selectReport')}
+            {data?.truncated ? t('common.truncatedByApi') : ''}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {reports.length === 0 ? (
             <EmptyBox>{t('reports.empty')}</EmptyBox>
           ) : (
-            <Table>
+            <Table role="grid">
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('reports.file')}</TableHead>
@@ -63,7 +66,10 @@ export function ReportsView() {
                     key={name}
                     onClick={() => setSelected(name)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') setSelected(name);
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault(); // Space must not scroll the page
+                        setSelected(name);
+                      }
                     }}
                     tabIndex={0}
                     aria-selected={selected === name}
@@ -107,9 +113,9 @@ export function ReportsView() {
                 </Badge>
                 {detail.data.report.summary ? (
                   <span className="text-xs text-muted-foreground">
-                    ok {detail.data.report.summary.ok} · warn{' '}
-                    {detail.data.report.summary.warnings} · fail{' '}
-                    {detail.data.report.summary.failures}
+                    {t('common.ok')} {detail.data.report.summary.ok} ·{' '}
+                    {t('common.warn')} {detail.data.report.summary.warnings} ·{' '}
+                    {t('common.fail')} {detail.data.report.summary.failures}
                   </span>
                 ) : null}
               </div>
@@ -117,7 +123,7 @@ export function ReportsView() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-16">ok</TableHead>
+                      <TableHead className="w-16">{t('common.ok')}</TableHead>
                       <TableHead>{t('common.name')}</TableHead>
                       <TableHead>{t('reports.summary')}</TableHead>
                     </TableRow>

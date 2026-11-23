@@ -15,7 +15,8 @@ import { KNOWN_HOSTS, validateMethodologyMode } from './config.mjs';
 import { evaluateTaskActions } from './methodology.mjs';
 import { findPlaceholders, renderPlaceholders } from './placeholders.mjs';
 import { hooksFor } from './hooks-policy.mjs';
-import { estimateTokens, TOKEN_ESTIMATOR } from './tokens.mjs';
+import { estimateJson, estimateTokens, TOKEN_ESTIMATOR }
+  from './tokens.mjs';
 import {
   presetLayers, listRegistry, composeResource,
 } from './distribution.mjs';
@@ -96,10 +97,12 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     profileEntry.canonicalId ?? profileEntry.id, profileEntry.content);
   const coreEntry = getResource('profile', 'core', { catalog });
   const core = validateProfile('core', coreEntry.content);
-  // Core profile always supplements the selected profile.
-  const merged = { skills: [], rules: [], references: [] };
-  for (const lk of ['skills', 'rules', 'references']) {
-    merged[lk] = [...new Set([...profile[lk], ...core[lk]])];
+  // Core profile always supplements the selected profile; mcps is an
+  // optional profile list (pre-gating profiles carry none).
+  const merged = { skills: [], rules: [], references: [], mcps: [] };
+  for (const lk of Object.keys(merged)) {
+    merged[lk] = [...new Set([
+      ...(profile[lk] ?? []), ...(core[lk] ?? [])])];
   }
   const commandDeps = {
     agents: command.agents || [],
@@ -160,6 +163,21 @@ export function buildWorkflowPacket(ctx, opts = {}) {
   for (const h of commandHits) {
     presetApplied.push({ resource: `command/${inv.canonicalId}`, ...h });
   }
+  // Placeholder rendering is optional: callers pass --arguments /
+  // --script; unresolved tokens fail closed, never silently strip.
+  // When no placeholder exists the rendered body equals content —
+  // serializing both used to duplicate ~55% of a lazy packet, so the
+  // packet emits `sameAsContent` instead of a second copy.
+  const renderedBody = (() => {
+    const ph = findPlaceholders(commandBase);
+    if (!ph.arguments && !ph.script && ph.handoffs.length === 0) {
+      return commandBase;
+    }
+    return renderPlaceholders(commandBase, {
+      arguments: opts.arguments ?? '',
+      script: opts.script,
+    });
+  })();
   // Active extensions contribute declared resources into extra kind
   // buckets. Activation already validated ids; resolution re-validates —
   // catalog drift since activation fails closed at getResource.
@@ -210,7 +228,9 @@ export function buildWorkflowPacket(ctx, opts = {}) {
       policyDigest: crypto.createHash('sha256')
         .update(JSON.stringify(loadPolicy())).digest('hex'),
     },
-    warnings: catalog.warnings,
+    // Copied: the catalog's warnings array is shared with the verified
+    // cache — packet-level additions must not leak back into it.
+    warnings: [...catalog.warnings],
     command: {
       id: opts.command,
       requestedMode: inv.requestedMode,
@@ -225,19 +245,12 @@ export function buildWorkflowPacket(ctx, opts = {}) {
       description: command.description,
       path: catalogDestRel(command),
       content: commandBase,
-      // Placeholder rendering is optional: callers pass --arguments /
-      // --script; unresolved tokens fail closed, never silently strip.
-      rendered: (() => {
-        const body = commandBase;
-        const inv = findPlaceholders(body);
-        if (!inv.arguments && !inv.script && inv.handoffs.length === 0) {
-          return body;
-        }
-        return renderPlaceholders(body, {
-          arguments: opts.arguments ?? '',
-          script: opts.script,
-        });
-      })(),
+      // `rendered` is emitted only when it differs from `content`;
+      // `sameAsContent` marks the common no-placeholder case so
+      // consumers can fall back (`command.rendered ?? command.content`).
+      ...(renderedBody === commandBase
+        ? { sameAsContent: true }
+        : { rendered: renderedBody }),
     },
     interaction,
     host: opts.host ?? null,
@@ -250,6 +263,12 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     presets: { applied: presetApplied,
       ...(presetDeferred.length ? { deferred: presetDeferred } : {}) },
     lazy: lazy || undefined,
+    // Posture declaration: full remains an explicit request (hosts
+    // without catalog access still need inlined bodies); `recommended`
+    // is the documented default posture for hosts that can hydrate via
+    // `catalog show` / scopegrain_catalog_get — the MCP server always
+    // exposes that tool.
+    posture: { current: lazy ? 'lazy' : 'full', recommended: 'lazy' },
     hydrate: lazy ? {
       cli: 'scopegrain catalog show KIND ID --project PATH',
       mcp: 'scopegrain_catalog_get',
@@ -281,7 +300,8 @@ export function buildWorkflowPacket(ctx, opts = {}) {
         catalog, presets, hitsTarget, lazy),
       prompts: resolveResources('prompt', commandDeps.prompts, catalog,
         presets, hitsTarget, lazy),
-      mcps: resolveResources('mcp', commandDeps.mcps, catalog,
+      mcps: resolveResources('mcp',
+        [...new Set([...commandDeps.mcps, ...merged.mcps])], catalog,
         presets, hitsTarget, lazy),
     },
     contributedResources,
@@ -349,6 +369,21 @@ export function buildWorkflowPacket(ctx, opts = {}) {
   packet.resourceCost = {
     estimator: TOKEN_ESTIMATOR, total: costTotal, byBucket,
   };
+  // Advisory token budget (policy/operation-limits.json
+  // packetBudgetTokens): a warning on the packet itself, never an
+  // error — the 1 MiB document cap below stays the hard bound. The
+  // warning is pushed BEFORE the cap check so an over-budget packet
+  // still fails closed if the warning itself tips it over.
+  const budgetTokens = limits.packetBudgetTokens;
+  if (Number.isInteger(budgetTokens) && budgetTokens > 0) {
+    const est = estimateJson(packet).estimatedTokens;
+    if (est > budgetTokens) {
+      packet.warnings.push(
+        `workflow packet is ~${est} estTok (estimator ${TOKEN_ESTIMATOR}),`
+          + ` over advisory packetBudgetTokens=${budgetTokens};`
+          + ' prefer lazy:true and hydrate on demand');
+    }
+  }
   const bytes = Buffer.byteLength(JSON.stringify(packet), 'utf8');
   if (bytes > limits.maxDocumentBytes) {
     throw err('CONTEXT_TOO_LARGE',

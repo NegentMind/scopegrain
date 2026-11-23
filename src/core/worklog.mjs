@@ -226,18 +226,28 @@ export function readWorklog(ctx, name, { tail = 50 } = {}) {
   if (st.isSymbolicLink() || !st.isFile()) {
     throw err('INVALID_PATH', `${name} log is not a real file`);
   }
+  const take = Math.min(Math.max(0, tail), MAX_TAIL);
+  if (take === 0) return out; // nothing is parsed — skip the read entirely
   const cap = loadLimits().maxDocumentBytes;
-  const limited = readFileLimited(file, cap);
+  // Bounded read: only the newest `take` lines are parsed and appendWorklog
+  // caps each line at MAX_LINE_BYTES, so take*(MAX_LINE_BYTES+1) bytes of
+  // tail provably cover them. `truncated` now means "the read window did
+  // not cover the whole file" — true both for over-cap logs and for
+  // smaller logs served from a bounded window. A foreign-written log with
+  // lines longer than MAX_LINE_BYTES may surface fewer than `take`
+  // entries, same degradation class as the over-cap path.
+  const window = Math.min(cap, take * (MAX_LINE_BYTES + 1));
   let text;
-  if (limited.exceeded) {
-    text = readTailWindow(file, cap, `${name} log`);
+  if (Number(st.size) > window) {
+    text = readTailWindow(file, window, `${name} log`);
     out.truncated = true;
   } else {
+    // size <= window <= cap: a full bounded read, never exceeded.
+    const limited = readFileLimited(file, cap);
     text = decodeUtf8Strict(limited.content, `${name} log`);
   }
   const lines = text.split('\n').filter((l) => l.trim() !== '');
-  const take = Math.min(Math.max(0, tail), MAX_TAIL);
-  const slice = take === 0 ? [] : lines.slice(-take);
+  const slice = lines.slice(-take);
   for (const l of slice) {
     try {
       out.entries.push(JSON.parse(l));

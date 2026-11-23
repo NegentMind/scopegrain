@@ -50,14 +50,15 @@ export function JournalView() {
         <CardHeader>
           <CardTitle>{t('journal.operations')}</CardTitle>
           <CardDescription>
-            Create-only record operations; committed / prepared / abandoned.
+            {t('journal.desc')}
+            {list.data?.truncated ? t('common.truncatedByApi') : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {ops.length === 0 && malformed.length === 0 ? (
             <EmptyBox>{t('journal.empty')}</EmptyBox>
           ) : (
-            <Table>
+            <Table role="grid">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-20">{t('common.op')}</TableHead>
@@ -74,6 +75,7 @@ export function JournalView() {
                     onClick={() => setSelected(op.operationId)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault(); // Space must not scroll the page
                         setSelected(op.operationId);
                       }
                     }}
@@ -138,6 +140,7 @@ export function JournalView() {
 }
 
 function OperationPanel({ op }: { op: JournalOperationDetail }) {
+  const t = useT();
   return (
     <div className="space-y-3 text-sm">
       <div className="flex items-center gap-2">
@@ -169,7 +172,7 @@ function OperationPanel({ op }: { op: JournalOperationDetail }) {
       </ol>
       {op.recovery ? (
         <p className="text-xs text-amber-600 dark:text-amber-400">
-          Recovery receipt: {op.recovery.action} — {op.recovery.reason}
+          {t('journal.recovery')}: {op.recovery.action} — {op.recovery.reason}
         </p>
       ) : null}
     </div>

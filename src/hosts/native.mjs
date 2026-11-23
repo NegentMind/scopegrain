@@ -521,6 +521,7 @@ export function renderNativeAdapters(config, {
       source: rel,
       destination: hostRel,
       manualMerge: true,
+      activationMode: 'apply',
     });
   };
 
@@ -572,7 +573,7 @@ export function renderNativeAdapters(config, {
       const meta = {
         format: 'provisional', compatibility: 'provisional',
         modelSelection: 'host-policy', permissionScope: spec.permissionScope,
-        manualMerge: true,
+        manualMerge: true, activationMode: 'manual',
       };
       entries.push({
         host, kind: 'fragment', id: 'scopegrain', ...meta,
@@ -623,6 +624,7 @@ export function renderNativeAdapters(config, {
           source: rel,
           destination: hostRel,
           manualMerge: true,
+          activationMode: 'apply',
         });
       };
       const tplText = (b) =>
@@ -717,19 +719,48 @@ export function renderNativeAdapters(config, {
         source: `${cfgPrefix}integrations/native/${host}/agents-fragment.toml`,
         destination: '.codex/config.toml',
         manualMerge: true,
+        activationMode: 'merge',
       });
     }
   }
 
-  // OpenCode V2 MCP: unlike Devin and Antigravity there is NO dedicated
-  // whole file — `integrations/opencode-mcp.json` (emitted by render.mjs at
-  // init) declares `mcp.servers.scopegrain` and is merged by hand into the
-  // project OpenCode config. Declaring the merge target here keeps the
-  // manual review visible instead of silent: `host manifest` reports it as
-  // `shared`, `host activate` discloses it in `skipped` (MERGE_KINDS) and
-  // never writes it, and the machine-local absolute paths it embeds reach
-  // the gitignore proposal via `machineLocal`. Claude and Codex carry the
-  // same asymmetry for their own fragments; only opencode is declared here.
+  // MCP merge targets: unlike Devin and Antigravity there is NO dedicated
+  // whole file for these hosts — each `integrations/<host>-mcp.*` fragment
+  // (emitted by render.mjs at init) declares an MCP server block that is
+  // merged by hand into the shared project host config. Declaring the merge
+  // target here keeps the manual review visible instead of silent:
+  // `host manifest` reports it as `shared`, `host activate` discloses it in
+  // `skipped` (MERGE_KINDS) and never writes it, and the machine-local
+  // absolute paths it embeds reach the gitignore proposal via `machineLocal`.
+  if (config.hosts.includes('claude')) {
+    const rel = `${cfgPrefix}integrations/claude-mcp.json`;
+    entries.push({
+      host: 'claude', kind: 'mcp', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.claude.permissionScope,
+      source: rel, destination: '.mcp.json',
+      manualMerge: true, activationMode: 'merge', machineLocal: true,
+      note: 'machine-local absolute paths; merge mcpServers.scopegrain into '
+        + 'the project Claude MCP config (.mcp.json) and keep that file '
+        + 'unversioned; regenerate per machine with `host activate --host '
+        + 'claude --apply` after relocating the project or installation',
+    });
+  }
+  if (config.hosts.includes('codex')) {
+    const rel = `${cfgPrefix}integrations/codex-mcp.toml`;
+    entries.push({
+      host: 'codex', kind: 'mcp', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.codex.permissionScope,
+      source: rel, destination: '.codex/config.toml',
+      manualMerge: true, activationMode: 'merge', machineLocal: true,
+      note: 'machine-local absolute paths; merge [mcp_servers.scopegrain] '
+        + 'into the project Codex config (.codex/config.toml, which also '
+        + 'carries the [agents.*] declarations) and keep that file '
+        + 'unversioned; regenerate per machine with `host activate --host '
+        + 'codex --apply` after relocating the project or installation',
+    });
+  }
   if (config.hosts.includes('opencode')) {
     const rel = `${cfgPrefix}integrations/opencode-mcp.json`;
     entries.push({
@@ -738,7 +769,7 @@ export function renderNativeAdapters(config, {
       compatibility: 'documented-only', modelSelection: 'host-policy',
       permissionScope: policy.hosts.opencode.permissionScope,
       source: rel, destination: 'opencode.jsonc',
-      manualMerge: true, machineLocal: true,
+      manualMerge: true, activationMode: 'merge', machineLocal: true,
       note: 'machine-local absolute paths; merge mcp.servers.scopegrain into '
         + 'the project OpenCode config (opencode.jsonc, or opencode.json when '
         + 'the project uses that name) and keep that file unversioned; '
@@ -776,7 +807,7 @@ export function renderNativeAdapters(config, {
       compatibility: 'documented-only', modelSelection: 'host-policy',
       permissionScope: policy.hosts.antigravity.permissionScope,
       source: rel, destination: '.agents/mcp_config.json',
-      manualMerge: true, machineLocal: true,
+      manualMerge: true, activationMode: 'apply', machineLocal: true,
       note: 'machine-local absolute paths; regenerate per machine with '
         + 'host activate --host antigravity --surface <app-cli|ide> --apply '
         + 'after relocating the project or installation',
@@ -816,7 +847,7 @@ export function renderNativeAdapters(config, {
     entries.push({
       host: 'devin', kind: 'mcp-config', id: 'scopegrain', ...meta,
       source: mcpRel, destination: '.devin/mcp_config.json',
-      manualMerge: true, machineLocal: true,
+      manualMerge: true, activationMode: 'apply', machineLocal: true,
       note: 'machine-local absolute paths; regenerate per machine with '
         + 'host activate --host devin --apply after relocating the '
         + 'project or installation',
@@ -827,7 +858,7 @@ export function renderNativeAdapters(config, {
     entries.push({
       host: 'devin', kind: 'mcp', id: 'scopegrain', ...meta,
       source: legacyRel, destination: '.devin/config.json',
-      manualMerge: true, machineLocal: true,
+      manualMerge: true, activationMode: 'merge', machineLocal: true,
       note: 'legacy pre-v3000.3 path: manually merge the mcpServers '
         + 'subtree into the shared Devin config file',
     });
@@ -856,8 +887,11 @@ export function renderNativeAdapters(config, {
       writeHostRoots: policy.writeHostRoots,
       hosts: perHost,
       entries,
-      note: 'reviewable proposals only; destinations are intended host-root '
-        + 'paths for manual merge — the harness never writes them',
+      note: 'reviewable proposals; activationMode decides the contract per '
+        + 'entry — "apply" destinations may be written by the explicit '
+        + '`host activate --apply` opt-in, "merge"/"manual" destinations are '
+        + 'never written. `manualMerge` is retained only for consumers of '
+        + 'the legacy schema and is deprecated in favor of activationMode.',
     },
   };
 }

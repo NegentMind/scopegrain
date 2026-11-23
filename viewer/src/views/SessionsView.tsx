@@ -128,7 +128,10 @@ export function SessionsView() {
       <Card>
         <CardHeader>
           <CardTitle>{t('sessions.title')}</CardTitle>
-          <CardDescription>{t('sessions.desc')}</CardDescription>
+          <CardDescription>
+            {t('sessions.desc')}
+            {data?.truncated ? t('common.truncatedByApi') : ''}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {sessions.length === 0 ? (
@@ -151,6 +154,7 @@ export function SessionsView() {
                     aria-expanded={openId === s.id}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault(); // Space must not scroll the page
                         setOpenId(openId === s.id ? null : s.id);
                       }
                     }}

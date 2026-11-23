@@ -172,7 +172,7 @@ export function TasksView() {
             <EmptyBox>{t('tasks.empty')}</EmptyBox>
           ) : (
             <ScrollArea className="w-full">
-              <Table>
+              <Table role="grid">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-20">{t('common.id')}</TableHead>
@@ -194,7 +194,10 @@ export function TasksView() {
                       key={task.id}
                       onClick={() => setSelected(task.id)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') setSelected(task.id);
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault(); // Space must not scroll the page
+                          setSelected(task.id);
+                        }
                       }}
                       tabIndex={0}
                       aria-selected={selected === task.id}

@@ -83,6 +83,8 @@ type NavValue = (typeof NAV)[number]['value'];
 
 function useHealthPoll() {
   const [ok, setOk] = useState<boolean | null>(null);
+  // Deliberately slower than the 10 s view polls (see usePoll in viz.tsx):
+  // health is a coarse liveness signal, not store data.
   useEffect(() => {
     let cancelled = false;
     const check = () => {
@@ -181,6 +183,11 @@ export default function App() {
       .then((ws) => adoptProjectLocale(ws.project.locale))
       .catch(() => undefined);
   }, []);
+
+  // Keep <html lang> in sync with the active locale (index.html ships 'en').
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   // Cross-view navigation (goal/plan links open a task detail).
   useEffect(() => {

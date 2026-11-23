@@ -10,11 +10,46 @@ import path from 'node:path';
 const RELATION_ORDER = ['blocks', 'blocked-by', 'relates', 'duplicates',
   'caused-by', 'follows'];
 
+// Structural headers follow the project locale (rule 23: operational and
+// planning artifacts honor the configured locale while canonical
+// instructions stay English). Record identity stays English either way:
+// frontmatter keys, state/relation/step-status tokens and stored values
+// are structural identifiers, not prose. Unknown locales fall back to en.
+const HEADERS = {
+  en: {
+    contract: 'Contract',
+    authorContext: 'Author context',
+    scope: 'Scope',
+    relations: 'Dependencies & relations',
+    goals: 'Goals',
+    steps: 'Steps',
+    analysis: 'Analysis',
+    notes: 'Notes',
+    history: 'History',
+    derivedNotice: 'Derived from the task JSON record; regenerate with '
+      + '`scopegrain task doc`. Do not edit by hand.',
+  },
+  es: {
+    contract: 'Contrato',
+    authorContext: 'Contexto del autor',
+    scope: 'Alcance',
+    relations: 'Dependencias y relaciones',
+    goals: 'Objetivos',
+    steps: 'Pasos',
+    analysis: 'Análisis',
+    notes: 'Notas',
+    history: 'Historial',
+    derivedNotice: 'Derivado del registro JSON de la tarea; regenera con '
+      + '`scopegrain task doc`. No editar a mano.',
+  },
+};
+
 function list(lines, items, fmt) {
   for (const it of items ?? []) lines.push(`- ${fmt(it)}`);
 }
 
-export function renderTaskDoc(task) {
+export function renderTaskDoc(task, locale = 'en') {
+  const H = HEADERS[locale] ?? HEADERS.en;
   const L = [];
   L.push('---');
   L.push(`kind: task`);

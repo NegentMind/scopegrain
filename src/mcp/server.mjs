@@ -40,8 +40,21 @@ const PROTOCOL_NOTE = 'stdout is reserved for MCP protocol; logs go to stderr';
 const READ_ONLY = {
   readOnlyHint: true, destructiveHint: false, openWorldHint: false,
 };
+// Read semantics, but the handler spawns the enrolled vantadb-server
+// binary and sends data to the configured memory backend — it reaches
+// an external (non-file) world, so openWorldHint must honestly say so.
+const READ_BACKEND = {
+  readOnlyHint: true, destructiveHint: false, openWorldHint: true,
+};
 const WRITE_LOCAL = {
   readOnlyHint: false, destructiveHint: false, openWorldHint: false,
+  idempotentHint: false,
+};
+// Discard semantics: these transitions can shelve/drop work
+// (discarded|cancelled dispositions, dropped goals), so they carry
+// destructiveHint even though the write itself is a bounded CAS patch.
+const WRITE_DISCARD = {
+  readOnlyHint: false, destructiveHint: true, openWorldHint: false,
   idempotentHint: false,
 };
 // Worklog logs agents may append to directly. 'goals' stays excluded:
@@ -144,7 +157,10 @@ export function createMCPTools(ctx, z) {
           + 'ready work, recent progress, open goals, pending journal '
           + 'events, active task and memory rehydration. Same bounded '
           + 'read as the CLI `context` command — call it at the top of '
-          + 'a session before the first task action.',
+          + 'a session before the first task action. When the VantaDB '
+          + 'backend is enrolled this tool spawns the enrolled '
+          + 'vantadb-server binary and sends a bounded recall query to '
+          + 'it; pass noVantadb to keep the call fully local.',
         inputSchema: {
           tail: z.number().int().min(1).max(100).optional()
             .describe('worklog tail size (default 5)'),
@@ -153,7 +169,7 @@ export function createMCPTools(ctx, z) {
           noVantadb: z.boolean().optional()
             .describe('skip the VantaDB rehydration section'),
         },
-        annotations: READ_ONLY,
+        annotations: READ_BACKEND,
       },
       handler: wrap(async ({ tail, timeoutMs, noVantadb }) =>
         assembleContextPacket(ctx, { tail, timeoutMs, noVantadb })),
@@ -349,9 +365,9 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_session_resume',
       config: {
-        description: 'Session usage plus actual task state, guidance reference and automatic record-level VantaDB rehydration (degradable)',
+        description: 'Session usage plus actual task state, guidance reference and automatic record-level VantaDB rehydration (degradable); when enrolled it spawns the enrolled vantadb-server binary and sends the record ID to the configured memory backend',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS) },
-        annotations: READ_ONLY,
+        annotations: READ_BACKEND,
       },
       handler: wrap(async ({ id }) => {
         const result = resumeSession(ctx, id);
@@ -378,12 +394,12 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_memory_get',
       config: {
-        description: 'Read one record from the enrolled VantaDB memory backend by namespace and key',
+        description: 'Read one record from the enrolled VantaDB memory backend by namespace and key; spawns the enrolled vantadb-server binary and sends namespace+key to the backend',
         inputSchema: {
           namespace: z.string().max(MAX_ARG_CHARS).describe('memory record namespace'),
           key: z.string().max(MAX_ARG_CHARS).describe('memory record key'),
         },
-        annotations: READ_ONLY,
+        annotations: READ_BACKEND,
       },
       handler: wrap(async ({ namespace, key }) =>
         getVantaDBRecord({ cfg: requireVantaDBConfig(ctx), namespace, key })),
@@ -391,7 +407,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_memory_search',
       config: {
-        description: 'Hybrid search over one namespace of the enrolled VantaDB memory backend',
+        description: 'Hybrid search over one namespace of the enrolled VantaDB memory backend; spawns the enrolled vantadb-server binary and sends the query to it',
         inputSchema: {
           namespace: z.string().max(MAX_ARG_CHARS).describe('memory record namespace'),
           query: z.string().max(MAX_ARG_CHARS).optional()
@@ -401,7 +417,7 @@ export function createMCPTools(ctx, z) {
           mode: z.enum(['keyword', 'vector', 'hybrid']).optional()
             .describe('search profile mode; keyword works without an embedding provider'),
         },
-        annotations: READ_ONLY,
+        annotations: READ_BACKEND,
       },
       handler: wrap(async ({ namespace, query, topK, mode }) => {
         const args = { namespace };
@@ -415,7 +431,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_memory_recall',
       config: {
-        description: 'L1 memory recall (dual-pool RRF) over the enrolled VantaDB backend; returns recalled hits plus prepend_context',
+        description: 'L1 memory recall (dual-pool RRF) over the enrolled VantaDB backend; returns recalled hits plus prepend_context; spawns the enrolled vantadb-server binary and sends the query to it',
         inputSchema: {
           query: z.string().max(MAX_ARG_CHARS).describe('raw recall query text'),
           scope: z.enum(['session', 'agent', 'team']).optional()
@@ -423,7 +439,7 @@ export function createMCPTools(ctx, z) {
           topK: z.number().int().min(1).max(100).optional()
             .describe('maximum memories returned, default 5'),
         },
-        annotations: READ_ONLY,
+        annotations: READ_BACKEND,
       },
       handler: wrap(async ({ query, scope, topK }) => {
         const args = { query };
@@ -436,7 +452,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_memory_context',
       config: {
-        description: 'Rehydrate one record: searches every projected sg-formal-v1-* namespace for journal events mentioning the record ID',
+        description: 'Rehydrate one record: searches every projected sg-formal-v1-* namespace for journal events mentioning the record ID; spawns the enrolled vantadb-server binary and sends the record ID to the configured memory backend',
         inputSchema: {
           recordId: z.string().max(MAX_ARG_CHARS)
             .describe('task/capture/spec record UUID to look up remotely'),
@@ -445,7 +461,7 @@ export function createMCPTools(ctx, z) {
           maxNamespaces: z.number().int().min(1).max(256).optional()
             .describe('namespace scan cap, default 32'),
         },
-        annotations: READ_ONLY,
+        annotations: READ_BACKEND,
       },
       handler: wrap(async ({ recordId, topK, maxNamespaces }) =>
         vantaDBContext({ cfg: requireVantaDBConfig(ctx), recordId,
@@ -540,7 +556,7 @@ export function createMCPTools(ctx, z) {
           reason: z.string().max(MAX_ARG_CHARS).optional(),
           by: z.string().max(MAX_ARG_CHARS).optional(),
         },
-        annotations: WRITE_LOCAL,
+        annotations: WRITE_DISCARD,
       },
       handler: wrap(async (a) => updateTaskMeta(ctx, {
         id: a.id, expectedRevision: a.expectedRevision,
@@ -609,7 +625,7 @@ export function createMCPTools(ctx, z) {
           id: z.string().max(MAX_ARG_CHARS).describe('goal UUID'),
           to: z.enum(GOAL_STATUSES),
         },
-        annotations: WRITE_LOCAL,
+        annotations: WRITE_DISCARD,
       },
       handler: wrap(async ({ id, to }) => transitionGoal(ctx, id, to)),
     },

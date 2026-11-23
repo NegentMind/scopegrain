@@ -472,13 +472,103 @@ export function readStructureIndex(ctx) {
   return doc;
 }
 
-// Cheap staleness check: stat-only rescan + fingerprint compare. Never
-// reads file contents and never writes — `context` stays strictly read-only.
-export function structureStatus(ctx) {
+// Stored-index-only view for callers that opt out of the live rescan
+// (context --no-structure). Reports what the persisted index recorded,
+// never what the tree currently holds: stale stays null because nothing
+// was checked — `checked:false` declares that honestly.
+export function storedStructureStatus(ctx) {
   const stored = readStructureIndex(ctx);
+  return {
+    indexed: stored !== null,
+    stale: null,
+    checked: false,
+    refreshPolicy: 'explicit',
+    recommendedCommand: null,
+    fingerprint: {
+      stored: stored?.fingerprint ?? null,
+      actual: null,
+    },
+    summary: stored === null ? null : {
+      generatedAt: stored.generatedAt,
+      files: stored.totals.files,
+      bytes: stored.totals.bytes,
+      lines: stored.totals.lines,
+      languages: Object.keys(stored.languages).length,
+      filesTruncated: stored.filesTruncated,
+    },
+    liveFiles: null,
+  };
+}
+
+// Debounced status cache: <state>/cache/structure-status.json. Derived
+// cache data like the index itself — written only when a caller opts in
+// via debounceMs (the default path stays strictly read-only). The record
+// is valid only while storedFingerprint still matches the on-disk index,
+// so a `structure scan --apply` between checks is never masked by it.
+const STATUS_CACHE_SCHEMA = 1;
+function statusCacheRel(ctx) {
+  return `${ctx.config.paths.state}/cache/structure-status.json`;
+}
+
+function readStatusCache(ctx, debounceMs) {
+  try {
+    const rel = statusCacheRel(ctx);
+    const abs = resolveInside(ctx.projectRoot, rel, 'structure status cache');
+    const st = lstatOrNull(abs);
+    if (!st || st.isSymbolicLink() || !st.isFile()) return null;
+    const l = readFileLimited(abs, 64 * 1024);
+    if (l.exceeded) return null;
+    const doc = JSON.parse(decodeUtf8Strict(
+      l.content, 'STRUCTURE_MALFORMED', rel));
+    if (doc === null || typeof doc !== 'object'
+        || doc.schemaVersion !== STATUS_CACHE_SCHEMA
+        || typeof doc.checkedAt !== 'string'
+        || doc.status === null || typeof doc.status !== 'object') {
+      return null;
+    }
+    const age = Date.now() - Date.parse(doc.checkedAt);
+    if (!(age >= 0 && age < debounceMs)) return null;
+    return doc;
+  } catch { return null; }
+}
+
+function writeStatusCache(ctx, doc) {
+  // Best-effort derived cache — an unwritable state dir degrades to a
+  // full rescan next time, never a failure.
+  try {
+    const rel = statusCacheRel(ctx);
+    const abs = resolveInside(ctx.projectRoot, rel, 'structure status cache');
+    const existing = lstatOrNull(abs);
+    if (existing && (existing.isSymbolicLink() || !existing.isFile())) return;
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    const tmp = `${abs}.tmp-${crypto.randomBytes(8).toString('hex')}`;
+    try {
+      fs.writeFileSync(tmp, JSON.stringify(doc, null, 1) + '\n', { flag: 'wx' });
+      fs.renameSync(tmp, abs);
+    } finally {
+      try { if (lstatOrNull(tmp)) fs.unlinkSync(tmp); } catch { /* noop */ }
+    }
+  } catch { /* opportunistic cache write — ignore */ }
+}
+
+// Cheap staleness check: stat-only rescan + fingerprint compare. Never
+// reads file contents and — unless the caller opts into debounceMs —
+// never writes, so `context` stays strictly read-only. With debounceMs
+// a recent cached status is served instead of rescanning the tree; the
+// cached answer is keyed on the stored index fingerprint, so an index
+// refresh always invalidates it.
+export function structureStatus(ctx, { debounceMs = 0 } = {}) {
+  const stored = readStructureIndex(ctx);
+  if (debounceMs > 0) {
+    const cached = readStatusCache(ctx, debounceMs);
+    if (cached !== null
+        && cached.storedFingerprint === (stored?.fingerprint ?? null)) {
+      return { ...cached.status, cached: true };
+    }
+  }
   const live = scanStructure(ctx.projectRoot, { statOnly: true });
   const stale = stored === null || stored.fingerprint !== live.fingerprint;
-  return {
+  const status = {
     indexed: stored !== null,
     stale,
     refreshPolicy: 'explicit',
@@ -498,6 +588,15 @@ export function structureStatus(ctx) {
     },
     liveFiles: live.totals.files,
   };
+  if (debounceMs > 0) {
+    writeStatusCache(ctx, {
+      schemaVersion: STATUS_CACHE_SCHEMA,
+      checkedAt: new Date().toISOString(),
+      storedFingerprint: stored?.fingerprint ?? null,
+      status,
+    });
+  }
+  return status;
 }
 
 // Bounded refresh: performs a stat-only staleness check first and returns

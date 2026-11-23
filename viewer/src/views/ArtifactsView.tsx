@@ -108,13 +108,14 @@ export function ArtifactsView() {
                   {kind === 'spec' || kind === 'design' || kind === 'report'
                     ? ' · chain: spec → design → report'
                     : ''}
+                  {list.data?.truncated ? t('common.truncatedByApi') : ''}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {artifactCount === 0 ? (
                   <EmptyBox>{t('artifacts.empty')}</EmptyBox>
                 ) : (
-                  <Table>
+                  <Table role="grid">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-20">{t('common.id')}</TableHead>
@@ -130,6 +131,7 @@ export function ArtifactsView() {
                           onClick={() => setSel({ type: 'artifact', id: a.id })}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault(); // Space must not scroll the page
                               setSel({ type: 'artifact', id: a.id });
                             }
                           }}

@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { err } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, readFileLimited } from './fsx.mjs';
-import { isInside, portableKey, resolveInside, toCanonicalRelative } from './paths.mjs';
+import { configRel, isInside, portableKey, resolveInside, toCanonicalRelative } from './paths.mjs';
 import { loadLimits } from './policy.mjs';
 
 export const INSTALL_ROOT = path.resolve(
@@ -49,11 +49,14 @@ const ALIAS_KEYS = new Set([
 ]);
 const PROFILE_KEYS = new Set([
   'schemaVersion', 'id', 'description', 'skills', 'rules', 'references',
-  'activation', 'externalServices',
+  'mcps', 'activation', 'externalServices',
 ]);
+// skills/rules/references are required; mcps is optional so profiles
+// authored before MCP gating stay valid without a schema bump.
 const PROFILE_LIST_KEYS = ['skills', 'rules', 'references'];
+const PROFILE_OPTIONAL_LIST_KEYS = ['mcps'];
 export const PROFILE_DEP_KIND = {
-  skills: 'skill', rules: 'rule', references: 'reference',
+  skills: 'skill', rules: 'rule', references: 'reference', mcps: 'mcp',
 };
 
 function limitedDoc(abs, label) {
@@ -116,7 +119,10 @@ export function validateProfile(id, content) {
       || typeof p.description !== 'string' || p.description === '') {
     throw err('PROFILE_MALFORMED', `profile ${id} has invalid header fields`);
   }
-  for (const lk of PROFILE_LIST_KEYS) {
+  for (const lk of [...PROFILE_LIST_KEYS, ...PROFILE_OPTIONAL_LIST_KEYS]) {
+    if (p[lk] === undefined && PROFILE_OPTIONAL_LIST_KEYS.includes(lk)) {
+      continue;
+    }
     if (!Array.isArray(p[lk])
         || !p[lk].every((x) => typeof x === 'string')) {
       throw err('PROFILE_MALFORMED', `profile ${id}.${lk} must be a string array`);
@@ -415,7 +421,8 @@ export function loadCatalog({
     if (e.kind !== 'profile') continue;
     const profile = validateProfile(
       e.id, readEntryContent(contentRoot, e.path, root));
-    for (const lk of PROFILE_LIST_KEYS) {
+    for (const lk of Object.keys(PROFILE_DEP_KIND)) {
+      if (!Array.isArray(profile[lk])) continue;
       for (const dep of profile[lk]) {
         if (!byKey.has(
           `${PROFILE_DEP_KIND[lk]}/${canon(PROFILE_DEP_KIND[lk], dep)}`
@@ -698,6 +705,70 @@ function verifyFingerprint(cat, manifestAbs, mountedAbs, configDir) {
   return parts.join('|');
 }
 
+// Cross-process tier of the verified cache, persisted under
+// <paths.state>/cache/catalog-fingerprint.json (one record per project,
+// bound to the resolved configDir so a --config switch never aliases).
+// The file stores ONLY the fingerprint — never catalog content — so a
+// forged record cannot inject entries: the catalog is always re-parsed
+// from the live manifest, and the fingerprint is always recomputed from
+// live stat tuples before it is trusted.
+// THREAT MODEL: a write-capable attacker can forge, corrupt or delete
+// the record. Corrupt/mismatched values are ignored (fail closed → full
+// verify). A forged value can only claim "the fingerprint you are about
+// to compute anyway" — it cannot name a different state. The real
+// residual is the same one the in-process tier documents: a
+// stat-preserving byte edit (size+mtime unchanged) evades the eager
+// pass; getResource re-hashes every served byte, so delivery still
+// fails closed. Persistence widens that window from one process
+// lifetime to the time between verifies — an accepted trade-off for
+// skipping ~285 ms of sha256 on every one-shot CLI invocation.
+const FP_SCHEMA = 1;
+function fingerprintRel(ctx) {
+  const stateRel = typeof ctx.config?.paths?.state === 'string'
+    ? ctx.config.paths.state
+    : configRel(ctx, 'state');
+  return `${stateRel}/cache/catalog-fingerprint.json`;
+}
+
+function readPersistedFingerprint(ctx) {
+  try {
+    const rel = fingerprintRel(ctx);
+    const abs = resolveInside(ctx.projectRoot, rel, 'catalog fingerprint');
+    const st = lstatOrNull(abs);
+    if (!st || st.isSymbolicLink() || !st.isFile()) return null;
+    const l = readFileLimited(abs, 64 * 1024);
+    if (l.exceeded) return null;
+    const doc = JSON.parse(decodeUtf8Strict(
+      l.content, 'CATALOG_MALFORMED', rel));
+    if (doc === null || typeof doc !== 'object'
+        || doc.schemaVersion !== FP_SCHEMA
+        || typeof doc.configDir !== 'string'
+        || typeof doc.fingerprint !== 'string') {
+      return null;
+    }
+    return doc;
+  } catch { return null; }
+}
+
+function persistFingerprint(ctx, doc) {
+  // Best-effort derived cache, tmp+rename like the structure index — an
+  // unwritable state dir must never fail a catalog load.
+  try {
+    const rel = fingerprintRel(ctx);
+    const abs = resolveInside(ctx.projectRoot, rel, 'catalog fingerprint');
+    const existing = lstatOrNull(abs);
+    if (existing && (existing.isSymbolicLink() || !existing.isFile())) return;
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    const tmp = `${abs}.tmp-${crypto.randomBytes(8).toString('hex')}`;
+    try {
+      fs.writeFileSync(tmp, JSON.stringify(doc, null, 1) + '\n', { flag: 'wx' });
+      fs.renameSync(tmp, abs);
+    } finally {
+      try { if (lstatOrNull(tmp)) fs.unlinkSync(tmp); } catch { /* noop */ }
+    }
+  } catch { /* opportunistic cache write — ignore */ }
+}
+
 export function loadWorkspaceCatalog(ctx, { verifyResources = true } = {}) {
   const configDir = ctx.configDir === '.'
     ? ctx.projectRoot
@@ -723,14 +794,36 @@ export function loadWorkspaceCatalog(ctx, { verifyResources = true } = {}) {
     return { ...c, entries: c.entries.slice(), byKey: new Map(c.byKey),
       aliases: c.aliases?.slice(), warnings: c.warnings?.slice() };
   }
+  const persisted = readPersistedFingerprint(ctx);
+  if (persisted !== null && persisted.configDir === key
+      && persisted.fingerprint === fingerprint) {
+    // A previous process hash-verified exactly this fingerprint-bound
+    // state. The catalog is still freshly parsed from the live manifest
+    // (metadata only), and every served resource is re-hashed at
+    // delivery — only the redundant eager pass is skipped.
+    const cat = load(false);
+    cat.integrity = cat.snapshotVersion === 2
+      ? 'hash-verified' : 'legacy-unpinned';
+    verifiedCache.set(key, { fingerprint, catalog: cat });
+    if (verifiedCache.size > VERIFIED_CACHE_MAX) {
+      verifiedCache.delete(verifiedCache.keys().next().value);
+    }
+    return { ...cat, entries: cat.entries.slice(), byKey: new Map(cat.byKey),
+      aliases: cat.aliases?.slice(), warnings: cat.warnings?.slice() };
+  }
   const cat = load(true);
-  verifiedCache.set(key, {
-    fingerprint: verifyFingerprint(cat, manifestAbs, mountedAbs, configDir),
-    catalog: cat,
-  });
+  const verifiedFp = verifyFingerprint(
+    cat, manifestAbs, mountedAbs, configDir);
+  verifiedCache.set(key, { fingerprint: verifiedFp, catalog: cat });
   if (verifiedCache.size > VERIFIED_CACHE_MAX) {
     verifiedCache.delete(verifiedCache.keys().next().value);
   }
+  // Persist only AFTER a successful full verify: a failed verify never
+  // seeds the cache, so tampering always re-verifies next process.
+  persistFingerprint(ctx, {
+    schemaVersion: FP_SCHEMA, configDir: key, fingerprint: verifiedFp,
+    verifiedAt: new Date().toISOString(),
+  });
   return cat;
 }
 

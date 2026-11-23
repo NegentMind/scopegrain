@@ -253,7 +253,9 @@ más `RESEARCH`, `STALL`, `ABANDON` (terminal). Reglas:
 `resources/` — 44 skills · 22 rules · 17 commands · 15 agents · 24 references ·
 4 prompts · profiles · mcps. `manifest.json` es el catálogo con snapshots SHA
 (`catalog check` verifica drift); instalación via `init`/`update`, versionado
-opt-in por categoría.
+opt-in por categoría. Las claves de perfil requeridas son `skills`/`rules`/
+`references`; `mcps` es opcional (gating de descriptores MCP por perfil —
+`core` declara `mcp/scopegrain`, que suplementa todo packet).
 
 ## 10. Estado y rutas
 

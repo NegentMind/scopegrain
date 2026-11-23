@@ -267,3 +267,19 @@ test('task-declared skills auto-include; unresolvable ids degrade to skipped', (
     assert.equal(noTask.taskRouting, undefined);
   } finally { cleanup(dir); }
 });
+
+test('profile-declared mcps gate into the packet bucket', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    // core declares mcp/scopegrain — it must supplement any profile.
+    const web = buildWorkflowPacket(ctx, {
+      command: 'status', profile: 'web',
+    });
+    const m = web.resources.mcps.find((r) => r.id === 'scopegrain');
+    assert.ok(m, 'core-profile mcp must supplement the selected profile');
+    assert.equal(typeof m.content, 'string');
+    const lazy = buildWorkflowPacket(ctx, { command: 'status', lazy: true });
+    const lm = lazy.resources.mcps.find((r) => r.id === 'scopegrain');
+    assert.ok(lm && lm.content === undefined && typeof lm.sha256 === 'string');
+  } finally { cleanup(dir); }
+});

@@ -158,8 +158,8 @@ export function MetricsView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t('metrics.skill')}</TableHead>
-                    <TableHead className="w-16 text-right">ok</TableHead>
-                    <TableHead className="w-16 text-right">fail</TableHead>
+                    <TableHead className="w-16 text-right">{t('common.ok')}</TableHead>
+                    <TableHead className="w-16 text-right">{t('common.fail')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

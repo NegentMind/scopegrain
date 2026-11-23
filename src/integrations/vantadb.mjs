@@ -173,6 +173,53 @@ function isObject(value) {
     && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 }
 
+// --- secret-egress guard ----------------------------------------------------
+//
+// The projection sends FULL source snapshots to the memory backend, and
+// free-text fields (notes, capture summaries, worklog entries) can hold
+// pasted credentials. SECRET_NAME_RE mirrors the private basename
+// detector in discovery/structure.mjs (kept in sync by hand — it is not
+// exported there). SECRET_CONTENT_RES covers high-confidence credential
+// shapes plus credential-named assignments (JSON "name": "value" and
+// shell/yaml NAME=value|NAME: value forms) with long values.
+//
+// A hit returns only a pattern TAG — never the matched bytes, which must
+// not be copied into reports or logs.
+const SECRET_NAME_RE =
+  /(^|\.)(pem|key|p12|pfx|jks|keystore|asc|gpg|pgp|crt|cer|der|secrets?|credentials?|id_rsa|id_ed25519|id_ecdsa|id_dsa|htpasswd|netrc|npmrc|pypirc|env)$/i;
+const SECRET_CONTENT_RES = [
+  /-----BEGIN [A-Z0-9 ]{0,24}PRIVATE KEY(?: BLOCK)?-----/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b/,
+  /\bgithub_pat_[A-Za-z0-9_]{22,}\b/,
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/,
+  /\bsk-[A-Za-z0-9_-]{20,}\b/,
+  /\bAIza[0-9A-Za-z_-]{35}\b/,
+  /\bBearer\s+[A-Za-z0-9._~+/=-]{20,}\b/,
+  /"(?:password|passwd|pwd|api[_-]?key|apikey|secret[_-]?key|client[_-]?secret|access[_-]?token|auth[_-]?token|private[_-]?key)"\s*:\s*"[^"\r\n]{8,}"/i,
+  /\b(?:password|passwd|api[_-]?key|apikey|secret[_-]?key|client[_-]?secret|access[_-]?token|auth[_-]?token|private[_-]?key)\s*[:=]\s*["']?[^\s"',}\]]{12,}/i,
+];
+
+// Returns a detector tag when `text` (optionally identified by
+// `sourceRel`) looks like credential material, else null. Callers must
+// treat a hit as fail-closed: skip the payload and report the tag.
+export function secretEgressCheck(text, sourceRel = '') {
+  // The regex is anchored on ^|\. — test the basename too so nested
+  // paths like 'records/id_rsa' are caught, not only root-level names.
+  const base = typeof sourceRel === 'string'
+    ? sourceRel.split('/').pop() ?? '' : '';
+  if (base !== ''
+      && (SECRET_NAME_RE.test(sourceRel) || SECRET_NAME_RE.test(base))) {
+    return 'secret-filename';
+  }
+  if (typeof text === 'string') {
+    for (let i = 0; i < SECRET_CONTENT_RES.length; i += 1) {
+      if (SECRET_CONTENT_RES[i].test(text)) return `secret-pattern-${i}`;
+    }
+  }
+  return null;
+}
+
 function validateResult(value) {
   let serialized;
   try {
@@ -312,6 +359,20 @@ async function projectOne(bound, backendId, invoke, operationId, eventId, result
     }
     const event = loaded.event;
     const snapshot = readJournalSnapshot(bound, operationId, eventId);
+    // Secret-egress guard: the snapshot carries the full source document
+    // and event.sourceRel names it; a detected credential blocks the
+    // event — reported, never transmitted, never redacted. The event
+    // stays pending so the operator sees it on every sync until the
+    // credential is removed and rotated.
+    const blocked = secretEgressCheck(
+      snapshot.toString('utf8'), event.sourceRel);
+    if (blocked) {
+      result.blockedEventIds.push(eventId);
+      result.warnings.push(toErrorPayload(err('BRAIN_SECRET_EGRESS_BLOCKED',
+        `journal event ${eventId} at ${event.sourceRel} matched `
+        + `${blocked}; remove and rotate the credential before re-sync`)));
+      return;
+    }
     const expected = expectedProjection(event, snapshot);
     stage = 'read';
     const first = await getValue(bound, invoke, event, expected.eventNamespace, eventId);

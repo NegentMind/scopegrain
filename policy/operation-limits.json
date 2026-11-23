@@ -4,6 +4,7 @@
   "maxPlanTasks": 100,
   "maxSessionEvents": 10000,
   "sessionBudgetDefault": null,
+  "packetBudgetTokens": 16000,
   "budgetMeasures": "explicitly-recorded-operations-only",
   "tokenMeasures": "self-reported-unverified",
   "executesProjectCommands": false,

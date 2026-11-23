@@ -139,7 +139,7 @@ export function GoalsView() {
       {malformed.length > 0 ? (
         <div className="space-y-1 text-xs">
           <p className="font-medium text-destructive">
-            {malformed.length} malformed{t('common.malformedSuffix')}
+            {malformed.length} {t('common.malformedEntries')}
           </p>
           {malformed.map((m, i) => (
             <p key={i} className="font-mono text-muted-foreground">

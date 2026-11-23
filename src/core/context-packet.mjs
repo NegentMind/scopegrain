@@ -11,16 +11,20 @@ import { configRel, resolveInside } from './paths.mjs';
 import { estimateJson, estimateTokens, TOKEN_ESTIMATOR }
   from './tokens.mjs';
 
-// opts: { tail?: number, timeoutMs?: number, noVantadb?: boolean }
+// opts: { tail?: number, timeoutMs?: number, noVantadb?: boolean,
+//   noStructure?: boolean, structureDebounceMs?: number }
 export async function assembleContextPacket(ctx, opts = {}) {
   const noVantadb = opts.noVantadb === true;
+  const noStructure = opts.noStructure === true;
+  const structureDebounceMs = opts.structureDebounceMs;
   const timeoutMs = opts.timeoutMs;
   const { listTasks } = await import('./tasks.mjs');
   const { readWorklog, listGoals } = await import('./worklog.mjs');
   const { getSession, sessionsDirAbs } = await import('./sessions.mjs');
   const { bindWorkspace, getWorkspace } = await import('./workspaces.mjs');
   const { countJournalPending } = await import('./journal.mjs');
-  const { structureStatus } = await import('../discovery/structure.mjs');
+  const { structureStatus, storedStructureStatus } =
+    await import('../discovery/structure.mjs');
   const workspace = getWorkspace(ctx);
   const { tasks } = listTasks(ctx);
   const byState = {};
@@ -132,12 +136,19 @@ export async function assembleContextPacket(ctx, opts = {}) {
       }
     })(),
     pendingJournalOperations: pendingJournal,
+    // Advisory warnings (e.g. packetBudgetTokens exceeded) — declared in
+    // the packet itself, never silent. Populated after tokenEstimate.
+    warnings: [],
     // Structural index freshness: stat-only rescan, never reads contents.
     // stale:true tells the agent to run `structure scan` before relying on
     // cached structure instead of re-analyzing the tree itself.
+    // noStructure opts out of the live rescan entirely (stored-index view
+    // only, checked:false); structureDebounceMs opts into a time-window
+    // cache so repeated session starts skip the O(n) stat walk.
     structure: (() => {
       try {
-        return structureStatus(ctx);
+        if (noStructure) return storedStructureStatus(ctx);
+        return structureStatus(ctx, { debounceMs: structureDebounceMs });
       } catch {
         return { indexed: false, stale: null, summary: null };
       }
@@ -163,29 +174,61 @@ export async function assembleContextPacket(ctx, opts = {}) {
     })(),
   };
   // Local token estimate (heuristic, never the host's real tokenizer):
-  // per-section costs over the assembled packet plus a packet total.
+  // per-section costs over the assembled packet plus two packet figures.
   // userContext is measured on the returned content — post 32 KiB cap —
   // and flagged when that content only covers a truncated file. Advisory
   // and degradable like the rest: a failure yields null, not an abort.
+  //
+  // `total` keeps its historical contract: the estimate of the packet
+  // WITHOUT the tokenEstimate block (declared via excludesSelf). `wire`
+  // is the honest self-inclusive figure — the serialized packet including
+  // the block itself. The figure lives inside the block it measures, so
+  // it is iterated to a fixed point: digit-width changes stabilize in a
+  // few passes, after which wire === estimateJson(packet) exactly.
   try {
-    const sections = {};
-    for (const [key, value] of Object.entries(packet)) {
-      if (key === 'userContext') {
-        const est = value !== null && typeof value === 'object'
-            && typeof value.content === 'string'
-          ? estimateTokens(value.content)
-          : estimateJson(value);
-        sections[key] = { ...est,
-          coversTruncatedContent: value?.truncated === true };
-      } else {
-        sections[key] = estimateJson(value);
+    const { loadLimits } = await import('./policy.mjs');
+    const budget = loadLimits().packetBudgetTokens;
+    // Two passes: when the wire figure exceeds the advisory budget a
+    // warning is pushed and the block is recomputed once so the declared
+    // figures already include the warning's own bytes.
+    for (let pass = 0; pass < 2; pass++) {
+      delete packet.tokenEstimate;
+      const sections = {};
+      for (const [key, value] of Object.entries(packet)) {
+        if (key === 'userContext') {
+          const est = value !== null && typeof value === 'object'
+              && typeof value.content === 'string'
+            ? estimateTokens(value.content)
+            : estimateJson(value);
+          sections[key] = { ...est,
+            coversTruncatedContent: value?.truncated === true };
+        } else {
+          sections[key] = estimateJson(value);
+        }
       }
+      packet.tokenEstimate = {
+        estimator: TOKEN_ESTIMATOR,
+        excludesSelf: true,
+        total: estimateJson(packet).estimatedTokens,
+        wire: null,
+        sections,
+      };
+      let prev = null;
+      for (let i = 0; i < 8; i++) {
+        const m = estimateJson(packet);
+        if (prev !== null && m.estimatedTokens === prev.estimatedTokens
+            && m.bytes === prev.bytes) break;
+        prev = m;
+        packet.tokenEstimate.wire = m;
+      }
+      const exceeded = Number.isInteger(budget) && budget > 0
+        && packet.tokenEstimate.wire.estimatedTokens > budget;
+      if (!exceeded || pass === 1 || packet.warnings.length > 0) break;
+      packet.warnings.push(
+        `context packet is ~${packet.tokenEstimate.wire.estimatedTokens} `
+          + `estTok (estimator ${TOKEN_ESTIMATOR}), over advisory `
+          + `packetBudgetTokens=${budget}`);
     }
-    packet.tokenEstimate = {
-      estimator: TOKEN_ESTIMATOR,
-      total: estimateJson(packet).estimatedTokens,
-      sections,
-    };
   } catch {
     packet.tokenEstimate = null;
   }

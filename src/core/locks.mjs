@@ -84,6 +84,11 @@ function pidAlive(pid) {
 // Decide whether an existing lock file is reclaimable, then break it.
 // Re-verifies {dev, ino} between inspect and unlink: if the file was
 // deleted and recreated meanwhile, we preserve the successor's lock.
+// Known limitation (documented owner posture): a pid value that was
+// REUSED by an unrelated live process keeps the lock unbreakable
+// forever — liveness proves only that some process exists. Breaking a
+// live-pid lock by age would defeat the suspended-writer guarantee, so
+// recovery from pid reuse remains a manual operator action.
 function tryReclaimStaleLock(lockPath, staleMs) {
   let stat;
   try {

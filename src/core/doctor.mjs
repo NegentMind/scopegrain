@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited,
 } from './fsx.mjs';
-import { resolveInside } from './paths.mjs';
+import { isInside, resolveInside } from './paths.mjs';
 import { PATH_KEYS, configDirOf } from './config.mjs';
 import { inspectProject } from '../discovery/inspect.mjs';
 import { diffInvestigation, investigateProject } from '../discovery/semantic.mjs';
@@ -747,6 +747,27 @@ export function runDoctor(ctx, opts = {}) {
     }
   }
 
+  // Quoted-string literals that look like absolute paths (Windows drive,
+  // UNC or POSIX root) — valid for JSON, JSONC and TOML basic strings,
+  // which share the same escaping for the subset we emit.
+  const QUOTED_STRING = /"((?:[^"\\]|\\.)*)"/g;
+  const ABSOLUTE_PREFIX = /^([A-Za-z]:[\\/]|\\\\|\/)/;
+  const absoluteLiterals = (text) => {
+    const out = new Set();
+    for (const m of text.matchAll(QUOTED_STRING)) {
+      let s;
+      try { s = JSON.parse(`"${m[1]}"`); } catch { continue; }
+      if (typeof s === 'string' && ABSOLUTE_PREFIX.test(s)) out.add(s);
+    }
+    return out;
+  };
+
+  // Merge targets disclosed by the activation plan (shared host config
+  // files, never written by the harness): destination -> fragment
+  // sources. Collected while evaluating host-fragments below, then
+  // inspected by the host-merge-targets check.
+  const mergeTargets = new Map();
+
   // Host-fragment drift: re-render the activation proposals for each
   // configured host and classify destinations. `conflict` means the
   // installed fragment diverges from what the current catalog+policy
@@ -778,6 +799,14 @@ export function runDoctor(ctx, opts = {}) {
             try {
               const plan = prepareActivation(
                 ctx, { host, surface: surface ?? undefined, installRoot });
+              for (const s of plan.skipped) {
+                if (s.reason !== 'requires manual merge into shared '
+                    + 'host configuration'
+                    || typeof s.destination !== 'string') continue;
+                const set = mergeTargets.get(s.destination) ?? new Set();
+                if (typeof s.source === 'string') set.add(s.source);
+                mergeTargets.set(s.destination, set);
+              }
               const c = { create: 0, noop: 0, conflict: 0 };
               const divergent = [];
               for (const f of plan.files) {
@@ -802,6 +831,87 @@ export function runDoctor(ctx, opts = {}) {
       } else {
         push('host-fragments', false,
           `${details.join(' | ')} — divergent: ${bad.join(' | ')}`);
+      }
+    }
+  }
+
+  // Manually-merged host config files (opencode.jsonc, .mcp.json,
+  // .codex/config.toml, .devin/config.json): the declared merge targets
+  // embed machine-local absolute paths generated for THIS machine.
+  // host-fragments only sees whole-file applyable destinations — these
+  // shared, hand-merged files are otherwise invisible. A literal that
+  // resolves outside the current projectRoot is stale (project or
+  // install relocated) and fails; a literal that differs from the
+  // generated fragment marks a hand-edited merge — a warning, not
+  // corruption.
+  {
+    if (mergeTargets.size === 0) {
+      push('host-merge-targets', true, 'no merge targets declared');
+    } else {
+      const stale = [];
+      const diverged = [];
+      const pending = [];
+      for (const [dest, sources] of mergeTargets) {
+        let abs;
+        try {
+          abs = resolveInside(projectRoot, dest, 'merge target');
+        } catch (e) {
+          stale.push(`${dest}: ${e.code ?? 'INVALID_PATH'}`);
+          continue;
+        }
+        const st = lstatOrNull(abs);
+        if (!st) { pending.push(dest); continue; }
+        if (st.isSymbolicLink() || !st.isFile()) {
+          stale.push(`${dest}: not a regular file`);
+          continue;
+        }
+        let limited;
+        try {
+          limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
+        } catch (e) {
+          stale.push(`${dest}: ${e.code ?? 'READ_FAILED'}`);
+          continue;
+        }
+        if (limited.exceeded) {
+          stale.push(`${dest}: exceeds document limit`);
+          continue;
+        }
+        const fragLits = new Set();
+        for (const src of sources) {
+          try {
+            const sAbs = resolveInside(projectRoot, src, 'merge fragment');
+            const sl = readFileLimited(sAbs, loadLimits().maxDocumentBytes);
+            if (sl.exceeded) continue;
+            for (const lit of absoluteLiterals(
+              sl.content.toString('utf8'))) fragLits.add(lit);
+          } catch { /* fragment unavailable: nothing to compare against */ }
+        }
+        for (const lit of absoluteLiterals(
+          limited.content.toString('utf8'))) {
+          // Fragment literals are the ground truth for this machine: they
+          // may legitimately resolve outside projectRoot (the server path
+          // points at the installation, not the project).
+          if (fragLits.has(lit)) continue;
+          if (!isInside(projectRoot, path.resolve(lit))) {
+            stale.push(`${dest}: absolute path outside project root `
+              + `and generated fragment: ${lit}`);
+          } else {
+            diverged.push(
+              `${dest}: '${lit}' not present in generated fragment`);
+          }
+        }
+      }
+      const declared = [...mergeTargets.keys()].join(', ');
+      const pendNote = pending.length > 0
+        ? `; pending merge: ${pending.join(', ')}` : '';
+      if (stale.length === 0 && diverged.length === 0) {
+        push('host-merge-targets', true,
+          `${mergeTargets.size} merge target(s) inspected (${declared})`
+            + pendNote);
+      } else {
+        push('host-merge-targets', false,
+          `${declared}${pendNote} — ${[...stale, ...diverged].join(' | ')}`,
+          stale.length === 0 ? { severity: 'warning' } : {});
       }
     }
   }

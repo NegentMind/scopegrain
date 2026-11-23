@@ -62,6 +62,7 @@ const BATCH_WRAPPER = /\.(bat|cmd|ps1)$/i;
 const CHILD_ENV_ALLOWLIST = [
   'PATH', 'HOME', 'HOMEDRIVE', 'HOMEPATH', 'USERPROFILE',
   'USER', 'LOGNAME', 'SystemRoot', 'SystemDrive', 'OS', 'ComSpec',
+  'windir',
   'PATHEXT', 'APPDATA', 'LOCALAPPDATA', 'TEMP', 'TMP', 'TMPDIR',
   'SHELL', 'TERM', 'LANG', 'LC_ALL', 'LC_CTYPE',
   'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE',

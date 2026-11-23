@@ -477,7 +477,15 @@ async function withMcpClient(cfg, timeoutMs, spawnImpl, fn) {
     throw err('VANTADB_BINARY_MISSING',
       `vantadb-server not found at ${cfg.binaryPath}; re-run vantadb setup --apply`);
   }
-  if (cfg.binarySha256) verifyBinaryDigest(cfg.binaryPath, cfg.binarySha256);
+  // Fail-closed at the spawn gate, not only at config load: a cfg object
+  // without a pinned digest must never execute unverified bytes.
+  if (typeof cfg.binarySha256 !== 'string'
+      || !/^[0-9a-fA-F]{64}$/.test(cfg.binarySha256)) {
+    throw err('VANTADB_CONFIG_MALFORMED',
+      'vantadb config is missing binarySha256; re-enroll with '
+      + '`vantadb setup --apply` so the binary digest is pinned');
+  }
+  verifyBinaryDigest(cfg.binaryPath, cfg.binarySha256);
   const client = createStdioMcpClient({
     binaryPath: cfg.binaryPath, storagePath: cfg.storagePath,
     timeoutMs, spawnImpl,
@@ -847,7 +855,7 @@ export async function vantaDBSyncWorklogs({ ctx, bound, cfg, limit, timeoutMs,
         }
       }
     }
-    return { namespace, projected, skipped, failed };
+    return { namespace, projected, skipped, blocked, failed };
   });
 }
 
@@ -934,6 +942,7 @@ export async function vantaDBSyncPersona({
   const projected = [];
   const skipped = [];
   const failed = [];
+  const blocked = [];
   return withMcpClient(cfg, timeoutMs, spawnImpl, async (client) => {
     for (const c of candidates) {
       try {
@@ -970,9 +979,19 @@ export async function vantaDBSyncPersona({
           session_key: L1_SESSION_KEY,
           ...L1_ISOLATION,
         };
+        // Secret-egress guard: capture summaries are free text; a pasted
+        // credential must never reach the backend. Blocked candidates
+        // are reported, never transmitted, never silently skipped.
+        const payload = JSON.stringify(record);
+        const hit = secretEgressCheck(payload);
+        if (hit) {
+          blocked.push({ id: c.id, category: c.category, key: c.key,
+            reason: hit });
+          continue;
+        }
         const put = await client.invoke({
           name: 'memory_put',
-          arguments: { namespace, key: c.key, payload: JSON.stringify(record) },
+          arguments: { namespace, key: c.key, payload },
         });
         if (put?.isError) {
           failed.push({ id: c.id, key: c.key, error: put });
@@ -985,3 +1004,23 @@ export async function vantaDBSyncPersona({
         if (readback?.isError) {
           failed.push({ id: c.id, key: c.key, error: readback });
           continue;
+        }
+        projected.push({ id: c.id, category: c.category, key: c.key });
+      } catch (e) {
+        failed.push({
+          id: c.id, key: c.key,
+          error: { code: e.code ?? 'VANTADB_RPC_ERROR', message: e.message },
+        });
+      }
+    }
+    return {
+      mode: 'applied',
+      namespace,
+      projected,
+      skipped,
+      skippedUnproved,
+      blocked,
+      failed,
+    };
+  });
+}

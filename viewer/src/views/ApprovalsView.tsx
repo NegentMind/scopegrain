@@ -92,7 +92,10 @@ export function ApprovalsView() {
       <Card>
         <CardHeader>
           <CardTitle>{t('approvals.title')}</CardTitle>
-          <CardDescription>{t('approvals.desc')}</CardDescription>
+          <CardDescription>
+            {t('approvals.desc')}
+            {data?.truncated ? t('common.truncatedByApi') : ''}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {approvals.length === 0 ? (

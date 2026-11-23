@@ -643,7 +643,7 @@ export interface SessionResumeContext {
   lastEvent: SessionEvent | null;
   resumeCommand: string;
 }
-export interface SessionList { sessions: SessionSummary[]; malformed: { file: string }[]; truncated: boolean }
+export interface SessionList { sessions: SessionSummary[]; malformed: MalformedEntry[]; truncated: boolean }
 
 export interface ApprovalSummary {
   id: string;
@@ -660,7 +660,7 @@ export interface ApprovalRecord extends Omit<ApprovalSummary, 'answers'> {
   digest?: string;
   [k: string]: unknown;
 }
-export interface ApprovalList { approvals: ApprovalSummary[]; malformed: { file: string }[]; truncated: boolean }
+export interface ApprovalList { approvals: ApprovalSummary[]; malformed: MalformedEntry[]; truncated: boolean }
 
 export type CatalogDepKey =
   | 'agents' | 'skills' | 'rules' | 'references' | 'prompts' | 'mcps';
@@ -691,7 +691,9 @@ export interface CatalogResponse {
     counts: Record<string, number>;
     entries: Record<string, CatalogEntry[]>;
     truncated?: boolean | null;
-    aliases: CatalogAlias[];
+    // The API emits `c.aliases ?? {}` (queries.mjs): an array when the
+    // catalog declares aliases, an empty object otherwise.
+    aliases: CatalogAlias[] | Record<string, unknown>;
   };
 }
 

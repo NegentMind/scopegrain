@@ -71,7 +71,10 @@ export function GraphView() {
       <Card>
         <CardHeader>
           <CardTitle>{t('graph.dag')}</CardTitle>
-          <CardDescription>{t('graph.dagDesc')}</CardDescription>
+          <CardDescription>
+            {t('graph.dagDesc')}
+            {tasksApi.data?.truncated ? t('common.truncatedByApi') : ''}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {graph.nodes.length === 0 ? (

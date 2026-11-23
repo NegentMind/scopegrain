@@ -38,7 +38,10 @@ export function CapturesView() {
     <Card>
       <CardHeader>
         <CardTitle>{t('captures.title')}</CardTitle>
-        <CardDescription>{t('captures.description')}</CardDescription>
+        <CardDescription>
+          {t('captures.description')}
+          {data?.truncated ? t('common.truncatedByApi') : ''}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {captures.length === 0 && malformed.length === 0 ? (

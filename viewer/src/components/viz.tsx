@@ -9,6 +9,13 @@ export const PIPELINE_ORDER = [
 ];
 const SIDE_STATES = ['RESEARCH', 'STALL', 'ABANDON'];
 
+// Poll a revalidate fn every `ms` while the tab is visible, plus an
+// immediate run on focus/visibility regain.
+// Convention: views backed by fast-moving stores poll at the default 10 s
+// (tasks, sessions, approvals, plans, graph, system). Views over static or
+// read-derived data (workspace, journal, artifacts, captures, memory,
+// goals, metrics, reports, catalog) do not poll; the API health check in
+// App polls slower (15 s). Keep new views consistent with that split.
 export function usePoll(fn: () => void, ms = 10000) {
   const ref = useRef(fn);
   ref.current = fn;
