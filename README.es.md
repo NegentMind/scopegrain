@@ -2,6 +2,10 @@
 
 > Traduccion al espanol del README canonico en ingles (`README.md`). La
 > version en ingles prevalece.
+> Pareja de docs: `docs/*.md` es el conjunto canonico en espanol;
+> `docs/en/*.md` lleva las traducciones al ingles. Las instrucciones
+> internas/canonicas se mantienen en ingles; los registros operacionales
+> generados siguen `config.locale`.
 
 Harness portable de ingenieria proporcional para agentes de IA.
 
@@ -55,7 +59,7 @@ Ejecuta `scopegrain view --project .` para inspeccionar tareas, planes DAG,
 olas de ejecucion persistidas, metas, sesiones, aprobaciones, artefactos,
 diario y salud del sistema en espanol o ingles. Consulta
 [Visor y API de solo lectura](docs/viewer.md) para la matriz completa de que
-puede/no puede hacer el usuario y los 29 endpoints.
+puede/no puede hacer el usuario y los 30 endpoints.
 
 - Video recorrido completo (EN + ES): [`docs/assets/viewer-walkthrough.webm`](docs/assets/viewer-walkthrough.webm)
 
@@ -144,7 +148,7 @@ estado de la configuracion y los archivos generados.
 Tambien se puede usar un archivo de respuestas:
 
 ```powershell
-node ./bin/tasksystem.mjs init --project "C:\ruta\mi-proyecto" --answers "C:\ruta\respuestas.json"
+node ./bin/scopegrain.mjs init --project "C:\ruta\mi-proyecto" --answers "C:\ruta\respuestas.json"
 ```
 
 Con `--answers` y sin `--apply`, `init` solo presenta el plan. Agregar
@@ -216,10 +220,10 @@ permisos del anfitrion. Ver [Organic y SDD](docs/methodology.md).
 ## Comandos y continuidad
 
 ```powershell
-node ./bin/tasksystem.mjs catalog list command
-node ./bin/tasksystem.mjs pipeline --project "C:\ruta\mi-proyecto" --mode plan
-node ./bin/tasksystem.mjs plan create --project "C:\ruta\mi-proyecto" --input plan.json
-node ./bin/tasksystem.mjs plan next entrega --project "C:\ruta\mi-proyecto"
+node ./bin/scopegrain.mjs catalog list command
+node ./bin/scopegrain.mjs pipeline --project "C:\ruta\mi-proyecto" --mode plan
+node ./bin/scopegrain.mjs plan create --project "C:\ruta\mi-proyecto" --input plan.json
+node ./bin/scopegrain.mjs plan next entrega --project "C:\ruta\mi-proyecto"
 ```
 
 Los aliases de workflow, como `pipeline`, `spec`, `audit` o `research`,
@@ -228,7 +232,10 @@ Los planes guardan dependencias; los artefactos conservan especificaciones,
 designs, informes y otros registros. Las sesiones registran operaciones y
 presupuesto explicito; reanudarlas recupera contexto, no repite acciones.
 Las creaciones JSON usan vista previa por defecto y requieren `--apply`;
-las operaciones historicas de tarea mantienen su comportamiento previo.
+todo verbo mutante previsualiza en seco salvo `--apply` — incluido
+`task create` en ambas formas, meta/disposition/note/step/transition,
+goal create/transition, memory add, journal compact, constitution set y
+los verbos VantaDB.
 
 La superficie CLI completa de un vistazo — cada verbo usa vista previa
 por defecto y solo escribe con `--apply` (detalle: [referencia CLI](docs/cli-reference.md)):

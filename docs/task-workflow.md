@@ -134,7 +134,10 @@ node .\bin\scopegrain.mjs task doc --project P <UUID>
 `task doc` escribe `.scopegrain/tasks/<uuid>.md` (o el destino configurado
 en `paths.tasks`): front matter con id, estado, revision y timestamps, y
 secciones para contrato, scope, metodologia, dependencias, pasos,
-verificacion, revision, notas e historia. Es idempotente — una segunda
+verificacion, revision, notas e historia. Los encabezados y etiquetas del
+documento siguen `config.locale` (el documento ES un artefacto
+operacional, no una instruccion canonica — ver politica de idioma en
+[product-contract](product-contract.md)). Es idempotente — una segunda
 ejecucion sin cambios reporta `changed: false` y no reescribe el archivo.
 
 ## Contexto de sesion

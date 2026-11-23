@@ -15,7 +15,12 @@ not amount to a security certification.
   approval, rebuilds and revalidates the literal argv, runs with
   `shell:false`, and bounds timeout and output. The optional VantaDB
   integration spawns an enrolled binary whose name and location are
-  verified, with a pinned digest when recorded in the config.
+  verified; `vantadb.json` mandates the enrollment-pinned `binarySha256`
+  and the digest is re-verified before every spawn. The child runs with
+  an explicit environment allowlist — only the pinned `VANTADB_*` keys,
+  no parent inheritance — and every payload projected or synced to the
+  backend is screened by `secretEgressCheck` (sensitive names plus
+  credential patterns; a hit blocks returning only a pattern tag).
 - **Bounded network:** the core opens no public-network sockets. The two
   declared exceptions are the viewer server (loopback-only bind, with
   `Host`/`Origin` validation against DNS rebinding) and the VantaDB
@@ -97,6 +102,6 @@ not amount to a security certification.
 - Keep fixtures, sessions, traces and the private archive out of Git.
   In onboarded projects, ask which categories to share and review the
   parent's ignores before assuming the selection is applied. This
-  repository keeps `.tasksystem/` ignored for its local work.
+  repository keeps `.scopegrain/` ignored for its local work.
 - Treat any discovery output as evidence, not as authorization to
   execute commands.

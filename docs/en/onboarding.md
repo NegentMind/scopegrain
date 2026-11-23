@@ -67,10 +67,13 @@ scopegrain config set --input user-defaults.json --apply
    node .\bin\scopegrain.mjs init --project "C:\path\my-project" --answers "C:\path\answers.json" --apply
    ```
 
-   - Interactive: asks for name, language, hosts, methodology, config
-     path, the seven artifact paths and eight versioning decisions
-     (including the reviews subcategory); shows the complete file plan
-     and asks `Crear estos archivos? (yes/no)` (default: `no`).
+   - Interactive: the first question is the language (`locale`,
+     `es`/`en`) and the wizard is bilingual — every later prompt is
+     emitted in the chosen language. It asks for name, hosts,
+     methodology, config path, the seven artifact paths and eight
+     versioning decisions (including the reviews subcategory); shows
+     the complete file plan and asks for confirmation
+     (`Create these files?` / `Crear estos archivos?`, default `no`).
      Answering `no` aborts with no writes: the wizard session the run
      created (for resuming interruptions) is discarded along with its
      now-empty directories; a pre-existing session is kept.

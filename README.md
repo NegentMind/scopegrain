@@ -3,6 +3,9 @@
 Portable proportional engineering harness for AI agents.
 
 > Canonical README in English. Spanish translation: `README.es.md`.
+> Docs pairing: `docs/*.md` is the Spanish-canonical set; `docs/en/*.md`
+> carries the English translations. Internal/canonical instructions stay
+> English; generated operational records follow `config.locale`.
 
 Scopegrain helps teams and operators who use coding agents to organize
 work across projects and sessions without depending on a single host. It
@@ -142,7 +145,7 @@ checks the state of the configuration and the generated files.
 An answers file can also be used:
 
 ```powershell
-node ./bin/tasksystem.mjs init --project "C:\path\my-project" --answers "C:\path\answers.json"
+node ./bin/scopegrain.mjs init --project "C:\path\my-project" --answers "C:\path\answers.json"
 ```
 
 With `--answers` and without `--apply`, `init` only presents the plan.
@@ -216,10 +219,10 @@ permissions. See [Organic and SDD](docs/en/methodology.md).
 ## Commands and continuity
 
 ```powershell
-node ./bin/tasksystem.mjs catalog list command
-node ./bin/tasksystem.mjs pipeline --project "C:\path\my-project" --mode plan
-node ./bin/tasksystem.mjs plan create --project "C:\path\my-project" --input plan.json
-node ./bin/tasksystem.mjs plan next entrega --project "C:\path\my-project"
+node ./bin/scopegrain.mjs catalog list command
+node ./bin/scopegrain.mjs pipeline --project "C:\path\my-project" --mode plan
+node ./bin/scopegrain.mjs plan create --project "C:\path\my-project" --input plan.json
+node ./bin/scopegrain.mjs plan next entrega --project "C:\path\my-project"
 ```
 
 Workflow aliases, such as `pipeline`, `spec`, `audit` or `research`,

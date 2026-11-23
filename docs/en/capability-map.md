@@ -18,7 +18,7 @@ this is its English twin.
 
 | Surface | Inventory | Access |
 |---|---|---|
-| CLI `bin/scopegrain.mjs` (alias `bin/tasksystem.mjs`) | ~95 subcommands, lazy per-command imports | Human and agent |
+| CLI `bin/scopegrain.mjs` (alias `bin/tasksystem.mjs`) | 138 registered subcommands, lazy per-command imports | Human and agent |
 | MCP `src/mcp/server.mjs` | 34 `scopegrain_*` tools: 22 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 6 writers (4 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
 | Local API `src/api/server.mjs` | 30 GET routes `/api/*` | Loopback-only, GET-only |
 | Viewer `viewer/` (`scopegrain view`) | 15 views, React 19 + TS + Vite + Tailwind | Read-only, human |
@@ -37,7 +37,7 @@ this is its English twin.
 | `assess --input DIFF` | Evidence-only risk classification over a unified diff (paths, modes, added content): `passive|medium|high` tier, reasons, `review_due`. Fail-closed, read-only, no git/child_process; `--assessment` reports discrepancy vs declared risk |
 | `init` | Onboarding: investigates, asks name/locale/hosts/methodology, **7 paths** (`plans tasks reports research decisions memory state`), **8 versioning flags**, proposes a bounded `.gitignore` and seeds the structural index. `--defaults`/`--answers` for non-interactive |
 | `adopt` | Deterministic: reports config, enrollment and journal of a project with prior remains; `--apply` only creates the enrollment when `adoptable` |
-| `doctor` | ~35 checks: 27 named families + 7 `paths.*` always on, plus the conditional `journal-internals` (with journal) and `upgrade` (on snapshot divergence); installation + operational health |
+| `doctor` | ~35 checks: 26 named families + 7 `paths.*` always on, plus the conditional `journal-internals` (with journal) and `upgrade` (on snapshot divergence); installation + operational health |
 | `structure scan/status/show` | Bounded structural index of the project tree: inventory, LOC/bytes per language, imports, internal/external edges, fan-in/fan-out, heuristic complexity, deterministic fingerprint. `scan --apply` persists at `<state>/cache/structure-index.json`; `status` reports freshness without rescanning; `context` exposes it to the agent |
 | `update [--reconcile]` | Re-projects generated files from the current installation; `--reconcile` rewrites only divergent files under harness roots and provably-generated applyable host destinations (merge targets and hand-maintained files stay `conflict`); the `managed` action refreshes only `SCOPEGRAIN:BEGIN..END` regions in place; reports `hostBridges` |
 | `uninstall` | Deletes only what the harness provably created; divergent files stay `leftBehind` |

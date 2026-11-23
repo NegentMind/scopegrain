@@ -15,7 +15,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `140` entrad
 
 | Superficie | Inventario | Acceso |
 |---|---|---|
-| CLI `bin/scopegrain.mjs` (alias `bin/tasksystem.mjs`) | ~95 subcomandos, imports perezosos por comando | Humano y agente |
+| CLI `bin/scopegrain.mjs` (alias `bin/tasksystem.mjs`) | 138 subcomandos registrados, imports perezosos por comando | Humano y agente |
 | MCP `src/mcp/server.mjs` | 34 tools `scopegrain_*`: 22 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawn del binario VantaDB enrolado) + 6 de escritura (4 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | Hosts MCP (stdio) |
 | API local `src/api/server.mjs` | 30 rutas GET `/api/*` | Loopback-only, GET-only |
 | Visor `viewer/` (`scopegrain view`) | 15 vistas React 19 + TS + Vite + Tailwind | Read-only, humano |
@@ -34,7 +34,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `140` entrad
 | `assess --input DIFF` | Clasificación de riesgo solo-por-evidencia sobre un unified diff (paths, modos, contenido): tier `passive|medium|high`, razones, `review_due`. Fail-closed, solo lectura, sin git/child_process; `--assessment` reporta discrepancia vs riesgo declarado |
 | `init` | Onboarding: investiga, pregunta nombre/locale/hosts/methodology, **7 rutas** (`plans tasks reports research decisions memory state`), **8 flags de versionado**, propone `.gitignore` acotado y siembra el índice estructural. `--defaults`/`--answers` para no interactivo |
 | `adopt` | Determinista: reporta config, enrollment y journal de un proyecto con restos previos; `--apply` solo crea el enrollment si `adoptable` |
-| `doctor` | ~35 checks: 27 familias con nombre + 7 `paths.*` siempre, más las condicionales `journal-internals` (con journal) y `upgrade` (ante divergencia de snapshot); instalación + salud operativa |
+| `doctor` | ~35 checks: 26 familias con nombre + 7 `paths.*` siempre, más las condicionales `journal-internals` (con journal) y `upgrade` (ante divergencia de snapshot); instalación + salud operativa |
 | `structure scan/status/show` | Índice estructural acotado del árbol: inventario, LOC/bytes por lenguaje, imports, aristas internas/externas, fan-in/fan-out, complejidad heurística, fingerprint determinista. `scan --apply` persiste en `<state>/cache/structure-index.json`; `status` reporta frescura sin re-escanear; `context` lo expone al agente |
 | `update [--reconcile]` | Re-proyecta archivos generados desde la instalación actual; `--reconcile` reescribe solo los divergentes bajo raíces del harness y los destinos host aplicables demostrablemente generados (merge targets y archivos manuales siguen como `conflict`); la acción `managed` refresca in-place solo regiones `SCOPEGRAIN:BEGIN..END`; reporta `hostBridges` |
 | `uninstall` | Borra solo lo demostrablemente creado por el harness; archivos divergentes quedan `leftBehind` |

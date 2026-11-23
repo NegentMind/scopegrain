@@ -43,8 +43,9 @@ independent (`develop` branch) and rooted in this folder.
   expansion's total. Current results and environment in
   [verification](verification.md), without multiplatform
   certification.
-- Discovery covers eight stacks per manifest; tools without a
-  recognized manifest remain unknown.
+- Discovery covers seven stacks per manifest (`MANIFEST_STACK`:
+  node, rust, python, go, java, php, ruby — dotnet by extension); tools
+  without a recognized manifest remain unknown.
 - Only `package.json` generates proposed commands (test/lint/check/
   typecheck/build); other stacks are recognized without proposing
   commands.

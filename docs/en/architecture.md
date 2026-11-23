@@ -82,7 +82,7 @@ src/core/clarify.mjs      Dated create-only clarification sessions
 src/core/constitution.mjs Constitution semver + bump rules + history
 src/core/story-tasks.mjs  tasks.md render per user-story (T###, [P], USn phases)
 src/core/placeholders.mjs {SCRIPT}/$ARGUMENTS/handoff tokens fail-closed in commands
-src/core/hooks-policy.mjs Declarative policy/hooks.json loading (before_/after_)
+src/core/hooks-policy.mjs Declarative policy/hooks.json loading (before|after phases per command)
 src/core/jsonc.mjs        JSONC comment stripping + recursive deep merge
 src/core/distribution.mjs file:// catalog stack, composition, bundles, extensions, presets, mounted layer
 src/core/workflow-runner.mjs Declarative runner: whitelisted ops, atomic checkpoints, resume

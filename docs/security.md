@@ -12,7 +12,13 @@ alcance probado y las limitaciones se registran en
   explicita, reconstruye y revalida el argv literal, corre con
   `shell:false` y acota timeout y salida. La integracion VantaDB
   (opcional) lanza un binario enrolado con nombre y ubicacion
-  verificados y digest fijado cuando consta en la config.
+  verificados; `vantadb.json` exige `binarySha256` pineado en el
+  enrolamiento y el digest se re-verifica antes de cada spawn. El hijo
+  corre con una allowlist de entorno explicita — solo las claves
+  `VANTADB_*` pineadas, sin herencia del proceso padre — y todo payload
+  proyectado o sincronizado hacia el backend se criba con
+  `secretEgressCheck` (nombres sensibles + patrones credenciales; un hit
+  bloquea devolviendo solo una etiqueta).
 - **Red acotada:** el nucleo no abre sockets de red publica. Las dos
   excepciones declaradas son el servidor del visor (bind solo a
   loopback, con validacion de `Host`/`Origin` contra DNS rebinding) y el
@@ -90,6 +96,6 @@ alcance probado y las limitaciones se registran en
 - Mantener fixtures, sesiones, trazas y el archivo privado fuera de Git.
   En proyectos incorporados, preguntar que categorias compartir y revisar
   los ignores del padre antes de asumir que la seleccion esta aplicada.
-  Este repositorio conserva `.tasksystem/` ignorado para su trabajo local.
+  Este repositorio conserva `.scopegrain/` ignorado para su trabajo local.
 - Tratar cualquier output de discovery como evidencia, no como autorizacion
   para ejecutar comandos.

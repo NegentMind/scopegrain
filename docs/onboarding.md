@@ -64,11 +64,14 @@ scopegrain config set --input user-defaults.json --apply
    node .\bin\scopegrain.mjs init --project "C:\ruta\mi-proyecto" --answers "C:\ruta\answers.json" --apply
    ```
 
-   - Interactivo: pregunta nombre, idioma, anfitriones, metodologia, ruta de
-     configuracion, las siete rutas de artefactos y ocho decisiones de
-     versionado (incluida la subcategoria reviews); muestra el plan de
-     archivos completo y pide `Crear estos archivos? (yes/no)` (defecto:
-     `no`). Responder `no` aborta sin escrituras: la sesion del asistente
+   - Interactivo: la primera pregunta es el idioma (`locale`, `es`/`en`)
+     y el asistente es bilingue — todos los prompts siguientes se emiten
+     en el idioma elegido. Pregunta nombre, anfitriones, metodologia,
+     ruta de configuracion, las siete rutas de artefactos y ocho
+     decisiones de versionado (incluida la subcategoria reviews);
+     muestra el plan de archivos completo y pide confirmacion
+     (`Crear estos archivos?` / `Create these files?`, defecto `no`).
+     Responder `no` aborta sin escrituras: la sesion del asistente
      que el run creo (para reanudar interrupciones) se descarta junto a
      sus directorios vacios; una sesion preexistente se conserva.
    - Con `--answers`: sin `--apply` es solo vista previa (dry-run);

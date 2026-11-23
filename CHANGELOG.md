@@ -5,6 +5,25 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Documentation resynchronized with the wave-1 implementation** (docs
+  only, ES/EN pairs kept in sync): current counts (34 MCP tools in four
+  annotation classes — 22 `READ_ONLY`, 6 `READ_BACKEND`, 4 `WRITE_LOCAL`,
+  2 `WRITE_DISCARD` —, 30 API routes, 140 catalog entries, 7 discovery
+  stacks, ~35 doctor checks incl. `host-merge-targets`); corrected
+  `policy/hooks.json` example shape; `managed` lifecycle action and
+  `update --reconcile`/`hostBridges` host-bridge handling; `activationMode`
+  contract and deprecated `manualMerge`; context-packet `locale`,
+  `warnings`, self-excluding `tokenEstimate` plus `wire`, `--no-structure`;
+  workflow-packet `sameAsContent`/`posture`; `policy/workflow.json`
+  `constraints`; closed `dist run` per-op args and `evidence` alias;
+  VantaDB `binarySha256`, env allowlist and `secretEgressCheck`; bilingual
+  wizard, locale-aware `task doc` and the dry-run/`--apply` matrix;
+  `intake.mode` for operators; `scopegrain` as the primary command name
+  (`tasksystem` kept as compatibility alias); viewer/native-hosts docs
+  re-marked Spanish-canonical with English translations.
+
 ## [0.1.1] - 2026-11-22
 
 ### Added

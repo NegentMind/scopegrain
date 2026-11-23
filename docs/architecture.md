@@ -79,7 +79,7 @@ src/core/clarify.mjs      Sesiones de aclaracion fechadas create-only
 src/core/constitution.mjs Semver de constitucion + reglas de bump + history
 src/core/story-tasks.mjs  Render tasks.md por user-story (T###, [P], fases USn)
 src/core/placeholders.mjs Tokens {SCRIPT}/$ARGUMENTS/handoffs fail-closed en commands
-src/core/hooks-policy.mjs Carga de policy/hooks.json declarativa (before_/after_)
+src/core/hooks-policy.mjs Carga de policy/hooks.json declarativa (fases before|after por comando)
 src/core/jsonc.mjs        JSONC comment stripping + deep merge recursivo
 src/core/distribution.mjs Catalog stack file://, composicion, bundles, extensiones, presets, mounted layer
 src/core/workflow-runner.mjs Runner declarativo: ops whitelisted, checkpoints atomicos, resume

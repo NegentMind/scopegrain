@@ -37,8 +37,9 @@ El puntero `.git` original apuntaba a un gitdir externo
 - La primera base supero 73 pruebas locales; no usar ese numero como total
   de la ampliacion. Resultados actuales y entorno en
   [verificacion](verification.md), sin certificacion multiplataforma.
-- El descubrimiento cubre ocho stacks por manifiesto; herramientas sin
-  manifiesto reconocido quedan desconocidas.
+- El descubrimiento cubre siete stacks por manifiesto (`MANIFEST_STACK`:
+  node, rust, python, go, java, php, ruby — dotnet por extension);
+  herramientas sin manifiesto reconocido quedan desconocidas.
 - Solo `package.json` genera comandos propuestos (test/lint/check/
   typecheck/build); otros stacks se reconocen sin proponer comandos.
 - `verification.commands` de la config queda vacio al inicializar: ninguna
