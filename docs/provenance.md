@@ -271,3 +271,77 @@ reutilizados — es una atestacion del propietario o una revision semantica
 controlada, no un hallazgo. Este documento no atestigua lo no verificado;
 registra exactamente lo que la evidencia mecanica y la inspeccion de
 cuerpos nuevos sostienen.
+
+## 8. Segunda migración semántica (enriquecimiento por port adaptado)
+
+Actualización posterior al veredicto de la sección 7. Tras la confirmación
+del propietario de que el material de `legacy/opencode/` es de su autoría,
+se ejecutó una segunda pasada: port adaptado y neutralizado del contenido
+procedimental legacy a los recursos activos (`resources/agents/`,
+`commands/`, `rules/`, `references/`, `prompts/`, `skills/`).
+
+**Alcance:** ~120 recursos activos enriquecidos o creados a partir de sus
+contrapartes legacy, más 7 prompts nuevos (`plan-brief`, `plan-execution`,
+`iteration-loop`, `finding-record`, `session-recitation`, `spec-brief`,
+`research-brief`) añadidos al catálogo (`manifest.json`, 139 entradas).
+
+**Naturaleza del port (clasificación b):** el contenido fue adaptado, no
+copiado literalmente — se eliminaron o generalizaron todas las referencias
+a VantaDB, OpenCode, herramientas MCP concretas (`campaign_*`, `codegraph_*`),
+rutas `docs/dev/` y toolchains específicos (cargo/nextest/PyO3). Los
+veredictos (a)/(b) de la sección 7 se aplican ahora de facto: la mayoría de
+los recursos activos son **adaptaciones derivadas (b)** del material
+propio del propietario. Esto no altera la política de exclusiones:
+`legacy/` permanece gitignored y fuera del paquete.
+
+**Excepción de terceros:** `resources/skills/discernment-nudge/SKILL.md`
+deriva de una skill externa licenciada **Apache-2.0**; el archivo lleva un
+aviso de procedencia HTML en el pie. Mantener ese aviso si el recurso se
+redistribuye.
+
+**Reclasificación de `freshReplacement`:** las 4 entradas colgantes de
+`provenance/legacy-classification.json` apuntaban a rutas inexistentes;
+corregidas a los destinos reales del mapa de alias (`campaign-executor`→
+`plan-coordination`, `interview-me`→`resolve-ambiguity`, `progreso`→
+`session-handoff`, `using-agent-skills`→`select-capabilities`).
+
+**Lo que NO se portó (decisión deliberada, no pérdida):**
+- Mecánica ya cubierta por el runtime en código (sesiones CAS, journal,
+  gates ACCEPT/CLOSE, verify-commands, outcomes de skills).
+- Material de dominio VantaDB: semgrep/ast-grep rules, `mcp-profiles` de
+  gating de servidores (el schema de perfiles scopegrain no admite claves
+  MCP), `model-traits.mjs` (host-specific), sandbox PowerShell (decisión
+  documentada en `component-migration.md`), plugin ponytail (API de host),
+  `mcp/ai-media-server.mjs` (función de producto), estado runtime
+  `opencode-loop/` y `locks/` (efímeros).
+- Assets ejecutables/template concretos (perfil `vantadb.yml`, plantilla
+  HTML de reporte, script `floor-guard.ps1` — su contrato sí está portado
+  en `references/quality-floor.md`).
+
+**Gaps registrados para decisión del propietario:** gating MCP por perfil,
+hooks de pre-acción en `policy/hooks.json` (canal existe, `hooks: {}`
+vacío; la disciplina se portó como regla `workflow.md` §Pre-action checks),
+dedup por firma de error (portada como regla de workflow §Pre-action
+checks), heurísticas de diagnóstico del harness (parcial en `metrics`).
+
+**Semántica de bindings (decisión del propietario, 2ª pasada):** los arrays
+`agents`/`skills`/`rules`/`references`/`prompts` de los comandos declaran el
+**flujo completo**: citas directas del comando más lo que citan los prompts
+que liga (los prompts se inlinean en la ejecución). El cierre transitivo
+literal sobre todo el grafo se midió y descartó — degenera a ~todo el
+corpus (41/44 skills por comando) porque el corpus enriquecido está
+densamente entrelazado; las menciones skill↔skill son ruteo bajo demanda,
+no carga. `verify-work` dejó de declarar `test-driven-development`
+(binding erróneo: el comando no lo cita) y `audit-harness` declaró sus
+prompts ligados por primera vez.
+
+**Backlog formalizado:** los gaps de runtime (gating MCP por perfil, hooks
+ejecutables, dedup por firma de error, heurísticas de diagnóstico,
+parity-check de bindings, canal de bundles profundos, viewer como
+lector/editor) están registrados como goals abiertos — visibles en cada
+`context` packet — con horizonte `v0.3`.
+
+**Nota de atribución:** el commit `013568a` absorbió ediciones del agente
+de viewer (`queries.mjs`, tipos de `api.ts`) bajo un mensaje que no las
+describe; el contenido es correcto y se deja como está, quedando este
+registro como trazabilidad suplementaria.
