@@ -32,6 +32,7 @@ import { callVantaDBTool, getVantaDBRecord, requireVantaDBConfig,
   vantaDBContext, vantaDBStatus }
   from '../integrations/vantadb-runtime.mjs';
 import { recordRehydration } from '../integrations/vantadb-rehydrate.mjs';
+import { assembleContextPacket } from '../core/context-packet.mjs';
 import { buildMcpInventory } from '../core/mcp-inventory.mjs';
 
 const PROTOCOL_NOTE = 'stdout is reserved for MCP protocol; logs go to stderr';
@@ -134,6 +135,28 @@ export function createMCPTools(ctx, z) {
         annotations: READ_ONLY,
       },
       handler: wrap(async () => runDoctor(ctx)),
+    },
+    {
+      name: 'scopegrain_context',
+      config: {
+        description: 'Session-start packet for the bound project: '
+          + 'instructions pointer, workspace identity, task distribution, '
+          + 'ready work, recent progress, open goals, pending journal '
+          + 'events, active task and memory rehydration. Same bounded '
+          + 'read as the CLI context command — call it at the top of '
+          + 'a session before the first task action.',
+        inputSchema: {
+          tail: z.number().int().min(1).max(100).optional()
+            .describe('worklog tail size (default 5)'),
+          timeoutMs: z.number().int().min(1).max(60000).optional()
+            .describe('memory rehydration timeout in ms'),
+          noVantadb: z.boolean().optional()
+            .describe('skip the VantaDB rehydration section'),
+        },
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async ({ tail, timeoutMs, noVantadb }) =>
+        assembleContextPacket(ctx, { tail, timeoutMs, noVantadb })),
     },
     {
       name: 'scopegrain_list_tasks',

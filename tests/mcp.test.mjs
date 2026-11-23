@@ -11,7 +11,8 @@ import {
 } from './helpers.mjs';
 
 const EXPECTED_TOOLS = [
-  'scopegrain_inspect', 'scopegrain_status', 'scopegrain_list_tasks',
+  'scopegrain_inspect', 'scopegrain_status', 'scopegrain_context',
+  'scopegrain_list_tasks',
   'scopegrain_get_task', 'scopegrain_check_action',
   'scopegrain_catalog_list', 'scopegrain_catalog_get',
   'scopegrain_workflow_packet', 'scopegrain_plan_get',
@@ -37,15 +38,15 @@ test('importing server.mjs does not start a server or require deps', async () =>
   assert.equal(typeof mod.createMCPTools, 'function');
 });
 
-test('descriptors are exactly 33 tools bound to ctx', async (t) => {
+test('descriptors are exactly 34 tools bound to ctx', async (t) => {
   const { z } = await import('zod');
   const { createMCPTools } = await import('../src/mcp/server.mjs');
   const { resolveContext } = await import('../src/core/context.mjs');
   const { dir, ctx } = bootstrappedCtx();
   try {
     const tools = createMCPTools(ctx, z);
-    assert.equal(tools.length, 33);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 33);
+    assert.equal(tools.length, 34);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 34);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     for (const tool of tools) {
       assert.equal(tool.config.annotations.destructiveHint, false);
@@ -86,8 +87,8 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
       server.connect(serverT), client.connect(clientT),
     ]);
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 33);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 33);
+    assert.equal(tools.length, 34);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 34);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     assert.ok(tools.every((x) => x.annotations?.destructiveHint === false));
     const res = await client.callTool({
@@ -153,5 +154,40 @@ test('memory tools: status reports unenrolled; get/search/recall fail closed wit
     const bad = await tools.get('scopegrain_memory_get')
       .handler({ namespace: 'x'.repeat(5000), key: 'k' });
     assert.equal(bad.isError, true);
+  } finally { cleanup(dir); }
+});
+
+test('scopegrain_context returns the shared session-start packet', async () => {
+  const { z } = await import('zod');
+  const { createMCPTools } = await import('../src/mcp/server.mjs');
+  const { assembleContextPacket } =
+    await import('../src/core/context-packet.mjs');
+  const { prepareWorkspace } = await import('../src/core/workspaces.mjs');
+  const { applyPlan } = await import('../src/core/bootstrap.mjs');
+  const { dir, ctx } = bootstrappedCtx();
+  try {
+    // getWorkspace is intentionally fatal (same as the CLI): materialize
+    // a minimal workspace before comparing packets.
+    const ws = prepareWorkspace(ctx, { areas: [{ key: 'p', name: 'P' }] });
+    applyPlan(dir, [ws.file]);
+    const tools = createMCPTools(ctx, z);
+    const tool = tools.find((x) => x.name === 'scopegrain_context');
+    assert.ok(tool);
+    const res = await tool.handler({});
+    assert.equal(res.isError, undefined);
+    const viaMcp = JSON.parse(res.content[0].text);
+    const direct = await assembleContextPacket(ctx, {});
+    // Parity contract: identical section set; generatedAt/vantadb timing
+    // legitimately differs between two calls.
+    assert.deepEqual(Object.keys(viaMcp).sort(),
+      Object.keys(direct).sort());
+    for (const key of ['instructions', 'config', 'methodology', 'intake',
+        'project', 'workspace', 'tasks', 'goals',
+        'pendingJournalOperations']) {
+      assert.deepEqual(viaMcp[key], direct[key]);
+    }
+    // Unknown args are rejected by strictify, never silently stripped.
+    const rejected = await tool.handler({ bogus: 1 });
+    assert.equal(rejected.isError, true);
   } finally { cleanup(dir); }
 });

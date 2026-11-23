@@ -1526,158 +1526,18 @@ async function finishCreation(ctx, key, record, file, flags) {
 // open goals, pending journal events and the latest session record.
 // Read-only; the host reads, Scopegrain never injects or executes.
 async function cmdContext(flags) {
-  const { listTasks } = await import('./core/tasks.mjs');
-  const { readWorklog, listGoals } = await import('./core/worklog.mjs');
-  const { getSession, sessionsDirAbs } = await import('./core/sessions.mjs');
-  const { bindWorkspace, getWorkspace } = await import('./core/workspaces.mjs');
-  const { countJournalPending } = await import('./core/journal.mjs');
-  const { structureStatus } = await import('./discovery/structure.mjs');
+  const { assembleContextPacket } =
+    await import('./core/context-packet.mjs');
   const ctx = resolveContext({
     project: requireFlag(flags, '--project'), config: flags['--config'],
   });
-  const workspace = getWorkspace(ctx);
-  const { tasks } = listTasks(ctx);
-  const byState = {};
-  for (const t of tasks) byState[t.state] = (byState[t.state] ?? 0) + 1;
-  const open = tasks.filter((t) => t.state !== 'CLOSE');
-  const tail = flags['--tail'] !== undefined
-    ? decimalInt(flags['--tail'], '--tail') : 5;
-  let pendingJournal = 0;
-  try {
-    const bound = bindWorkspace(ctx,
-      { areaIds: workspace.areas.map((a) => a.id) });
-    pendingJournal = countJournalPending(bound);
-  } catch { /* journal absent or unreadable — surface as 0 */ }
-  // User-owned session-start knowledge: .scopegrain/context.md, bounded.
-  const CONTEXT_MD_MAX = 32 * 1024;
-  const contextMdPath = configRel(ctx, `context.md`);
-  let userContext = null;
-  try {
-    const raw = fs.readFileSync(
-      resolveInside(ctx.projectRoot, contextMdPath, 'context.md'), 'utf8');
-    userContext = {
-      path: contextMdPath, bytes: Buffer.byteLength(raw, 'utf8'),
-      truncated: raw.length > CONTEXT_MD_MAX,
-      content: raw.length > CONTEXT_MD_MAX
-        ? raw.slice(0, CONTEXT_MD_MAX) : raw,
-    };
-  } catch { /* absent or unreadable — packet carries null */ }
-  let sessions = [];
-  try {
-    const dir = sessionsDirAbs(ctx);
-    sessions = fs.readdirSync(dir)
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => {
-        try { return getSession(ctx, f.slice(0, -5)); } catch { return null; }
-      })
-      .filter(Boolean)
-      .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
-      .slice(0, 3)
-      .map((s) => ({ id: s.id, taskId: s.taskId, used: s.used,
-        limit: s.limit, revision: s.revision, updatedAt: s.updatedAt }));
-  } catch { /* sessions dir absent — empty list */ }
-  return {
-    schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    instructions: configRel(ctx, `instructions.md`),
-    config: configRel(ctx, `config.json`),
-    methodology: ctx.config.methodology,
-    intake: ctx.config.intake,
-    userContext, sessions,
-    project: { name: ctx.projectName ?? null, root: ctx.projectRoot },
-    workspace: {
-      revision: workspace.revision, areas: workspace.areas.length,
-      areaKeys: workspace.areas.map((a) => a.key),
-    },
-    // Active-task pointer: env SCOPEGRAIN_TASK overrides the persisted
-    // <configDir>/active-task file. A dangling pointer degrades to a
-    // structured error, never aborts the session-start packet.
-    activeTask: await (async () => {
-      try {
-        const { getActiveTask } = await import('./core/active.mjs');
-        const { task, source } = getActiveTask(ctx);
-        return task ? { id: task.id, slug: task.slug ?? null,
-          title: task.title, state: task.state, source } : null;
-      } catch (e) {
-        return { error: { code: e.code ?? 'INTERNAL',
-          message: String(e.message ?? e) } };
-      }
-    })(),
-    tasks: {
-      total: tasks.length, open: open.length, byState,
-      ready: open.filter(
-        (t) => t.state === 'PLAN' && t.disposition === null)
-        .map((t) => ({ id: t.id, title: t.title,
-          priority: t.priority ?? null, backlog: t.backlog ?? null })),
-    },
-    // Session start must survive an unreadable or oversized log: read
-    // bounded, degrade to an error marker, never throw the packet.
-    progress: (() => {
-      try {
-        const log = readWorklog(ctx, 'progress', { tail });
-        return log.truncated
-          ? { truncated: true, entries: log.entries }
-          : { truncated: false, entries: log.entries };
-      } catch (e) {
-        return { truncated: false, entries: [],
-          error: { code: e.code ?? 'INTERNAL',
-            message: String(e.message ?? e) } };
-      }
-    })(),
-    // Retroactive activity evidence (commits outside the task loop)
-    // surfaces alongside progress so session start sees recent work.
-    activity: (() => {
-      try {
-        const log = readWorklog(ctx, 'activity', { tail });
-        return log.truncated
-          ? { truncated: true, entries: log.entries }
-          : { truncated: false, entries: log.entries };
-      } catch (e) {
-        return { truncated: false, entries: [],
-          error: { code: e.code ?? 'INTERNAL',
-            message: String(e.message ?? e) } };
-      }
-    })(),
-    goals: (() => {
-      try {
-        return listGoals(ctx).goals.filter((g) => g.status === 'open')
-          .map((g) => ({ id: g.id, title: g.title }));
-      } catch {
-        return [];
-      }
-    })(),
-    pendingJournalOperations: pendingJournal,
-    // Structural index freshness: stat-only rescan, never reads contents.
-    // stale:true tells the agent to run `structure scan` before relying on
-    // cached structure instead of re-analyzing the tree itself.
-    structure: (() => {
-      try {
-        return structureStatus(ctx);
-      } catch {
-        return { indexed: false, stale: null, summary: null };
-      }
-    })(),
-    // Automatic project-level rehydration: one bounded memory_recall
-    // over the distilled L1 pool when a VantaDB backend is enrolled.
-    // Degradable like the rest of the packet — never aborts.
-    vantadb: await (async () => {
-      if (flags['--no-vantadb'] === true) {
-        return { enrolled: null, recall: null, skipped: true };
-      }
-      try {
-        const { projectRehydration } = await import(
-          './integrations/vantadb-rehydrate.mjs');
-        return await projectRehydration({
-          ctx, timeoutMs: flags['--timeout'] !== undefined
-            ? decimalInt(flags['--timeout'], '--timeout') : undefined,
-        });
-      } catch (e) {
-        return { enrolled: null, recall: null,
-          error: { code: e.code ?? 'INTERNAL',
-            message: String(e.message ?? e) } };
-      }
-    })(),
-  };
+  return assembleContextPacket(ctx, {
+    tail: flags['--tail'] !== undefined
+      ? decimalInt(flags['--tail'], '--tail') : undefined,
+    timeoutMs: flags['--timeout'] !== undefined
+      ? decimalInt(flags['--timeout'], '--timeout') : undefined,
+    noVantadb: flags['--no-vantadb'] === true,
+  });
 }
 
 async function cmdStructure(sub, flags) {
