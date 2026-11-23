@@ -72,6 +72,9 @@ export async function assembleContextPacket(ctx, opts = {}) {
     config: configRel(ctx, `config.json`),
     methodology: ctx.config.methodology,
     intake: ctx.config.intake,
+    // Preferred user language: generated operational artifacts and
+    // interactive surfaces follow it (see templates Language policy).
+    locale: ctx.config.locale ?? 'en',
     userContext, sessions,
     project: { name: ctx.projectName ?? null, root: ctx.projectRoot },
     workspace: {

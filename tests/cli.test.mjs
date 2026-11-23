@@ -221,8 +221,10 @@ test('task lifecycle through the CLI', async () => {
     await run(['init', '--project', dir, '--answers', answersFile, '--apply'], io);
     const ioC = fakeIO();
     await run(['task', 'create', '--project', dir, '--title', 'T',
-      '--contract', 'C', '--author', 'ctx-a', '--scope', 'src/x'], ioC);
-    const task = lastJson(ioC);
+      '--contract', 'C', '--author', 'ctx-a', '--scope', 'src/x',
+      '--apply'], ioC);
+    const created = lastJson(ioC);
+    const task = created.task ?? created;
     assert.equal(task.state, 'PLAN');
     const ioL = fakeIO();
     await run(['task', 'list', '--project', dir], ioL);
@@ -232,8 +234,9 @@ test('task lifecycle through the CLI', async () => {
     assert.equal(lastJson(ioS).id, task.id);
     const ioT = fakeIO();
     await run(['task', 'transition', '--project', dir, task.id, 'ACT',
-      '--revision', '0'], ioT);
-    assert.equal(lastJson(ioT).state, 'ACT');
+      '--revision', '0', '--apply'], ioT);
+    const transitioned = lastJson(ioT);
+    assert.equal((transitioned.task ?? transitioned).state, 'ACT');
     const ioBad = fakeIO();
     const code = await run(['task', 'transition', '--project', dir, task.id,
       'ACCEPT', '--revision', '1'], ioBad);
@@ -241,8 +244,10 @@ test('task lifecycle through the CLI', async () => {
     assert.equal(JSON.parse(ioBad.out.stderr[0]).error.code, 'INVALID_TRANSITION');
     const ioE = fakeIO();
     assert.equal(await run(['task', 'transition', '--project', dir, task.id,
-      'VERIFY', '--revision', '1', '--evidence', evidenceFile], ioE), 0);
-    assert.equal(lastJson(ioE).state, 'VERIFY');
+      'VERIFY', '--revision', '1', '--evidence', evidenceFile,
+      '--apply'], ioE), 0);
+    const verified = lastJson(ioE);
+    assert.equal((verified.task ?? verified).state, 'VERIFY');
     const ioCE = fakeIO();
     const badEvidence = `${dir}-bad.json`;
     fs.writeFileSync(badEvidence, JSON.stringify({ verification: {}, unknown: 1 }));

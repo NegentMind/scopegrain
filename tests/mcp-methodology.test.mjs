@@ -105,17 +105,26 @@ function namesContract(tools) {
   assert.deepEqual(tools.map((t) => t.name).sort(), [...ALL].sort());
   assert.deepEqual(tools.filter((t) => !OLD_NAMES.includes(t.name)).map((t) => t.name).sort(),
     [...NEW_NAMES, ...W2_NAMES].sort());
+  const DISCARD_TOOLS = new Set([
+    'scopegrain_task_disposition', 'scopegrain_goal_transition',
+  ]);
+  const BACKEND_TOOLS = new Set([
+    'scopegrain_context', 'scopegrain_session_resume',
+    'scopegrain_memory_get', 'scopegrain_memory_search',
+    'scopegrain_memory_recall', 'scopegrain_memory_context',
+  ]);
   for (const t of tools) {
     const annotations = t.config?.annotations ?? t.annotations;
     if (WRITE_TOOLS.has(t.name)) {
       assert.deepEqual(annotations, {
-        readOnlyHint: false, destructiveHint: false,
+        readOnlyHint: false, destructiveHint: DISCARD_TOOLS.has(t.name),
         openWorldHint: false, idempotentHint: false,
       });
     } else {
       assert.doesNotMatch(t.name, /create|answer|apply|mutate|assess/);
       assert.deepEqual(annotations, {
-        readOnlyHint: true, destructiveHint: false, openWorldHint: false,
+        readOnlyHint: true, destructiveHint: false,
+        openWorldHint: BACKEND_TOOLS.has(t.name),
       });
     }
   }

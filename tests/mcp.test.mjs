@@ -48,9 +48,21 @@ test('descriptors are exactly 34 tools bound to ctx', async (t) => {
     assert.equal(tools.length, 34);
     assert.equal(new Set(tools.map((x) => x.name)).size, 34);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
+    const BACKEND_TOOLS = new Set([
+      'scopegrain_context', 'scopegrain_session_resume',
+      'scopegrain_memory_get', 'scopegrain_memory_search',
+      'scopegrain_memory_recall', 'scopegrain_memory_context',
+    ]);
+    const DISCARD_TOOLS = new Set([
+      'scopegrain_task_disposition', 'scopegrain_goal_transition',
+    ]);
     for (const tool of tools) {
-      assert.equal(tool.config.annotations.destructiveHint, false);
-      assert.equal(tool.config.annotations.openWorldHint, false);
+      assert.equal(
+        tool.config.annotations.destructiveHint,
+        DISCARD_TOOLS.has(tool.name), tool.name);
+      assert.equal(
+        tool.config.annotations.openWorldHint,
+        BACKEND_TOOLS.has(tool.name), tool.name);
     }
     const task = createTask(ctx, {
       title: 'T', contract: 'C', authorContext: 'a', scope: [],

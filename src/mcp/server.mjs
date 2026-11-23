@@ -168,11 +168,14 @@ export function createMCPTools(ctx, z) {
             .describe('memory rehydration timeout in ms'),
           noVantadb: z.boolean().optional()
             .describe('skip the VantaDB rehydration section'),
+          noStructure: z.boolean().optional()
+            .describe('serve the persisted structure index without rescanning'),
         },
         annotations: READ_BACKEND,
       },
-      handler: wrap(async ({ tail, timeoutMs, noVantadb }) =>
-        assembleContextPacket(ctx, { tail, timeoutMs, noVantadb })),
+      handler: wrap(async ({ tail, timeoutMs, noVantadb, noStructure }) =>
+        assembleContextPacket(
+          ctx, { tail, timeoutMs, noVantadb, noStructure })),
     },
     {
       name: 'scopegrain_list_tasks',

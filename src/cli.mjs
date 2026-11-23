@@ -85,7 +85,7 @@ const VALUE_FLAGS = new Set([
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
-  '--record', '--keep-files', '--no-resume', '--lazy',
+  '--record', '--keep-files', '--no-resume', '--lazy', '--no-structure',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -317,10 +317,11 @@ const COMMANDS = {
     usage: 'config set --input FILE [--apply]',
   },
   'context': {
-    flags: ['--project', '--config', '--tail', '--no-vantadb', '--timeout'],
+    flags: ['--project', '--config', '--tail', '--no-vantadb', '--timeout',
+      '--no-structure'],
     pos: 0,
     usage: 'context --project PATH [--tail N] '
-      + '[--no-vantadb] [--timeout MS]',
+      + '[--no-vantadb] [--no-structure] [--timeout MS]',
   },
   'task check-action': {
     flags: ['--project', '--config'], pos: 2,
@@ -694,7 +695,7 @@ function helpResult() {
       '--owned opts specification create/show into journal ownership; legacy behavior stays unchanged without it',
       '--owned opts design/outcome create/show into journal ownership; new show commands require it',
       'adopt/update/backup/restore/uninstall preview first; --apply is create-only and never overwrites, merges or reinitializes',
-      'update --reconcile rewrites ONLY diverged generated files under harness-owned roots (the config dir and generated subdirs); root-level files (AGENTS.md, CLAUDE.md) and the config always stay conflict',
+      'update --reconcile rewrites ONLY diverged generated files under harness-owned roots (the config dir and generated subdirs) and applyable host destinations (.claude/.devin/.agents/.opencode/.codex); root-level files (AGENTS.md, CLAUDE.md), the config and manual merge targets always stay conflict',
       'init --defaults skips the prompt loop: answers come from the existing config (noop re-init) or from the investigation suggestions plus the wizard defaults; --apply still gates writes; mutually exclusive with --answers',
       'inspect is the bounded manifest-scan snapshot init stores as discovery.json; investigate is the deeper semantic analysis that adds init-answer suggestions',
       'investigate is read-only; --save writes one research record under paths.research when a config resolves',
@@ -1660,6 +1661,7 @@ async function cmdContext(flags) {
     timeoutMs: flags['--timeout'] !== undefined
       ? decimalInt(flags['--timeout'], '--timeout') : undefined,
     noVantadb: flags['--no-vantadb'] === true,
+    noStructure: flags['--no-structure'] === true,
   });
 }
 
