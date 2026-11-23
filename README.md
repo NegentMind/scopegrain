@@ -252,12 +252,10 @@ Proposals are generated for Claude Code, Codex, OpenCode V2, Devin
 Local/CLI, Google Antigravity and Hermes Agent (provisional, unverified
 format). Native bridges and MCP fragments are
 proposals for review and manual activation, not certified integrations —
-except the certified Devin Local (2026-11-17) and Antigravity App/CLI
-(2026-11-19) real-session pilots — or a guarantee of permission or
-behavior equivalence. The OpenCode V2 pilot ran on 2026-11-23 and is
-recorded as executed but not certified: TUI command discovery,
-interruption/resumption and cleanup are still unexecuted. Devin Cloud is
-not considered equivalent to Local/CLI. See
+except the certified Devin Local (2026-11-17), Antigravity App/CLI
+(2026-11-19) and OpenCode V2 (2026-11-23) real-session pilots — or a
+guarantee of permission or behavior equivalence. Devin Cloud is not
+considered equivalent to Local/CLI. See
 [native formats](docs/en/native-hosts.md).
 
 - There is no model executor and no automatic execution of agents or
@@ -294,15 +292,16 @@ and 15 subagents auto-loaded, `scopegrain` MCP active from
 certified in a fresh real session on 2026-11-19 (72 `scopegrain-*` skills
 and 15 subagents auto-discovered, `scopegrain` MCP active from
 `.agents/mcp_config.json`, with live `scopegrain_status` and
-`scopegrain_catalog_list` invocations). The OpenCode V2 pilot ran on
-2026-11-23 against `opencode v2.3.2`: 15/15 `scopegrain-*` subagents
-resolved, 74 de-duplicated `scopegrain-*` skill IDs with
-`.opencode/skills` winning precedence over `.agents/skills`, the
-`scopegrain` MCP exposing 33 tools (27 read-only, 6 local-write), and
-`scopegrain_status`, `scopegrain_catalog_list` and
-`scopegrain_list_tasks` invoked live. TUI command discovery,
-interruption/resumption and cleanup remain unexecuted, so it is recorded
-as an executed pilot and NOT certified. Claude, Codex, the Antigravity IDE
+`scopegrain_catalog_list` invocations). The OpenCode V2 native pilot was
+certified in a fresh real session on 2026-11-23 against `opencode v2.3.2`:
+15/15 `scopegrain-*` subagents resolved, 74 de-duplicated `scopegrain-*`
+skill IDs with `.opencode/skills` winning precedence over `.agents/skills`,
+`/scopegrain-status` expanding in the TUI composer, the `scopegrain` MCP
+exposing 33 tools (27 read-only, 6 local-write) with
+`scopegrain_status`/`catalog_list`/`list_tasks` invoked live, the read-only
+role blocking `edit`/`shell` by tool absence, interruption/resumption
+repeating no effects, and cleanup leaving no traces in the global OpenCode
+config. Claude, Codex, the Antigravity IDE
 surface and the provisional Hermes still lack a native pilot. The tests do
 not certify the six hosts or a real execution of the declared work.
 The [GitHub Actions workflow](.github/workflows/verify.yml) is triggered

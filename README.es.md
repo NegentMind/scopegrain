@@ -254,12 +254,10 @@ Google Antigravity y Hermes Agent (provisional, formato sin verificar). Los
 puentes nativos
 y fragmentos MCP son propuestas para revision y activacion manual, no
 integraciones certificadas — salvo los pilotos reales certificados de Devin
-Local (2026-11-17) y Antigravity App/CLI (2026-11-19) — ni una garantia de
-equivalencia de permisos o comportamiento. El piloto de OpenCode V2 se
-ejecuto el 2026-11-23 y se registra como ejecutado y no certificado: el
-descubrimiento de comandos en la TUI, la interrupcion/reanudacion y la
-limpieza siguen sin ejecutar. Devin Cloud no se considera equivalente a
-Local/CLI. Ver [formatos nativos](docs/native-hosts.md).
+Local (2026-11-17), Antigravity App/CLI (2026-11-19) y OpenCode V2
+(2026-11-23) — ni una garantia de
+equivalencia de permisos o comportamiento. Devin Cloud no se considera
+equivalente a Local/CLI. Ver [formatos nativos](docs/native-hosts.md).
 
 - No hay ejecutor de modelos ni ejecucion automatica de agentes o SDK de
   anfitriones. Las instrucciones no son un sandbox ni interceptan todas las
@@ -293,17 +291,18 @@ El piloto nativo de Devin Local quedo certificado en una sesion fresca
 real el 2026-11-17 (42 skills `scopegrain-*` y 15 subagentes auto-cargados,
 MCP `scopegrain` activo desde `.devin/mcp_config.json`); Antigravity se piloto el
 2026-11-18 (activacion `.agents/` aplicada y consumida por su sesion de
-agente). El piloto de OpenCode V2 se ejecuto el 2026-11-23 contra
-`opencode v2.3.2`: 15/15 subagentes `scopegrain-*` resueltos, 74 IDs de
-skill `scopegrain-*` deduplicados con `.opencode/skills` ganando precedencia
-sobre `.agents/skills`, el MCP `scopegrain` exponiendo 33 tools (27
-read-only, 6 local-write) y `scopegrain_status`,
-`scopegrain_catalog_list` y `scopegrain_list_tasks` invocados en vivo. El
-descubrimiento de comandos en la TUI, la interrupcion/reanudacion y la
-limpieza siguen sin ejecutar, asi que se registra como piloto ejecutado y
-NO certificado. Claude, Codex, la superficie IDE de Antigravity y el
-provisional Hermes siguen sin piloto nativo. Las pruebas no
-certifican los seis anfitriones ni una ejecucion real del trabajo
+agente). El piloto nativo de OpenCode V2 quedo certificado en una sesion
+fresca real el 2026-11-23 contra `opencode v2.3.2`: 15/15 subagentes
+`scopegrain-*` resueltos, 74 IDs de skill `scopegrain-*` deduplicados con
+`.opencode/skills` ganando precedencia sobre `.agents/skills`,
+`/scopegrain-status` expandiendo en el composer TUI, el MCP `scopegrain`
+exponiendo 33 tools (27 read-only, 6 local-write) con
+`scopegrain_status`/`catalog_list`/`list_tasks` invocados en vivo, el rol
+read-only bloqueando `edit`/`shell` por ausencia de tool, la
+interrupcion/reanudacion sin repetir efectos y la limpieza sin rastros en
+la configuracion global de OpenCode. Claude, Codex, la superficie IDE de
+Antigravity y el provisional Hermes siguen sin piloto nativo. Las pruebas
+no certifican los seis anfitriones ni una ejecucion real del trabajo
 declarado.
 El [workflow de GitHub Actions](.github/workflows/verify.yml) se activa
 solo

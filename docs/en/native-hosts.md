@@ -16,7 +16,7 @@ The `scopegrain-` namespace avoids replacing built-ins.
 Documented formats and local fixture tests are not native certification.
 Structural parse checks on applied fixtures verify only that generated
 files are syntactically well-formed, never that a real host binary accepts,
-discovers or enforces them. Two native pilots are certified: a fresh real
+discovers or enforces them. Three native pilots are certified: a fresh real
 Devin Local session on 2026-11-17 auto-loaded the 42 `scopegrain-*` skills
 and 15 subagents, activated the `scopegrain` MCP from
 `.devin/mcp_config.json` and invoked `scopegrain_status` (read-only, 16
@@ -30,14 +30,15 @@ provisional Hermes — still lack a native pilot. The foundation
 suite completed locally with one test file at a time; see
 [verification](verification.md) for its scope and separate earlier runs.
 
-OpenCode V2 ran its pilot against a real `opencode v2.3.2` installation on
-2026-11-23: see
+OpenCode V2 completed its pilot on 2026-11-23 against a real
+`opencode v2.3.2` installation, including steps 5 (interruption and
+resumption) and 6 (cleanup) in an isolated temporary fixture: see
 [OpenCode V2 surface limits](#opencode-v2-surface-limits) and
-[verification](verification.md). Isolated setup, skill and subagent
-discovery, invocation, denials and evidence were verified. The TUI command
-probe, interruption/resumption and cleanup have not run, so OpenCode V2
-stands as an executed pilot and is NOT certified — never "partially
-certified".
+[verification](verification.md). All seven procedure steps were executed
+with evidence, so OpenCode V2 is the third certified host. The `/`
+autocomplete is capped by the TUI, so the 30 command files were not
+enumerated on screen; what is verified is real dispatch of
+`/scopegrain-status` from the composer.
 No host was activated by these changes. Initialization creates proposals
 under the selected configuration directory, normally
 `.scopegrain/integrations/`; intended active paths below are NOT written
@@ -338,6 +339,15 @@ Rebinding requires review of the new destination, not silent replacement.
 Resource restoration only recovers compatible missing canonical bytes; it
 does not overwrite divergent files or reconnect a remote MCP service.
 
+`uninstall` derives its deletion set from the current configuration, not
+from the journal of what was generated. If the `hosts` set is narrowed
+after `init`, the native proposals of the removed hosts, their root
+entrypoints and any diverged artifact survive `uninstall --apply` and need
+a manual second pass; task records are preserved by design. Measured in the
+OpenCode pilot fixture on 2026-11-23: 235 files deleted, 103 directories
+removed, 2 diverged artifacts reported as `leftBehind` and 532 stale
+proposals that had to be removed by hand.
+
 The portable CLI works without native registration. Its project-bound MCP
 server is an optional stdio query surface, not a mutating remote executor.
 See [onboarding](onboarding.md), [security](security.md) and
@@ -347,10 +357,8 @@ See [onboarding](onboarding.md), [security](security.md) and
 
 Devin Local completed its pilot in a fresh real session on 2026-11-17 and
 Antigravity App/CLI completed its own on 2026-11-19 (see Status above);
-Devin Cloud remains outside the Devin pilot's scope. OpenCode V2 ran its
-pilot on 2026-11-23 with three steps still outstanding (TUI command
-discovery, interruption/resumption, cleanup): closing those three is what
-promotes it, and nothing else does. For every other selected
+OpenCode V2 completed its own on 2026-11-23. Devin Cloud remains outside
+the Devin pilot's scope. For every other selected
 version/surface — Claude, Codex, the Antigravity IDE surface and the
 provisional Hermes — separately approve an isolated pilot:
 verify discovery and invocation, actual role tools and write denials,

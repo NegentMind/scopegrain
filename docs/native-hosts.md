@@ -20,7 +20,7 @@ Los formatos documentados y las pruebas locales con fixtures no son
 certificacion nativa. Las comprobaciones estructurales de parseo sobre
 fixtures aplicados verifican solo que los archivos generados son
 sintacticamente bien formados, nunca que un binario de host real los
-acepta, descubre o hace cumplir. Dos pilotos nativos estan certificados:
+acepta, descubre o hace cumplir. Tres pilotos nativos estan certificados:
 una sesion fresca real de Devin Local el 2026-11-17 auto-cargo las 42
 skills `scopegrain-*` y 15 subagentes, activo el MCP `scopegrain` desde
 `.devin/mcp_config.json` e invoco `scopegrain_status` (solo lectura, 16
@@ -36,14 +36,15 @@ de test a la vez; ver
 [verificacion](verification.md) para su alcance y ejecuciones anteriores
 separadas.
 
-OpenCode V2 ejecuto su piloto sobre una instalacion real de
-`opencode v2.3.2` el 2026-11-23: ver
+OpenCode V2 completo su piloto el 2026-11-23 sobre una instalacion real de
+`opencode v2.3.2`, incluidos los pasos 5 (interrupcion y reanudacion) y 6
+(limpieza) en un fixture temporal aislado: ver
 [Limites de superficie de OpenCode V2](#limites-de-superficie-de-opencode-v2)
-y [verificacion](verification.md). Quedaron verificados la preparacion
-aislada, el descubrimiento de skills y subagentes, la invocacion, las
-denegaciones y la evidencia. Siguen sin ejecutar los comandos en la TUI, la
-interrupcion/reanudacion y la limpieza, de modo que OpenCode V2 queda como
-piloto ejecutado y NO certificado — nunca "certificado parcial".
+y [verificacion](verification.md). Los siete pasos del procedimiento
+quedaron ejecutados con evidencia, asi que OpenCode V2 es el tercer host
+certificado. El autocompletado de `/` quedo topado por la TUI, de modo que
+el conteo de los 30 comandos no se enumero en pantalla; lo verificado es el
+despacho real de `/scopegrain-status` desde el composer.
 Ningun host fue activado por estos cambios. La inicializacion crea
 propuestas bajo el directorio de configuracion seleccionado, normalmente
 `.scopegrain/integrations/`; las rutas activas previstas abajo NO se
@@ -372,6 +373,16 @@ reemplazo silencioso. La restauracion de recursos solo recupera bytes
 canonicos ausentes compatibles; no sobrescribe archivos divergentes ni
 reconecta un servicio MCP remoto.
 
+`uninstall` deriva su conjunto de borrado de la configuracion actual, no del
+journal de lo generado. Si el conjunto de `hosts` se reduce despues de
+`init`, las propuestas nativas de los hosts retirados, sus puntos de entrada
+en la raiz y los artefactos que divergieron sobreviven a `uninstall
+--apply` y requieren una segunda pasada manual; los registros de tarea se
+preservan por diseno. Medido en el fixture del piloto OpenCode del
+2026-11-23: 235 archivos borrados, 103 directorios retirados, 2 divergentes
+reportados como `leftBehind` y 532 propuestas obsoletas que hubo que
+retirar a mano.
+
 El CLI portable funciona sin registro nativo. Su servidor MCP vinculado
 al proyecto es una superficie de consulta stdio opcional, no un ejecutor
 remoto mutante.
@@ -382,12 +393,10 @@ Ver [onboarding](onboarding.md), [seguridad](security.md) y
 
 Devin Local completo su piloto en una sesion fresca real el 2026-11-17 y
 Antigravity App/CLI completo el suyo el 2026-11-19 (ver Estado arriba);
-Devin Cloud permanece fuera del alcance del piloto de Devin. OpenCode V2
-ejecuto su piloto el 2026-11-23 con tres pasos aun pendientes
-(descubrimiento de comandos en la TUI, interrupcion/reanudacion y
-limpieza): cerrar esos tres es lo que lo promueve, y nada mas. Para cada
-otra version/superficie seleccionada — Claude, Codex, la superficie IDE de
-Antigravity y el provisional Hermes — aprobar separadamente un piloto
+OpenCode V2 completo el suyo el 2026-11-23. Devin Cloud permanece fuera
+del alcance del piloto de Devin. Para cada otra version/superficie
+seleccionada — Claude, Codex, la superficie IDE de Antigravity y el
+provisional Hermes — aprobar separadamente un piloto
 aislado: verificar descubrimiento e invocacion, herramientas reales de
 roles y denegaciones de escritura, efectos MCP/red no aprobados,
 delegacion, interrupcion/reanudacion, recuperacion sin repetir efectos y
