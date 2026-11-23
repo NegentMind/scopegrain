@@ -3,7 +3,7 @@
 > English translation of the canonical Spanish document
 > (`../viewer.md`). The Spanish version prevails.
 
-Read-only local viewer for Scopegrain stores. Two pieces:
+Read-only (by default) local viewer for Scopegrain stores. Two pieces:
 
 - `src/api/` - a localhost-only JSON API over the configured stores
   (`node:http`, zero dependencies, GET-only).
@@ -11,16 +11,31 @@ Read-only local viewer for Scopegrain stores. Two pieces:
   shadcn/ui package that renders the API data.
 
 The API exposes what already exists on disk through the core getters and
-store locations. It does not write, mutate, adopt files, execute commands
-or activate hosts. It is a local convenience surface, not a production
+store locations. It does not adopt files, execute commands or activate
+hosts. The explicit `--allow-write` opt-in enables one bounded write
+channel (the catalog document edit described below); without it the API
+stays strictly GET. It is a local convenience surface, not a production
 host: there is no authentication beyond the loopback bind, no multi-user
 model and no TLS. Do not expose the port.
 
 ## Running
 
 ```powershell
-scopegrain view --project PATH [--host 127.0.0.1|::1] [--port N]
+scopegrain view --project PATH [--host 127.0.0.1|::1] [--port N] [--allow-write]
 ```
+
+`--allow-write` (opt-in): enables `PUT /api/catalog/:kind/:id`, the
+bounded edit of a catalog entry's projected file. The body is
+`{content, expectedSha256}`: `expectedSha256` must equal the sha256 of
+the file's current bytes (CAS; divergence → 409 `WRITE_CONFLICT`) and
+`content` shares the document byte cap (`maxDocumentBytes`; over → 422
+`DOCUMENT_TOO_LARGE`). The write is atomic (exclusive temp + fsync +
+rename inside the configDir, no symlinks) and, once applied, the entry's
+`sha256` pin is updated in `catalog.json` (or `mounted-catalog.json` for
+bundle-mounted entries) so the snapshot still verifies. A later `update`
+reports the file as diverged from the install catalog: edits are never
+silently reverted; `update --reconcile` is the owner's explicit revert.
+Without the flag, PUT answers 403 `WRITE_DISABLED`.
 
 `view` starts the loopback API and, when the viewer build ships with the
 package (`viewer/dist`), mounts it same-origin: `/` serves the SPA with
@@ -67,9 +82,11 @@ typecheck` runs the type gate alone.
 
 All responses are JSON. Errors use `{error:{code,message}}` with matching
 HTTP status: `*_NOT_FOUND` 404, `INVALID_*`/`UNKNOWN_*` 400,
-`*_MALFORMED`/`*_DRIFT`/`DOCUMENT_TOO_LARGE` 422, `SCOPE_DENIED` 403,
-`*_CONFLICT`/`WORKSPACE_STALE` 409, anything else 500. Non-GET methods on
-any path return 405; unknown paths 404; unknown query parameters 400.
+`*_MALFORMED`/`*_DRIFT`/`DOCUMENT_TOO_LARGE` 422,
+`SCOPE_DENIED`/`WRITE_DISABLED` 403, `*_CONFLICT`/`WORKSPACE_STALE` 409,
+anything else 500. Non-GET methods on any path return 405 (PUT to the
+catalog endpoint without `--allow-write` returns 403 `WRITE_DISABLED`);
+unknown paths 404; unknown query parameters 400.
 
 | Endpoint | Payload |
 | --- | --- |
@@ -96,7 +113,8 @@ any path return 405; unknown paths 404; unknown query parameters 400.
 | `GET /api/sessions` / `GET /api/sessions/:id` | bounded sessions + `resumeContext` (linked task, budget bar, CLI resume command) |
 | `GET /api/approvals` / `GET /api/approvals/:id` | HITL approval queue and answer/revocation detail |
 | `GET /api/catalog` | workspace resource catalog and hash verification |
-| `GET /api/catalog/:kind/:id` | projected file body of a catalog entry (confined to configDir, bounded, `sha256` included); resolves aliases |
+| `GET /api/catalog/:kind/:id` | projected file body of a catalog entry (confined to configDir, bounded, `sha256` included); resolves aliases; `writable` reports whether PUT is enabled for this doc |
+| `PUT /api/catalog/:kind/:id` | projected file edit, only with `--allow-write`: `{content, expectedSha256}` → `{kind,id,path,sha256,applied}`; CAS 409 `WRITE_CONFLICT`, 403 `WRITE_DISABLED` |
 | `GET /api/verify` | discovered and approved verification commands |
 | `GET /api/vantadb` | VantaDB enrollment status (never spawns binary) |
 | `GET /api/workflow` | canonical state machine and allowed transitions |
@@ -123,7 +141,10 @@ Journal operation `state` values: `committed`, `prepared` (unconfirmed),
   `authorContext`/`title` at 2048.
 - Malformed entries are surfaced in `malformed[]` (`file` + `{code,
   message}`), never silently dropped - same contract as `listTasks`.
-- Request URIs over 4096 bytes return 414. No request body is ever read.
+- Request URIs over 4096 bytes return 414. Request bodies are only read
+  on the opt-in PUT channel: bounded JSON (`maxDocumentBytes` plus a
+  small envelope allowance; over → 422); every other request never reads
+  a body.
 
 The API reads only inside the configured store paths
 (`paths.tasks/plans/reports/research/decisions/memory/state`); no dynamic
@@ -131,7 +152,9 @@ filesystem access derives from request input beyond UUID/slug validation.
 
 ## Non-goals
 
-- No writes, mutations, recovery actions, ack submission or previews.
+- No writes beyond the opt-in bounded catalog-document edit channel
+  (`--allow-write`); nothing else mutates. No recovery actions, ack
+  submission or previews.
 - No authentication, authorization or multi-user isolation. The loopback
   bind is the entire access boundary; the API is not a production host.
 - No websockets or push - the viewer polls/refreshes.
@@ -144,7 +167,7 @@ filesystem access derives from request input beyond UUID/slug validation.
 
 ## UI capabilities (what a user can and cannot do)
 
-The viewer is **strictly read-only by design** (loopback-only, GET-only, no authentication or mutations). It supports instant **English / Español** language switching from the top bar with 100% key parity.
+The viewer is **read-only by design** (loopback-only, GET-only, no authentication). The single opt-in exception is catalog document editing, available only when the API was started with `--allow-write`. It supports instant **English / Español** language switching from the top bar with 100% key parity.
 
 ### What users CAN do across the 15 views
 
@@ -161,7 +184,7 @@ The viewer is **strictly read-only by design** (loopback-only, GET-only, no auth
 | **Journal** | Journal operations (`committed`/`prepared`/`abandoned`), event lists, hashes and recovery receipts. |
 | **Captures** | Selective capture notes with ownership proof status (`proved`, `drifted`, `unconfirmed`, `unproved`, `malformed`) and area scopes. |
 | **Memory** | JSONL worklogs (`progress`, `lessons`, `outcomes`, `activity`) with commit and task links. |
-| **Catalog** | Projected workspace resources (commands, agents, skills, rules, references, prompts, profiles) and hash integrity. |
+| **Catalog** | Projected workspace resources (commands, agents, skills, rules, references, prompts, profiles) and hash integrity. With `--allow-write` on the API: CAS (`expectedSha256`) editing of the projected document, 409 conflict notice with reload; the manifest `sha256` pin updates on save. |
 | **Metrics** | Store breakdowns by state/backlog/priority/type/disposition and verification rates. |
 | **Reports** | Historical status snapshots saved via `report save`. |
 | **System** | Human operator essentials, live C0 workflow state machine, VantaDB enrollment status and approved/discovered verification commands. |
@@ -192,6 +215,7 @@ Verified in headless Chromium (1440×900 desktop & 390×844 mobile, 0 console/pa
 ```text
 viewer/
   src/lib/api.ts       typed client mirroring the 30 GET endpoints
+                       + the opt-in catalog-edit PUT
   src/lib/i18n.ts      EN/ES dictionaries with 100% key parity
   src/lib/useApi.ts    loading/error/reload fetch hook
   src/components/ui/   shadcn/ui components

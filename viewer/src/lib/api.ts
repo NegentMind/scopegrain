@@ -513,8 +513,14 @@ export interface ReportDetail {
   };
 }
 
-async function request<T>(path: string): Promise<T> {
-  const res = await fetch(path, { headers: { Accept: 'application/json' } });
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      ...(init?.headers as Record<string, string> | undefined),
+    },
+  });
   let body: unknown = null;
   try {
     body = await res.json();
@@ -592,6 +598,22 @@ export const api = {
   catalogDoc: (kind: string, id: string) =>
     request<CatalogDocResponse>(
       `/api/catalog/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`),
+  // Opt-in write channel: the API only accepts this when the server was
+  // started with --allow-write; otherwise it answers WRITE_DISABLED (403).
+  // expectedSha256 is the CAS token — the sha256 the GET returned.
+  catalogDocWrite: (
+    kind: string,
+    id: string,
+    content: string,
+    expectedSha256: string,
+  ) =>
+    request<CatalogDocWriteResponse>(
+      `/api/catalog/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, expectedSha256 }),
+      }),
   verify: () => request<VerifyResponse>('/api/verify'),
   vantadb: () => request<VantaDBResponse>('/api/vantadb'),
   workflow: () => request<WorkflowResponse>('/api/workflow'),
@@ -703,12 +725,23 @@ export interface CatalogDocResponse {
     id: string;
     path: string;
     sha256: string | null;
+    // True only when the API was started with --allow-write AND the entry
+    // is pinned (the client needs sha256 for the CAS write).
+    writable?: boolean;
     body: string;
     truncated?: boolean | null;
     bytes: number;
     updatedAt: string;
   } | null;
   entry?: { kind: string; id: string; path: string | null };
+}
+
+export interface CatalogDocWriteResponse {
+  kind: string;
+  id: string;
+  path: string;
+  sha256: string;
+  applied: boolean;
 }
 
 export interface VerifyCommand {

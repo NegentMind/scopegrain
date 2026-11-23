@@ -1,6 +1,7 @@
 # Visor (bloque G)
 
-Visor local de solo lectura para los stores de Scopegrain. Dos piezas:
+Visor local de solo lectura (por defecto) para los stores de Scopegrain.
+Dos piezas:
 
 - `src/api/` - una API JSON solo-localhost sobre los stores configurados
   (`node:http`, cero dependencias, solo GET).
@@ -8,17 +9,33 @@ Visor local de solo lectura para los stores de Scopegrain. Dos piezas:
   Tailwind + shadcn/ui que renderiza los datos de la API.
 
 La API expone lo que ya existe en disco a traves de los getters del core
-y las ubicaciones de los stores. No escribe, no muta, no adopta
-archivos, no ejecuta comandos ni activa hosts. Es una superficie de
-conveniencia local, no un host de produccion: no hay autenticacion mas
-alla del bind a loopback, no hay modelo multi-usuario ni TLS. No exponer
-el puerto.
+y las ubicaciones de los stores. No adopta archivos, no ejecuta comandos
+ni activa hosts. Con el opt-in explicito `--allow-write` habilita un
+unico canal de escritura acotado (la edicion de documentos del catalogo,
+descrita abajo); sin el, la API sigue siendo estrictamente GET. Es una
+superficie de conveniencia local, no un host de produccion: no hay
+autenticacion mas alla del bind a loopback, no hay modelo multi-usuario
+ni TLS. No exponer el puerto.
 
 ## Ejecucion
 
 ```powershell
-scopegrain view --project PATH [--host 127.0.0.1|::1] [--port N]
+scopegrain view --project PATH [--host 127.0.0.1|::1] [--port N] [--allow-write]
 ```
+
+`--allow-write` (opt-in): habilita `PUT /api/catalog/:kind/:id`, la
+edicion acotada del archivo proyectado de una entrada del catalogo. El
+body es `{content, expectedSha256}`: `expectedSha256` debe igualar el
+sha256 de los bytes actuales del archivo (CAS; divergencia → 409
+`WRITE_CONFLICT`) y `content` comparte el tope de bytes de los documentos
+(`maxDocumentBytes`; exceso → 422 `DOCUMENT_TOO_LARGE`). La escritura es
+atomica (temp exclusivo + fsync + rename dentro del configDir, sin
+symlinks) y, al aplicarse, el pin `sha256` de la entrada se actualiza en
+`catalog.json` (o `mounted-catalog.json` para entradas de bundles) para
+que el snapshot siga verificando. El siguiente `update` reporta el
+archivo como divergente del catalogo de instalacion: las ediciones nunca
+se revierten solas; `update --reconcile` es el revert explicito del
+owner. Sin el flag, PUT responde 403 `WRITE_DISABLED`.
 
 `view` inicia la API de loopback y, cuando el build del visor se
 distribuye con el paquete (`viewer/dist`), lo monta en el mismo origen:
@@ -67,10 +84,11 @@ run typecheck` ejecuta solo el gate de tipos.
 Todas las respuestas son JSON. Los errores usan `{error:{code,message}}`
 con el status HTTP correspondiente: `*_NOT_FOUND` 404,
 `INVALID_*`/`UNKNOWN_*` 400, `*_MALFORMED`/`*_DRIFT`/
-`DOCUMENT_TOO_LARGE` 422, `SCOPE_DENIED` 403,
+`DOCUMENT_TOO_LARGE` 422, `SCOPE_DENIED`/`WRITE_DISABLED` 403,
 `*_CONFLICT`/`WORKSPACE_STALE` 409, cualquier otra cosa 500. Metodos
-no-GET sobre cualquier ruta devuelven 405; rutas desconocidas 404;
-parametros de query desconocidos 400.
+no-GET sobre cualquier ruta devuelven 405 (PUT al endpoint del catalogo
+sin `--allow-write` devuelve 403 `WRITE_DISABLED`); rutas desconocidas
+404; parametros de query desconocidos 400.
 
 | Endpoint | Payload |
 | --- | --- |
@@ -97,7 +115,8 @@ parametros de query desconocidos 400.
 | `GET /api/sessions` / `GET /api/sessions/:id` | sesiones acotadas + `resumeContext` (tarea vinculada, presupuesto, comando de reanudacion) |
 | `GET /api/approvals` / `GET /api/approvals/:id` | cola HITL de aprobaciones y detalle con respuestas/scope/digest |
 | `GET /api/catalog` | catalogo de recursos del workspace y verificacion por hash |
-| `GET /api/catalog/:kind/:id` | cuerpo del archivo proyectado de una entrada (confinado al configDir, acotado, `sha256` incluido); resuelve aliases |
+| `GET /api/catalog/:kind/:id` | cuerpo del archivo proyectado de una entrada (confinado al configDir, acotado, `sha256` incluido); resuelve aliases; `writable` indica si PUT esta habilitado para este doc |
+| `PUT /api/catalog/:kind/:id` | edicion del archivo proyectado, solo con `--allow-write`: `{content, expectedSha256}` → `{kind,id,path,sha256,applied}`; CAS 409 `WRITE_CONFLICT`, 403 `WRITE_DISABLED` |
 | `GET /api/verify` | comandos de verificacion descubiertos y aprobados |
 | `GET /api/vantadb` | estado de enrolamiento VantaDB (sin spawnear binario) |
 | `GET /api/workflow` | maquina de estados canonica y transiciones permitidas |
@@ -128,8 +147,10 @@ capturas:
 - Las entradas malformed se exponen en `malformed[]` (`file` + `{code,
   message}`), nunca se descartan silenciosamente - mismo contrato que
   `listTasks`.
-- URIs de request de mas de 4096 bytes devuelven 414. Nunca se lee un
-  body de request.
+- URIs de request de mas de 4096 bytes devuelven 414. Los bodies de
+  request solo se leen en el canal PUT opt-in: JSON acotado a
+  `maxDocumentBytes` mas un pequeño margen de envoltura (exceso → 422);
+  el resto de los requests nunca lee body.
 
 La API solo lee dentro de las rutas de store configuradas
 (`paths.tasks/plans/reports/research/decisions/memory/state`); ningun
@@ -138,8 +159,9 @@ de la validacion UUID/slug.
 
 ## No objetivos
 
-- Sin escrituras, mutaciones, acciones de recuperacion, envio de acks ni
-  previews.
+- Sin escrituras salvo el canal opt-in acotado de edicion de documentos
+  del catalogo (`--allow-write`); nada mas muta. Sin acciones de
+  recuperacion, envio de acks ni previews.
 - Sin autenticacion, autorizacion ni aislamiento multi-usuario. El bind
   a loopback es todo el limite de acceso; la API no es un host de
   produccion.
@@ -153,7 +175,7 @@ de la validacion UUID/slug.
 
 ## Capacidades de la interfaz (que puede y que no puede hacer el usuario)
 
-El visor es **estrictamente de solo lectura por diseno** (loopback-only, solo GET, sin autenticacion ni mutaciones). Soporta cambio inmediato de idioma **Español / English** en la barra superior (337+ claves con paridad 100%).
+El visor es **de solo lectura por diseno** (loopback-only, solo GET, sin autenticacion). La unica excepcion opt-in es la edicion de documentos del catalogo, disponible solo cuando la API se inicio con `--allow-write`. Soporta cambio inmediato de idioma **Español / English** en la barra superior (337+ claves con paridad 100%).
 
 ### Que SI puede hacer el usuario en las 15 vistas
 
@@ -170,7 +192,7 @@ El visor es **estrictamente de solo lectura por diseno** (loopback-only, solo GE
 | **Diario (`Journal`)** | Operaciones del journal (`committed`/`prepared`/`abandoned`), eventos, hashes y recibos de recuperacion. |
 | **Capturas (`Captures`)** | Notas de captura selectiva con estado de prueba de ownership (`proved`, `drifted`, `unconfirmed`, `unproved`, `malformed`) y scopes. |
 | **Memoria (`Memory`)** | Worklogs JSONL (`progress`, `lessons`, `outcomes`, `activity`) con trazabilidad a commits y tareas. |
-| **Catalogo (`Catalog`)** | Inventario de recursos proyectados (comandos, agentes, skills, reglas, referencias, prompts, perfiles) e integridad por hash. |
+| **Catalogo (`Catalog`)** | Inventario de recursos proyectados (comandos, agentes, skills, reglas, referencias, prompts, perfiles) e integridad por hash. Con `--allow-write` en la API: edicion del documento proyectado con CAS (`expectedSha256`), aviso de conflicto 409 con recarga; el pin `sha256` del manifest se actualiza al guardar. |
 | **Metricas (`Metrics`)** | Distribuciones por estado/backlog/prioridad/tipo/disposicion y tasas de cierre/verificacion. |
 | **Informes (`Reports`)** | Snapshots historicos guardados con `report save`. |
 | **Sistema (`System`)** | Guia rapida del operador humano, maquina de estados en vivo, enrolamiento VantaDB y comandos de verificacion aprobados/descubiertos. |
@@ -201,6 +223,7 @@ Capturas verificadas en navegador real (Chromium 1440×900, 0 errores de consola
 ```text
 viewer/
   src/lib/api.ts       cliente tipado sincronizado con los 30 endpoints GET
+                       + el PUT opt-in de edicion del catalogo
   src/lib/i18n.ts      diccionarios EN/ES con paridad 100%
   src/lib/useApi.ts    hook de carga/error/refresco
   src/components/ui/   componentes shadcn/ui

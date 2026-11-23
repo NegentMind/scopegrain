@@ -53,4 +53,26 @@ describe('api.request contract', () => {
       expect.anything(),
     );
   });
+
+  it('catalogDocWrite PUTs the CAS envelope as JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(200, {
+        kind: 'prompt', id: 'p', path: 'prompts/p.md',
+        sha256: 'b'.repeat(64), applied: true,
+      })),
+    );
+    await api.catalogDocWrite('prompt', 'p', 'body text', 'a'.repeat(64));
+    expect(fetch).toHaveBeenCalledWith('/api/catalog/prompt/p', {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: 'body text',
+        expectedSha256: 'a'.repeat(64),
+      }),
+    });
+  });
 });

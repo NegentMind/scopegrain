@@ -1,22 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
-// Localhost-only read-only JSON API over Scopegrain stores.
+// Localhost-only JSON API over Scopegrain stores.
 //
 // Contract:
-// - node:http only, no dependencies, no write endpoints, no auth beyond the
-//   loopback bind. It is a local convenience for the viewer, never a
-//   production host: do not expose the port.
+// - node:http only, no dependencies, no auth beyond the loopback bind. It
+//   is a local convenience for the viewer, never a production host: do
+//   not expose the port.
+// - Read-only by default. The single write endpoint (PUT
+//   /api/catalog/:kind/:id — a bounded, CAS-checked catalog document edit)
+//   exists only when the server is created with `allowWrite: true`
+//   (`view --allow-write`); every other method stays 405.
 // - createApiServer({ project, config, host, port }) resolves the context
 //   eagerly (fail fast on a bad project/config) and binds only to a
 //   literal loopback address. '0.0.0.0', '::', 'localhost' and any other
 //   name are rejected: names resolve through DNS and may not be loopback.
-// - Strict route/method whitelist; unknown paths are 404, non-GET methods
-//   405, malformed query params 400. Errors are {error:{code,message}}.
+// - Strict route/method whitelist; unknown paths are 404, unsupported
+//   methods 405, malformed query params 400. Errors are
+//   {error:{code,message}}.
 import http from 'node:http';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { err, toErrorPayload } from '../core/errors.mjs';
 import { resolveContext } from '../core/context.mjs';
+import { loadLimits } from '../core/policy.mjs';
 import { createApiQueries, parseListOptions } from './queries.mjs';
 
 // Literal addresses only: 'localhost' is deliberately absent because
@@ -147,7 +153,8 @@ const ROUTES = [
   { pattern: ['api', 'catalog'], query: [],
     handler: (q) => q.catalog() },
   { pattern: ['api', 'catalog', ':kind', ':id'], query: [],
-    handler: (q, _url, p) => q.catalogDoc(p.kind, p.id) },
+    handler: (q, _url, p) => q.catalogDoc(p.kind, p.id),
+    put: (q, _url, p, body) => q.catalogDocWrite(p.kind, p.id, body) },
   { pattern: ['api', 'verify'], query: [],
     handler: (q) => q.verifyCommands() },
   { pattern: ['api', 'vantadb'], query: [],
@@ -179,7 +186,7 @@ function matchRoute(segments) {
 function statusFor(code) {
   if (typeof code !== 'string') return 500;
   if (code === 'NOT_FOUND' || code.endsWith('_NOT_FOUND')) return 404;
-  if (code === 'SCOPE_DENIED') return 403;
+  if (code === 'SCOPE_DENIED' || code === 'WRITE_DISABLED') return 403;
   if (code === 'WORKSPACE_STALE' || code.endsWith('_CONFLICT')) return 409;
   if (code.startsWith('INVALID') || code.startsWith('UNKNOWN_')
       || code === 'CONFIG_AMBIGUOUS') {
@@ -257,28 +264,59 @@ function sendError(res, status, code, message) {
   sendJson(res, status, { error: { code, message } });
 }
 
+// Headroom over the document byte cap so a document that is exactly at the
+// limit still fits inside its {content, expectedSha256} JSON envelope.
+const BODY_ENVELOPE_SLACK = 8192;
+
+// Bounded body reader for the write channel. Bytes past the cap are
+// drained and discarded — the request stream must be consumed fully before
+// the response goes out or a keep-alive connection would misread leftover
+// bytes as a pipelined request. A stream error fails closed.
+function readBoundedBody(req, maxBytes) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    let done = false;
+    req.on('data', (chunk) => {
+      if (done) return;
+      size += chunk.length;
+      if (size > maxBytes) {
+        chunks.length = 0;
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (done) return;
+      done = true;
+      resolve(size > maxBytes
+        ? { ok: false, reason: 'exceeded' }
+        : { ok: true, body: Buffer.concat(chunks) });
+    });
+    req.on('error', () => {
+      if (done) return;
+      done = true;
+      resolve({ ok: false, reason: 'failed' });
+    });
+  });
+}
+
 export function createApiHandler(options) {
   const ctx = resolveContext({ project: options.project,
     config: options.config });
-  const queries = createApiQueries(ctx);
-  return function apiHandler(req, res) {
-    // Never read request bodies: the surface is GET-only. Discard anything
-    // a client pipelined so the connection state stays sane.
-    req.resume();
+  const allowWrite = options.allowWrite === true;
+  const queries = createApiQueries(ctx, { allowWrite });
+  return async function apiHandler(req, res) {
     try {
       if (!requestOriginAllowed(req)) {
+        req.resume();
         sendError(res, 421, 'MISDIRECTED_REQUEST',
           'this API only answers requests addressed to its loopback socket');
         return;
       }
-      if (req.method !== 'GET') {
-        res.setHeader('Allow', 'GET');
-        sendError(res, 405, 'METHOD_NOT_ALLOWED',
-          'this API is read-only; only GET is supported');
-        return;
-      }
       const rawUrl = typeof req.url === 'string' ? req.url : '';
       if (Buffer.byteLength(rawUrl, 'utf8') > MAX_URL_BYTES) {
+        req.resume();
         sendError(res, 414, 'URI_TOO_LONG', 'request URI exceeds limit');
         return;
       }
@@ -286,6 +324,7 @@ export function createApiHandler(options) {
       try {
         url = new URL(rawUrl, 'http://127.0.0.1');
       } catch {
+        req.resume();
         sendError(res, 400, 'INVALID_PATH', 'request URI is not parseable');
         return;
       }
@@ -295,18 +334,92 @@ export function createApiHandler(options) {
           .filter((s) => s !== '')
           .map((s) => decodeURIComponent(s));
       } catch {
+        req.resume();
         sendError(res, 400, 'INVALID_PATH', 'path is not valid percent-encoding');
         return;
       }
       if (segments[0] !== 'api') {
+        // Static surface stays GET-only in every mode.
+        if (req.method !== 'GET') {
+          req.resume();
+          res.setHeader('Allow', 'GET');
+          sendError(res, 405, 'METHOD_NOT_ALLOWED',
+            'only GET is supported on this path');
+          return;
+        }
         sendStatic(res, segments);
         return;
       }
       const matched = matchRoute(segments);
       if (!matched) {
+        req.resume();
         sendError(res, 404, 'NOT_FOUND', `unknown endpoint: ${url.pathname}`);
         return;
       }
+      if (req.method === 'PUT' && matched.route.put) {
+        // Opt-in write channel: without --allow-write the endpoint reports
+        // a structured 403 rather than the generic 405 so the caller can
+        // tell "disabled capability" from "no such method".
+        if (!allowWrite) {
+          req.resume();
+          sendError(res, 403, 'WRITE_DISABLED',
+            'this API was started without the write opt-in '
+            + '(view --allow-write)');
+          return;
+        }
+        for (const key of url.searchParams.keys()) {
+          if (!matched.route.query.includes(key)) {
+            req.resume();
+            sendError(res, 400, 'INVALID_QUERY',
+              `unsupported query parameter '${key}'`);
+            return;
+          }
+        }
+        const contentType = req.headers['content-type'];
+        if (typeof contentType !== 'string'
+            || !/^application\/json\b/.test(contentType)) {
+          req.resume();
+          sendError(res, 400, 'INVALID_BODY',
+            'request body must be application/json');
+          return;
+        }
+        const bounded = await readBoundedBody(
+          req, loadLimits().maxDocumentBytes + BODY_ENVELOPE_SLACK);
+        if (!bounded.ok) {
+          sendError(res,
+            bounded.reason === 'exceeded' ? 422 : 400,
+            bounded.reason === 'exceeded' ? 'DOCUMENT_TOO_LARGE'
+              : 'INVALID_BODY',
+            bounded.reason === 'exceeded'
+              ? 'request body exceeds document limit'
+              : 'request body could not be read');
+          return;
+        }
+        let body;
+        try {
+          body = JSON.parse(bounded.body.toString('utf8'));
+        } catch {
+          sendError(res, 400, 'INVALID_BODY', 'request body is not JSON');
+          return;
+        }
+        const payload = matched.route.put(
+          queries, url, matched.params, body);
+        sendJson(res, 200, payload);
+        return;
+      }
+      // GET (the only other supported method) never reads request bodies;
+      // discard anything a client pipelined so connection state stays
+      // sane. Unknown methods on known routes get the same treatment.
+      if (req.method !== 'GET') {
+        req.resume();
+        res.setHeader('Allow',
+          allowWrite && matched.route.put ? 'GET, PUT' : 'GET');
+        sendError(res, 405, 'METHOD_NOT_ALLOWED',
+          'only GET is supported on this endpoint'
+          + (matched.route.put ? ' (PUT requires --allow-write)' : ''));
+        return;
+      }
+      req.resume();
       for (const key of url.searchParams.keys()) {
         if (!matched.route.query.includes(key)) {
           sendError(res, 400, 'INVALID_QUERY',

@@ -86,7 +86,7 @@ const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
   '--record', '--keep-files', '--no-resume', '--lazy', '--no-structure',
-  '--all',
+  '--all', '--allow-write',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -665,8 +665,9 @@ const COMMANDS = {
     usage: 'verify run ID --project PATH [--timeout MS] [--fail-on-error]',
   },
   view: {
-    flags: ['--project', '--config', '--port', '--host'], pos: 0,
-    usage: 'view --project PATH [--config REL] [--port N] [--host ADDR]',
+    flags: ['--project', '--config', '--port', '--host', '--allow-write'],
+    pos: 0,
+    usage: 'view --project PATH [--config REL] [--port N] [--host ADDR] [--allow-write]',
   },
 };
 
@@ -704,7 +705,7 @@ function helpResult() {
       'capture proposals lists review proposals; capture review --apply creates an owned capture only from an approved decision',
       'verify add/approve/discover preview first; discover --approve bulk-approves the literal candidates just shown; approve-discovered without candidates approves all stored inferred and needs --all; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
       'verify run prints the result JSON and exits 0 by default; --fail-on-error propagates the command exit code (or 1 on timeout/signal)',
-      'view serves a loopback read-only API and keeps running; press Ctrl+C to stop',
+      'view serves a loopback API and keeps running; press Ctrl+C to stop; --allow-write opts in to the bounded catalog-doc edit endpoint (CAS-checked PUT) — the API stays read-only without it',
     ],
   };
 }
@@ -800,6 +801,15 @@ async function askInteractive(io, projectRoot, configFlag, existing,
       userCfg = loadUserConfig().config;
     } catch { userCfg = null; }
   }
+  // Adaptive defaults: run the repository investigation once so detected
+  // host signals / project name seed the interactive defaults (the user
+  // can still override). Investigation is read-only and failure-safe.
+  let suggestions = null;
+  if (!existing) {
+    try {
+      suggestions = suggestAnswers(investigateProject(projectRoot, {}));
+    } catch { suggestions = null; }
+  }
   const st = session === null ? null : sessionStatus(session);
   const answered = new Set(st === null ? [] : st.answered);
   const leaf = (id) => id.split('.').reduce((o, k) => o?.[k], st.answers);
@@ -833,12 +843,15 @@ async function askInteractive(io, projectRoot, configFlag, existing,
     existing ? existing.locale : (userCfg?.locale ?? 'es')));
   t = WIZARD_STRINGS[answers.locale] ?? WIZARD_STRINGS.en;
   answers.name = await askOrReplay('name', () => io.ask(t.name,
-    existing ? existing.project.name : path.basename(projectRoot)));
+    existing ? existing.project.name
+      : (suggestions?.name?.value ?? path.basename(projectRoot))));
   const hostList = KNOWN_HOSTS.join(',');
   answers.hosts = await askOrReplay('hosts', async () => {
+    const detected = suggestions?.hosts?.value;
     const defaultHosts = existing
       ? existing.hosts.join(',')
-      : (userCfg?.hosts ? userCfg.hosts.join(',') : hostList);
+      : (detected && detected.length ? detected.join(',')
+        : (userCfg?.hosts ? userCfg.hosts.join(',') : hostList));
     const hostsRaw = await io.ask(t.hosts(hostList), defaultHosts);
     return hostsRaw.split(',').map((h) => h.trim()).filter(Boolean);
   });
@@ -2681,7 +2694,8 @@ async function cmdVerify(sub, positional, flags, io) {
   throw err('INVALID_ARGS', `unknown verify subcommand '${sub}'`);
 }
 
-// Loopback read-only viewer API. The returned server handle keeps the
+// Loopback viewer API — read-only unless --allow-write opts in to the
+// bounded catalog-doc edit endpoint. The returned server handle keeps the
 // process alive; the operator stops it with Ctrl+C. The live handle is
 // exposed on io.viewServer so embedders/tests can close it explicitly.
 async function cmdView(flags, io) {
@@ -2697,6 +2711,7 @@ async function cmdView(flags, io) {
   if (Object.hasOwn(flags, '--port')) {
     options.port = decimalInt(flags['--port'], '--port');
   }
+  if (flags['--allow-write']) options.allowWrite = true;
   const api = createApiServer(options);
   const bound = await api.listen();
   if (io !== null && typeof io === 'object') io.viewServer = api;

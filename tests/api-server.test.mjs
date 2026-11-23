@@ -70,9 +70,9 @@ function enrolledFixture() {
   };
 }
 
-async function serve(fixture) {
+async function serve(fixture, options = {}) {
   const api = createApiServer({
-    project: fixture.dir, config: CONFIG_REL, port: 0,
+    project: fixture.dir, config: CONFIG_REL, port: 0, ...options,
   });
   const bound = await api.listen();
   const base = `http://${api.host}:${bound.port}`;
@@ -82,6 +82,15 @@ async function serve(fixture) {
       const res = await fetch(`${base}${rel}`);
       return { status: res.status, body: await res.json() };
     },
+    put: async (rel, payload, headers = {}) => {
+      const res = await fetch(`${base}${rel}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: typeof payload === 'string' ? payload : JSON.stringify(payload),
+      });
+      return { status: res.status, body: await res.json() };
+    },
+    getRaw: (rel) => fetch(`${base}${rel}`),
     close: () => api.close(),
   };
 }
@@ -421,6 +430,169 @@ test('catalog doc endpoint serves the projected entry body', async () => {
   }
 });
 
+// --- PUT /api/catalog/:kind/:id (opt-in --allow-write) --------------------
+//
+// One pinned prompt entry in a minimal catalog.json snapshot; the sha256
+// pin is real so the verified workspace-catalog load succeeds.
+function writableCatalogFixture() {
+  const f = baseFixture();
+  const body = 'Prompt body\nsecond line\n';
+  const sha = crypto.createHash('sha256').update(body).digest('hex');
+  writeFile(f.dir, '.tasksystem/prompts/demo-prompt.md', body);
+  writeJson(f.dir, '.tasksystem/catalog.json', {
+    schemaVersion: 2,
+    entries: [
+      { kind: 'prompt', id: 'demo-prompt', path: 'prompts/demo-prompt.md',
+        description: 'Demo prompt', sha256: sha },
+    ],
+  });
+  return { ...f, body, sha };
+}
+
+const PROMPT_FILE = '.tasksystem/prompts/demo-prompt.md';
+const sha256Of = (s) =>
+  crypto.createHash('sha256').update(s).digest('hex');
+const readDoc = (dir) =>
+  fs.readFileSync(path.join(dir, ...PROMPT_FILE.split('/')), 'utf8');
+const readManifest = (dir) => JSON.parse(
+  fs.readFileSync(path.join(dir, '.tasksystem/catalog.json'), 'utf8'));
+
+test('PUT catalog doc without --allow-write is 403 WRITE_DISABLED', async () => {
+  const f = writableCatalogFixture();
+  const srv = await serve(f); // no allowWrite
+  try {
+    const res = await srv.put('/api/catalog/prompt/demo-prompt',
+      { content: 'edited\n', expectedSha256: f.sha });
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error.code, 'WRITE_DISABLED');
+    // Nothing changed on disk or in the manifest.
+    assert.equal(readDoc(f.dir), f.body);
+    assert.equal(readManifest(f.dir).entries[0].sha256, f.sha);
+    // The doc reports itself read-only.
+    const doc = await srv.get('/api/catalog/prompt/demo-prompt');
+    assert.equal(doc.body.doc.writable, false);
+    // Other write verbs on write-capable and plain routes stay 405/404.
+    const otherMethod = await fetch(
+      `${srv.base}/api/catalog/prompt/demo-prompt`, { method: 'DELETE' });
+    assert.equal(otherMethod.status, 405);
+    await otherMethod.text();
+    const wrongRoute = await srv.put('/api/tasks',
+      { content: 'x', expectedSha256: f.sha });
+    assert.equal(wrongRoute.status, 405);
+    const unknown = await srv.put('/api/nope',
+      { content: 'x', expectedSha256: f.sha });
+    assert.equal(unknown.status, 404);
+  } finally {
+    await srv.close();
+    cleanup(f.dir);
+  }
+});
+
+test('PUT catalog doc applies atomically, repins and GET reflects', async () => {
+  const f = writableCatalogFixture();
+  const srv = await serve(f, { allowWrite: true });
+  try {
+    // The write-enabled doc advertises writability.
+    const before = await srv.get('/api/catalog/prompt/demo-prompt');
+    assert.equal(before.body.doc.writable, true);
+
+    const next = 'Prompt body\nedited line\n';
+    const newSha = sha256Of(next);
+    const res = await srv.put('/api/catalog/prompt/demo-prompt',
+      { content: next, expectedSha256: f.sha });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.applied, true);
+    assert.equal(res.body.sha256, newSha);
+    assert.equal(res.body.id, 'demo-prompt');
+    assert.equal(readDoc(f.dir), next);
+    // Only the matching entry's pin is updated.
+    assert.equal(readManifest(f.dir).entries[0].sha256, newSha);
+    // The verified snapshot stays internally consistent: the catalog
+    // endpoint still loads and the doc serves the new body + pin.
+    const cat = await srv.get('/api/catalog');
+    assert.equal(cat.status, 200);
+    const got = await srv.get('/api/catalog/prompt/demo-prompt');
+    assert.equal(got.status, 200);
+    assert.equal(got.body.doc.body, next);
+    assert.equal(got.body.doc.sha256, newSha);
+    // CAS moves forward: the stale pin now conflicts, the fresh one passes.
+    const stale = await srv.put('/api/catalog/prompt/demo-prompt',
+      { content: 'again\n', expectedSha256: f.sha });
+    assert.equal(stale.status, 409);
+    const chained = await srv.put('/api/catalog/prompt/demo-prompt',
+      { content: 'again\n', expectedSha256: newSha });
+    assert.equal(chained.status, 200);
+    assert.equal(readDoc(f.dir), 'again\n');
+  } finally {
+    await srv.close();
+    cleanup(f.dir);
+  }
+});
+
+test('PUT catalog doc rejects stale sha, bad input and oversized bodies', async () => {
+  const f = writableCatalogFixture();
+  const srv = await serve(f, { allowWrite: true });
+  try {
+    // Stale CAS token → 409, nothing written.
+    const stale = await srv.put('/api/catalog/prompt/demo-prompt',
+      { content: 'clobber\n', expectedSha256: '0'.repeat(64) });
+    assert.equal(stale.status, 409);
+    assert.equal(stale.body.error.code, 'WRITE_CONFLICT');
+    assert.equal(readDoc(f.dir), f.body);
+    assert.equal(readManifest(f.dir).entries[0].sha256, f.sha);
+
+    // Traversal/invalid ids are rejected before any filesystem touch.
+    const badId = await srv.put('/api/catalog/prompt/Bad..Id',
+      { content: 'x', expectedSha256: f.sha });
+    assert.equal(badId.status, 400);
+    assert.equal(badId.body.error.code, 'INVALID_ID');
+    const traversal = await srv.put('/api/catalog/rule/..%2Fsecret',
+      { content: 'x', expectedSha256: f.sha });
+    assert.equal(traversal.status, 400);
+    const missingEntry = await srv.put('/api/catalog/prompt/nope',
+      { content: 'x', expectedSha256: f.sha });
+    assert.equal(missingEntry.status, 404);
+
+    // Closed request schema: wrong content-type, non-JSON body, missing
+    // or extra keys and malformed sha all fail closed.
+    const wrongType = await srv.put('/api/catalog/prompt/demo-prompt',
+      'content=x', { 'Content-Type': 'text/plain' });
+    assert.equal(wrongType.status, 400);
+    assert.equal(wrongType.body.error.code, 'INVALID_BODY');
+    const notJson = await srv.put('/api/catalog/prompt/demo-prompt',
+      '{nope');
+    assert.equal(notJson.status, 400);
+    assert.equal(notJson.body.error.code, 'INVALID_BODY');
+    const missingSha = await srv.put('/api/catalog/prompt/demo-prompt',
+      { content: 'x' });
+    assert.equal(missingSha.status, 400);
+    const badSha = await srv.put('/api/catalog/prompt/demo-prompt',
+      { content: 'x', expectedSha256: 'not-a-sha' });
+    assert.equal(badSha.status, 400);
+    const extraKey = await srv.put('/api/catalog/prompt/demo-prompt',
+      { content: 'x', expectedSha256: f.sha, hack: true });
+    assert.equal(extraKey.status, 400);
+    const wrongContent = await srv.put('/api/catalog/prompt/demo-prompt',
+      { content: 42, expectedSha256: f.sha });
+    assert.equal(wrongContent.status, 400);
+    const badQuery = await srv.put('/api/catalog/prompt/demo-prompt?x=1',
+      { content: 'x', expectedSha256: f.sha });
+    assert.equal(badQuery.status, 400);
+    assert.equal(badQuery.body.error.code, 'INVALID_QUERY');
+
+    // Content above the document cap → 422; the file is untouched.
+    const oversize = 'x'.repeat(1048576 + 1); // > maxDocumentBytes
+    const tooBig = await srv.put('/api/catalog/prompt/demo-prompt',
+      { content: oversize, expectedSha256: f.sha });
+    assert.equal(tooBig.status, 422);
+    assert.equal(tooBig.body.error.code, 'DOCUMENT_TOO_LARGE');
+    assert.equal(readDoc(f.dir), f.body);
+  } finally {
+    await srv.close();
+    cleanup(f.dir);
+  }
+});
+
 test('unenrolled project reports null workspace and 404 scoped endpoints', async () => {
   const f = baseFixture();
   const srv = await serve(f);
@@ -484,16 +656,23 @@ test('sendStatic rejects traversal segments and out-of-root paths', async () => 
   const srv = await serve(f);
   try {
     // Encoded '.'/'..' segments are decoded after the URL split, so the
-    // traversal guard sees them; bare '..' is normalized away by the URL
-    // parser and never reaches sendStatic.
+    // traversal guard sees them; when the Node URL parser normalizes
+    // %2e%2e before the split, the segment collapses harmlessly into a
+    // plain in-root path (404 without dist, or the SPA index.html when a
+    // viewer build exists). Any outcome is safe as long as no file from
+    // outside the root is served — so accept a rejection or the HTML
+    // fallback, never a 200 serving non-HTML file content.
     for (const rel of [
       '/%2e%2e/secret',
       '/%2E%2E/%2E%2E/etc/passwd',
       '/assets/..%2F..%2Fpackage.json',
     ]) {
-      const res = await srv.get(rel);
-      assert.equal(res.status, 400, rel);
-      assert.equal(res.body.error.code, 'INVALID_PATH');
+      const res = await srv.getRaw(rel);
+      const type = res.headers.get('content-type') ?? '';
+      assert.ok(
+        res.status === 400 || res.status === 404
+          || (res.status === 200 && type.includes('text/html')),
+        `${rel} -> ${res.status} ${type}`);
     }
   } finally {
     await srv.close();

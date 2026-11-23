@@ -5,9 +5,11 @@
 // dynamic filesystem access outside the configured Scopegrain stores.
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { err, toErrorPayload } from '../core/errors.mjs';
 import {
   decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited,
+  readJsonFile, removeIfExists, writeFileExclusive,
 } from '../core/fsx.mjs';
 import { loadLimits } from '../core/policy.mjs';
 import {
@@ -282,7 +284,11 @@ function captureStatus(e) {
 
 // The API facade holds one resolved context and, when the project is
 // enrolled, one all-areas binding - the same grants the local CLI uses.
-export function createApiQueries(ctx) {
+// `options.allowWrite` opts the instance into the bounded catalog-doc
+// mutation channel (PUT /api/catalog/:kind/:id); without it the facade is
+// strictly read-only.
+export function createApiQueries(ctx, options = {}) {
+  const allowWrite = options.allowWrite === true;
   const workspaceOrNull = () => {
     try {
       return getWorkspace(ctx);
@@ -1005,13 +1011,9 @@ export function createApiQueries(ctx) {
 
   const CATALOG_ID_RE = /^[a-z0-9][a-z0-9-]{0,120}$/;
 
-  // Body of a catalog entry's projected file (configDir/<entry.path>). The
-  // served bytes are the hash-pinned projection, not the canonical source.
-  function catalogDoc(kind, id) {
-    if (!CATALOG_ID_RE.test(id)) {
-      throw err('INVALID_ID', 'catalog entry id must be a lowercase slug');
-    }
-    const c = loadWorkspaceCatalog(ctx);
+  // Alias-aware entry resolution shared by the read and write paths: the
+  // canonical id wins; otherwise a same-kind alias resolves to its target.
+  function catalogDocEntry(c, kind, id) {
     const entries = c.entries ?? [];
     let entry = entries.find((e) => e.kind === kind && e.id === id);
     if (!entry) {
@@ -1022,12 +1024,28 @@ export function createApiQueries(ctx) {
           (e) => e.kind === kind && e.id === alias.target);
       }
     }
+    return entry ?? null;
+  }
+
+  const catalogConfigDir = () => (ctx.configDir === '.'
+    ? ctx.projectRoot
+    : resolveInside(ctx.projectRoot, ctx.configDir, 'config directory'));
+
+  // Body of a catalog entry's projected file (configDir/<entry.path>). The
+  // served bytes are the hash-pinned projection, not the canonical source.
+  // `writable` reports whether this server accepts the PUT channel for the
+  // doc right now: write opt-in plus a pinned sha256 the client can CAS
+  // against (legacy unpinned snapshots stay read-only).
+  function catalogDoc(kind, id) {
+    if (!CATALOG_ID_RE.test(id)) {
+      throw err('INVALID_ID', 'catalog entry id must be a lowercase slug');
+    }
+    const c = loadWorkspaceCatalog(ctx);
+    const entry = catalogDocEntry(c, kind, id);
     if (!entry?.path) {
       throw err('NOT_FOUND', `catalog entry not found: ${kind}/${id}`);
     }
-    const configDir = ctx.configDir === '.'
-      ? ctx.projectRoot
-      : resolveInside(ctx.projectRoot, ctx.configDir, 'config directory');
+    const configDir = catalogConfigDir();
     const file = resolveInside(configDir, entry.path, 'catalog doc');
     const st = lstatOrNull(file);
     if (!st) {
@@ -1045,11 +1063,165 @@ export function createApiQueries(ctx) {
       doc: {
         kind, id: entry.id, path: entry.path,
         sha256: entry.sha256 ?? null,
+        writable: allowWrite && typeof entry.sha256 === 'string',
         body: cut.value,
         truncated: cut.truncated || limited.exceeded || null,
         bytes: st.size,
         updatedAt: st.mtime.toISOString(),
       },
+    };
+  }
+
+  // Bounded catalog-doc mutation — reachable only when the server was
+  // started with the write opt-in (view --allow-write → allowWrite).
+  //
+  // NOT journaled, by design: the owned-record journal
+  // (applyJournaledRecordUpdate) covers workspace records authorized by
+  // area scope — tasks, captures, the workspace descriptor — and requires
+  // an enrolled workspace binding. A catalog projection under configDir is
+  // a harness-owned generated file, not an area-scoped record, and this
+  // endpoint must also answer on unenrolled projects where no binding
+  // exists. The honest boundary is therefore the snapshot's own integrity
+  // model: the write is atomic (exclusive temp + fsync + rename), CAS
+  // checked against live bytes, and the manifest pin is updated so the
+  // snapshot stays internally consistent. A later `update` still reports
+  // the file as diverged from the install catalog — edits are never
+  // silently reverted; `update --reconcile` is the owner's explicit
+  // revert.
+  const CATALOG_DOC_WRITE_KEYS = new Set(['content', 'expectedSha256']);
+
+  function catalogDocWrite(kind, id, body) {
+    if (!allowWrite) {
+      throw err('WRITE_DISABLED',
+        'catalog doc writes require the write opt-in (--allow-write)');
+    }
+    if (!CATALOG_ID_RE.test(id)) {
+      throw err('INVALID_ID', 'catalog entry id must be a lowercase slug');
+    }
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+      throw err('INVALID_BODY', 'catalog doc write requires a JSON object');
+    }
+    for (const key of Object.keys(body)) {
+      if (!CATALOG_DOC_WRITE_KEYS.has(key)) {
+        throw err('INVALID_BODY',
+          `catalog doc write has unknown key '${key}'`);
+      }
+    }
+    if (typeof body.content !== 'string') {
+      throw err('INVALID_BODY', 'catalog doc write requires content: string');
+    }
+    if (typeof body.expectedSha256 !== 'string'
+        || !SHA_RE.test(body.expectedSha256)) {
+      throw err('INVALID_BODY',
+        'expectedSha256 must be a sha256 hex digest');
+    }
+    // Same byte cap the read path enforces on documents.
+    const content = Buffer.from(body.content, 'utf8');
+    if (content.length > loadLimits().maxDocumentBytes) {
+      throw err('DOCUMENT_TOO_LARGE',
+        'catalog doc content exceeds document limit');
+    }
+    const c = loadWorkspaceCatalog(ctx);
+    const entry = catalogDocEntry(c, kind, id);
+    if (!entry?.path) {
+      throw err('NOT_FOUND', `catalog entry not found: ${kind}/${id}`);
+    }
+    const configDir = catalogConfigDir();
+    const file = resolveInside(configDir, entry.path, 'catalog doc');
+    const st = lstatOrNull(file);
+    if (!st) {
+      throw err('NOT_FOUND',
+        `catalog doc not found on disk: ${kind}/${id}`);
+    }
+    if (st.isSymbolicLink() || !st.isFile()) {
+      throw err('SYMLINK_REJECTED',
+        `catalog doc may not be a link: ${kind}/${id}`);
+    }
+    // CAS: the live bytes must hash to expectedSha256. On a verified V2
+    // snapshot this equals the pin, but the check still matters — another
+    // writer can land between the catalog load above and the rename.
+    const limited = readFileLimited(file, loadLimits().maxDocumentBytes);
+    if (limited.exceeded) {
+      throw err('DOCUMENT_TOO_LARGE',
+        'catalog doc exceeds document limit');
+    }
+    const currentSha = crypto.createHash('sha256')
+      .update(limited.content).digest('hex');
+    if (currentSha !== body.expectedSha256.toLowerCase()) {
+      throw err('WRITE_CONFLICT',
+        `catalog doc changed since the read: ${kind}/${id} — reload and retry`);
+    }
+    const newSha = crypto.createHash('sha256').update(content).digest('hex');
+    // Re-lstat immediately before replacing to narrow the symlink-swap
+    // window; the residual TOCTOU caveat is the one already documented for
+    // reads.
+    const before = lstatOrNull(file);
+    if (!before || before.isSymbolicLink() || !before.isFile()) {
+      throw err('WRITE_CONFLICT',
+        `catalog doc changed since the read: ${kind}/${id} — reload and retry`);
+    }
+    // Atomic replace: exclusive temp in the same directory (same volume as
+    // the rename target), fsync, then rename. A failed write removes only
+    // the temp we own.
+    const tmp = `${file}.tmp-${crypto.randomBytes(8).toString('hex')}`;
+    writeFileExclusive(tmp, content);
+    try {
+      fs.renameSync(tmp, file);
+    } catch (e) {
+      removeIfExists(tmp);
+      throw err('WRITE_FAILED',
+        `catalog doc rename failed: ${kind}/${id} (${e.code ?? e})`);
+    }
+    // Pin update: snapshot entries live in catalog.json, mounted bundle
+    // entries in mounted-catalog.json. The manifest is fresh-read NOW (it
+    // may have changed since the catalog load), exactly one entry's sha256
+    // is updated, and the manifest is replaced atomically. If the pin
+    // cannot be updated, the pre-edit bytes are restored best-effort so
+    // file and manifest never sit diverged longer than needed — and any
+    // residual divergence is reported, never hidden.
+    const manifestAbs = resolveInside(configDir,
+      entry.bundle ? 'mounted-catalog.json' : 'catalog.json',
+      'catalog manifest');
+    try {
+      const manifest = readJsonFile(manifestAbs, 'catalog manifest');
+      if (manifest === null || typeof manifest !== 'object'
+          || Array.isArray(manifest) || !Array.isArray(manifest.entries)) {
+        throw err('CATALOG_MALFORMED', 'catalog manifest lost its entries');
+      }
+      const target = manifest.entries.find(
+        (e) => e && e.kind === entry.kind && e.id === entry.id);
+      if (!target) {
+        throw err('WRITE_PIN_FAILED',
+          `catalog manifest no longer lists ${entry.kind}/${entry.id}`);
+      }
+      target.sha256 = newSha;
+      const mtmp =
+        `${manifestAbs}.tmp-${crypto.randomBytes(8).toString('hex')}`;
+      writeFileExclusive(mtmp,
+        Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8'));
+      try {
+        fs.renameSync(mtmp, manifestAbs);
+      } catch (e) {
+        removeIfExists(mtmp);
+        throw e;
+      }
+    } catch (pinErr) {
+      let rolledBack = false;
+      try {
+        const rtmp = `${file}.tmp-${crypto.randomBytes(8).toString('hex')}`;
+        writeFileExclusive(rtmp, limited.content);
+        fs.renameSync(rtmp, file);
+        rolledBack = true;
+      } catch { /* best effort: residual divergence is reported below */ }
+      const base = pinErr && typeof pinErr.message === 'string'
+        ? pinErr.message : 'pin update failed';
+      throw err('WRITE_PIN_FAILED',
+        `${base}; file rollback ${rolledBack ? 'applied'
+          : 'FAILED — the edit is still on disk'} `
+        + '(recover with `update --reconcile`)');
+    }
+    return {
+      kind, id: entry.id, path: entry.path, sha256: newSha, applied: true,
     };
   }
 
@@ -1085,7 +1257,7 @@ export function createApiQueries(ctx) {
     artifacts, artifact, journalOperations, journalOperation, captures,
     memory, goals, metrics, reports, report,
     sessions, session, approvals, approval, catalog, catalogDoc,
-    verifyCommands,
+    catalogDocWrite, verifyCommands,
     vantadb, workflow,
   });
 }

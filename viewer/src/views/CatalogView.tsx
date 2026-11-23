@@ -1,4 +1,11 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Pencil, RefreshCw, Save, X } from 'lucide-react';
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
@@ -6,6 +13,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   ToggleGroup,
@@ -13,6 +21,7 @@ import {
 } from '@/components/ui/toggle-group';
 import {
   api,
+  ApiError,
   type CatalogDepKey,
   type CatalogEntry,
 } from '@/lib/api';
@@ -86,22 +95,165 @@ function DocPanel({
     () => api.catalogDoc(kind, id),
     [kind, id],
   );
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<
+    { code?: string; message: string } | null
+  >(null);
+  const [conflict, setConflict] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // A different doc drops all local edit state — a draft belongs to the
+  // specific kind/id payload it was started from.
+  useEffect(() => {
+    setEditing(false);
+    setDraft('');
+    setSaving(false);
+    setSaveError(null);
+    setConflict(false);
+    setSaved(false);
+  }, [kind, id]);
+
   if (loading) return <ListSkeleton />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   if (!data?.doc) {
     return <EmptyBox>{t('catalog.docMissing')}</EmptyBox>;
   }
   const d = data.doc;
+  // Edit requires: write-enabled API (writable) + a pinned sha256 to CAS
+  // on + the full body — a truncated render must never round-trip back
+  // to disk.
+  const canEdit = d.writable === true && d.sha256 !== null && !d.truncated;
+
+  const startEdit = () => {
+    setDraft(d.body);
+    setEditing(true);
+    setSaveError(null);
+    setConflict(false);
+    setSaved(false);
+  };
+  const cancelEdit = () => {
+    setEditing(false);
+    setDraft('');
+    setSaveError(null);
+    setConflict(false);
+  };
+  const saveEdit = async () => {
+    if (d.sha256 === null) return;
+    setSaving(true);
+    setSaveError(null);
+    setConflict(false);
+    try {
+      await api.catalogDocWrite(kind, id, draft, d.sha256);
+      setEditing(false);
+      setDraft('');
+      setSaved(true);
+      reload();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        setConflict(true);
+      } else {
+        setSaveError({
+          code: e instanceof ApiError ? e.code : undefined,
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+  const reloadDoc = () => {
+    // The on-disk version wins a CAS conflict: reload discards the draft.
+    setEditing(false);
+    setDraft('');
+    setSaveError(null);
+    setConflict(false);
+    reload();
+  };
+
   return (
     <div className="space-y-1.5">
-      <div className="font-mono text-xs text-muted-foreground">
-        {d.path} · {d.bytes} B
-        {d.sha256 ? ` · sha256:${d.sha256.slice(0, 12)}…` : ''}
-        {d.truncated ? ` · ${t('catalog.docTruncated')}` : ''}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-mono text-xs text-muted-foreground">
+          {d.path} · {d.bytes} B
+          {d.sha256 ? ` · sha256:${d.sha256.slice(0, 12)}…` : ''}
+          {d.truncated ? ` · ${t('catalog.docTruncated')}` : ''}
+        </div>
+        {canEdit && !editing ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={startEdit}
+          >
+            <Pencil />
+            {t('catalog.edit')}
+          </Button>
+        ) : null}
       </div>
-      <div className="max-h-[32rem] overflow-auto rounded-md border bg-muted/30 p-4">
-        <Markdown onInternalLink={onInternalLink}>{d.body}</Markdown>
-      </div>
+      {saved && !editing ? (
+        <div className="text-xs text-emerald-600 dark:text-emerald-400">
+          {t('catalog.saved')}
+        </div>
+      ) : null}
+      {editing ? (
+        <div className="space-y-2">
+          {conflict ? (
+            <Alert variant="destructive">
+              <AlertTriangle />
+              <AlertTitle>{t('catalog.conflictTitle')}</AlertTitle>
+              <AlertDescription>
+                {t('catalog.conflictDesc')}
+              </AlertDescription>
+              <AlertAction>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={reloadDoc}
+                >
+                  <RefreshCw />
+                  {t('catalog.reloadDoc')}
+                </Button>
+              </AlertAction>
+            </Alert>
+          ) : null}
+          {saveError ? <ErrorBox error={saveError} /> : null}
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            aria-label={t('catalog.editArea')}
+            spellCheck={false}
+            className="h-[28rem] w-full rounded-md border bg-muted/30 p-4 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          />
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void saveEdit()}
+              disabled={saving}
+            >
+              <Save />
+              {saving ? t('catalog.saving') : t('catalog.save')}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={cancelEdit}
+              disabled={saving}
+            >
+              <X />
+              {t('common.cancel')}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="max-h-[32rem] overflow-auto rounded-md border bg-muted/30 p-4">
+          <Markdown onInternalLink={onInternalLink}>{d.body}</Markdown>
+        </div>
+      )}
     </div>
   );
 }
