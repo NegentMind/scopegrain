@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Bounded sessions: an explicit operation budget recorded against a task.
-// One exclusive lock, compare-and-swap revision, atomic temp+rename, no
-// stale-lock recovery. Policy or budget failure leaves bytes unchanged.
+// One exclusive lock, compare-and-swap revision, atomic temp+rename; the
+// verified-lock layer reclaims locks whose writer pid is provably dead.
+// Policy or budget failure leaves bytes unchanged.
 // The opt-in owned store at the bottom journals the same invariants:
 // open is one two-event create op (source + session-ownership sidecar at
 // rev0) and each recorded operation is one two-event CAS update op; the
@@ -365,7 +366,7 @@ export function recordSession(ctx, input) {
   validateRecordInput(input);
   const file = sessionFileAbs(ctx, input.id);
   const lock = acquireVerifiedLock(`${file}.lock`, 'SESSION_LOCKED',
-    'session is locked by another operation; no stale-lock recovery');
+    'session is locked by another operation');
   let tmpPath = null;
   let tmpOwned = false;
   let next;

@@ -415,7 +415,7 @@ export function runDoctor(ctx, opts = {}) {
         projectRoot, `${journalRel}/head.json`, 'journal head');
       const hst = lstatOrNull(headAbs);
       if (!hst) {
-        const hasHistory = ['operations', 'outbox', 'snapshots',
+        const hasHistory = ['operations', 'outbox',
           'archive/operations'].some((rel) => {
           const dAbs = path.join(jAbs, ...rel.split('/'));
           const dst = lstatOrNull(dAbs);

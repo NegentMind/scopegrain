@@ -148,6 +148,19 @@ function removeOwned(loc, rel, owner, prefix = null) {
   } catch { /* preserve anything not provably owned */ }
 }
 
+function syncDir(dirAbs) {
+  let fd;
+  try {
+    fd = fs.openSync(dirAbs, 'r');
+    fs.fsyncSync(fd);
+  } catch { /* directory fsync unsupported or directory gone */ }
+  finally {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch { /* descriptor may be broken */ }
+    }
+  }
+}
+
 function writeNew(loc, rel, content) {
   const bytes = Buffer.isBuffer(content) ? content : Buffer.from(content);
   if (bytes.length > loadLimits().maxDocumentBytes) {
@@ -169,6 +182,7 @@ function writeNew(loc, rel, content) {
     fs.fsyncSync(fd);
     fs.closeSync(fd);
     closed = true;
+    syncDir(path.dirname(abs));
     return owner;
   } catch (e) {
     if (!closed) {
@@ -189,6 +203,7 @@ function atomicHead(loc, head) {
     removeOwned(loc, tempRel, owner);
     throw e;
   }
+  syncDir(path.dirname(absolute(loc, targetRel)));
 }
 
 // The journal lock delegates to the verified-lock layer: payload carries
@@ -244,7 +259,8 @@ function validateHead(value) {
 function readHead(loc) {
   const rel = sub(loc, 'head.json');
   if (!lstatOrNull(absolute(loc, rel))) {
-    if (hasEntry(loc, sub(loc, 'operations')) || hasEntry(loc, sub(loc, 'outbox'))) {
+    if (hasEntry(loc, sub(loc, 'operations')) || hasEntry(loc, sub(loc, 'outbox'))
+        || hasEntry(loc, sub(loc, 'archive/operations'))) {
       throw err('JOURNAL_MALFORMED', 'journal head is missing while history exists');
     }
     return { schemaVersion: 1, lastSequence: 0, activeOperation: null };
@@ -388,6 +404,9 @@ function operation(loc, operationId, policy) {
   const base = sub(loc, operationBase(loc, operationId));
   const intent = validateIntent(readJson(loc, `${base}/intent.json`), operationId, loc, policy);
   const intentDigest = canonicalDigest(intent);
+  if (readHead(loc).lastSequence < intent.events.at(-1).journalSequence) {
+    throw err('JOURNAL_MALFORMED', 'journal head precedes operation');
+  }
   const commitRel = `${base}/commit.json`;
   let state = 'prepared';
   if (lstatOrNull(absolute(loc, commitRel))) {
@@ -664,6 +683,8 @@ export function compactJournal(bound) {
       ensureDir(loc, sub(loc, 'archive/operations'));
       fs.renameSync(absolute(loc, sub(loc, `operations/${operationId}`)),
         absolute(loc, sub(loc, `archive/operations/${operationId}`)));
+      syncDir(absolute(loc, sub(loc, 'operations')));
+      syncDir(absolute(loc, sub(loc, 'archive/operations')));
       archived.push(operationId);
     }
     // Self-heals any counter drift; the pending set itself is unchanged.
@@ -1365,7 +1386,10 @@ export function recoverJournalOperation(bound, operationId, options) {
         action: input.action, sourceOutcome: input.action === 'finalize-committed'
           ? 'committed' : 'unconfirmed', reason: input.reason, decidedAt: new Date().toISOString() };
       resolveWorkspaceState(bound);
-      writeNew(data.loc, sub(data.loc, `operations/${operationId}/recovery.json`),
+      const receiptBase = data.loaded.intent === null
+        ? `operations/${operationId}`
+        : operationBase(data.loc, operationId);
+      writeNew(data.loc, sub(data.loc, `${receiptBase}/recovery.json`),
         jsonBytes(receipt));
     }
     if (input.action === 'finalize-committed' && data.pendingEventIds.length && !data.hasIndex) {

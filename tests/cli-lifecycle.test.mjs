@@ -527,8 +527,13 @@ test('capture review resolves decisions and --apply creates an owned capture', a
     const rejected = await call(['capture', 'review', '--project', f.dir,
       '--input', rejectFile, '--apply']);
     assert.equal(rejected.code, 0);
-    assert.equal(rejected.output.applied, false);
+    assert.equal(rejected.output.applied, true);
     assert.equal(rejected.output.review.status, 'rejected');
+    assert.equal(rejected.output.decision.action, 'reject');
+    // The persisted rejection keeps the proposal out of future listings.
+    const relisted = await call(['capture', 'proposals', '--project', f.dir]);
+    assert.ok(!relisted.output.proposals
+      .some((p) => p.proposalId === proposal.proposalId));
 
     const badFile = path.join(f.dir, 'badreview.json');
     fs.writeFileSync(badFile, JSON.stringify(

@@ -54,7 +54,7 @@ function closed(value, keys, label) {
 }
 
 function requireCtx(ctx) {
-  closed(ctx, ['projectRoot', 'configPath', 'configDir', 'config'], 'ctx');
+  closed(ctx, ['projectRoot', 'projectName', 'configPath', 'configDir', 'config'], 'ctx');
   if (typeof ctx.projectRoot !== 'string' || typeof ctx.configPath !== 'string'
       || typeof ctx.configDir !== 'string'
       || ctx.config === null || typeof ctx.config !== 'object'
@@ -70,6 +70,13 @@ function diskContent(root, rel) {
   if (!st || !st.isFile() || st.isSymbolicLink()) return undefined;
   const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
   return limited.exceeded ? undefined : limited.content;
+}
+
+function diskSha256(abs) {
+  try {
+    const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
+    return limited.exceeded ? null : sha256(limited.content);
+  } catch { return null; }
 }
 
 // Bounded recursive walk of regular files under dirRel. Links and
@@ -183,8 +190,8 @@ function classifyPlan(projectRoot, files) {
     if (limited.exceeded || !limited.content.equals(incoming)) {
       const managed = managedClass(abs, incoming);
       if (managed) return { rel: f.rel, ...managed };
-      return { rel: f.rel, action: 'conflict',
-        reason: DIVERGED_REASON };
+      return { rel: f.rel, action: 'conflict', reason: DIVERGED_REASON,
+        disk: limited.exceeded ? diskSha256(abs) : sha256(limited.content) };
     }
     return { rel: f.rel, action: 'noop' };
   });
@@ -260,7 +267,8 @@ function journalStatus(root, config, issues) {
   const hst = lstatOrNull(headAbs);
   if (!hst) {
     if (dirHasEntries(root, `${base}/operations`, issues)
-        || dirHasEntries(root, `${base}/outbox`, issues)) {
+        || dirHasEntries(root, `${base}/outbox`, issues)
+        || dirHasEntries(root, `${base}/archive/operations`, issues)) {
       issues.push({ code: 'JOURNAL_MALFORMED',
         message: 'journal head is missing while history exists' });
       return 'attention';
@@ -398,6 +406,7 @@ function generatedRoots(planFiles) {
 function reconcilable(f, roots, configPath) {
   return f.action === 'conflict'
     && f.reason === DIVERGED_REASON
+    && typeof f.disk === 'string'
     && f.rel !== configPath
     && f.rel.includes('/')
     && roots.has(portableKey(f.rel.slice(0, f.rel.indexOf('/'))));
@@ -506,7 +515,8 @@ function hostBridgePlan(ctx, options) {
       }
       classified.set(rel, { action: 'noop' });
     } else {
-      classified.set(rel, { action: 'diverged', candidates });
+      classified.set(rel, { action: 'diverged', candidates,
+        disk: sha256(limited.content) });
     }
   }
   // Pass 2: resolve a rewrite target per diverged destination.
@@ -536,7 +546,8 @@ function hostBridgePlan(ctx, options) {
     }
     if (distinct.size === 1) {
       files.push({ rel, action: 'conflict', reason: DIVERGED_REASON,
-        reconcile: true, content: [...distinct.values()][0] });
+        reconcile: true, content: [...distinct.values()][0],
+        disk: info.disk });
       continue;
     }
     const scored = [...distinct.entries()]
@@ -545,7 +556,8 @@ function hostBridgePlan(ctx, options) {
     if (scored[0].score > 0
         && (scored.length === 1 || scored[0].score > scored[1].score)) {
       files.push({ rel, action: 'conflict', reason: DIVERGED_REASON,
-        reconcile: true, content: scored[0].buf, plan: scored[0].key });
+        reconcile: true, content: scored[0].buf, plan: scored[0].key,
+        disk: info.disk });
     } else {
       files.push({ rel, action: 'conflict',
         reason: 'diverged: multiple surfaces generate different bytes and '
@@ -727,9 +739,14 @@ export function applyUpdate(ctx, options = {}) {
           // Same automation as the documented manual flow: unlink the
           // diverged file, then recreate through applyPlan's exclusive
           // wx write (full preflight + rollback of only what it created).
-          fs.unlinkSync(abs);
-          creates.push(plan.files[i]);
-          reconciled.push({ path: f.rel, reason: f.reason });
+          if (diskSha256(abs) === f.disk) {
+            fs.unlinkSync(abs);
+            creates.push(plan.files[i]);
+            reconciled.push({ path: f.rel, reason: f.reason });
+          } else {
+            conflicts.push({ path: f.rel,
+              reason: 'destination changed during apply' });
+          }
         } else if (!st) {
           creates.push(plan.files[i]); // vanished since classification
         } else {
@@ -762,9 +779,14 @@ export function applyUpdate(ctx, options = {}) {
         ctx.projectRoot, f.rel, `reconcile target ${f.rel}`);
       const st = lstatOrNull(abs);
       if (st && st.isFile() && !st.isSymbolicLink()) {
-        fs.unlinkSync(abs);
-        creates.push({ rel: f.rel, content: f.content });
-        hostReconciled.push({ path: f.rel, reason: f.reason });
+        if (typeof f.disk === 'string' && diskSha256(abs) === f.disk) {
+          fs.unlinkSync(abs);
+          creates.push({ rel: f.rel, content: f.content });
+          hostReconciled.push({ path: f.rel, reason: f.reason });
+        } else {
+          hostConflicts.push({ path: f.rel,
+            reason: 'destination changed during apply' });
+        }
       } else if (!st) {
         hostConflicts.push({ path: f.rel,
           reason: 'destination vanished during apply' });
