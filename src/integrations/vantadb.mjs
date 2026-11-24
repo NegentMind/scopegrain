@@ -216,6 +216,11 @@ const SECRET_CONTENT_RES = [
   /\bBearer\s+[A-Za-z0-9._~+/=-]{20,}\b/,
   /"(?:password|passwd|pwd|api[_-]?key|apikey|secret[_-]?key|client[_-]?secret|access[_-]?token|auth[_-]?token|private[_-]?key)"\s*:\s*"[^"\r\n]{8,}"/i,
   /\b(?:password|passwd|api[_-]?key|apikey|secret[_-]?key|client[_-]?secret|access[_-]?token|auth[_-]?token|private[_-]?key)\s*[:=]\s*["']?[^\s"',}\]]{12,}/i,
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/,
+  /\bDefaultEndpointsProtocol=https?\b/i,
+  /\bAccountKey=[A-Za-z0-9+/]{20,}={0,2}\b/i,
+  /\bsk_live_[A-Za-z0-9]{16,}\b/,
+  /\bxapp-[A-Za-z0-9-]{10,}\b/,
 ];
 
 // Returns a detector tag when `text` (optionally identified by

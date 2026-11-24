@@ -64,7 +64,8 @@ export function operationDescriptor(t) {
       destructive: t.config?.annotations?.destructiveHint === true,
       open_world: t.config?.annotations?.openWorldHint === true,
     },
-    network: 'never',
+    network: t.config?.annotations?.openWorldHint === true
+      ? 'local' : 'never',
     errors: operationErrors(kind),
   });
 }

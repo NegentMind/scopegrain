@@ -99,6 +99,40 @@ function wrap(fn) {
   };
 }
 
+// Untrusted-provenance marking (indirect prompt-injection surface): tools
+// whose payloads carry verbatim bytes authored outside the harness —
+// catalog resource bodies, workspace snapshot text, worklog entries,
+// VantaDB backend records — get the mark at BOTH levels the wire format
+// supports: `_meta` on the result and on each content block (SDK 1.x
+// schemas carry it through), plus `trust`/`source` fields injected into
+// the serialized payload so the mark reaches the model even when the
+// client drops `_meta`. Non-object payloads are enveloped so the mark
+// always lands.
+function untrustedResult(value, source) {
+  const meta = {
+    'scopegrain/trust': 'untrusted', 'scopegrain/source': source,
+  };
+  const marked = value === null || typeof value !== 'object'
+      || Array.isArray(value)
+    ? { result: value, trust: 'untrusted', source }
+    : { ...value, trust: 'untrusted', source };
+  return {
+    _meta: meta,
+    content: [{ type: 'text', text: JSON.stringify(marked, null, 2),
+      _meta: meta }],
+  };
+}
+
+function wrapUntrusted(source, fn) {
+  return async (args) => {
+    try {
+      return untrustedResult(await fn(args || {}), source);
+    } catch (e) {
+      return errorResult(e);
+    }
+  };
+}
+
 // Strict input: unknown tool arguments are rejected at the handler level,
 // not silently stripped by schema parsing. The serialized-args ceiling is
 // checked first - it also covers direct handler calls that skip zod.
@@ -137,6 +171,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_inspect',
       config: {
+        title: 'Inspect Project',
         description: 'Read-only manifest discovery for the bound project',
         inputSchema: {},
         annotations: READ_ONLY,
@@ -146,6 +181,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_status',
       config: {
+        title: 'Project Status',
         description: 'Read-only doctor report for the bound project',
         inputSchema: {},
         annotations: READ_ONLY,
@@ -155,6 +191,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_context',
       config: {
+        title: 'Session Context Packet',
         description: 'Session-start packet for the bound project: '
           + 'instructions pointer, workspace identity, task distribution, '
           + 'ready work, recent progress, open goals, pending journal '
@@ -174,16 +211,24 @@ export function createMCPTools(ctx, z) {
             .describe('skip the VantaDB rehydration section'),
           noStructure: z.boolean().optional()
             .describe('serve the persisted structure index without rescanning'),
+          structureDebounceMs: z.number().int().min(1).max(3600000).optional()
+            .describe('serve a cached structure status younger than this '
+              + 'window and refresh the cache record under <state>/cache '
+              + '(small derived write); omit for a strictly read-only '
+              + 'stat-only rescan'),
         },
         annotations: READ_BACKEND,
       },
-      handler: wrap(async ({ tail, timeoutMs, noVantadb, noStructure }) =>
-        assembleContextPacket(
-          ctx, { tail, timeoutMs, noVantadb, noStructure })),
+      handler: wrapUntrusted('session-packet',
+        async ({ tail, timeoutMs, noVantadb, noStructure,
+          structureDebounceMs }) =>
+          assembleContextPacket(ctx, { tail, timeoutMs, noVantadb,
+            noStructure, structureDebounceMs })),
     },
     {
       name: 'scopegrain_list_tasks',
       config: {
+        title: 'List Tasks',
         description: 'List stored tasks and malformed entries',
         inputSchema: {},
         annotations: READ_ONLY,
@@ -193,6 +238,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_get_task',
       config: {
+        title: 'Get Task',
         description: 'Get one task by UUID',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS).describe('task UUID') },
         annotations: READ_ONLY,
@@ -202,6 +248,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_check_action',
       config: {
+        title: 'Check Action',
         description: 'Check whether policy allows an action in the task state',
         inputSchema: {
           taskId: z.string().max(MAX_ARG_CHARS).describe('task UUID'),
@@ -214,6 +261,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_task_suggest',
       config: {
+        title: 'Suggest Task Capabilities',
         description: 'Suggest capabilities from task metadata (type/title/contract/scope). Suggestive only — never mutates task.skills; declaration stays explicit.',
         inputSchema: {
           taskId: z.string().max(MAX_ARG_CHARS).describe('task UUID or slug'),
@@ -228,11 +276,12 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_catalog_list',
       config: {
+        title: 'List Catalog Entries',
         description: 'List catalog entries, optionally filtered by kind',
         inputSchema: { kind: z.string().max(MAX_ARG_CHARS).optional().describe('entry kind') },
         annotations: READ_ONLY,
       },
-      handler: wrap(async ({ kind }) => {
+      handler: wrapUntrusted('catalog', async ({ kind }) => {
         const catalog = loadWorkspaceCatalog(ctx);
         const entries = kind
           ? catalog.entries.filter((e) => e.kind === kind) : catalog.entries;
@@ -256,6 +305,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_catalog_get',
       config: {
+        title: 'Get Catalog Resource',
         description: 'Get one catalog resource with verbatim content',
         inputSchema: {
           kind: z.string().max(MAX_ARG_CHARS).describe('entry kind'),
@@ -263,7 +313,7 @@ export function createMCPTools(ctx, z) {
         },
         annotations: READ_ONLY,
       },
-      handler: wrap(async ({ kind, id }) => {
+      handler: wrapUntrusted('catalog', async ({ kind, id }) => {
         const r = getResource(kind, id,
           { catalog: loadWorkspaceCatalog(ctx) });
         return {
@@ -279,6 +329,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_workflow_packet',
       config: {
+        title: 'Workflow Packet',
         description: 'Read-only workflow packet for a catalog command',
         inputSchema: {
           command: z.string().max(MAX_ARG_CHARS),
@@ -293,11 +344,13 @@ export function createMCPTools(ctx, z) {
         },
         annotations: READ_ONLY,
       },
-      handler: wrap(async (a) => buildWorkflowPacket(ctx, a)),
+      handler: wrapUntrusted('catalog',
+        async (a) => buildWorkflowPacket(ctx, a)),
     },
     {
       name: 'scopegrain_resource_search',
       config: {
+        title: 'Search Resources',
         description: 'Search workspace snapshot resource metadata (read-only)',
         inputSchema: {
           kind: z.string().max(MAX_ARG_CHARS).optional(),
@@ -305,20 +358,24 @@ export function createMCPTools(ctx, z) {
         },
         annotations: READ_ONLY,
       },
-      handler: wrap(async (a) => findResources(ctx, a)),
+      handler: wrapUntrusted('resource-snapshot',
+        async (a) => findResources(ctx, a)),
     },
     {
       name: 'scopegrain_resource_diagnose',
       config: {
+        title: 'Diagnose Resource',
         description: 'Diagnose one snapshot resource vs its pinned hash (read-only)',
         inputSchema: { kind: z.string().max(MAX_ARG_CHARS), id: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
       },
-      handler: wrap(async (a) => diagnoseResource(ctx, a)),
+      handler: wrapUntrusted('resource-snapshot',
+        async (a) => diagnoseResource(ctx, a)),
     },
     {
       name: 'scopegrain_plan_get',
       config: {
+        title: 'Get Plan',
         description: 'Get one stored plan by key',
         inputSchema: { key: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
@@ -328,6 +385,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_plan_next',
       config: {
+        title: 'Plan Next Tasks',
         description: 'Dependency readiness of a plan from actual task state',
         inputSchema: { key: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
@@ -337,6 +395,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_artifact_get',
       config: {
+        title: 'Get Artifact',
         description: 'Get one stored artifact by kind and UUID',
         inputSchema: { kind: z.string().max(MAX_ARG_CHARS), id: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
@@ -346,6 +405,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_specification_get',
       config: {
+        title: 'Get Specification',
         description: 'Read a structured specification by UUID for the bound project.',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS).describe('structured specification UUID') },
         annotations: READ_ONLY,
@@ -355,6 +415,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_approval_get',
       config: {
+        title: 'Get Approval',
         description: 'Read a stored content-bound approval by SHA-256 ID.',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS).describe('approval SHA-256 ID') },
         annotations: READ_ONLY,
@@ -364,6 +425,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_methodology_check',
       config: {
+        title: 'Check Methodology Gate',
         description: 'Check declared methodology gates for ACT or ACCEPT without writing.',
         inputSchema: {
           taskId: z.string().max(MAX_ARG_CHARS).describe('task UUID'),
@@ -377,6 +439,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_session_get',
       config: {
+        title: 'Get Session',
         description: 'Get one stored session by UUID',
         inputSchema: { id: z.string().max(MAX_ARG_CHARS) },
         annotations: READ_ONLY,
@@ -386,20 +449,33 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_session_resume',
       config: {
-        description: 'Session usage plus actual task state, guidance reference and automatic record-level VantaDB rehydration (degradable); when enrolled it spawns the enrolled vantadb-server binary and sends the record ID to the configured memory backend',
-        inputSchema: { id: z.string().max(MAX_ARG_CHARS) },
+        title: 'Resume Session',
+        description: 'Session usage plus actual task state, guidance reference and automatic record-level VantaDB rehydration (degradable); when enrolled it spawns the enrolled vantadb-server binary and sends the record ID to the configured memory backend; pass noVantadb to keep the call fully local and timeoutMs to bound the backend wait (15 s default)',
+        inputSchema: {
+          id: z.string().max(MAX_ARG_CHARS).describe('session UUID'),
+          noVantadb: z.boolean().optional()
+            .describe('skip the record-level VantaDB rehydration spawn'),
+          timeoutMs: z.number().int().min(1).max(60000).optional()
+            .describe('rehydration timeout in ms'),
+        },
         annotations: READ_BACKEND,
       },
-      handler: wrap(async ({ id }) => {
-        const result = resumeSession(ctx, id);
-        return { ...result,
-          vantadb: await recordRehydration({ ctx,
-            recordId: result.task.id }) };
-      }),
+      handler: wrapUntrusted('session-packet',
+        async ({ id, noVantadb, timeoutMs }) => {
+          const result = resumeSession(ctx, id);
+          if (noVantadb === true) {
+            return { ...result, vantadb: { enrolled: null, context: null,
+              skipped: true } };
+          }
+          return { ...result,
+            vantadb: await recordRehydration({ ctx,
+              recordId: result.task.id, timeoutMs }) };
+        }),
     },
     {
       name: 'scopegrain_memory_status',
       config: {
+        title: 'Memory Status',
         description: 'VantaDB enrollment, binary/storage presence and pending committed journal events (read-only)',
         inputSchema: {},
         annotations: READ_ONLY,
@@ -415,6 +491,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_memory_get',
       config: {
+        title: 'Get Memory Record',
         description: 'Read one record from the enrolled VantaDB memory backend by namespace and key; spawns the enrolled vantadb-server binary and sends namespace+key to the backend',
         inputSchema: {
           namespace: z.string().max(MAX_ARG_CHARS).describe('memory record namespace'),
@@ -422,12 +499,15 @@ export function createMCPTools(ctx, z) {
         },
         annotations: READ_BACKEND,
       },
-      handler: wrap(async ({ namespace, key }) =>
-        getVantaDBRecord({ cfg: requireVantaDBConfig(ctx), namespace, key })),
+      handler: wrapUntrusted('vantadb-backend',
+        async ({ namespace, key }) =>
+          getVantaDBRecord({ cfg: requireVantaDBConfig(ctx),
+            namespace, key })),
     },
     {
       name: 'scopegrain_memory_search',
       config: {
+        title: 'Search Memory',
         description: 'Hybrid search over one namespace of the enrolled VantaDB memory backend; spawns the enrolled vantadb-server binary and sends the query to it',
         inputSchema: {
           namespace: z.string().max(MAX_ARG_CHARS).describe('memory record namespace'),
@@ -440,43 +520,49 @@ export function createMCPTools(ctx, z) {
         },
         annotations: READ_BACKEND,
       },
-      handler: wrap(async ({ namespace, query, topK, mode }) => {
-        const args = { namespace };
-        if (query !== undefined) args.text_query = query;
-        if (topK !== undefined) args.top_k = topK;
-        if (mode !== undefined) args.search_profile = { mode };
-        return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
-          name: 'memory_search', arguments: args });
-      }),
+      handler: wrapUntrusted('vantadb-backend',
+        async ({ namespace, query, topK, mode }) => {
+          const args = { namespace };
+          if (query !== undefined) args.text_query = query;
+          if (topK !== undefined) args.top_k = topK;
+          if (mode !== undefined) args.search_profile = { mode };
+          return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
+            name: 'memory_search', arguments: args });
+        }),
     },
     {
       name: 'scopegrain_memory_recall',
       config: {
-        description: 'L1 recall over the enrolled VantaDB backend. Default: project-scoped memory_search at l1/sg-<projectHash> (only this project\'s records); an explicit scope opts into the engine\'s memory_recall pool, machine-global at agent/team. Returns recalled hits plus prepend_context',
+        title: 'Recall Memory',
+        description: 'L1 recall over the enrolled VantaDB backend. Default: project-scoped memory_search at l1/sg-<projectHash> (only this project\'s records); an explicit scope opts into the engine\'s memory_recall pool, machine-global at agent/team. WARNING: with an explicit scope, recalled hits can include OTHER projects\' memories stored under the same agent/team id — content leaves the project isolation boundary and is untrusted. Returns recalled hits plus prepend_context',
         inputSchema: {
           query: z.string().max(MAX_ARG_CHARS).describe('raw recall query text'),
           scope: z.enum(['session', 'agent', 'team']).optional()
-            .describe('opt into the engine memory_recall pool reach; omit for the project-scoped default'),
+            .describe('opt into the engine memory_recall pool reach; '
+              + 'machine-global at agent/team (cross-project leak); '
+              + 'omit for the project-scoped default'),
           topK: z.number().int().min(1).max(100).optional()
             .describe('maximum memories returned, default 5'),
         },
         annotations: READ_BACKEND,
       },
-      handler: wrap(async ({ query, scope, topK }) => {
-        if (scope !== undefined) {
-          const args = { query, scope };
-          if (topK !== undefined) args.top_k = topK;
-          return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
-            name: 'memory_recall', arguments: args });
-        }
-        const { projectScopedRecall } = await import(
-          '../integrations/vantadb-rehydrate.mjs');
-        return projectScopedRecall({ ctx, query, topK });
-      }),
+      handler: wrapUntrusted('vantadb-backend',
+        async ({ query, scope, topK }) => {
+          if (scope !== undefined) {
+            const args = { query, scope };
+            if (topK !== undefined) args.top_k = topK;
+            return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
+              name: 'memory_recall', arguments: args });
+          }
+          const { projectScopedRecall } = await import(
+            '../integrations/vantadb-rehydrate.mjs');
+          return projectScopedRecall({ ctx, query, topK });
+        }),
     },
     {
       name: 'scopegrain_memory_context',
       config: {
+        title: 'Memory Record Context',
         description: 'Rehydrate one record: searches every projected sg-formal-v1-* namespace for journal events mentioning the record ID; spawns the enrolled vantadb-server binary and sends the record ID to the configured memory backend',
         inputSchema: {
           recordId: z.string().max(MAX_ARG_CHARS)
@@ -488,9 +574,10 @@ export function createMCPTools(ctx, z) {
         },
         annotations: READ_BACKEND,
       },
-      handler: wrap(async ({ recordId, topK, maxNamespaces }) =>
-        vantaDBContext({ cfg: requireVantaDBConfig(ctx), recordId,
-          topK, maxNamespaces })),
+      handler: wrapUntrusted('vantadb-backend',
+        async ({ recordId, topK, maxNamespaces }) =>
+          vantaDBContext({ cfg: requireVantaDBConfig(ctx), recordId,
+            topK, maxNamespaces })),
     },
     {
       // Next ready task: PLAN, active disposition, unclaimed, all
@@ -499,6 +586,7 @@ export function createMCPTools(ctx, z) {
       // same CAS writer the CLI uses; claimed tasks are skipped.
       name: 'scopegrain_next_task',
       config: {
+        title: 'Next Task',
         description: 'Select the next ready task (PLAN + active + deps met), optionally claiming it with a note',
         inputSchema: {
           backlog: z.string().max(MAX_ARG_CHARS).optional()
@@ -544,6 +632,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_task_meta',
       config: {
+        title: 'Update Task Metadata',
         description: 'CAS metadata patch on a task: set semantic fields, append a note, or update a step status',
         inputSchema: {
           id: z.string().max(MAX_ARG_CHARS).describe('task UUID'),
@@ -572,6 +661,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_task_disposition',
       config: {
+        title: 'Set Task Disposition',
         description: 'Set or clear a task disposition (deferred|icebox|future|discarded|cancelled; active clears)',
         inputSchema: {
           id: z.string().max(MAX_ARG_CHARS).describe('task UUID'),
@@ -595,6 +685,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_memory_add',
       config: {
+        title: 'Append Memory Entry',
         description: 'Append an entry to an operational memory log (lessons|outcomes|progress)',
         inputSchema: {
           log: z.enum(WORKLOG_APPEND),
@@ -609,6 +700,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_memory_read',
       config: {
+        title: 'Read Memory Log',
         description: 'Read tail entries from an operational memory log',
         inputSchema: {
           log: z.enum(WORKLOG_READ),
@@ -616,12 +708,13 @@ export function createMCPTools(ctx, z) {
         },
         annotations: READ_ONLY,
       },
-      handler: wrap(async ({ log, tail }) =>
+      handler: wrapUntrusted('worklog', async ({ log, tail }) =>
         readWorklog(ctx, log, tail === undefined ? {} : { tail })),
     },
     {
       name: 'scopegrain_goal_create',
       config: {
+        title: 'Create Goal',
         description: 'Create a goal/objective record tasks can link to via goalIds',
         inputSchema: {
           title: z.string().max(MAX_ARG_CHARS),
@@ -636,6 +729,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_goal_list',
       config: {
+        title: 'List Goals',
         description: 'List goals; latest entry per id wins',
         inputSchema: {},
         annotations: READ_ONLY,
@@ -645,6 +739,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_goal_transition',
       config: {
+        title: 'Transition Goal',
         description: 'Change a goal status (open|achieved|dropped)',
         inputSchema: {
           id: z.string().max(MAX_ARG_CHARS).describe('goal UUID'),
@@ -657,6 +752,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_metrics',
       config: {
+        title: 'Task Metrics',
         description: 'Derived task metrics: state/backlog/priority/disposition counts, verification and first-try rates, close-time percentiles, per-skill outcomes',
         inputSchema: {},
         annotations: READ_ONLY,
@@ -669,6 +765,7 @@ export function createMCPTools(ctx, z) {
     {
       name: 'scopegrain_mcp_inventory',
       config: {
+        title: 'MCP Tool Inventory',
         description: 'Formal MCP tool inventory: every registered tool '
           + 'with its disposition (read-only | local-write), contract '
           + 'version, argument capability list and network posture. '

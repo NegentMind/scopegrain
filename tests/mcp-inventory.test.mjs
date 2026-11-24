@@ -35,10 +35,15 @@ test('disposition mirrors annotations; contract fields are present', async () =>
     assert.ok(readOnly.length > writes.length);
     for (const i of inventory) {
       assert.equal(i.contract_version, '1');
-      assert.equal(i.network, 'never');
-      assert.equal(i.retryable, true);
-      assert.ok(Array.isArray(i.capabilities.arguments));
       const tool = tools.find((t) => t.name === i.name);
+      // Backend-spawning reads disclose local network reach; pure local
+      // tools stay 'never'. Non-idempotent writes are not retryable.
+      assert.equal(i.network,
+        tool.config.annotations.openWorldHint === true ? 'local' : 'never',
+        i.name);
+      assert.equal(i.retryable,
+        tool.config.annotations.idempotentHint !== false, i.name);
+      assert.ok(Array.isArray(i.capabilities.arguments));
       assert.equal(i.disposition === 'read-only',
         tool.config.annotations.readOnlyHint === true);
       assert.equal(i.capabilities.destructive,

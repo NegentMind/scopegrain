@@ -28,11 +28,16 @@ export function buildMcpInventory(tools) {
         destructive: t.config?.annotations?.destructiveHint === true,
         open_world: t.config?.annotations?.openWorldHint === true,
       },
-      // The MCP boundary is local stdio; tools never reach the network.
-      network: 'never',
-      // Local-write tools still go through bounded CAS/append core paths;
-      // a retry is safe because writes are idempotent or version-checked.
-      retryable: true,
+      // Honest posture per class: closed-world tools never leave the
+      // process; openWorldHint tools spawn the enrolled vantadb-server
+      // and send data to the configured memory backend — local, not
+      // 'never'.
+      network: t.config?.annotations?.openWorldHint === true
+        ? 'local' : 'never',
+      // idempotentHint:false marks non-idempotent writes (CAS patches,
+      // appends, creates): a blind retry can double-apply, so they are
+      // honestly non-retryable.
+      retryable: t.config?.annotations?.idempotentHint !== false,
       operation: op,
     });
   });

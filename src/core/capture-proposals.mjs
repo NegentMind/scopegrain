@@ -4,13 +4,21 @@
 // to capture PROPOSALS for opt-in review - never captures themselves.
 // Producers read only journal metadata, hash-verified journal snapshots
 // and the supplied answers object: no conversation interception, no
-// project-file scanning, no memory backend, no writes. Approve preserves
+// project-file scanning, no memory backend. Approve preserves
 // the statement basis; only an explicit operator edit re-marks declared.
+// The only write surface is persistProposalDecision: review decisions
+// recorded by an explicit caller into the append-only decisions log so a
+// rejected proposal stops reappearing in later emissions.
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { err } from './errors.mjs';
-import { decodeUtf8Strict } from './fsx.mjs';
+import {
+  decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited,
+} from './fsx.mjs';
 import { canonicalDigest } from './digests.mjs';
 import { loadJournalPolicy } from './policy.mjs';
+import { resolveInside } from './paths.mjs';
 import { VERSIONING_KEYS, validateAnswers } from './config.mjs';
 import { normalizeCaptureInput, validateCaptureNote } from './capture-data.mjs';
 import {
@@ -19,7 +27,9 @@ import {
 import {
   assertRecordObject, cloneRecordJSON, isRecordUUID,
 } from './record-ownership-data.mjs';
-import { bindWorkspace, getWorkspace } from './workspaces.mjs';
+import {
+  bindWorkspace, getWorkspace, resolveWorkspaceState,
+} from './workspaces.mjs';
 
 const CODE = 'INVALID_PROPOSAL';
 const SEED_PREFIX = 'scopegrain:capture-proposal:v1:';
@@ -42,6 +52,13 @@ const CHANGE_KEYS = ['title', 'summary', 'category', 'subjectId', 'areaIds',
   'supersedes'];
 const COMPANION_KIND = 'record-ownership';
 const DEFAULT_INFERENCE = 'harness-default';
+const DECISIONS_REL = 'capture-proposal-decisions.jsonl';
+const DECISION_KEYS_STORED = ['schemaVersion', 'proposalId', 'proposalHash',
+  'action', 'reason', 'decidedAt'];
+const DECISION_ACTIONS = ['approve', 'reject', 'edit'];
+const DECISIONS_MAX_BYTES = 1024 * 1024;
+const DECISION_LINE_MAX = 16 * 1024;
+const HASH_RE = /^[0-9a-f]{64}$/;
 
 function nonblank(value) {
   return typeof value === 'string' && value.trim() !== '';
@@ -293,7 +310,8 @@ export function proposeFromJournal(target, options = {}) {
       proposals.push(recoveryProposal(operationId, group, loaded.recovery));
     }
   }
-  return proposals;
+  return filterRejectedProposals(
+    proposals, listProposalDecisions(bound).decisions);
 }
 
 // Preference proposals from explicit owner answers. Every emitted proposal
@@ -410,4 +428,100 @@ export function reviewProposal(proposalValue, decision) {
       },
     },
   };
+}
+
+// --- Review-decision store ---------------------------------------------------
+//
+// Persisted decisions live in an append-only JSONL log owned by the
+// project under <paths.state>/capture-proposal-decisions.jsonl — same
+// store family as the bounded worklog logs: one record per line, latest
+// record per proposalId wins, bounded read, malformed lines reported
+// rather than trusted. Each record carries the canonical digest of the
+// reviewed proposal so a rejection suppresses only that exact proposal:
+// a materially different proposal reusing the deterministic id is never
+// silenced by a stale decision.
+function decisionsAbs(target) {
+  const bound = resolveBound(target);
+  const { projectRoot, stateRel } = resolveWorkspaceState(bound);
+  return resolveInside(projectRoot,
+    `${stateRel}/${DECISIONS_REL}`, 'capture decisions log');
+}
+
+function validateDecisionRecord(value) {
+  assertRecordObject(value, DECISION_KEYS_STORED, DECISION_KEYS_STORED,
+    CODE, 'proposal decision record');
+  if (value.schemaVersion !== 1 || !isRecordUUID(value.proposalId)
+      || typeof value.proposalHash !== 'string' || !HASH_RE.test(value.proposalHash)
+      || !DECISION_ACTIONS.includes(value.action)
+      || (value.reason !== null && !nonblank(value.reason))
+      || typeof value.decidedAt !== 'string' || value.decidedAt === '') {
+    throw err(CODE, 'proposal decision record has invalid fields');
+  }
+  return cloneRecordJSON(value);
+}
+
+// Bounded read of every stored decision; absent log means no decisions.
+export function listProposalDecisions(target) {
+  const out = { decisions: [], malformed: [] };
+  const abs = decisionsAbs(target);
+  const st = lstatOrNull(abs);
+  if (!st) return out;
+  if (st.isSymbolicLink() || !st.isFile()) {
+    throw err('INVALID_PATH', 'capture decisions log is not a real file');
+  }
+  const limited = readFileLimited(abs, DECISIONS_MAX_BYTES);
+  if (limited.exceeded) {
+    throw err('DOCUMENT_TOO_LARGE', 'capture decisions log exceeds bound');
+  }
+  const text = decodeUtf8Strict(
+    limited.content, 'DECISIONS_MALFORMED', 'capture decisions log');
+  for (const line of text.split('\n')) {
+    if (line.trim() === '') continue;
+    try {
+      out.decisions.push(validateDecisionRecord(JSON.parse(line)));
+    } catch {
+      out.malformed.push({ line: line.slice(0, 120) });
+    }
+  }
+  return out;
+}
+
+// Persisted review: the pure gate runs first (an invalid proposal or
+// decision never writes), then the decision record is appended.
+// Returns {review, decision} — review is the same outcome reviewProposal
+// produces, decision is the stored record.
+export function persistProposalDecision(target, proposalValue, decision) {
+  const bound = resolveBound(target);
+  const p = validateProposal(proposalValue);
+  const review = reviewProposal(p, decision);
+  const record = validateDecisionRecord({
+    schemaVersion: 1, proposalId: p.proposalId,
+    proposalHash: canonicalDigest(p), action: decision.action,
+    reason: Object.hasOwn(decision, 'reason') ? decision.reason : null,
+    decidedAt: new Date().toISOString(),
+  });
+  const line = JSON.stringify(record) + '\n';
+  if (Buffer.byteLength(line, 'utf8') > DECISION_LINE_MAX) {
+    throw err(CODE, 'proposal decision record exceeds line bound');
+  }
+  const abs = decisionsAbs(bound);
+  mkdirpSync(path.dirname(abs));
+  fs.appendFileSync(abs, line, 'utf8');
+  return { review, decision: record };
+}
+
+// Pure filter: drop proposals whose latest decision is a hash-matching
+// 'reject'. Approve/edit decisions stay visible — they are review
+// history, not suppression; only an explicit rejection silences
+// re-emission. Takes the plain decisions array from
+// listProposalDecisions so pure producers (init answers) apply the same
+// rule wherever a caller can supply the store.
+export function filterRejectedProposals(proposals, decisions) {
+  const latest = new Map();
+  for (const d of decisions) latest.set(d.proposalId, d);
+  return proposals.filter((p) => {
+    const d = latest.get(p.proposalId);
+    return !(d && d.action === 'reject'
+      && d.proposalHash === canonicalDigest(p));
+  });
 }

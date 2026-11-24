@@ -193,10 +193,15 @@ test('scopegrain_context returns the shared session-start packet', async () => {
     const res = await tool.handler({});
     assert.equal(res.isError, undefined);
     const viaMcp = JSON.parse(res.content[0].text);
+    // Untrusted-provenance marking is MCP-surface metadata — the packet
+    // itself is identical modulo the two mark fields.
+    assert.equal(viaMcp.trust, 'untrusted');
+    assert.equal(viaMcp.source, 'session-packet');
     const direct = await assembleContextPacket(ctx, {});
     // Parity contract: identical section set; generatedAt/vantadb timing
     // legitimately differs between two calls.
-    assert.deepEqual(Object.keys(viaMcp).sort(),
+    assert.deepEqual(Object.keys(viaMcp)
+      .filter((k) => !['trust', 'source'].includes(k)).sort(),
       Object.keys(direct).sort());
     for (const key of ['instructions', 'config', 'methodology', 'intake',
         'project', 'workspace', 'tasks', 'goals',
