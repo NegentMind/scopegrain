@@ -1,0 +1,143 @@
+{
+  "name": "smoke",
+  "description": "Audit-required smoke session: init -> workspace -> context -> task create -> transition -> doctor, plus journal and a rejected transition. methodology=manual so the flag form of task create is valid.",
+  "setup": {
+    "files": {
+      "answers.json": {
+        "name": "eval-smoke",
+        "locale": "en",
+        "hosts": ["claude"],
+        "paths": {
+          "plans": "docs/agent/plans",
+          "tasks": "docs/agent/tasks",
+          "reports": "docs/agent/reports",
+          "research": "docs/agent/research",
+          "decisions": "docs/agent/decisions",
+          "memory": ".scopegrain/memory",
+          "state": ".scopegrain/state"
+        }
+      }
+    }
+  },
+  "steps": [
+    {
+      "cmd": ["init", "--project", "@root", "--answers", "@root/answers.json", "--apply"],
+      "expectExit": 0,
+      "expectEnvelope": { "mode": "applied", "applied": true },
+      "expectState": {
+        "exists": [".scopegrain/config.json", ".scopegrain/discovery.json", "CLAUDE.md"]
+      }
+    },
+    {
+      "cmd": ["workspace", "init", "--project", "@root", "--apply"],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "mode": "applied",
+        "applied": true,
+        "workspace": {
+          "revision": 0,
+          "areas": [{ "key": "project", "name": "eval-smoke" }]
+        }
+      },
+      "expectState": { "exists": [".scopegrain/state/workspace.json"] }
+    },
+    {
+      "cmd": ["journal", "list", "--project", "@root"],
+      "expectExit": 0,
+      "expectEnvelope": { "items": [], "nextAfterSequence": null }
+    },
+    {
+      "cmd": ["context", "--project", "@root", "--no-vantadb", "--no-structure"],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "schemaVersion": 1,
+        "methodology": "manual",
+        "intake": { "mode": "off" },
+        "vantadb": { "skipped": true },
+        "workspace": { "revision": 0, "areas": 1, "areaKeys": ["project"] },
+        "tasks": { "total": 0, "open": 0 }
+      }
+    },
+    {
+      "cmd": ["task", "create", "--project", "@root",
+        "--title", "Eval smoke task", "--contract", "C", "--author", "eval",
+        "--apply"],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "mode": "applied",
+        "applied": true,
+        "task": {
+          "state": "PLAN",
+          "revision": 0,
+          "title": "Eval smoke task",
+          "slug": { "%regex": "^001-eval-smoke-task$" }
+        },
+        "files": ["docs/agent/tasks/${taskId}.json"]
+      },
+      "save": { "taskId": "task.id" }
+    },
+    {
+      "cmd": ["task", "transition", "--project", "@root",
+        "${taskId}", "ACT", "--revision", "0"],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "mode": "dry-run",
+        "applied": false,
+        "task": { "state": "ACT", "revision": 1 }
+      },
+      "expectState": {
+        "json": [{
+          "path": "docs/agent/tasks/${taskId}.json",
+          "subset": { "state": "PLAN", "revision": 0 }
+        }]
+      }
+    },
+    {
+      "cmd": ["task", "transition", "--project", "@root",
+        "${taskId}", "ACT", "--revision", "0", "--apply"],
+      "expectExit": 0,
+      "expectEnvelope": { "state": "ACT", "revision": 1 },
+      "expectState": {
+        "json": [{
+          "path": "docs/agent/tasks/${taskId}.json",
+          "subset": { "state": "ACT", "revision": 1 }
+        }]
+      }
+    },
+    {
+      "cmd": ["task", "transition", "--project", "@root",
+        "${taskId}", "ACCEPT", "--revision", "1", "--apply"],
+      "expectExit": 1,
+      "expectError": { "error": { "code": "INVALID_TRANSITION" } },
+      "expectState": {
+        "json": [{
+          "path": "docs/agent/tasks/${taskId}.json",
+          "subset": { "state": "ACT", "revision": 1 }
+        }]
+      }
+    },
+    {
+      "cmd": ["task", "list", "--project", "@root"],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "malformed": [],
+        "tasks": [{ "id": "${taskId}", "state": "ACT", "revision": 1 }]
+      }
+    },
+    {
+      "cmd": ["task", "show", "--project", "@root", "${taskId}"],
+      "expectExit": 0,
+      "expectEnvelope": { "id": "${taskId}", "state": "ACT", "revision": 1 }
+    },
+    {
+      "cmd": ["journal", "list", "--project", "@root"],
+      "expectExit": 0,
+      "expectEnvelope": { "items": [], "nextAfterSequence": null }
+    },
+    {
+      "cmd": ["doctor", "--project", "@root"],
+      "expectExit": 0,
+      "expectEnvelope": { "status": "ready", "changedDiscovery": false }
+    }
+  ]
+}

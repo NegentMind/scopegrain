@@ -1,0 +1,1188 @@
+{
+  "name": "smoke",
+  "description": "Audit-required smoke session: init -> workspace -> context -> task create -> transition -> doctor, plus journal and a rejected transition. methodology=manual so the flag form of task create is valid.",
+  "recorded": {
+    "node": "v26.8.1",
+    "platform": "win32",
+    "scopegrain": "0.1.1"
+  },
+  "setup": {
+    "files": {
+      "answers.json": {
+        "name": "eval-smoke",
+        "locale": "en",
+        "hosts": [
+          "claude"
+        ],
+        "paths": {
+          "plans": "docs/agent/plans",
+          "tasks": "docs/agent/tasks",
+          "reports": "docs/agent/reports",
+          "research": "docs/agent/research",
+          "decisions": "docs/agent/decisions",
+          "memory": ".scopegrain/memory",
+          "state": ".scopegrain/state"
+        }
+      }
+    }
+  },
+  "steps": [
+    {
+      "cmd": [
+        "init",
+        "--project",
+        "@root",
+        "--answers",
+        "@root/answers.json",
+        "--apply"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "mode": "applied",
+        "applied": true
+      },
+      "expectState": {
+        "exists": [
+          ".scopegrain/config.json",
+          ".scopegrain/discovery.json",
+          "CLAUDE.md"
+        ]
+      }
+    },
+    {
+      "cmd": [
+        "workspace",
+        "init",
+        "--project",
+        "@root",
+        "--apply"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "mode": "applied",
+        "applied": true,
+        "workspace": {
+          "revision": 0,
+          "areas": [
+            {
+              "key": "project",
+              "name": "eval-smoke"
+            }
+          ]
+        }
+      },
+      "expectState": {
+        "exists": [
+          ".scopegrain/state/workspace.json"
+        ]
+      }
+    },
+    {
+      "cmd": [
+        "journal",
+        "list",
+        "--project",
+        "@root"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "items": [],
+        "nextAfterSequence": null
+      }
+    },
+    {
+      "cmd": [
+        "context",
+        "--project",
+        "@root",
+        "--no-vantadb",
+        "--no-structure"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "schemaVersion": 1,
+        "methodology": "manual",
+        "intake": {
+          "mode": "off"
+        },
+        "vantadb": {
+          "skipped": true
+        },
+        "workspace": {
+          "revision": 0,
+          "areas": 1,
+          "areaKeys": [
+            "project"
+          ]
+        },
+        "tasks": {
+          "total": 0,
+          "open": 0
+        }
+      }
+    },
+    {
+      "cmd": [
+        "task",
+        "create",
+        "--project",
+        "@root",
+        "--title",
+        "Eval smoke task",
+        "--contract",
+        "C",
+        "--author",
+        "eval",
+        "--apply"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "mode": "applied",
+        "applied": true,
+        "task": {
+          "state": "PLAN",
+          "revision": 0,
+          "title": "Eval smoke task",
+          "slug": {
+            "%regex": "^001-eval-smoke-task$"
+          }
+        },
+        "files": [
+          "docs/agent/tasks/${taskId}.json"
+        ]
+      },
+      "save": {
+        "taskId": "task.id"
+      }
+    },
+    {
+      "cmd": [
+        "task",
+        "transition",
+        "--project",
+        "@root",
+        "${taskId}",
+        "ACT",
+        "--revision",
+        "0"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "mode": "dry-run",
+        "applied": false,
+        "task": {
+          "state": "ACT",
+          "revision": 1
+        }
+      },
+      "expectState": {
+        "json": [
+          {
+            "path": "docs/agent/tasks/${taskId}.json",
+            "subset": {
+              "state": "PLAN",
+              "revision": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "cmd": [
+        "task",
+        "transition",
+        "--project",
+        "@root",
+        "${taskId}",
+        "ACT",
+        "--revision",
+        "0",
+        "--apply"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "state": "ACT",
+        "revision": 1
+      },
+      "expectState": {
+        "json": [
+          {
+            "path": "docs/agent/tasks/${taskId}.json",
+            "subset": {
+              "state": "ACT",
+              "revision": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "cmd": [
+        "task",
+        "transition",
+        "--project",
+        "@root",
+        "${taskId}",
+        "ACCEPT",
+        "--revision",
+        "1",
+        "--apply"
+      ],
+      "expectExit": 1,
+      "expectError": {
+        "error": {
+          "code": "INVALID_TRANSITION"
+        }
+      },
+      "expectState": {
+        "json": [
+          {
+            "path": "docs/agent/tasks/${taskId}.json",
+            "subset": {
+              "state": "ACT",
+              "revision": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "cmd": [
+        "task",
+        "list",
+        "--project",
+        "@root"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "malformed": [],
+        "tasks": [
+          {
+            "id": "${taskId}",
+            "state": "ACT",
+            "revision": 1
+          }
+        ]
+      }
+    },
+    {
+      "cmd": [
+        "task",
+        "show",
+        "--project",
+        "@root",
+        "${taskId}"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "id": "${taskId}",
+        "state": "ACT",
+        "revision": 1
+      }
+    },
+    {
+      "cmd": [
+        "journal",
+        "list",
+        "--project",
+        "@root"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "items": [],
+        "nextAfterSequence": null
+      }
+    },
+    {
+      "cmd": [
+        "doctor",
+        "--project",
+        "@root"
+      ],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "status": "ready",
+        "changedDiscovery": false
+      }
+    }
+  ],
+  "envelopes": [
+    {
+      "cmd": [
+        "init",
+        "--project",
+        "<ROOT>",
+        "--answers",
+        "<ROOT>/answers.json",
+        "--apply"
+      ],
+      "exit": 0,
+      "stdout": {
+        "mode": "applied",
+        "applied": true,
+        "structureIndex": {
+          "written": ".scopegrain/state/cache/structure-index.json",
+          "files": 3
+        },
+        "created": 245,
+        "files": [
+          ".scopegrain/config.json",
+          ".scopegrain/instructions.md",
+          ".scopegrain/discovery.json",
+          "AGENTS.md",
+          "CLAUDE.md",
+          ".scopegrain/integrations/claude-mcp.json",
+          ".scopegrain/task-contract.md",
+          ".scopegrain/policy/workflow.json",
+          ".scopegrain/policy/operation-limits.json",
+          ".scopegrain/policy/methodology.json",
+          ".scopegrain/commands/plan-work.md",
+          ".scopegrain/commands/implement-task.md",
+          ".scopegrain/commands/intake.md",
+          ".scopegrain/commands/coordinate-plan.md",
+          ".scopegrain/commands/specify-change.md",
+          ".scopegrain/commands/triage-work.md",
+          ".scopegrain/commands/report-status.md",
+          ".scopegrain/commands/verify-work.md",
+          ".scopegrain/commands/review-change.md",
+          ".scopegrain/commands/audit-project.md",
+          ".scopegrain/commands/audit-harness.md",
+          ".scopegrain/commands/investigate.md",
+          ".scopegrain/commands/compare-options.md",
+          ".scopegrain/commands/assess-release.md",
+          ".scopegrain/commands/plan-recovery.md",
+          ".scopegrain/commands/simplify-code.md",
+          ".scopegrain/commands/analyze-structure.md",
+          ".scopegrain/commands/audit-web-performance.md",
+          ".scopegrain/agents/requirements-analyst.md",
+          ".scopegrain/agents/verification-engineer.md",
+          ".scopegrain/agents/integration-engineer.md",
+          ".scopegrain/agents/release-engineer.md",
+          ".scopegrain/prompts/task-brief.md",
+          ".scopegrain/prompts/decision-request.md",
+          ".scopegrain/prompts/review-request.md",
+          ".scopegrain/prompts/recovery-brief.md",
+          ".scopegrain/prompts/plan-brief.md",
+          ".scopegrain/prompts/plan-execution.md",
+          ".scopegrain/prompts/iteration-loop.md",
+          ".scopegrain/prompts/finding-record.md",
+          ".scopegrain/prompts/session-recitation.md",
+          ".scopegrain/prompts/spec-brief.md",
+          ".scopegrain/prompts/research-brief.md",
+          ".scopegrain/rules/human-decisions.md",
+          ".scopegrain/rules/resource-integrity.md",
+          ".scopegrain/rules/research-escalation.md",
+          ".scopegrain/rules/methodology.md",
+          ".scopegrain/skills/outcome-driven-development/SKILL.md",
+          ".scopegrain/mcps/scopegrain.json",
+          ".scopegrain/agents/lead.md",
+          ".scopegrain/agents/architect.md",
+          ".scopegrain/agents/implementer.md",
+          ".scopegrain/agents/algorithm-specialist.md",
+          ".scopegrain/agents/security-auditor.md",
+          ".scopegrain/agents/resilience-tester.md",
+          ".scopegrain/agents/performance-engineer.md",
+          ".scopegrain/agents/documentation.md",
+          ".scopegrain/agents/researcher.md",
+          ".scopegrain/agents/reviewer.md",
+          ".scopegrain/agents/harness-maintainer.md",
+          ".scopegrain/skills/project-onboarding/SKILL.md",
+          ".scopegrain/skills/contract-execution/SKILL.md",
+          ".scopegrain/skills/independent-review/SKILL.md",
+          ".scopegrain/skills/planning-and-task-breakdown/SKILL.md",
+          ".scopegrain/skills/spec-driven-development/SKILL.md",
+          ".scopegrain/skills/plan-coordination/SKILL.md",
+          ".scopegrain/skills/incremental-implementation/SKILL.md",
+          ".scopegrain/skills/systematic-debugging/SKILL.md",
+          ".scopegrain/skills/debugging-and-error-recovery/SKILL.md",
+          ".scopegrain/skills/test-driven-development/SKILL.md",
+          ".scopegrain/skills/code-review-and-quality/SKILL.md",
+          ".scopegrain/skills/unified-review/SKILL.md",
+          ".scopegrain/skills/source-driven-development/SKILL.md",
+          ".scopegrain/skills/context-engineering/SKILL.md",
+          ".scopegrain/skills/security-and-hardening/SKILL.md",
+          ".scopegrain/skills/documentation-and-adrs/SKILL.md",
+          ".scopegrain/skills/git-workflow-and-versioning/SKILL.md",
+          ".scopegrain/skills/shipping-and-launch/SKILL.md",
+          ".scopegrain/skills/performance-optimization/SKILL.md",
+          ".scopegrain/skills/code-simplification/SKILL.md",
+          ".scopegrain/skills/session-handoff/SKILL.md",
+          ".scopegrain/skills/select-capabilities/SKILL.md",
+          ".scopegrain/skills/web-research/SKILL.md",
+          ".scopegrain/skills/resolve-ambiguity/SKILL.md",
+          ".scopegrain/skills/api-and-interface-design/SKILL.md",
+          ".scopegrain/skills/api-design-principles/SKILL.md",
+          ".scopegrain/skills/brainstorming/SKILL.md",
+          ".scopegrain/skills/ci-cd-and-automation/SKILL.md",
+          ".scopegrain/skills/constraint-driven-development/SKILL.md",
+          ".scopegrain/skills/deprecation-and-migration/SKILL.md",
+          ".scopegrain/skills/discernment-nudge/SKILL.md",
+          ".scopegrain/skills/doubt-driven-development/SKILL.md",
+          ".scopegrain/skills/artifact-completeness/SKILL.md",
+          ".scopegrain/skills/clarify-intent/SKILL.md",
+          ".scopegrain/skills/observability-and-instrumentation/SKILL.md",
+          ".scopegrain/skills/plan-design-review/SKILL.md",
+          ".scopegrain/skills/review-feedback/SKILL.md",
+          ".scopegrain/skills/release-notes-one-pager/SKILL.md",
+          ".scopegrain/skills/review-deep/SKILL.md",
+          ".scopegrain/skills/writing-plans/SKILL.md",
+          ".scopegrain/rules/safety.md",
+          ".scopegrain/rules/workflow.md",
+          ".scopegrain/rules/evidence.md",
+          ".scopegrain/rules/review.md",
+          ".scopegrain/rules/api-contract.md",
+          ".scopegrain/rules/concurrency-async.md",
+          ".scopegrain/rules/core-engine.md",
+          ".scopegrain/rules/durability.md",
+          ".scopegrain/rules/frontend-web.md",
+          ".scopegrain/rules/indexes.md",
+          ".scopegrain/rules/js-ecosystem.md",
+          ".scopegrain/rules/mcp-integration.md",
+          ".scopegrain/rules/memory-budget.md",
+          ".scopegrain/rules/licensing-and-provenance.md",
+          ".scopegrain/rules/python-bindings.md",
+          ".scopegrain/rules/query-dsl.md",
+          ".scopegrain/rules/release-ci.md",
+          ".scopegrain/rules/server-mcp.md",
+          ".scopegrain/references/architecture.md",
+          ".scopegrain/references/backlog-format.md",
+          ".scopegrain/references/build-system.md",
+          ".scopegrain/references/clean-code-clean-architecture.md",
+          ".scopegrain/references/definition-of-done.md",
+          ".scopegrain/references/dev-tools.md",
+          ".scopegrain/references/quality-floor.md",
+          ".scopegrain/references/frontend-web.md",
+          ".scopegrain/references/mcp-tools.md",
+          ".scopegrain/references/observability-checklist.md",
+          ".scopegrain/references/ocr-review.md",
+          ".scopegrain/references/orchestration-patterns.md",
+          ".scopegrain/references/performance-checklist.md",
+          ".scopegrain/references/python-sdk.md",
+          ".scopegrain/references/research-modules.md",
+          ".scopegrain/references/security-checklist.md",
+          ".scopegrain/references/ship-runbook.md",
+          ".scopegrain/references/skills-engineering.md",
+          ".scopegrain/references/test-suite.md",
+          ".scopegrain/references/testing-patterns.md",
+          ".scopegrain/references/graph-investigation.md",
+          ".scopegrain/references/accessibility-checklist.md",
+          ".scopegrain/references/reference-maintenance.md",
+          ".scopegrain/profiles/core.json",
+          ".scopegrain/profiles/web.json",
+          ".scopegrain/profiles/rust.json",
+          ".scopegrain/profiles/python.json",
+          ".scopegrain/profiles/database.json",
+          ".scopegrain/references/task-domain.md",
+          ".scopegrain/skills/organic-driven-development/SKILL.md",
+          ".scopegrain/skills/work-unit-commits/SKILL.md",
+          ".scopegrain/skills/chained-pr/SKILL.md",
+          ".scopegrain/catalog.json",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-plan-work/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-implement-task/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-intake/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-coordinate-plan/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-specify-change/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-triage-work/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-report-status/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-verify-work/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-review-change/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-audit-project/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-audit-harness/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-investigate/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-compare-options/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-assess-release/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-plan-recovery/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-simplify-code/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-analyze-structure/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-audit-web-performance/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-requirements-analyst.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-verification-engineer.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-integration-engineer.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-release-engineer.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-outcome-driven-development/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-lead.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-architect.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-implementer.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-algorithm-specialist.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-security-auditor.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-resilience-tester.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-performance-engineer.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-documentation.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-researcher.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-reviewer.md",
+          ".scopegrain/integrations/native/claude/.claude/agents/scopegrain-harness-maintainer.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-project-onboarding/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-contract-execution/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-independent-review/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-planning-and-task-breakdown/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-spec-driven-development/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-plan-coordination/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-incremental-implementation/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-systematic-debugging/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-debugging-and-error-recovery/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-test-driven-development/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-code-review-and-quality/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-unified-review/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-source-driven-development/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-context-engineering/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-security-and-hardening/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-documentation-and-adrs/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-git-workflow-and-versioning/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-shipping-and-launch/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-performance-optimization/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-code-simplification/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-session-handoff/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-select-capabilities/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-web-research/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-resolve-ambiguity/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-api-and-interface-design/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-api-design-principles/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-brainstorming/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-ci-cd-and-automation/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-constraint-driven-development/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-deprecation-and-migration/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-discernment-nudge/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-doubt-driven-development/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-artifact-completeness/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-clarify-intent/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-observability-and-instrumentation/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-plan-design-review/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-review-feedback/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-release-notes-one-pager/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-review-deep/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-writing-plans/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-organic-driven-development/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-work-unit-commits/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-chained-pr/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-pipeline/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-spec/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-backlog/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-status/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-audit/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-harness/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-research/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-ship/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-rollback/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-code-simplify/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-codegraph/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-cleanca/SKILL.md",
+          ".scopegrain/integrations/native/claude/.claude/skills/scopegrain-webperf/SKILL.md",
+          ".scopegrain/.gitignore",
+          ".scopegrain/integrations/gitignore-proposal.txt",
+          ".scopegrain/integrations/native/activation-plan.json",
+          ".scopegrain/.gitattributes"
+        ],
+        "noop": [],
+        "counts": {
+          "create": 245,
+          "noop": 0,
+          "conflict": 0
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "workspace",
+        "init",
+        "--project",
+        "<ROOT>",
+        "--apply"
+      ],
+      "exit": 0,
+      "stdout": {
+        "mode": "applied",
+        "applied": true,
+        "workspace": {
+          "schemaVersion": 1,
+          "workspaceId": "<UUID>",
+          "projectId": "<UUID>",
+          "repositoryId": "<UUID>",
+          "revision": 0,
+          "createdAt": "<TS>",
+          "updatedAt": "<TS>",
+          "areas": [
+            {
+              "id": "<UUID>",
+              "key": "project",
+              "name": "eval-smoke"
+            }
+          ]
+        },
+        "created": 1,
+        "files": [
+          ".scopegrain/state/workspace.json"
+        ],
+        "noop": []
+      },
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "journal",
+        "list",
+        "--project",
+        "<ROOT>"
+      ],
+      "exit": 0,
+      "stdout": {
+        "items": [],
+        "nextAfterSequence": null
+      },
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "context",
+        "--project",
+        "<ROOT>",
+        "--no-vantadb",
+        "--no-structure"
+      ],
+      "exit": 0,
+      "stdout": {
+        "schemaVersion": 1,
+        "generatedAt": "<TS>",
+        "instructions": ".scopegrain/instructions.md",
+        "config": ".scopegrain/config.json",
+        "methodology": "manual",
+        "intake": {
+          "mode": "off"
+        },
+        "locale": "en",
+        "userContext": null,
+        "sessions": [],
+        "project": {
+          "name": null,
+          "root": "<ROOT>"
+        },
+        "workspace": {
+          "revision": 0,
+          "areas": 1,
+          "areaKeys": [
+            "project"
+          ]
+        },
+        "activeTask": null,
+        "tasks": {
+          "total": 0,
+          "open": 0,
+          "byState": {},
+          "ready": []
+        },
+        "progress": {
+          "truncated": false,
+          "entries": []
+        },
+        "activity": {
+          "truncated": false,
+          "entries": []
+        },
+        "goals": [],
+        "pendingJournalOperations": 0,
+        "warnings": [],
+        "structure": {
+          "indexed": true,
+          "stale": null,
+          "checked": false,
+          "refreshPolicy": "explicit",
+          "recommendedCommand": null,
+          "fingerprint": {
+            "stored": "<SHA256>",
+            "actual": null
+          },
+          "summary": {
+            "generatedAt": "<TS>",
+            "files": 3,
+            "bytes": 5310,
+            "lines": 131,
+            "languages": 2,
+            "filesTruncated": false
+          },
+          "liveFiles": null
+        },
+        "vantadb": {
+          "enrolled": null,
+          "recall": null,
+          "skipped": true
+        },
+        "tokenEstimate": "<VOLATILE>"
+      },
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "task",
+        "create",
+        "--project",
+        "<ROOT>",
+        "--title",
+        "Eval smoke task",
+        "--contract",
+        "C",
+        "--author",
+        "eval",
+        "--apply"
+      ],
+      "exit": 0,
+      "stdout": {
+        "mode": "applied",
+        "applied": true,
+        "task": {
+          "schemaVersion": 1,
+          "id": "<UUID>",
+          "title": "Eval smoke task",
+          "slug": "001-eval-smoke-task",
+          "contract": "C",
+          "authorContext": "eval",
+          "scope": [],
+          "state": "PLAN",
+          "revision": 0,
+          "verification": null,
+          "review": null,
+          "createdAt": "<TS>",
+          "updatedAt": "<TS>",
+          "history": [
+            {
+              "at": "<TS>",
+              "event": "created",
+              "state": "PLAN",
+              "revision": 0
+            }
+          ]
+        },
+        "created": 1,
+        "files": [
+          "docs/agent/tasks/<UUID>.json"
+        ],
+        "noop": []
+      },
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "task",
+        "transition",
+        "--project",
+        "<ROOT>",
+        "<UUID>",
+        "ACT",
+        "--revision",
+        "0"
+      ],
+      "exit": 0,
+      "stdout": {
+        "mode": "dry-run",
+        "applied": false,
+        "task": {
+          "schemaVersion": 1,
+          "id": "<UUID>",
+          "title": "Eval smoke task",
+          "slug": "001-eval-smoke-task",
+          "contract": "C",
+          "authorContext": "eval",
+          "scope": [],
+          "state": "ACT",
+          "revision": 1,
+          "verification": null,
+          "review": null,
+          "createdAt": "<TS>",
+          "updatedAt": "<TS>",
+          "history": [
+            {
+              "at": "<TS>",
+              "event": "created",
+              "state": "PLAN",
+              "revision": 0
+            },
+            {
+              "at": "<TS>",
+              "event": "transition",
+              "from": "PLAN",
+              "to": "ACT",
+              "revision": 1
+            }
+          ]
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "task",
+        "transition",
+        "--project",
+        "<ROOT>",
+        "<UUID>",
+        "ACT",
+        "--revision",
+        "0",
+        "--apply"
+      ],
+      "exit": 0,
+      "stdout": {
+        "schemaVersion": 1,
+        "id": "<UUID>",
+        "title": "Eval smoke task",
+        "slug": "001-eval-smoke-task",
+        "contract": "C",
+        "authorContext": "eval",
+        "scope": [],
+        "state": "ACT",
+        "revision": 1,
+        "verification": null,
+        "review": null,
+        "createdAt": "<TS>",
+        "updatedAt": "<TS>",
+        "history": [
+          {
+            "at": "<TS>",
+            "event": "created",
+            "state": "PLAN",
+            "revision": 0
+          },
+          {
+            "at": "<TS>",
+            "event": "transition",
+            "from": "PLAN",
+            "to": "ACT",
+            "revision": 1
+          }
+        ]
+      },
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "task",
+        "transition",
+        "--project",
+        "<ROOT>",
+        "<UUID>",
+        "ACCEPT",
+        "--revision",
+        "1",
+        "--apply"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": {
+        "error": {
+          "code": "INVALID_TRANSITION",
+          "message": "transition ACT -> ACCEPT is not allowed by workflow policy",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "cmd": [
+        "task",
+        "list",
+        "--project",
+        "<ROOT>"
+      ],
+      "exit": 0,
+      "stdout": {
+        "tasks": [
+          {
+            "schemaVersion": 1,
+            "id": "<UUID>",
+            "title": "Eval smoke task",
+            "slug": "001-eval-smoke-task",
+            "contract": "C",
+            "authorContext": "eval",
+            "scope": [],
+            "state": "ACT",
+            "revision": 1,
+            "verification": null,
+            "review": null,
+            "createdAt": "<TS>",
+            "updatedAt": "<TS>",
+            "history": [
+              {
+                "at": "<TS>",
+                "event": "created",
+                "state": "PLAN",
+                "revision": 0
+              },
+              {
+                "at": "<TS>",
+                "event": "transition",
+                "from": "PLAN",
+                "to": "ACT",
+                "revision": 1
+              }
+            ]
+          }
+        ],
+        "malformed": []
+      },
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "task",
+        "show",
+        "--project",
+        "<ROOT>",
+        "<UUID>"
+      ],
+      "exit": 0,
+      "stdout": {
+        "schemaVersion": 1,
+        "id": "<UUID>",
+        "title": "Eval smoke task",
+        "slug": "001-eval-smoke-task",
+        "contract": "C",
+        "authorContext": "eval",
+        "scope": [],
+        "state": "ACT",
+        "revision": 1,
+        "verification": null,
+        "review": null,
+        "createdAt": "<TS>",
+        "updatedAt": "<TS>",
+        "history": [
+          {
+            "at": "<TS>",
+            "event": "created",
+            "state": "PLAN",
+            "revision": 0
+          },
+          {
+            "at": "<TS>",
+            "event": "transition",
+            "from": "PLAN",
+            "to": "ACT",
+            "revision": 1
+          }
+        ]
+      },
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "journal",
+        "list",
+        "--project",
+        "<ROOT>"
+      ],
+      "exit": 0,
+      "stdout": {
+        "items": [],
+        "nextAfterSequence": null
+      },
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "doctor",
+        "--project",
+        "<ROOT>"
+      ],
+      "exit": 0,
+      "stdout": {
+        "schemaVersion": 1,
+        "status": "ready",
+        "summary": {
+          "ok": 33,
+          "warnings": 0,
+          "failures": 0
+        },
+        "changedDiscovery": false,
+        "discoveryDiff": null,
+        "upgradeAvailable": false,
+        "checks": [
+          {
+            "name": "config",
+            "ok": true,
+            "detail": "valid configuration at .scopegrain/config.json"
+          },
+          {
+            "name": "catalog",
+            "ok": true,
+            "detail": "140 catalog entries validated"
+          },
+          {
+            "name": "workspace-catalog",
+            "ok": true,
+            "detail": "snapshot integrity hash-verified (140 entries)"
+          },
+          {
+            "name": "templates",
+            "ok": true,
+            "detail": "required templates installed"
+          },
+          {
+            "name": "paths.plans",
+            "ok": true,
+            "detail": "docs/agent/plans -> missing"
+          },
+          {
+            "name": "paths.tasks",
+            "ok": true,
+            "detail": "docs/agent/tasks -> directory"
+          },
+          {
+            "name": "paths.reports",
+            "ok": true,
+            "detail": "docs/agent/reports -> missing"
+          },
+          {
+            "name": "paths.research",
+            "ok": true,
+            "detail": "docs/agent/research -> missing"
+          },
+          {
+            "name": "paths.decisions",
+            "ok": true,
+            "detail": "docs/agent/decisions -> missing"
+          },
+          {
+            "name": "paths.memory",
+            "ok": true,
+            "detail": ".scopegrain/memory -> missing"
+          },
+          {
+            "name": "paths.state",
+            "ok": true,
+            "detail": ".scopegrain/state -> directory"
+          },
+          {
+            "name": "discovery",
+            "ok": true,
+            "detail": ".scopegrain/discovery.json valid record"
+          },
+          {
+            "name": "generated",
+            "ok": true,
+            "detail": "generated files match current fragments"
+          },
+          {
+            "name": "workspace-enrollment",
+            "ok": true,
+            "detail": "enrolled revision 0 (1 areas)"
+          },
+          {
+            "name": "journal",
+            "ok": true,
+            "detail": "no journal"
+          },
+          {
+            "name": "runtime",
+            "ok": true,
+            "detail": "node 26.8.1 (requires >=22)"
+          },
+          {
+            "name": "policy",
+            "ok": true,
+            "detail": "6 policy files parse"
+          },
+          {
+            "name": "verify-store",
+            "ok": true,
+            "detail": "no verify store"
+          },
+          {
+            "name": "sessions",
+            "ok": true,
+            "detail": "no sessions"
+          },
+          {
+            "name": "worklogs",
+            "ok": true,
+            "detail": "0 entries well-formed"
+          },
+          {
+            "name": "error-signatures",
+            "ok": true,
+            "detail": "0 unique failure signature(s), none repeated"
+          },
+          {
+            "name": "record-ownership",
+            "ok": true,
+            "detail": "no ownership sidecars"
+          },
+          {
+            "name": "vantadb",
+            "ok": true,
+            "detail": "not enrolled"
+          },
+          {
+            "name": "hooks",
+            "ok": true,
+            "detail": "not a git worktree"
+          },
+          {
+            "name": "stale-locks",
+            "ok": true,
+            "detail": "no lock files"
+          },
+          {
+            "name": "host-fragments",
+            "ok": true,
+            "detail": "claude: 0 ok, 90 pending"
+          },
+          {
+            "name": "host-merge-targets",
+            "ok": true,
+            "detail": "1 merge target(s) inspected (.mcp.json); pending merge: .mcp.json"
+          },
+          {
+            "name": "host-cli",
+            "ok": true,
+            "detail": "found: none; not found: claude",
+            "hosts": {
+              "claude": {
+                "found": false,
+                "location": null
+              }
+            },
+            "missing": [
+              "claude"
+            ]
+          },
+          {
+            "name": "docs-cli-drift",
+            "ok": true,
+            "detail": "skipped: no README/docs markdown found"
+          },
+          {
+            "name": "mcp-deps",
+            "ok": true,
+            "detail": "MCP dependencies installed (@modelcontextprotocol/sdk, zod)",
+            "installed": [
+              "@modelcontextprotocol/sdk",
+              "zod"
+            ],
+            "missing": [],
+            "ready": true
+          },
+          {
+            "name": "viewer-build",
+            "ok": true,
+            "detail": "viewer/dist/index.html present",
+            "built": true
+          },
+          {
+            "name": "user-artifacts",
+            "ok": true,
+            "detail": "1 user artifact(s) valid",
+            "checked": 1
+          },
+          {
+            "name": "user-config",
+            "ok": true,
+            "detail": "no global user config (using workspace/policy defaults)",
+            "path": "C:\\Users\\Eros\\.config\\scopegrain\\config.json",
+            "exists": false,
+            "source": "default"
+          }
+        ],
+        "warnings": []
+      },
+      "stderr": ""
+    }
+  ],
+  "storeHash": "6d4e8a3741062389e411595462d39a1f3068584814360b1bb679dc86056fce13"
+}

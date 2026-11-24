@@ -1,0 +1,119 @@
+{
+  "name": "dry-run-gates",
+  "description": "CLI contract surface: interactive refusal, rejected flags, unknown commands, input validation, dry-run previews that write nothing, and CAS revision enforcement through the real binary.",
+  "setup": {
+    "files": {
+      "answers.json": {
+        "name": "eval-gates",
+        "locale": "en",
+        "hosts": ["claude"],
+        "paths": {
+          "plans": "docs/agent/plans",
+          "tasks": "docs/agent/tasks",
+          "reports": "docs/agent/reports",
+          "research": "docs/agent/research",
+          "decisions": "docs/agent/decisions",
+          "memory": ".scopegrain/memory",
+          "state": ".scopegrain/state"
+        }
+      }
+    }
+  },
+  "steps": [
+    {
+      "cmd": ["init", "--project", "@root"],
+      "expectExit": 1,
+      "expectError": { "error": { "code": "INTERACTIVE_REQUIRED" } },
+      "expectState": { "notExists": [".scopegrain/config.json"] }
+    },
+    {
+      "cmd": ["init", "--project", "@root", "--yes"],
+      "expectExit": 1,
+      "expectError": { "error": { "code": "INVALID_ARGS" } },
+      "expectState": { "notExists": [".scopegrain/config.json"] }
+    },
+    {
+      "cmd": ["init", "--project", "@root", "--answers", "@root/answers.json"],
+      "expectExit": 0,
+      "expectEnvelope": { "mode": "dry-run" },
+      "expectState": { "notExists": [".scopegrain/config.json", "CLAUDE.md"] }
+    },
+    {
+      "cmd": ["init", "--project", "@root", "--answers", "@root/answers.json", "--apply"],
+      "expectExit": 0,
+      "expectEnvelope": { "mode": "applied", "applied": true },
+      "expectState": { "exists": [".scopegrain/config.json"] }
+    },
+    {
+      "cmd": ["frobnicate"],
+      "expectExit": 1,
+      "expectError": { "error": { "code": "INVALID_ARGS" } }
+    },
+    {
+      "cmd": ["inspect", "--project", "@root", "--apply"],
+      "expectExit": 1,
+      "expectError": { "error": { "code": "INVALID_ARGS" } }
+    },
+    {
+      "cmd": ["task", "create", "--project", "@root", "--title", "Gate task"],
+      "expectExit": 1,
+      "expectError": { "error": { "code": "INVALID_ARGS" } }
+    },
+    {
+      "cmd": ["task", "create", "--project", "@root",
+        "--input", "@root/missing-input.json"],
+      "expectExit": 1,
+      "expectError": { "error": { "code": "INPUT_NOT_FOUND" } }
+    },
+    {
+      "cmd": ["task", "list", "--project", "@root"],
+      "expectExit": 0,
+      "expectEnvelope": { "tasks": [], "malformed": [] }
+    },
+    {
+      "cmd": ["task", "create", "--project", "@root",
+        "--title", "Gate task", "--contract", "C", "--author", "eval"],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "mode": "dry-run",
+        "applied": false,
+        "task": { "state": "PLAN", "revision": 0 }
+      }
+    },
+    {
+      "cmd": ["task", "list", "--project", "@root"],
+      "expectExit": 0,
+      "expectEnvelope": { "tasks": [], "malformed": [] }
+    },
+    {
+      "cmd": ["task", "create", "--project", "@root",
+        "--title", "Gate task", "--contract", "C", "--author", "eval",
+        "--apply"],
+      "expectExit": 0,
+      "expectEnvelope": {
+        "mode": "applied",
+        "task": { "state": "PLAN", "revision": 0 }
+      },
+      "save": { "taskId": "task.id" }
+    },
+    {
+      "cmd": ["task", "transition", "--project", "@root",
+        "${taskId}", "ACT", "--revision", "5", "--apply"],
+      "expectExit": 1,
+      "expectError": { "error": { "code": "REVISION_MISMATCH" } },
+      "expectState": {
+        "json": [{
+          "path": "docs/agent/tasks/${taskId}.json",
+          "subset": { "state": "PLAN", "revision": 0 }
+        }]
+      }
+    },
+    {
+      "cmd": ["task", "transition", "--project", "@root",
+        "11111111-1111-4111-8111-111111111111", "ACT",
+        "--revision", "0", "--apply"],
+      "expectExit": 1,
+      "expectError": { "error": { "code": "TASK_NOT_FOUND" } }
+    }
+  ]
+}
