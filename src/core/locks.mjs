@@ -9,14 +9,15 @@
 // lock payloads are JSON {t, pid, at}. A lock whose recorded pid is
 // provably DEAD (ESRCH) is broken and reclaimed — the process can never
 // finish its write. A lock whose pid is alive is never broken,
-// regardless of age. Locks without pid metadata (legacy bare tokens,
-// zero-byte sentinels) are reclaimed only after staleMs of mtime age,
-// and the reclaim re-verifies {dev, ino} so a delete+recreate race
+// regardless of age. Locks without pid metadata (legacy bare tokens)
+// are reclaimed only after staleMs of mtime age; zero-byte or unreadable
+// payloads use the shorter orphanStaleMs since no live writer can hold
+// them. The reclaim re-verifies {dev, ino} so a delete+recreate race
 // cannot make us delete a successor's lock.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
-import { readFileLimited } from './fsx.mjs';
+import { displayPath, readFileLimited } from './fsx.mjs';
 
 // Bounded read for the cleanup prefix check. The close is tolerant: a
 // completed read keeps its bytes even when closeSync fails — a close-time
@@ -66,11 +67,12 @@ function removeOwnedLock(lockPath, owner, bytes) {
   } catch { /* preserve anything not provably ours */ }
 }
 
-// Default staleness for metadata-less locks (legacy tokens, sentinels):
-// one hour. Locks carrying a live pid are never reclaimed — a suspended
-// writer is still a real writer and breaking its lock permits a second
-// writer into the same section.
+// Default staleness for metadata-less locks (legacy tokens): one hour.
+// Locks carrying a live pid are never reclaimed — a suspended writer is
+// still a real writer and breaking its lock permits a second writer
+// into the same section.
 const DEFAULT_STALE_MS = 60 * 60 * 1000;
+const ORPHAN_LOCK_STALE_MS = 60 * 1000;
 
 function pidAlive(pid) {
   try {
@@ -89,7 +91,7 @@ function pidAlive(pid) {
 // forever — liveness proves only that some process exists. Breaking a
 // live-pid lock by age would defeat the suspended-writer guarantee, so
 // recovery from pid reuse remains a manual operator action.
-function tryReclaimStaleLock(lockPath, staleMs) {
+function tryReclaimStaleLock(lockPath, staleMs, orphanStaleMs) {
   let stat;
   try {
     stat = fs.lstatSync(lockPath, { bigint: true });
@@ -98,6 +100,7 @@ function tryReclaimStaleLock(lockPath, staleMs) {
   }
   if (!stat.isFile()) return;
   const raw = readLockPrefix(lockPath, 4096);
+  const orphan = raw === null || raw.length === 0;
   const text = raw === null ? '' : raw.toString('utf8');
   let pid = null;
   try {
@@ -106,9 +109,10 @@ function tryReclaimStaleLock(lockPath, staleMs) {
       pid = parsed.pid;
     }
   } catch { /* legacy bare token or empty sentinel */ }
+  const ttl = orphan ? orphanStaleMs : staleMs;
   const reclaimable = pid !== null
     ? !pidAlive(pid) // dead writer: always reclaimable
-    : Date.now() - Number(stat.mtimeMs) > staleMs;
+    : Date.now() - Number(stat.mtimeMs) > ttl;
   if (!reclaimable) return;
   let before;
   try {
@@ -129,6 +133,8 @@ function tryReclaimStaleLock(lockPath, staleMs) {
 export function acquireVerifiedLock(lockPath, code, existsMessage, options) {
   const staleMs = Number.isSafeInteger(options?.staleMs)
     ? options.staleMs : DEFAULT_STALE_MS;
+  const orphanStaleMs = Number.isSafeInteger(options?.orphanStaleMs)
+    ? options.orphanStaleMs : ORPHAN_LOCK_STALE_MS;
   const token = crypto.randomUUID();
   // Lock payload: JSON {t,pid,at} so stale recovery can distinguish a
   // crashed writer (dead pid, reclaim) from a live one (never reclaim).
@@ -140,7 +146,7 @@ export function acquireVerifiedLock(lockPath, code, existsMessage, options) {
     fd = fs.openSync(lockPath, 'wx');
   } catch (e) {
     if (e && e.code === 'EEXIST') {
-      tryReclaimStaleLock(lockPath, staleMs);
+      tryReclaimStaleLock(lockPath, staleMs, orphanStaleMs);
       try {
         fd = fs.openSync(lockPath, 'wx');
       } catch (e2) {
@@ -162,7 +168,7 @@ export function acquireVerifiedLock(lockPath, code, existsMessage, options) {
         offset);
       if (count <= 0) {
         throw err('WRITE_FAILED',
-          `lock write made no progress: ${lockPath}`);
+          `lock write made no progress: ${displayPath(lockPath)}`);
       }
       offset += count;
     }
@@ -192,13 +198,13 @@ export function releaseVerifiedLock(lock) {
       current = fs.lstatSync(lockPath, { bigint: true });
     } catch (e) {
       if (e && e.code === 'ENOENT') {
-        throw err(code, `lock file was removed: ${lockPath}`);
+        throw err(code, `lock file was removed: ${displayPath(lockPath)}`);
       }
       throw e;
     }
     if (!current.isFile() || current.dev !== owner.dev
         || current.ino !== owner.ino) {
-      throw err(code, `lock file was replaced: ${lockPath}`);
+      throw err(code, `lock file was replaced: ${displayPath(lockPath)}`);
     }
   };
   checkOwner();
@@ -209,7 +215,7 @@ export function releaseVerifiedLock(lock) {
     limited = readFileLimited(lockPath, 4096);
   } catch (e) {
     if (e && e.code === 'ENOENT') {
-      throw err(code, `lock file was removed: ${lockPath}`);
+      throw err(code, `lock file was removed: ${displayPath(lockPath)}`);
     }
     throw e;
   }
@@ -225,7 +231,7 @@ export function releaseVerifiedLock(lock) {
     }
   }
   if (!held) {
-    throw err(code, `lock token was replaced: ${lockPath}`);
+    throw err(code, `lock token was replaced: ${displayPath(lockPath)}`);
   }
   checkOwner();
   fs.unlinkSync(lockPath);

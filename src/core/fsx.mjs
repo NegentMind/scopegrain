@@ -1,7 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 // Small synchronous filesystem helpers shared by core modules.
 import fs from 'node:fs';
+import path from 'node:path';
 import { err } from './errors.mjs';
+
+let displayRoot = null;
+
+export function setPathDisplayRoot(rootAbs) {
+  displayRoot = typeof rootAbs === 'string' && rootAbs.length > 0
+    ? path.resolve(rootAbs) : null;
+}
+
+export function displayPath(p) {
+  try {
+    const abs = path.resolve(p);
+    if (displayRoot) {
+      const rel = path.relative(displayRoot, abs);
+      if (rel === '') return '.';
+      if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
+        return rel.split(path.sep).join('/');
+      }
+    }
+    return path.basename(abs);
+  } catch {
+    return String(p);
+  }
+}
 
 export function lstatOrNull(p) {
   try {
@@ -29,7 +53,7 @@ export function readFileLimited(p, maxBytes) {
       const n = fs.readSync(fd, buf, off, st.size - off, off);
       if (n <= 0) {
         throw err('READ_FAILED',
-          `read made no progress on ${p} (${off}/${st.size})`);
+          `read made no progress on ${displayPath(p)} (${off}/${st.size})`);
       }
       off += n;
     }
@@ -39,7 +63,7 @@ export function readFileLimited(p, maxBytes) {
     }
     if (st2.size !== st.size) {
       throw err('READ_FAILED',
-        `${p} changed size during read (${st.size} -> ${st2.size})`);
+        `${displayPath(p)} changed size during read (${st.size} -> ${st2.size})`);
     }
     return { exceeded: false, size: st.size, content: buf };
   } finally {
@@ -65,21 +89,22 @@ export function readJsonFile(p, label, maxBytes = 1048576) {
     limited = readFileLimited(p, maxBytes);
   } catch (e) {
     if (e && e.code === 'READ_FAILED') throw e;
-    throw err('READ_FAILED', `cannot read ${label}: ${p}`);
+    throw err('READ_FAILED', `cannot read ${label}: ${displayPath(p)}`);
   }
   if (limited.exceeded) {
     throw err('DOCUMENT_TOO_LARGE',
-      `${label} exceeds ${maxBytes} bytes: ${p}`);
+      `${label} exceeds ${maxBytes} bytes: ${displayPath(p)}`);
   }
   // Non-roundtrippable bytes are malformed input: the file cannot decode
   // to faithful JSON text, so it shares the MALFORMED_JSON domain code a
   // syntactically broken document already produces.
   const text = decodeUtf8Strict(
-    limited.content, 'MALFORMED_JSON', `${label}: ${p}`);
+    limited.content, 'MALFORMED_JSON', `${label}: ${displayPath(p)}`);
   try {
     return JSON.parse(text);
   } catch {
-    throw err('MALFORMED_JSON', `malformed JSON in ${label}: ${p}`);
+    throw err('MALFORMED_JSON',
+      `malformed JSON in ${label}: ${displayPath(p)}`);
   }
 }
 
@@ -115,7 +140,8 @@ export function writeFileExclusive(file, content) {
     while (off < buf.length) {
       const n = fs.writeSync(fd, buf, off, buf.length - off);
       if (n <= 0) {
-        throw err('WRITE_FAILED', `write made no progress on ${file}`);
+        throw err('WRITE_FAILED',
+          `write made no progress on ${displayPath(file)}`);
       }
       off += n;
     }
@@ -133,6 +159,11 @@ export function writeFileExclusive(file, content) {
 
 export function mkdirpSync(dir) {
   fs.mkdirSync(dir, { recursive: true });
+  const st = lstatOrNull(dir);
+  if (!st || !st.isDirectory()) {
+    throw err('FILE_ANCESTOR',
+      `mkdir target is not a real directory: ${displayPath(dir)}`);
+  }
 }
 
 export function removeIfExists(p) {

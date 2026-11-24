@@ -12,7 +12,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { err } from './errors.mjs';
-import { lstatOrNull } from './fsx.mjs';
+import { displayPath, lstatOrNull } from './fsx.mjs';
 
 export const RESERVED_PREFIXES = new Set(['.git', 'node_modules', 'legacy', '.opencode']);
 
@@ -144,10 +144,11 @@ export function assertNoSymlinkChain(rootAbs, absPath) {
   const root = lstatOrNull(rootAbs);
   if (root?.isSymbolicLink()) {
     throw err('SYMLINK_REJECTED',
-      `approved root was replaced with a symlink/junction: ${rootAbs}`);
+      `approved root was replaced with a symlink/junction: ${displayPath(rootAbs)}`);
   }
   if (root && !root.isDirectory()) {
-    throw err('FILE_ANCESTOR', `approved root is not a directory: ${rootAbs}`);
+    throw err('FILE_ANCESTOR',
+      `approved root is not a directory: ${displayPath(rootAbs)}`);
   }
   const rel = path.relative(rootAbs, absPath);
   if (rel === '') return;
@@ -159,13 +160,31 @@ export function assertNoSymlinkChain(rootAbs, absPath) {
     if (!st) break; // deeper segments cannot exist either
     if (st.isSymbolicLink()) {
       throw err('SYMLINK_REJECTED',
-        `refusing path through symlink/junction ancestor: ${current}`);
+        `refusing path through symlink/junction ancestor: ${displayPath(current)}`);
     }
     if (i < segments.length - 1 && !st.isDirectory()) {
       throw err('FILE_ANCESTOR',
-        `path crosses a non-directory ancestor: ${current}`);
+        `path crosses a non-directory ancestor: ${displayPath(current)}`);
     }
   }
+}
+
+export function assertRealDirChain(rootAbs, dirAbs) {
+  if (!isInside(rootAbs, dirAbs)) {
+    throw err('OUTSIDE_ROOT',
+      `dir escapes the project root: ${displayPath(dirAbs)}`);
+  }
+  assertNoSymlinkChain(rootAbs, dirAbs);
+  const leaf = lstatOrNull(dirAbs);
+  if (!leaf || !leaf.isDirectory()) {
+    throw err('FILE_ANCESTOR',
+      `path is not a real directory chain: ${displayPath(dirAbs)}`);
+  }
+}
+
+export function mkdirpVerified(rootAbs, dirAbs) {
+  fs.mkdirSync(dirAbs, { recursive: true });
+  assertRealDirChain(rootAbs, dirAbs);
 }
 
 // Resolve a project-relative path to an absolute path that is verifiably
