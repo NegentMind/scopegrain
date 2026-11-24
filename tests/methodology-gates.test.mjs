@@ -559,3 +559,35 @@ test('researchEscalation: 3 VERIFY->ACT reworks block ->ACT until RESEARCH visit
     has(query(f, { to: 'ACT' }), 'RESEARCH_ESCALATION_REQUIRED');
   } finally { cleanup(f.dir); }
 });
+
+test('researchEscalation: rework via COLLATERAL/EVALUATE detours counts too', () => {
+  const f = lightFixture({ mode: 'organic-sdd' });
+  try {
+    const t = (from, to, revision) => ({ at: f.task.createdAt,
+      event: 'transition', from, to, revision });
+    const base = { at: f.task.createdAt, event: 'created',
+      state: 'PLAN', revision: 0 };
+    // Three returns to ACT through downstream-gate detours — no direct
+    // VERIFY->ACT edge exists, so a VERIFY-only counter saw zero reworks.
+    saveTask(f, { ...f.task, state: 'VERIFY',
+      verification: verification(), history: [
+        base, t('PLAN', 'ACT', 1), t('ACT', 'VERIFY', 2),
+        t('VERIFY', 'COLLATERAL', 3), t('COLLATERAL', 'ACT', 4),
+        t('ACT', 'VERIFY', 5), t('VERIFY', 'EVALUATE', 6),
+        t('EVALUATE', 'ACT', 7), t('ACT', 'VERIFY', 8),
+        t('VERIFY', 'ACT', 9), t('ACT', 'VERIFY', 10)] });
+    has(query(f, { to: 'ACT' }), 'RESEARCH_ESCALATION_REQUIRED');
+    // RESEARCH -> ACT is the sanctioned escape: never a rework and it
+    // does not move the last-rework cursor — a RESEARCH visit after the
+    // last counted rework still clears the escalation.
+    saveTask(f, { ...f.task, history: [
+      base, t('PLAN', 'ACT', 1), t('ACT', 'VERIFY', 2),
+      t('VERIFY', 'ACT', 3), t('ACT', 'VERIFY', 4),
+      t('VERIFY', 'COLLATERAL', 5), t('COLLATERAL', 'ACT', 6),
+      t('ACT', 'VERIFY', 7), t('VERIFY', 'EVALUATE', 8),
+      t('EVALUATE', 'ACT', 9), t('ACT', 'VERIFY', 10),
+      t('VERIFY', 'COLLATERAL', 11), t('COLLATERAL', 'RESEARCH', 12),
+      t('RESEARCH', 'ACT', 13), t('ACT', 'VERIFY', 14)] });
+    assertAllowed(f, { to: 'ACT' });
+  } finally { cleanup(f.dir); }
+});

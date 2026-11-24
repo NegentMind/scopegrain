@@ -327,7 +327,7 @@ function withStoreLock(ctx, fn) {
   const abs = verifyStoreAbs(ctx);
   mkdirpSync(path.dirname(abs));
   const lock = acquireVerifiedLock(`${abs}.lock`, 'VERIFY_LOCKED',
-    'verify store is locked by another operation; no stale-lock recovery');
+    'verify store is locked by another live operation');
   let tmpPath = null;
   let tmpOwned = false;
   let result;
@@ -717,7 +717,11 @@ function wrapSpawnError(e, exe) {
   }
   if (e && e.code === 'EINVAL') {
     return err('VERIFY_EXEC_REJECTED',
-      `executable was rejected; batch/shell shims are never run: ${exe}`);
+      `executable was rejected by the platform spawn policy: ${exe}; `
+      + 'on Windows a PATH-resolved .cmd/.bat shim (npm, yarn, pnpm) '
+      + 'fails with EINVAL — Node >=18.20.2 refuses batch files without '
+      + 'a shell (CVE-2024-27980). Re-declare the record with a real '
+      + 'executable: `node <script>` or the tool\'s .exe');
   }
   return err('VERIFY_EXEC_FAILED',
     `cannot start '${exe}': ${e && e.message ? e.message : e}`);

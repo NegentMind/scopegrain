@@ -13,6 +13,9 @@ import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited }
 import { resolveInside } from './paths.mjs';
 import { loadLimits } from './policy.mjs';
 import { listTasks } from './tasks.mjs';
+import {
+  acquireVerifiedLock, releaseVerifiedLock,
+} from './locks.mjs';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -290,7 +293,10 @@ export function createGoal(ctx, input) {
 
 // Status change for an existing goal: the log is append-only, so a
 // transition re-appends the current entry with the new status (latest
-// entry per id wins on read).
+// entry per id wins on read). Goal entries carry no revision a
+// caller-visible CAS token could bind to, so the read-modify-append is
+// serialized under the store lock instead — the check and the append
+// can no longer interleave with another transitionGoal writer.
 export function transitionGoal(ctx, id, status) {
   if (!isUUID(id)) {
     throw err('INVALID_ID', 'goal id must be a UUID');
@@ -298,19 +304,38 @@ export function transitionGoal(ctx, id, status) {
   if (!GOAL_STATUSES.has(status)) {
     throw err('INVALID_VALUE', 'goal status must be open|achieved|dropped');
   }
-  const { goals } = listGoals(ctx);
-  const current = goals.find((g) => g.id.toLowerCase() === id.toLowerCase());
-  if (!current) {
-    throw err('INVALID_ID', `goal ${id} not found`);
+  const file = logPath(ctx, 'goals');
+  mkdirpSync(path.dirname(file));
+  const lock = acquireVerifiedLock(`${file}.lock`, 'GOAL_LOCKED',
+    'goals log is locked by another live operation');
+  let result;
+  let failure;
+  try {
+    const { goals } = listGoals(ctx);
+    const current = goals.find(
+      (g) => g.id.toLowerCase() === id.toLowerCase());
+    if (!current) {
+      throw err('INVALID_ID', `goal ${id} not found`);
+    }
+    result = appendWorklog(ctx, 'goals', {
+      id: current.id,
+      title: current.title,
+      description: current.description,
+      status,
+      horizon: current.horizon,
+      metrics: current.metrics,
+    });
+  } catch (e) {
+    failure = e;
+  } finally {
+    try {
+      releaseVerifiedLock(lock);
+    } catch (e) {
+      if (!failure) failure = e; // a domain failure is never masked
+    }
   }
-  return appendWorklog(ctx, 'goals', {
-    id: current.id,
-    title: current.title,
-    description: current.description,
-    status,
-    horizon: current.horizon,
-    metrics: current.metrics,
-  });
+  if (failure) throw failure;
+  return result;
 }
 
 // ---------------------------------------------------------------------------

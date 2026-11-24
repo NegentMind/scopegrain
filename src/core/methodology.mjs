@@ -16,6 +16,7 @@ import { actionsFor, loadMethodologyPolicy } from './policy.mjs';
 import { applyPreActionHooks } from './hooks-policy.mjs';
 
 const INPUT_KEYS = new Set(['taskId', 'to', 'outcomeEvidenceId']);
+const FORWARD_SOURCES = new Set(['STALL', 'PLAN', 'RESEARCH']);
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const issue = (code, message) => ({ code, message });
@@ -206,9 +207,12 @@ export function evaluateMethodology(ctx, task,
       'methodology requires a current assessment or the formal specId+designId pair'));
     return result(route ?? 'blocked');
   }
-  // researchEscalation enforcement (policy/methodology.json): a VERIFY->ACT
-  // transition is a recorded rework cycle — an attempt that failed
-  // verification and went back to implementation. At the authored
+  // researchEscalation enforcement (policy/methodology.json): returning
+  // to ACT from any downstream gate (VERIFY, COLLATERAL, EVALUATE,
+  // REVIEW, ACCEPT) is a recorded rework cycle — an attempt that went
+  // back to implementation without closing. Entries from PLAN, RESEARCH
+  // or STALL are forward progress or the sanctioned research escape,
+  // never rework. At the authored
   // revisitDesignAfterAttemptsWithoutProgress threshold (3 reworks),
   // further ->ACT requires a RESEARCH visit after the last rework. Only
   // recorded transitions count: investigateAfterSimilarFailures (2) is
@@ -222,8 +226,8 @@ export function evaluateMethodology(ctx, task,
     let reworks = 0;
     let lastRework = -1;
     history.forEach((h, i) => {
-      if (h?.event === 'transition' && h.from === 'VERIFY'
-          && h.to === 'ACT') {
+      if (h?.event === 'transition' && h.to === 'ACT'
+          && !FORWARD_SOURCES.has(h.from)) {
         reworks += 1;
         lastRework = i;
       }
@@ -233,7 +237,7 @@ export function evaluateMethodology(ctx, task,
     if (reworks >= esc.revisitDesignAfterAttemptsWithoutProgress
         && !researchedSince) {
       issues.push(issue('RESEARCH_ESCALATION_REQUIRED',
-        `${reworks} VERIFY->ACT rework cycle(s) without a RESEARCH visit; `
+        `${reworks} rework cycle(s) into ACT without a RESEARCH visit; `
         + 'researchEscalation requires investigation'
         + (formal ? ' and design revisit' : '')
         + ' before re-implementing (escape: RESEARCH via COLLATERAL, or '

@@ -24,6 +24,65 @@ function deepFreeze(value) {
   return value;
 }
 
+// Authored workflow graph: transitions, actions and the acceptance
+// contract are pinned in code like constraints (transition.mjs) and
+// methodology.json — file divergence fails closed with POLICY_INVALID.
+const AUTHORED = deepFreeze({
+  initial: 'PLAN',
+  transitions: {
+    PLAN: ['ACT', 'RESEARCH', 'STALL', 'ABANDON'],
+    ACT: ['VERIFY', 'STALL', 'ABANDON'],
+    VERIFY: ['COLLATERAL', 'EVALUATE', 'ACT', 'STALL', 'ABANDON'],
+    COLLATERAL: ['RESEARCH', 'ACT', 'EVALUATE', 'STALL', 'ABANDON'],
+    RESEARCH: ['PLAN', 'ACT', 'STALL', 'ABANDON'],
+    EVALUATE: ['REVIEW', 'ACT', 'STALL', 'ABANDON'],
+    REVIEW: ['ACCEPT', 'ACT', 'STALL', 'ABANDON'],
+    ACCEPT: ['CLOSE', 'ACT', 'STALL', 'ABANDON'],
+    CLOSE: [],
+    STALL: ['PLAN', 'ABANDON'],
+    ABANDON: [],
+  },
+  actions: {
+    PLAN: ['read', 'research', 'propose'],
+    ACT: ['read', 'edit', 'propose'],
+    VERIFY: ['read', 'verify', 'propose'],
+    COLLATERAL: ['read', 'research', 'propose'],
+    RESEARCH: ['read', 'research', 'propose'],
+    EVALUATE: ['read', 'evaluate'],
+    REVIEW: ['read', 'review'],
+    ACCEPT: ['read'],
+    CLOSE: ['read'],
+    STALL: ['read'],
+    ABANDON: ['read'],
+  },
+  acceptance: {
+    verificationStatuses: ['pass'],
+    recordableVerificationStatuses: ['pass', 'fail', 'error'],
+    recordableReviewVerdicts: ['approve', 'reject', 'changes-requested'],
+    reviewVerdict: 'approve',
+    freshContextsMustDiffer: true,
+    waiverRequiredFields: ['owner', 'reference', 'reason'],
+  },
+});
+const POLICY_ROOT_KEYS = ['schemaVersion', 'initial', 'transitions',
+  'actions', 'constraints', 'acceptance', 'execution'];
+
+// Order-insensitive authored equality: arrays compare as sets (edge and
+// vocabulary order is not semantic), objects compare as closed key sets
+// recursively, scalars compare strictly.
+function authoredEqual(got, want) {
+  if (Array.isArray(want)) {
+    return Array.isArray(got) && got.length === want.length
+      && got.every((x) => want.includes(x));
+  }
+  if (want !== null && typeof want === 'object') {
+    return got !== null && typeof got === 'object' && !Array.isArray(got)
+      && Object.keys(got).length === Object.keys(want).length
+      && Object.keys(want).every((k) => authoredEqual(got[k], want[k]));
+  }
+  return got === want;
+}
+
 let cached = null;
 
 export function loadPolicy() {
@@ -43,6 +102,16 @@ export function loadPolicy() {
     if (!Array.isArray(next) || !Array.isArray(policy.actions[state])) {
       throw err('POLICY_INVALID', `policy state '${state}' lacks transitions or actions`);
     }
+  }
+  const rootKeys = Object.keys(policy);
+  if (policy.initial !== AUTHORED.initial
+      || rootKeys.length !== POLICY_ROOT_KEYS.length
+      || !rootKeys.every((k) => POLICY_ROOT_KEYS.includes(k))
+      || !authoredEqual(policy.transitions, AUTHORED.transitions)
+      || !authoredEqual(policy.actions, AUTHORED.actions)
+      || !authoredEqual(policy.acceptance, AUTHORED.acceptance)) {
+    throw err('POLICY_INVALID',
+      'policy/workflow.json diverges from the authored workflow graph');
   }
   cached = deepFreeze(policy);
   return cached;

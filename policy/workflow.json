@@ -34,7 +34,6 @@
     "methodologyRevalidatedTargets": ["ACT", "ACCEPT", "CLOSE"]
   },
   "acceptance": {
-    "verificationRequired": true,
     "verificationStatuses": ["pass"],
     "recordableVerificationStatuses": ["pass", "fail", "error"],
     "recordableReviewVerdicts": ["approve", "reject", "changes-requested"],

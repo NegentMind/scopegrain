@@ -52,7 +52,7 @@ function acquireLock(taskFile) {
   const lockPath = taskFile + '.lock';
   try {
     return acquireVerifiedLock(lockPath, 'TASK_LOCKED',
-      'task lock exists; refusing to recover it automatically');
+      'task lock is held by another live operation');
   } catch (e) {
     if (e && e.code === 'ENOENT') {
       throw err('TASK_NOT_FOUND', 'task directory does not exist');
