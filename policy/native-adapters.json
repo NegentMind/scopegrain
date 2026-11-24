@@ -94,6 +94,40 @@
         "https://antigravity.google/docs/mcp"
       ]
     },
+    "copilot": {
+      "skillRoot": ".agents/skills",
+      "commandFormat": "skill",
+      "agentRoot": ".github/agents",
+      "agentFormat": "markdown",
+      "commandFrontmatter": "",
+      "agentFrontmatter": "",
+      "readOnlyAgentFrontmatter": "",
+      "invocation": "scopegrain-NAME",
+      "permissionScope": "Shared .agents skill shadow plus .github custom-agent profiles; the documented agent 'tools' list is not certified here, so no restriction is requested.",
+      "sources": [
+        "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills",
+        "https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/invoke-custom-agents",
+        "https://docs.github.com/en/copilot/reference/custom-agents-configuration",
+        "https://code.visualstudio.com/docs/copilot/customization/mcp-servers"
+      ]
+    },
+    "cursor": {
+      "skillRoot": ".cursor/skills",
+      "commandFormat": "skill",
+      "agentRoot": ".cursor/agents",
+      "agentFormat": "markdown",
+      "commandFrontmatter": "",
+      "agentFrontmatter": "",
+      "readOnlyAgentFrontmatter": "readonly: true\n",
+      "invocation": "/scopegrain-NAME",
+      "permissionScope": "Subagent 'readonly' blocks edits and state-changing shell commands but MCP tools still inherit from the parent; it is not a tool allowlist.",
+      "sources": [
+        "https://cursor.com/docs/skills",
+        "https://cursor.com/docs/subagents",
+        "https://cursor.com/docs/rules",
+        "https://cursor.com/docs/mcp"
+      ]
+    },
     "generic": {
       "skillRoot": ".agent/skills",
       "commandFormat": "skill",

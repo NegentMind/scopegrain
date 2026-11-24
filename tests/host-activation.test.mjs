@@ -372,8 +372,11 @@ test('applied destinations parse per host format (all admitted hosts)', () => {
           path.join(dir, ...f.rel.split('/')), 'utf8');
         if (f.rel.endsWith('.json')) JSON.parse(text);
         else if (f.rel.endsWith('.toml')) assertToml(text, f.rel);
-        else if (f.rel.endsWith('.md')) assertMd(text, f.rel);
-        else assert.fail(`unexpected extension in ${f.rel}`);
+        else if (f.rel.endsWith('.md') || f.rel.endsWith('.mdc')) {
+          if (text.startsWith('---\n')) assertMd(text, f.rel);
+          else assert.ok(text.includes('SCOPEGRAIN:BEGIN'),
+            `${f.rel}: non-frontmatter file must carry managed markers`);
+        } else assert.fail(`unexpected extension in ${f.rel}`);
       }
       if (host === 'hermes') {
         // Nothing applies to unverified global roots; the generated

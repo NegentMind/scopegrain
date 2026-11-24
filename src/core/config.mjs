@@ -15,14 +15,14 @@ import { loadLimits, loadMethodologyPolicy, loadOnboardingDefaults }
   from './policy.mjs';
 
 export const KNOWN_HOSTS = [
-  'claude', 'codex', 'opencode', 'devin', 'antigravity', 'hermes',
-  'generic',
+  'claude', 'codex', 'opencode', 'devin', 'antigravity', 'copilot',
+  'cursor', 'hermes', 'generic',
 ];
 // Hosts that read the root AGENTS.md rules entrypoint. Antigravity's
 // documented rules surfaces include AGENTS.md; generic is the scaffold
 // for MCP-stdio hosts and follows the same universal convention.
 export const AGENTS_MD_HOSTS = new Set(
-  ['codex', 'opencode', 'devin', 'antigravity', 'generic']);
+  ['codex', 'opencode', 'devin', 'antigravity', 'cursor', 'generic']);
 export const LOCALES = ['es', 'en'];
 export const PATH_KEYS = [
   'plans', 'tasks', 'reports', 'research', 'decisions', 'memory', 'state',

@@ -116,6 +116,30 @@ function renderHermes(serverPath, projectRoot, configRel) {
   }, null, 2) + '\n';
 }
 
+function renderCopilot(serverPath, projectRoot, configRel) {
+  return JSON.stringify({
+    servers: {
+      scopegrain: {
+        type: 'stdio',
+        command: 'node',
+        args: stdioArgs(serverPath, projectRoot, configRel),
+      },
+    },
+  }, null, 2) + '\n';
+}
+
+function renderCursor(serverPath, projectRoot, configRel) {
+  return JSON.stringify({
+    mcpServers: {
+      scopegrain: {
+        type: 'stdio',
+        command: 'node',
+        args: stdioArgs(serverPath, projectRoot, configRel),
+      },
+    },
+  }, null, 2) + '\n';
+}
+
 // Generic host: the most common JSON stdio MCP shape plus a note that the
 // descriptor is a scaffold, not a certified format (generic adapter).
 function renderGeneric(serverPath, projectRoot, configRel) {
@@ -143,6 +167,10 @@ const RENDERERS = {
     render: renderAntigravity },
   hermes: { file: 'hermes-mcp.json', format: 'provisional',
     render: renderHermes },
+  copilot: { file: 'copilot-mcp.json', format: 'json',
+    render: renderCopilot },
+  cursor: { file: 'cursor-mcp.json', format: 'json',
+    render: renderCursor },
 };
 
 // renderAdapters(config, {projectRoot, configPath, instructionsPath,

@@ -15,6 +15,7 @@ import { resolveInside, toCanonicalRelative } from '../core/paths.mjs';
 import { KNOWN_HOSTS } from '../core/config.mjs';
 import { loadLimits } from '../core/policy.mjs';
 import { renderTemplate } from '../core/bootstrap.mjs';
+import { wrapManaged } from '../core/managed-section.mjs';
 
 const POLICY_REL = 'policy/native-adapters.json';
 const TPL_RESOURCE = 'templates/hosts/native-resource.md';
@@ -724,6 +725,44 @@ export function renderNativeAdapters(config, {
         activationMode: 'merge',
       });
     }
+    if (host === 'copilot') {
+      const v = vars('instructions', 'entrypoint', 'catalog.json');
+      const body = renderTemplate(decodeUtf8Strict(
+        readTemplate(installRoot, 'templates/entrypoint.md'),
+        'TEMPLATE_MALFORMED', 'entrypoint template'), v);
+      const rel = `${cfgPrefix}integrations/native/copilot/`
+        + '.github/copilot-instructions.md';
+      files.push({ rel, content: wrapManaged(body) });
+      entries.push({
+        host, kind: 'instructions', id: 'entrypoint',
+        compatibility: 'documented-only', modelSelection: 'host-policy',
+        permissionScope: hp.permissionScope,
+        source: rel, destination: '.github/copilot-instructions.md',
+        manualMerge: true, activationMode: 'apply',
+      });
+    }
+    if (host === 'cursor') {
+      const v = vars('rules', 'scopegrain', 'catalog.json');
+      const body = renderTemplate(decodeUtf8Strict(
+        readTemplate(installRoot, 'templates/entrypoint.md'),
+        'TEMPLATE_MALFORMED', 'entrypoint template'), v);
+      const rel = `${cfgPrefix}integrations/native/cursor/`
+        + '.cursor/rules/scopegrain.mdc';
+      files.push({
+        rel,
+        content: frontmatter([
+          ['description', 'Scopegrain workflow rules'],
+          ['alwaysApply', true],
+        ], provFm('rules', 'scopegrain')) + body,
+      });
+      entries.push({
+        host, kind: 'rules', id: 'scopegrain',
+        compatibility: 'documented-only', modelSelection: 'host-policy',
+        permissionScope: hp.permissionScope,
+        source: rel, destination: '.cursor/rules/scopegrain.mdc',
+        manualMerge: true, activationMode: 'apply',
+      });
+    }
   }
 
   // MCP merge targets: unlike Devin and Antigravity there is NO dedicated
@@ -777,6 +816,36 @@ export function renderNativeAdapters(config, {
         + 'the project uses that name) and keep that file unversioned; '
         + 'regenerate per machine with `host activate --host opencode --apply` '
         + 'after relocating the project or installation',
+    });
+  }
+
+  if (config.hosts.includes('copilot')) {
+    const rel = `${cfgPrefix}integrations/copilot-mcp.json`;
+    entries.push({
+      host: 'copilot', kind: 'mcp', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.copilot.permissionScope,
+      source: rel, destination: '.vscode/mcp.json',
+      manualMerge: true, activationMode: 'merge', machineLocal: true,
+      note: 'machine-local absolute paths; merge servers.scopegrain into '
+        + 'the workspace VS Code MCP config (.vscode/mcp.json) and keep '
+        + 'that file unversioned; Copilot CLI also reads project .mcp.json '
+        + 'or .github/mcp.json (mcpServers shape); regenerate per machine '
+        + 'after relocating the project or installation',
+    });
+  }
+  if (config.hosts.includes('cursor')) {
+    const rel = `${cfgPrefix}integrations/cursor-mcp.json`;
+    entries.push({
+      host: 'cursor', kind: 'mcp', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.cursor.permissionScope,
+      source: rel, destination: '.cursor/mcp.json',
+      manualMerge: true, activationMode: 'merge', machineLocal: true,
+      note: 'machine-local absolute paths; merge mcpServers.scopegrain '
+        + 'into the project Cursor MCP config (.cursor/mcp.json) and keep '
+        + 'that file unversioned; regenerate per machine after relocating '
+        + 'the project or installation',
     });
   }
 
