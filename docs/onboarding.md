@@ -119,7 +119,9 @@ scopegrain config set --input user-defaults.json --apply
    hasta su revision y activacion manual; no se copian a raices de host.
 
 4. **Verificar estado**: `doctor` valida config, rutas, archivos generados y
-   vigencia del fingerprint sin ejecutar nada.
+   vigencia del fingerprint sin ejecutar nada. Cada check fallido lleva un
+   campo `fix` con el comando o la acción de reparación — proponlo al owner
+   en lugar de ejecutar escrituras sin autorización.
 
    ```powershell
    node .\bin\scopegrain.mjs doctor --project "C:\ruta\mi-proyecto"

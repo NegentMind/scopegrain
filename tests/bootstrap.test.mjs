@@ -79,6 +79,17 @@ test('generated entrypoint and instructions carry the intake pointer', () => {
   } finally { cleanup(dir); }
 });
 
+test('generated entrypoint carries the self-repair section', () => {
+  const dir = makeTempDir('init-selfrepair');
+  try {
+    applyPlan(dir, prepareInit({ projectRoot: dir, answers: VALID_ANSWERS }).files);
+    const agents = fs.readFileSync(`${dir}/AGENTS.md`, 'utf8');
+    assert.match(agents, /Self-repair/);
+    assert.match(agents, /doctor --project \./);
+    assert.match(agents, /node <checkout>\/bin\/scopegrain\.mjs/);
+  } finally { cleanup(dir); }
+});
+
 test('re-init preserves custom formatting and approved commands', () => {
   const dir = makeTempDir('init-preserve');
   try {
@@ -124,14 +135,16 @@ test('existing config with different answers is an explicit error', () => {
   } finally { cleanup(dir); }
 });
 
-test('claude-only project gets CLAUDE.md without AGENTS.md', () => {
+test('claude-only project gets CLAUDE.md AND the universal AGENTS.md', () => {
   const dir = makeTempDir('init-claude');
   try {
     const answers = { ...VALID_ANSWERS, hosts: ['claude'] };
     const prepared = prepareInit({ projectRoot: dir, answers });
     const names = prepared.files.map((f) => f.rel);
     assert.ok(names.includes('CLAUDE.md'));
-    assert.ok(!names.includes('AGENTS.md'));
+    // AGENTS.md is the cross-agent entrypoint 16-19 hosts read: a
+    // claude-only project must not be left without it.
+    assert.ok(names.includes('AGENTS.md'));
     assert.ok(!names.some((n) => n.includes('codex-mcp')));
   } finally { cleanup(dir); }
 });

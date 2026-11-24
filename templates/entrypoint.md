@@ -31,3 +31,24 @@ request per the `intake` command resource before acting: a pure question
 gets an answer with no record; one bounded change gets a task record; a
 multi-part request gets a plan record. A persisted record in PLAN state
 is bookkeeping, not authorization to implement.
+
+## Self-repair
+
+When the harness itself misbehaves, work this list before guessing:
+
+- `scopegrain` fails to start (MODULE_NOT_FOUND, stale shim): the
+  installed entry point is stale — reinstall from the source checkout
+  (`npm install -g <checkout>`) or bypass the shim with
+  `node <checkout>/bin/scopegrain.mjs <command>`; every command also
+  runs through that equivalent invocation.
+- Node older than 22: upgrade the runtime; the CLI requires >=22.
+- Config or path errors on first use: the project is not initialized —
+  run `scopegrain init --project .` (dry-run) and review before
+  applying.
+- Project-level problems: `scopegrain doctor --project .`. Every
+  failing check carries a `fix` field with the repair command or
+  action; propose it to the owner instead of executing writes
+  silently.
+- Stale structure index in the session packet: run the packet's
+  `structure.recommendedCommand`
+  (`scopegrain structure refresh --project . --apply`).

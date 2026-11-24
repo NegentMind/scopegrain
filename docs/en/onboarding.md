@@ -122,7 +122,9 @@ scopegrain config set --input user-defaults.json --apply
    review and manual activation; they are not copied to host roots.
 
 4. **Check state**: `doctor` validates config, paths, generated files
-   and fingerprint currency without executing anything.
+   and fingerprint currency without executing anything. Every failing
+   check carries a `fix` field naming the repair command or action —
+   propose it to the owner instead of executing writes silently.
 
    ```powershell
    node .\bin\scopegrain.mjs doctor --project "C:\path\my-project"

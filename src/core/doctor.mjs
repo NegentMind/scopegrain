@@ -34,6 +34,90 @@ import { loadUserConfig } from './user-config.mjs';
 const MAX_LIST = 100000;
 const WORKLOG_NAMES = ['lessons', 'outcomes', 'progress', 'goals',
   'activity'];
+
+// Repair guidance attached to every failing check as `fix`: the exact
+// command or action an agent can propose to the owner. Doctor stays
+// read-only — it names repairs, it never runs them.
+const CHECK_FIX = {
+  'catalog': 'install-level corruption: reinstall the harness '
+    + '(`npm install -g <installRoot>`) or restore the named resource '
+    + 'from a clean source checkout',
+  'workspace-catalog': 'refresh the pinned snapshot: '
+    + '`scopegrain update --project . --reconcile --apply`',
+  'upgrade': 'review the snapshot diff, then re-pin: '
+    + '`scopegrain update --project . --apply`',
+  'templates': 'missing install template: reinstall the harness '
+    + '(`npm install -g <installRoot>`)',
+  'generated': 'review the divergence, then '
+    + '`scopegrain update --project . --apply` (managed sections refresh '
+    + 'in place; --reconcile rewrites reconcilable conflicts, the rest '
+    + 'merge manually)',
+  'workspace-enrollment': 'inspect the named file; re-enroll with '
+    + '`scopegrain workspace init --project . --apply` or restore it '
+    + 'from `scopegrain backup` output',
+  'runtime': 'run scopegrain with Node.js >=22',
+  'policy': 'corrupt install policy: reinstall the harness '
+    + '(`npm install -g <installRoot>`)',
+  'journal-internals': 'inspect the named outbox entries; quarantine or '
+    + 'repair the malformed JSON manually',
+  'verify-store': 'restore the store from `scopegrain restore --from '
+    + '<bundle>` or remove it and re-seed with '
+    + '`scopegrain verify discover --project . --apply`',
+  'sessions': 'quarantine or repair the named session record files '
+    + '(fail-closed by design)',
+  'worklogs': 'quarantine or restore the named JSONL file from '
+    + '`scopegrain backup` output',
+  'error-signatures': 'investigate the recurring failure via '
+    + '`scopegrain memory list --log <name>`; resolve the cause instead '
+    + 'of retrying',
+  'record-ownership': 'quarantine or repair the named sidecar files',
+  'vantadb': 'fix or delete the enrollment file, or re-enroll via '
+    + '`scopegrain vantadb setup --project . --apply`',
+  'hooks': 'repair the git worktree; once .git is usable, '
+    + '`scopegrain hooks install --project . --apply` installs the '
+    + 'managed hook',
+  'stale-locks': 'no action needed — reclaimed automatically on next '
+    + 'acquire; delete the named *.lock files only after confirming no '
+    + 'live writer holds them',
+  'host-fragments': 'inspect with `scopegrain host manifest --host '
+    + '<name>`, then `scopegrain host activate --host <name> --apply`',
+  'host-merge-targets': 'the project or install was relocated: re-merge '
+    + 'the named host config files with current absolute paths',
+  'host-cli': 'install the missing host CLI or remove the host from '
+    + 'config.hosts',
+  'docs-cli-drift': 'warning only: update the documented surface in '
+    + 'docs/ or extend the check',
+  'mcp-deps': 'run `npm install` inside the harness install root',
+  'viewer-build': 'run `npm run build` inside `viewer/` of the install '
+    + 'root',
+  'user-artifacts': 'quarantine or restore the named JSON records '
+    + '(fail-closed by design)',
+  'user-config': 'fix or delete the malformed global user config at '
+    + 'the named path',
+};
+
+function fixFor(name, detail) {
+  if (name.startsWith('paths.')) {
+    return 'create the expected directory or correct `paths.*` in the '
+      + 'config file';
+  }
+  if (name === 'discovery') {
+    return detail.includes('fingerprint')
+      ? 're-pin discovery: `scopegrain init --project . --apply`'
+      : '`scopegrain update --project . --apply` regenerates a missing '
+        + 'file; malformed bytes need a manual restore';
+  }
+  if (name === 'journal') {
+    return detail.includes('active operation')
+      ? 'inspect it with `scopegrain journal show <op>`, then '
+        + '`scopegrain journal recover <op> --input FILE --apply`'
+      : 'restore the journal head from `scopegrain backup` output or '
+        + 'repair it manually';
+  }
+  return CHECK_FIX[name]
+    ?? 'no scripted repair — inspect the named item and consult '
+      + 'docs/en/cli-reference.md';
+}
 const POLICY_FILES = [
   'workflow.json', 'operation-limits.json', 'methodology.json',
   'onboarding-defaults.json', 'native-adapters.json',
@@ -91,6 +175,9 @@ export function runDoctor(ctx, opts = {}) {
   let failureCount = 0;
   const push = (name, ok, detail, extra = null) => {
     const check = { name, ok, detail, ...extra };
+    if (!ok && check.fix === undefined) {
+      check.fix = fixFor(name, detail);
+    }
     checks.push(check);
     if (!ok) {
       warnings.push(`${name}: ${detail}`);
@@ -328,7 +415,21 @@ export function runDoctor(ctx, opts = {}) {
         projectRoot, `${journalRel}/head.json`, 'journal head');
       const hst = lstatOrNull(headAbs);
       if (!hst) {
-        push('journal', true, 'no recorded operations');
+        const hasHistory = ['operations', 'outbox', 'snapshots',
+          'archive/operations'].some((rel) => {
+          const dAbs = path.join(jAbs, ...rel.split('/'));
+          const dst = lstatOrNull(dAbs);
+          if (!dst) return false;
+          if (!dst.isDirectory() || dst.isSymbolicLink()) return true;
+          try {
+            return readDirBounded(dAbs, 1).entries.length > 0;
+          } catch {
+            return true; // unreadable history counts as present
+          }
+        });
+        push('journal', !hasHistory, hasHistory
+          ? 'journal head is missing while history exists'
+          : 'no recorded operations');
       } else if (hst.isSymbolicLink() || !hst.isFile()) {
         push('journal', false, 'journal head is not a regular file');
       } else {
@@ -437,6 +538,17 @@ export function runDoctor(ctx, opts = {}) {
         push('journal-internals', false,
           `${counts}; malformed outbox entries: ${bad.join(', ')}`);
       }
+      const tmp = [];
+      for (const e of readDirBounded(journalAbs, MAX_LIST).entries) {
+        if (e.isFile() && /^\.head-[^/]+\.tmp$/.test(e.name)) {
+          tmp.push(e.name);
+        }
+      }
+      push('journal-tmp', tmp.length === 0,
+        tmp.length === 0 ? 'no orphan temp files'
+          : `${tmp.length} orphan temp file(s), interrupted head write: `
+            + `${tmp.slice(0, 5).join(', ')}`,
+        tmp.length === 0 ? null : { severity: 'warning' });
     }
   }
 
@@ -1144,7 +1256,8 @@ export function runDoctor(ctx, opts = {}) {
     && current.fingerprint !== config.discovery.fingerprint;
   let discoveryDiff = null;
   if (changedDiscovery) {
-    warnings.push('manifest fingerprint changed since init; consider re-discovery');
+    warnings.push('manifest fingerprint changed since init; repair: '
+      + '`scopegrain init --project . --apply` re-pins discovery');
     try {
       discoveryDiff = diffInvestigation(
         config, investigateProject(projectRoot, { config }));

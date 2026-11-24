@@ -96,6 +96,31 @@ test('missing or corrupt discovery.json is needs-attention, never repaired', () 
   } finally { cleanup(dir); }
 });
 
+test('failing checks carry a fix hint naming the repair', () => {
+  const { dir, ctx } = bootstrapped();
+  try {
+    fs.rmSync(path.join(dir, '.scopegrain', 'discovery.json'));
+    writeFile(dir, '.scopegrain/state/sessions/abc.json', '[]');
+    const report = runDoctor(ctx);
+    const failing = report.checks.filter((c) => !c.ok);
+    assert.ok(failing.length >= 2, 'expected at least two failing checks');
+    for (const c of failing) {
+      assert.ok(typeof c.fix === 'string' && c.fix.length > 0,
+        `check ${c.name} must name its repair`);
+    }
+    // A missing discovery file points at update; a fingerprint
+    // mismatch points at re-init instead.
+    const disc = failing.find((c) => c.name === 'discovery');
+    assert.ok(disc.fix.includes('update'));
+    writeFile(dir, '.scopegrain/discovery.json',
+      JSON.stringify({ schemaVersion: 1, fingerprint: 'different' }));
+    const r2 = runDoctor(ctx);
+    const disc2 = r2.checks.find(
+      (c) => c.name === 'discovery' && !c.ok);
+    assert.ok(disc2.fix.includes('init'));
+  } finally { cleanup(dir); }
+});
+
 test('operational checks: malformed worklog line fails', () => {
   const { dir, ctx } = bootstrapped();
   try {
