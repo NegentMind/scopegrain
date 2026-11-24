@@ -126,7 +126,7 @@ test('verify add rejects invalid commands and requires --command', async () => {
   try {
     const io = fakeIO();
     assert.equal(await run(
-      ['verify', 'add', '--project', dir], io), 1);
+      ['verify', 'add', '--project', dir], io), 2);
     assert.equal(lastErr(io).code, 'INVALID_ARGS');
     const io2 = fakeIO();
     assert.equal(await run(['verify', 'add', '--project', dir,
@@ -507,7 +507,7 @@ test('verify run --fail-on-error propagates non-clean exits; default stays 0', a
     // The flag belongs to verify run only.
     const ioBad = fakeIO();
     assert.equal(await run(['verify', 'list', '--project', dir,
-      '--fail-on-error'], ioBad), 1);
+      '--fail-on-error'], ioBad), 2);
     assert.equal(lastErr(ioBad).code, 'INVALID_ARGS');
   } finally { cleanup(dir); }
 });
@@ -518,14 +518,14 @@ test('unknown verify subcommands, bad arity and stray flags fail', async () => {
   const { dir } = bootstrappedMiniCtx();
   try {
     const io = fakeIO();
-    assert.equal(await run(['verify', 'frobnicate', '--project', dir], io), 1);
+    assert.equal(await run(['verify', 'frobnicate', '--project', dir], io), 2);
     assert.equal(lastErr(io).code, 'INVALID_ARGS');
     const io2 = fakeIO();
-    assert.equal(await run(['verify', 'run', '--project', dir], io2), 1);
+    assert.equal(await run(['verify', 'run', '--project', dir], io2), 2);
     assert.equal(lastErr(io2).code, 'INVALID_ARGS');
     const io3 = fakeIO();
     assert.equal(await run(
-      ['verify', 'list', '--project', dir, '--timeout', '5'], io3), 1);
+      ['verify', 'list', '--project', dir, '--timeout', '5'], io3), 2);
     assert.equal(lastErr(io3).code, 'INVALID_ARGS');
   } finally { cleanup(dir); }
 });

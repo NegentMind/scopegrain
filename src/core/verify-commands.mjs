@@ -29,7 +29,7 @@ export const VERIFY_STORE_NAME = 'verify-commands.json';
 const STORE_KEYS = new Set(['schemaVersion', 'commands']);
 const RECORD_KEYS = new Set([
   'id', 'command', 'argv', 'cwd', 'source', 'approved',
-  'fingerprint', 'evidence', 'createdAt', 'approvedAt',
+  'fingerprint', 'evidence', 'createdAt', 'approvedAt', 'exeRealpath',
 ]);
 const SOURCES = new Set(['declared', 'inferred']);
 const ID_RE = /^vc[0-9a-f]{12}$/;
@@ -146,6 +146,36 @@ export function parseCommandArgv(command) {
   return argv;
 }
 
+function exeCandidates(exe) {
+  if (process.platform !== 'win32') return [exe];
+  return /\.[a-z0-9]+$/i.test(exe) ? [exe] : [exe, `${exe}.exe`];
+}
+
+function resolveExePin(exe) {
+  const pathEnv = process.env.PATH;
+  if (typeof pathEnv !== 'string' || pathEnv === '') return null;
+  for (const dir of pathEnv.split(path.delimiter)) {
+    if (dir === '') continue;
+    for (const name of exeCandidates(exe)) {
+      const candidate = path.join(dir, name);
+      try {
+        if (!fs.statSync(candidate).isFile()) continue;
+        if (process.platform !== 'win32') {
+          fs.accessSync(candidate, fs.constants.X_OK);
+        }
+        return fs.realpathSync(candidate);
+      } catch {
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
+function hasPin(rec) {
+  return typeof rec.exeRealpath === 'string' && rec.exeRealpath !== '';
+}
+
 function normalizeCwd(cwd) {
   if (cwd === undefined) return '.';
   if (cwd === '.') return '.';
@@ -184,6 +214,7 @@ function buildRecord({ command, cwd, source, evidence, at }) {
     evidence,
     createdAt: at,
     approvedAt: null,
+    exeRealpath: null,
   };
 }
 
@@ -222,6 +253,9 @@ export function validateCommandRecord(rec, label = 'verify command') {
         && rec.evidence.length > 0
         && rec.evidence.length <= MAX_EVIDENCE_CHARS))
     && typeof rec.createdAt === 'string' && isCanon(rec.createdAt)
+    && (rec.exeRealpath === undefined || rec.exeRealpath === null
+      || (typeof rec.exeRealpath === 'string'
+        && rec.exeRealpath.length > 0 && rec.exeRealpath.length <= 4096))
     && (rec.approved
       ? (typeof rec.approvedAt === 'string' && isCanon(rec.approvedAt))
       : rec.approvedAt === null);
@@ -438,13 +472,15 @@ export function applyAddCommand(ctx, options) {
 export function prepareApproveCommand(ctx, id) {
   const current = readStoreDoc(verifyStoreAbs(ctx));
   const rec = findCommand(current, id);
-  if (rec.approved) {
+  if (rec.approved && hasPin(rec)) {
     return { record: rec, alreadyApproved: true,
       file: filePreview(ctx, current, false) };
   }
   return {
-    record: { ...rec, approved: true, approvedAt: new Date().toISOString() },
-    alreadyApproved: false,
+    record: { ...rec, approved: true,
+      approvedAt: rec.approved ? rec.approvedAt : new Date().toISOString(),
+      exeRealpath: resolveExePin(rec.argv[0]) },
+    alreadyApproved: rec.approved,
     file: filePreview(ctx, current, true),
   };
 }
@@ -454,12 +490,13 @@ export function prepareApproveCommand(ctx, id) {
 export function applyApproveCommand(ctx, id) {
   return withStoreLock(ctx, (current) => {
     const rec = findCommand(current, id);
-    if (rec.approved) {
+    if (rec.approved && hasPin(rec)) {
       return { doc: null,
         result: { record: rec, changed: false } };
     }
     const next = { ...rec, approved: true,
-      approvedAt: new Date().toISOString() };
+      approvedAt: rec.approved ? rec.approvedAt : new Date().toISOString(),
+      exeRealpath: resolveExePin(rec.argv[0]) };
     return {
       doc: {
         schemaVersion: 1,
@@ -646,6 +683,7 @@ function planApproveDiscovered(current, commands, at) {
   const added = [];
   const approved = [];
   const alreadyApproved = [];
+  let pinFilled = false;
   const doc = {
     schemaVersion: 1,
     commands: [...current.commands, ...fresh].map((rec) => {
@@ -654,16 +692,19 @@ function planApproveDiscovered(current, commands, at) {
       if (!inScope) return rec;
       if (rec.approved) {
         alreadyApproved.push(rec.id);
-        return rec;
+        if (hasPin(rec)) return rec;
+        pinFilled = true;
+        return { ...rec, exeRealpath: resolveExePin(rec.argv[0]) };
       }
-      const next = { ...rec, approved: true, approvedAt: at };
+      const next = { ...rec, approved: true, approvedAt: at,
+        exeRealpath: resolveExePin(rec.argv[0]) };
       approved.push(next);
       if (freshIds.has(rec.id)) added.push(next);
       return next;
     }),
   };
   return {
-    doc: approved.length > 0 ? doc : null,
+    doc: approved.length > 0 || pinFilled ? doc : null,
     result: { added, existing, skipped, approved, alreadyApproved,
       ...(approved.length > 0 ? {
         warning: `bulk approval: ${approved.length} inferred command(s) `
@@ -765,12 +806,32 @@ export async function runVerifyCommand(ctx, id, options = {}) {
       `verify command '${id}' is not approved; ` +
       'approve it explicitly before running');
   }
+  let exe = rec.argv[0];
+  if (hasPin(rec)) {
+    let real = null;
+    try {
+      real = fs.realpathSync(rec.exeRealpath);
+    } catch {
+      real = null;
+    }
+    if (real === null) {
+      throw err('VERIFY_EXEC_PIN_MISSING',
+        `approved executable no longer exists: ${rec.exeRealpath}; `
+        + 'restore the tool or re-approve the command');
+    }
+    if (real !== rec.exeRealpath) {
+      throw err('VERIFY_EXEC_PIN_CHANGED',
+        `approved executable now resolves to ${real}, not the pinned `
+        + `${rec.exeRealpath}; re-approve the command to pin the new path`);
+    }
+    exe = rec.exeRealpath;
+  }
   const cwdAbs = resolveCwd(ctx, rec.cwd);
   const started = Date.now();
   return new Promise((resolve, reject) => {
     let child;
     try {
-      child = spawn(rec.argv[0], rec.argv.slice(1), {
+      child = spawn(exe, rec.argv.slice(1), {
         cwd: cwdAbs,
         // Allowlisted env only: approved argv may exfiltrate whatever it
         // can read, so credential-bearing parent vars never reach it.
@@ -780,7 +841,7 @@ export async function runVerifyCommand(ctx, id, options = {}) {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
     } catch (e) {
-      reject(wrapSpawnError(e, rec.argv[0]));
+      reject(wrapSpawnError(e, exe));
       return;
     }
     let settled = false;
@@ -822,13 +883,14 @@ export async function runVerifyCommand(ctx, id, options = {}) {
       fn(value);
     };
     child.on('error', (e) => {
-      finish(reject, wrapSpawnError(e, rec.argv[0]));
+      finish(reject, wrapSpawnError(e, exe));
     });
     child.on('close', (code, signal) => {
       finish(resolve, {
         id: rec.id,
         command: rec.command,
         argv: [...rec.argv],
+        resolvedExe: exe,
         cwd: rec.cwd,
         status: timedOut ? 'timeout' : (signal ? 'signal' : 'exit'),
         code,

@@ -122,6 +122,44 @@ export function extractCliVerbs(source) {
   return depth === 0 && verbs.length > 0 ? verbs : null;
 }
 
+const FLAG_TOKEN_RE = /--[A-Za-z][\w-]*/g;
+
+export function extractCliFlags(source) {
+  const flags = new Set();
+  let i = 0;
+  while (i < source.length) {
+    const c = source[i];
+    if (c === "'" || c === '"' || c === '`') {
+      const end = skipQuoted(source, i);
+      const closed = end > i + 1 && source[end - 1] === c;
+      const body = source.slice(i + 1, closed ? end - 1 : end);
+      for (const m of body.matchAll(FLAG_TOKEN_RE)) flags.add(m[0]);
+      i = end;
+      continue;
+    }
+    if (c === '/' && source[i + 1] === '/') {
+      const e = source.indexOf('\n', i);
+      i = e < 0 ? source.length : e;
+      continue;
+    }
+    if (c === '/' && source[i + 1] === '*') {
+      const e = source.indexOf('*/', i + 2);
+      i = e < 0 ? source.length : e + 2;
+      continue;
+    }
+    i += 1;
+  }
+  return flags;
+}
+
+export function extractMcpToolNames(source) {
+  const names = new Set();
+  for (const m of source.matchAll(/\bname:\s*'scopegrain_[\w]+'/g)) {
+    names.add(m[0].slice(m[0].indexOf("'") + 1, -1));
+  }
+  return names;
+}
+
 // Catalog command entries and command aliases are dispatchable single-
 // token verbs (e.g. 'pipeline', 'audit', 'plan-work') even though they do
 // not appear in COMMANDS. Anything else is ignored.
@@ -284,6 +322,149 @@ export function scanDocText(text, verbs) {
   return { referenced, stale };
 }
 
+const COUNT_RE = /\b(\d{1,3})[ \t]+(tools?|herramientas?|verbos?|verbs?|comandos?|commands?|skills?|reglas?|rules?|agentes?|agents?|referencias?|references?)\b/gi;
+const FOREIGN_CLI_RE = /\b(npm|npx|pnpm|yarn|bun|git|node|deno|docker|kubectl|cargo|pipx?|python3?|vantadb|ollama)\b/i;
+const CATALOG_LINE_RE = /resources|cat[aá]log/i;
+const CLI_LINE_RE = /\bcli\b|scopegrain|superficie|surface/i;
+const MCP_LINE_RE = /\bmcp\b|scopegrain_/i;
+const RESOURCE_UNIT = {
+  skill: 'skill', skills: 'skill',
+  regla: 'rule', reglas: 'rule', rule: 'rule', rules: 'rule',
+  agente: 'agent', agentes: 'agent', agent: 'agent', agents: 'agent',
+  referencia: 'reference', referencias: 'reference',
+  reference: 'reference', references: 'reference',
+};
+const TOOL_UNIT = new Set(['tool', 'tools', 'herramienta', 'herramientas']);
+const VERB_UNIT = new Set(['verbo', 'verbos', 'verb', 'verbs']);
+const COMMAND_UNIT = new Set(['comando', 'comandos', 'command', 'commands']);
+
+function flagNameOf(token) {
+  const m = /^--[\w-]+/.exec(token);
+  return m ? m[0] : null;
+}
+
+export function scanDocSurface(text) {
+  const flags = new Map();
+  const counts = [];
+  const invocations = [];
+  const noteFlag = (flag, via) => {
+    if (flag === null) return;
+    if (!flags.has(flag)) flags.set(flag, new Set());
+    flags.get(flag).add(via);
+  };
+  let inFence = false;
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('```')) { inFence = !inFence; continue; }
+    for (const m of line.matchAll(NODE_BIN_RE)) invocations.push(m[1]);
+    const dotBin = DOT_BIN_RE.exec(trimmed);
+    if (dotBin) invocations.push(dotBin[1]);
+    for (const m of line.matchAll(SPAN_RE)) {
+      const span = m[1].trim();
+      const invoke = SPAN_INVOKE_RE.exec(span);
+      if (invoke) { invocations.push(invoke[1]); continue; }
+      const first = span.split(/\s+/)[0] || '';
+      if (first.startsWith('--') && !FOREIGN_CLI_RE.test(trimmed)) {
+        noteFlag(flagNameOf(first), 'span');
+      }
+    }
+    if (inFence) {
+      const bare = SPAN_INVOKE_RE.exec(trimmed);
+      if (bare) invocations.push(bare[1]);
+    }
+    for (const m of line.matchAll(COUNT_RE)) {
+      counts.push({
+        n: Number(m[1]), unit: m[2].toLowerCase(), line: trimmed,
+      });
+    }
+  }
+  for (const args of invocations) {
+    for (const t of tokens(args)) {
+      if (t.startsWith('--')) noteFlag(flagNameOf(t), 'invoke');
+    }
+  }
+  return { flags, counts };
+}
+
+export function headingSignature(text) {
+  const levels = [];
+  let inFence = false;
+  for (const line of text.split('\n')) {
+    if (line.trim().startsWith('```')) { inFence = !inFence; continue; }
+    if (inFence) continue;
+    const m = /^(#{1,6})\s/.exec(line);
+    if (m) levels.push(m[1].length);
+  }
+  return levels;
+}
+
+function listDocNames(projectRoot, sub) {
+  const names = new Set();
+  try {
+    const dirAbs = resolveInside(projectRoot, sub, 'docs directory');
+    const st = lstatOrNull(dirAbs);
+    if (!st || !st.isDirectory() || st.isSymbolicLink()) return names;
+    for (const d of readDirBounded(dirAbs, MAX_DIR_ENTRIES).entries) {
+      if (d.isFile() && !d.isSymbolicLink()
+          && d.name.toLowerCase().endsWith('.md')) {
+        names.add(d.name);
+      }
+    }
+  } catch {
+    return names;
+  }
+  return names;
+}
+
+function levelDiff(esLevels, enLevels) {
+  const tally = (arr) => {
+    const m = new Map();
+    for (const l of arr) m.set(l, (m.get(l) || 0) + 1);
+    return m;
+  };
+  const es = tally(esLevels);
+  const en = tally(enLevels);
+  const diffs = [];
+  for (const l of new Set([...es.keys(), ...en.keys()])) {
+    const a = es.get(l) || 0;
+    const b = en.get(l) || 0;
+    if (a !== b) diffs.push(`h${l}: ${a} vs ${b}`);
+  }
+  return diffs.length > 0 ? diffs.join(', ') : null;
+}
+
+function catalogKindCounts(catalog) {
+  const counts = {};
+  if (!catalog || !(catalog.byKey instanceof Map)) return null;
+  for (const key of catalog.byKey.keys()) {
+    if (typeof key !== 'string') continue;
+    const slash = key.indexOf('/');
+    if (slash < 0) continue;
+    const kind = key.slice(0, slash);
+    counts[kind] = (counts[kind] || 0) + 1;
+  }
+  return counts;
+}
+
+function expectedFor(claim, surfaces) {
+  const { unit, line } = claim;
+  if (TOOL_UNIT.has(unit)) {
+    return MCP_LINE_RE.test(line) ? surfaces.mcpTools : null;
+  }
+  if (VERB_UNIT.has(unit)) {
+    return CLI_LINE_RE.test(line) ? surfaces.cliVerbs : null;
+  }
+  if (COMMAND_UNIT.has(unit)) {
+    if (CATALOG_LINE_RE.test(line)) return surfaces.catalogCommands;
+    return CLI_LINE_RE.test(line) ? surfaces.cliVerbs : null;
+  }
+  const kind = RESOURCE_UNIT[unit];
+  if (kind && CATALOG_LINE_RE.test(line)) {
+    return surfaces.resourceKinds ? surfaces.resourceKinds[kind] ?? null : null;
+  }
+  return null;
+}
+
 // --- doctor input --------------------------------------------------------
 
 // Compares doc-referenced verbs with the real surface. `catalog` may be
@@ -294,20 +475,37 @@ export function checkDocsCliDrift({ projectRoot, installRoot, catalog = null }) 
   const cliAbs = path.join(installRoot, 'src', 'cli.mjs');
   const cliSt = lstatOrNull(cliAbs);
   let verbs = null;
+  let cliFlags = new Set();
   if (cliSt && cliSt.isFile() && !cliSt.isSymbolicLink()) {
     try {
       const limited = readFileLimited(cliAbs, loadLimits().maxDocumentBytes);
       if (!limited.exceeded) {
-        verbs = extractCliVerbs(decodeUtf8Strict(
-          limited.content, 'MALFORMED_JSON', 'src/cli.mjs'));
+        const source = decodeUtf8Strict(
+          limited.content, 'MALFORMED_JSON', 'src/cli.mjs');
+        verbs = extractCliVerbs(source);
+        cliFlags = extractCliFlags(source);
       }
     } catch {
       verbs = null;
     }
   }
+  let mcpTools = null;
+  try {
+    const mcpAbs = path.join(installRoot, 'src', 'mcp', 'server.mjs');
+    const mcpSt = lstatOrNull(mcpAbs);
+    if (mcpSt && mcpSt.isFile() && !mcpSt.isSymbolicLink()) {
+      const limited = readFileLimited(mcpAbs, loadLimits().maxDocumentBytes);
+      if (!limited.exceeded) {
+        mcpTools = extractMcpToolNames(decodeUtf8Strict(
+          limited.content, 'MALFORMED_JSON', 'src/mcp/server.mjs')).size;
+      }
+    }
+  } catch {
+    mcpTools = null;
+  }
   const skipped = (detail) => ({
     ok: true, skipped: true, detail, stale: [], undocumented: [],
-    scannedDocs: 0,
+    scannedDocs: 0, flags: [], counts: [], parity: [],
   });
   if (verbs === null || verbs.length === 0) {
     return skipped('skipped: CLI verb table unavailable');
@@ -318,8 +516,19 @@ export function checkDocsCliDrift({ projectRoot, installRoot, catalog = null }) 
   if (docs.length === 0) {
     return skipped('skipped: no README/docs markdown found');
   }
+  const kindCounts = catalogKindCounts(catalog);
+  const surfaces = {
+    cliVerbs: verbs.length,
+    mcpTools,
+    catalogCommands: kindCounts ? kindCounts.command ?? 0 : null,
+    resourceKinds: kindCounts,
+  };
   const referenced = new Set();
   const stale = new Set();
+  const badFlags = new Map();
+  const countFindings = [];
+  const parity = [];
+  const texts = new Map();
   for (const abs of docs) {
     let text;
     try {
@@ -329,26 +538,81 @@ export function checkDocsCliDrift({ projectRoot, installRoot, catalog = null }) 
     } catch {
       continue; // unreadable docs degrade the scan, never the doctor
     }
+    const rel = path.relative(projectRoot, abs).split(path.sep).join('/');
+    if (rel.startsWith('docs/')) texts.set(rel, text);
     const r = scanDocText(text, verbSet);
     for (const v of r.referenced) referenced.add(v);
     for (const v of r.stale) stale.add(v);
+    const s = scanDocSurface(text);
+    for (const [flag, via] of s.flags) {
+      if (cliFlags.has(flag)) continue;
+      if (!badFlags.has(flag)) badFlags.set(flag, new Set());
+      for (const v of via) badFlags.get(flag).add(v);
+    }
+    for (const claim of s.counts) {
+      const expected = expectedFor(claim, surfaces);
+      if (expected !== null && expected !== claim.n) {
+        countFindings.push(
+          `${rel}: claimed ${claim.n} ${claim.unit}, code has ${expected}`);
+      }
+    }
+  }
+  const esNames = listDocNames(projectRoot, 'docs');
+  const enNames = listDocNames(projectRoot, 'docs/en');
+  const textFor = (rel) => {
+    if (texts.has(rel)) return texts.get(rel);
+    try {
+      const abs = resolveInside(projectRoot, rel, 'docs file');
+      const st = lstatOrNull(abs);
+      if (!st || !st.isFile() || st.isSymbolicLink()) return null;
+      const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
+      if (limited.exceeded) return null;
+      return decodeUtf8Strict(limited.content, 'MALFORMED_JSON', rel);
+    } catch {
+      return null;
+    }
+  };
+  for (const base of esNames) {
+    if (!enNames.has(base)) {
+      parity.push(`docs/${base}: no docs/en/${base} pair`);
+      continue;
+    }
+    const esText = textFor(`docs/${base}`);
+    const enText = textFor(`docs/en/${base}`);
+    if (esText === null || enText === null) continue;
+    const diff = levelDiff(headingSignature(esText), headingSignature(enText));
+    if (diff !== null) {
+      parity.push(`docs/${base} vs docs/en/${base}: ${diff}`);
+    }
+  }
+  for (const base of enNames) {
+    if (!esNames.has(base)) {
+      parity.push(`docs/en/${base}: no docs/${base} pair`);
+    }
   }
   const staleList = [...stale].sort();
   const undocumented = [...verbSet].filter((v) => !referenced.has(v)).sort();
-  if (staleList.length === 0 && undocumented.length === 0) {
-    return {
-      ok: true, detail: `${docs.length} docs scanned; no drift`,
-      stale: [], undocumented: [], scannedDocs: docs.length,
-    };
-  }
-  const detail = [
+  const flagList = [...badFlags.keys()].sort().map((f) => {
+    const via = [...badFlags.get(f)].sort().join('+');
+    return `${f}(${via})`;
+  });
+  const ok = staleList.length === 0 && undocumented.length === 0
+    && flagList.length === 0 && countFindings.length === 0
+    && parity.length === 0;
+  const detail = ok ? `${docs.length} docs scanned; no drift` : [
     staleList.length > 0
       ? `documented-but-nonexistent: ${staleList.join(', ')}` : null,
     undocumented.length > 0
       ? `${undocumented.length} real verbs never referenced` : null,
+    flagList.length > 0
+      ? `flags without CLI literal: ${flagList.join(', ')}` : null,
+    countFindings.length > 0
+      ? `count drift: ${countFindings.join('; ')}` : null,
+    parity.length > 0
+      ? `es/en gaps: ${parity.join('; ')}` : null,
   ].filter(Boolean).join('; ');
   return {
-    ok: false, detail, stale: staleList, undocumented,
-    scannedDocs: docs.length,
+    ok, detail, stale: staleList, undocumented, scannedDocs: docs.length,
+    flags: flagList, counts: countFindings.sort(), parity: parity.sort(),
   };
 }
