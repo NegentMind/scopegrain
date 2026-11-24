@@ -1,7 +1,7 @@
 # Frontera de herramientas del harness
 
 Las consultas MCP están vinculadas al proyecto seleccionado. El servidor
-registra 35 herramientas `scopegrain_*` en cuatro clases de anotación:
+registra 37 herramientas `scopegrain_*` en cuatro clases de anotación:
 
 - **Solo lectura local (23)** — `readOnlyHint:true, openWorldHint:false`:
   `approval_get`, `artifact_get`, `catalog_get`, `catalog_list`,
@@ -23,20 +23,50 @@ registra 35 herramientas `scopegrain_*` en cuatro clases de anotación:
   pool `memory_recall` del engine, que es machine-global en
   `agent`/`team` y puede devolver memorias de otros proyectos — opt-in
   documentado, no una fuga.
-- **Escritura local (4)** — `WRITE_LOCAL`: `next_task` (solo escribe cuando
+- **Escritura local (6)** — `WRITE_LOCAL`: `next_task` (solo escribe cuando
   `claimBy` está fijado — si no, es una lectura), `task_meta` (parche de
-  metadatos CAS), `memory_add`, `goal_create`. Todas mutaciones acotadas
-  registradas en journal.
+  metadatos CAS), `task_transition` (transición CAS del FSM de tareas),
+  `task_create` (creación de registros de tarea), `memory_add`,
+  `goal_create`. Todas mutaciones acotadas registradas en journal.
 - **Escritura de descarte (2)** — `WRITE_DISCARD`, `destructiveHint:true`:
   `task_disposition`, `goal_transition`. Semántica de descarte — una
   disposición `discarded`/`cancelled` o un goal `dropped` archiva trabajo —
   aunque la escritura en sí sea un parche CAS acotado.
 
-Las mutaciones mayores permanecen explícitas a través de operaciones CLI de
-apply/transition. Las anotaciones de herramientas no crean control de
-acceso ni autorizan acciones nativas. Stdout pertenece a los mensajes del
-protocolo; el logging de diagnóstico usa stderr. Las pruebas del SDK
-instalado y la interoperabilidad con host real son evidencias separadas.
+La creación de tareas y las transiciones del ciclo de vida ahora están
+disponibles vía MCP — revisiones anteriores las mantenían deliberadamente
+solo en CLI para que un agente sin shell no pudiera conducir la FSM de
+punta a punta; la decisión se revirtió para agentes solo-MCP. Ambas
+mantienen la disciplina del CLI: `task_transition` y `task_create`
+previsualizan por defecto (`mode:"dry-run"`, el registro exacto que la
+escritura almacenaría, gates metodológicos incluidos) y solo `apply:true`
+confirma; un `CLOSE` aplicado archiva el resultado en el log de progreso
+(best-effort), igual que `task transition --apply`. `task_create` acepta
+el documento `input` completo (claves de `task create --input`) o la
+forma de campos planos; ambas son mutuamente excluyentes. Otras
+mutaciones permanecen explícitas a través de operaciones CLI de apply.
+
+Cada resultado de herramienta lleva `structuredContent` junto al bloque
+de texto JSON (los payloads no-objeto se envuelven como `{result: ...}`),
+y cada herramienta anuncia un `outputSchema`: un esquema de objeto
+superficial tipado en las herramientas de alto tráfico (`context`,
+`task_*`, `next_task`, `memory_*`, `catalog_*`, `goal_*`, `metrics`,
+`check_action`, `plan_next`) y un objeto permisivo con
+`additionalProperties` en el resto.
+
+Las lecturas de catálogo (`catalog_list`, `catalog_get`,
+`workflow_packet`, `resource_search`, `resource_diagnose`) aún realizan
+una escritura deliberada: `loadWorkspaceCatalog` persiste un registro
+solo-fingerprint bajo `<paths.state>/cache/` para no re-hashear un
+catálogo verificado en cada llamada. El registro no almacena contenido
+del catálogo y la escritura es best-effort — un state dir no escribible
+nunca falla la lectura. `readOnlyHint` es honesto sobre la semántica de
+dominio, no sobre esta contabilidad de caché derivada.
+
+Las anotaciones de herramientas no crean control de acceso ni autorizan
+acciones nativas. Stdout pertenece a los mensajes del protocolo; el
+logging de diagnóstico usa stderr. Las pruebas del SDK instalado y la
+interoperabilidad con host real son evidencias separadas.
 
 ## Mantener un inventario de herramientas (cualquier harness)
 

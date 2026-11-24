@@ -1,6 +1,6 @@
 # Harness Tool Boundary
 
-MCP queries are bound to the selected project. The server registers 35
+MCP queries are bound to the selected project. The server registers 37
 `scopegrain_*` tools in four annotation classes:
 
 - **Read-only local (23)** — `readOnlyHint:true, openWorldHint:false`:
@@ -22,15 +22,44 @@ MCP queries are bound to the selected project. The server registers 35
   engine's `memory_recall` pool, which is machine-global at `agent`/`team`
   and can surface other projects' memories — a documented opt-in, not a
   leak.
-- **Local write (4)** — `WRITE_LOCAL`: `next_task` (writes only when
+- **Local write (6)** — `WRITE_LOCAL`: `next_task` (writes only when
   `claimBy` is set — otherwise it is a read), `task_meta` (CAS metadata
-  patch), `memory_add`, `goal_create`. All bounded journaled mutations.
+  patch), `task_transition` (task FSM CAS transition), `task_create`
+  (task record creation), `memory_add`, `goal_create`. All bounded
+  journaled mutations.
 - **Discard write (2)** — `WRITE_DISCARD`, `destructiveHint:true`:
   `task_disposition`, `goal_transition`. Discard semantics — a
   `discarded`/`cancelled` disposition or a `dropped` goal shelves work —
   even though the write itself is a bounded CAS patch.
 
-Larger mutations stay explicit through CLI apply/transition operations.
+Task creation and lifecycle transitions are now available over MCP —
+earlier revisions deliberately kept them CLI-only so a shell-less agent
+could not drive the FSM end-to-end; the decision was reversed for
+MCP-only agents. Both keep the CLI discipline: `task_transition` and
+`task_create` preview by default (`mode:"dry-run"`, the exact record the
+write would store, methodology gates included) and only `apply:true`
+commits; an applied `CLOSE` archives the outcome to the progress log
+(best-effort), same as `task transition --apply`. `task_create` accepts
+either the full `input` document (`task create --input` keys) or the
+flat field form; the two are mutually exclusive. Other mutations stay
+explicit through CLI apply operations.
+
+Every tool result carries `structuredContent` beside the JSON text block
+(non-object payloads are enveloped as `{result: ...}`), and every tool
+advertises an `outputSchema`: a typed shallow object schema on the
+high-traffic tools (`context`, `task_*`, `next_task`, `memory_*`,
+`catalog_*`, `goal_*`, `metrics`, `check_action`, `plan_next`) and a
+permissive `additionalProperties` object elsewhere.
+
+Read-only catalog readers (`catalog_list`, `catalog_get`,
+`workflow_packet`, `resource_search`, `resource_diagnose`) still perform
+one deliberate write: `loadWorkspaceCatalog` persists a fingerprint-only
+record under `<paths.state>/cache/` so a verified catalog is not
+re-hashed on every call. The record stores no catalog content and the
+write is best-effort — an unwritable state dir never fails the read.
+`readOnlyHint` is honest about the domain semantics, not about this
+derived-cache bookkeeping.
+
 Tool annotations do not create access control or authorize native actions.
 Stdout belongs to protocol messages; diagnostic logging uses stderr.
 Installed-SDK tests and live-host interoperability are separate evidence.

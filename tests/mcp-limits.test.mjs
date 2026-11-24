@@ -73,6 +73,11 @@ test('advertised input schemas bound every string argument', async (t) => {
             // serialized-args ceiling in strictify and their contents are
             // validated by the core validators before any write.
             || prop.type === 'object'
+            // Array args are bounded on both axes: item count and the
+            // per-item string length.
+            || (prop.type === 'array'
+              && typeof prop.maxItems === 'number'
+              && typeof prop.items?.maxLength === 'number')
             // Booleans are self-bounded (two values); no ceiling applies.
             || prop.type === 'boolean',
           `${tool.name}.${name} lacks a bound: ${JSON.stringify(prop)}`);

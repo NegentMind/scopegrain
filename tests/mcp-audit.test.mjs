@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // MCP audit fixes: honest inventory posture (network/retryable), human
-// titles on all 35 tools, memory_recall machine-global leak warning,
+// titles on all 37 tools, memory_recall machine-global leak warning,
 // session_resume noVantadb/timeoutMs parity, structureDebounceMs on the
 // context surface, untrusted-provenance marking, widened secret-egress
 // patterns and persisted capture-review decisions.
@@ -34,7 +34,8 @@ const BACKEND_TOOLS = new Set([
 ]);
 const WRITE_TOOLS = new Set([
   'scopegrain_next_task', 'scopegrain_task_meta',
-  'scopegrain_task_disposition', 'scopegrain_memory_add',
+  'scopegrain_task_disposition', 'scopegrain_task_transition',
+  'scopegrain_task_create', 'scopegrain_memory_add',
   'scopegrain_goal_create', 'scopegrain_goal_transition',
 ]);
 
@@ -57,7 +58,7 @@ test('every registered tool advertises a non-empty human title, on the wire too'
   let client;
   try {
     const tools = await toolsIn(ctx);
-    assert.equal(tools.length, 35);
+    assert.equal(tools.length, 37);
     for (const tool of tools) {
       assert.ok(typeof tool.config.title === 'string'
         && tool.config.title.trim() !== '', tool.name);

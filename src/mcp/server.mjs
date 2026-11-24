@@ -12,8 +12,14 @@ import { decodeUtf8Strict } from '../core/fsx.mjs';
 import { resolveContext } from '../core/context.mjs';
 import { runDoctor } from '../core/doctor.mjs';
 import { inspectProject } from '../discovery/inspect.mjs';
-import { getTask, listTasks } from '../core/tasks.mjs';
-import { checkAction, updateTaskMeta } from '../core/transition.mjs';
+import { getTask, listTasks, prepareTask, createTask }
+  from '../core/tasks.mjs';
+import {
+  checkAction, updateTaskMeta, transitionTask, evaluateTaskTransition,
+  validateTransitionInput,
+} from '../core/transition.mjs';
+import { knownStates } from '../core/policy.mjs';
+import { validateMethodologyMode } from '../core/config.mjs';
 import { resolveTaskRef } from '../core/active.mjs';
 import { suggestCapabilities } from '../core/task-suggest.mjs';
 import {
@@ -79,7 +85,11 @@ const MAX_ARG_CHARS = 4096;
 const MAX_ARGS_BYTES = 65536;
 
 function textResult(value) {
-  return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] };
+  return {
+    content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    structuredContent: value === null || typeof value !== 'object'
+        || Array.isArray(value) ? { result: value } : value,
+  };
 }
 
 function errorResult(e) {
@@ -120,6 +130,7 @@ function untrustedResult(value, source) {
     _meta: meta,
     content: [{ type: 'text', text: JSON.stringify(marked, null, 2),
       _meta: meta }],
+    structuredContent: marked,
   };
 }
 
@@ -167,6 +178,75 @@ function strictify(tools) {
 // Tool descriptors shared by the real server and tests. Every handler closes
 // over the bound ctx; no tool argument can redirect to another path.
 export function createMCPTools(ctx, z) {
+  const OBJECT = z.object({}).passthrough();
+  const TASK = z.object({
+    id: z.string(), title: z.string(), state: z.string(),
+    revision: z.number().int(),
+  }).passthrough();
+  const APPLIED_TASK = z.object({
+    mode: z.enum(['dry-run', 'applied']), applied: z.boolean(), task: TASK,
+  }).passthrough();
+  const OUTPUT = {
+    scopegrain_context: z.object({
+      schemaVersion: z.number().int(), generatedAt: z.string(),
+    }).passthrough(),
+    scopegrain_list_tasks: z.object({
+      tasks: z.array(TASK), malformed: z.array(z.record(z.unknown())),
+    }).passthrough(),
+    scopegrain_get_task: TASK,
+    scopegrain_task_meta: TASK,
+    scopegrain_task_disposition: TASK,
+    scopegrain_task_transition: APPLIED_TASK,
+    scopegrain_task_create: APPLIED_TASK,
+    scopegrain_next_task: z.object({
+      next: TASK.nullable(), claimed: z.boolean(),
+      candidates: z.number().int(),
+    }).passthrough(),
+    scopegrain_check_action: z.object({
+      id: z.string(), state: z.string(), action: z.string(),
+      allowed: z.boolean(), permitted: z.array(z.string()),
+    }).passthrough(),
+    scopegrain_task_suggest: z.object({
+      taskId: z.string(), suggestions: z.array(z.record(z.unknown())),
+    }).passthrough(),
+    scopegrain_catalog_list: z.object({
+      resourceRoot: z.string().nullable(),
+      entries: z.array(z.record(z.unknown())),
+      aliases: z.array(z.record(z.unknown())),
+    }).passthrough(),
+    scopegrain_catalog_get: z.object({
+      kind: z.string(), id: z.string(), content: z.string(),
+    }).passthrough(),
+    scopegrain_plan_next: z.object({
+      tasks: z.array(z.record(z.unknown())),
+    }).passthrough(),
+    scopegrain_methodology_check: z.object({
+      allowed: z.boolean(), issues: z.array(z.record(z.unknown())),
+    }).passthrough(),
+    scopegrain_memory_status: z.object({
+      configured: z.boolean(), binaryPresent: z.boolean(),
+      storagePresent: z.boolean(),
+      pendingCommittedEvents: z.number().int(),
+    }).passthrough(),
+    scopegrain_memory_add: z.object({ at: z.string() }).passthrough(),
+    scopegrain_memory_read: z.object({
+      entries: z.array(z.unknown()),
+      malformed: z.array(z.record(z.unknown())), truncated: z.boolean(),
+    }).passthrough(),
+    scopegrain_goal_create: z.object({ at: z.string() }).passthrough(),
+    scopegrain_goal_transition: z.object({ at: z.string() }).passthrough(),
+    scopegrain_goal_list: z.object({
+      goals: z.array(z.record(z.unknown())),
+      malformed: z.array(z.record(z.unknown())),
+    }).passthrough(),
+    scopegrain_metrics: z.object({
+      schemaVersion: z.number().int(), tasks: z.record(z.unknown()),
+      verification: z.record(z.unknown()),
+      durationMs: z.record(z.unknown()),
+      skillOutcomes: z.record(z.unknown()),
+      malformed: z.array(z.record(z.unknown())),
+    }).passthrough(),
+  };
   const tools = [
     {
       name: 'scopegrain_inspect',
@@ -450,7 +530,7 @@ export function createMCPTools(ctx, z) {
       name: 'scopegrain_session_resume',
       config: {
         title: 'Resume Session',
-        description: 'Session usage plus actual task state, guidance reference and automatic record-level VantaDB rehydration (degradable); when enrolled it spawns the enrolled vantadb-server binary and sends the record ID to the configured memory backend; pass noVantadb to keep the call fully local and timeoutMs to bound the backend wait (15 s default)',
+        description: 'Restore operational session state only — NOT conversation history: session usage plus actual task state, guidance reference and automatic record-level VantaDB rehydration (degradable); when enrolled it spawns the enrolled vantadb-server binary and sends the record ID to the configured memory backend; pass noVantadb to keep the call fully local and timeoutMs to bound the backend wait (15 s default)',
         inputSchema: {
           id: z.string().max(MAX_ARG_CHARS).describe('session UUID'),
           noVantadb: z.boolean().optional()
@@ -683,6 +763,136 @@ export function createMCPTools(ctx, z) {
       })),
     },
     {
+      name: 'scopegrain_task_transition',
+      config: {
+        title: 'Transition Task',
+        description: 'Drive the task FSM with the same CAS transition the '
+          + 'CLI `task transition` runs: dry-run by default (returns the '
+          + 'exact record the write would store, methodology gates '
+          + 'included); apply:true commits. On CLOSE the outcome is '
+          + 'archived to the progress log (best-effort), same as the CLI.',
+        inputSchema: {
+          taskId: z.string().max(MAX_ARG_CHARS).describe('task UUID'),
+          to: z.enum(knownStates()).describe('target workflow state'),
+          expectedRevision: z.number().int().min(0)
+            .max(Number.MAX_SAFE_INTEGER).describe('CAS revision'),
+          verification: z.record(z.unknown()).optional()
+            .describe('verification evidence payload'),
+          review: z.record(z.unknown()).optional()
+            .describe('review evidence payload'),
+          apply: z.boolean().optional()
+            .describe('commit the transition; omitted/false previews'),
+        },
+        annotations: WRITE_LOCAL,
+      },
+      handler: wrap(async (a) => {
+        const input = {
+          id: a.taskId, to: a.to, expectedRevision: a.expectedRevision,
+        };
+        if (a.verification !== undefined) {
+          input.verification = a.verification;
+        }
+        if (a.review !== undefined) input.review = a.review;
+        if (a.apply !== true) {
+          validateTransitionInput(input);
+          const evaluated = evaluateTaskTransition(
+            ctx, getTask(ctx, input.id), input);
+          return { mode: 'dry-run', applied: false, task: evaluated.next };
+        }
+        const next = transitionTask(ctx, input);
+        if (next.state === 'CLOSE') {
+          try {
+            appendWorklog(ctx, 'progress', {
+              taskId: next.id, title: next.title,
+              result: next.review?.verdict ?? 'closed',
+              summary: next.contract, domain: next.backlog,
+            });
+          } catch { }
+        }
+        return { mode: 'applied', applied: true, task: next };
+      }),
+    },
+    {
+      name: 'scopegrain_task_create',
+      config: {
+        title: 'Create Task',
+        description: 'Create a task record in the initial workflow state '
+          + 'with the same normalization the CLI `task create` runs: '
+          + 'dry-run by default; apply:true writes the record. Pass '
+          + '`input` for the full task input document (methodology '
+          + 'assessment, V3 fields) or the flat fields '
+          + '(title/contract/authorContext/scope plus optional '
+          + 'specId/designId/planKey/scenarioRefs/dependsOn/goalIds); '
+          + '`input` is mutually exclusive with the flat fields.',
+        inputSchema: {
+          input: z.record(z.unknown()).optional()
+            .describe('full task input document (task create --input keys)'),
+          title: z.string().max(MAX_ARG_CHARS).optional(),
+          contract: z.string().max(MAX_ARG_CHARS).optional(),
+          authorContext: z.string().max(MAX_ARG_CHARS).optional(),
+          scope: z.array(z.string().max(MAX_ARG_CHARS)).max(256).optional()
+            .describe('relative scope paths inside the project'),
+          specId: z.string().max(MAX_ARG_CHARS).optional()
+            .describe('structured specification UUID'),
+          designId: z.string().max(MAX_ARG_CHARS).optional()
+            .describe('design artifact UUID bound to specId'),
+          planKey: z.string().max(MAX_ARG_CHARS).optional(),
+          scenarioRefs: z.array(z.string().max(MAX_ARG_CHARS)).max(256)
+            .optional(),
+          methodology: z.record(z.unknown()).optional()
+            .describe('methodology assessment (organic-sdd)'),
+          dependsOn: z.array(z.string().max(MAX_ARG_CHARS)).max(256)
+            .optional().describe('task UUIDs this task depends on'),
+          goalIds: z.array(z.string().max(MAX_ARG_CHARS)).max(256)
+            .optional(),
+          apply: z.boolean().optional()
+            .describe('write the record; omitted/false previews'),
+        },
+        annotations: WRITE_LOCAL,
+      },
+      handler: wrap(async (a) => {
+        const FLAT = ['title', 'contract', 'authorContext', 'scope',
+          'specId', 'designId', 'planKey', 'scenarioRefs', 'methodology',
+          'dependsOn', 'goalIds'];
+        if (a.input !== undefined
+            && FLAT.some((k) => a[k] !== undefined)) {
+          throw err('INVALID_ARGS',
+            'input is mutually exclusive with flat create fields');
+        }
+        if (a.input === undefined) {
+          const mode = validateMethodologyMode(
+            ctx.config.methodology, 'config.methodology');
+          if (mode !== 'manual'
+              && a.specId === undefined && a.designId === undefined) {
+            throw err('METHODOLOGY_REQUIRED',
+              `task create under methodology '${mode}' requires ` +
+              'input carrying a methodology assessment or the ' +
+              'specId+designId pair');
+          }
+        }
+        const input = a.input ?? {
+          title: a.title, contract: a.contract,
+          authorContext: a.authorContext, scope: a.scope ?? [],
+          ...(a.specId !== undefined ? { specId: a.specId } : {}),
+          ...(a.designId !== undefined ? { designId: a.designId } : {}),
+          ...(a.planKey !== undefined ? { planKey: a.planKey } : {}),
+          ...(a.scenarioRefs !== undefined
+            ? { scenarioRefs: a.scenarioRefs } : {}),
+          ...(a.methodology !== undefined
+            ? { methodology: a.methodology } : {}),
+          ...(a.dependsOn !== undefined
+            ? { dependsOn: a.dependsOn } : {}),
+          ...(a.goalIds !== undefined ? { goalIds: a.goalIds } : {}),
+        };
+        if (a.apply === true) {
+          return { mode: 'applied', applied: true,
+            task: createTask(ctx, input) };
+        }
+        const prepared = prepareTask(ctx, input);
+        return { mode: 'dry-run', applied: false, task: prepared.task };
+      }),
+    },
+    {
       name: 'scopegrain_memory_add',
       config: {
         title: 'Append Memory Entry',
@@ -776,6 +986,9 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async () => buildMcpInventory(tools)),
     },
   ];
+  for (const t of tools) {
+    t.config.outputSchema = OUTPUT[t.name] ?? OBJECT;
+  }
   return strictify(tools);
 }
 

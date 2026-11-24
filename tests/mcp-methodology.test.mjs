@@ -31,7 +31,8 @@ const NEW_NAMES = [
 ];
 const W2_NAMES = [
   'scopegrain_next_task', 'scopegrain_task_meta',
-  'scopegrain_task_disposition', 'scopegrain_memory_add',
+  'scopegrain_task_disposition', 'scopegrain_task_transition',
+  'scopegrain_task_create', 'scopegrain_memory_add',
   'scopegrain_memory_read', 'scopegrain_goal_create',
   'scopegrain_goal_list', 'scopegrain_goal_transition',
   'scopegrain_metrics', 'scopegrain_mcp_inventory',
@@ -39,7 +40,8 @@ const W2_NAMES = [
 ];
 const WRITE_TOOLS = new Set([
   'scopegrain_next_task', 'scopegrain_task_meta',
-  'scopegrain_task_disposition', 'scopegrain_memory_add',
+  'scopegrain_task_disposition', 'scopegrain_task_transition',
+  'scopegrain_task_create', 'scopegrain_memory_add',
   'scopegrain_goal_create', 'scopegrain_goal_transition',
 ]);
 // Stat-tuple snapshot: cheaper than byte reads and stricter for a
@@ -100,8 +102,8 @@ async function withWire(f, body) {
 }
 function namesContract(tools) {
   const ALL = [...OLD_NAMES, ...NEW_NAMES, ...W2_NAMES];
-  assert.equal(tools.length, 35);
-  assert.equal(new Set(tools.map((t) => t.name)).size, 35);
+  assert.equal(tools.length, 37);
+  assert.equal(new Set(tools.map((t) => t.name)).size, 37);
   assert.deepEqual(tools.map((t) => t.name).sort(), [...ALL].sort());
   assert.deepEqual(tools.filter((t) => !OLD_NAMES.includes(t.name)).map((t) => t.name).sort(),
     [...NEW_NAMES, ...W2_NAMES].sort());
@@ -142,7 +144,7 @@ test('server import remains lazy and cannot implicitly start stdio', async () =>
   assert.equal(typeof mod.startMCPServer, 'function');
 });
 
-test('descriptors are exact35, additions carry lead-authored literal metadata', async () => {
+test('descriptors are exact37, additions carry lead-authored literal metadata', async () => {
   const f = formalFixture();
   try {
     const tools = await descriptors(f);
@@ -273,7 +275,7 @@ test('blocked methodology is an ordinary allowed:false response, direct and wire
   } finally { cleanup(f.dir); }
 });
 
-test('wire registers exact35 strict tools, reads bound records and ACCEPT locator without any writes', async () => {
+test('wire registers exact37 strict tools, reads bound records and ACCEPT locator without any writes', async () => {
   const f = formalFixture();
   try {
     f.task = seedState(f, f.task); // SYNTHETIC declared REVIEW fixture only
