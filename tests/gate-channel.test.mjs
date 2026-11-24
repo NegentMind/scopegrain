@@ -64,20 +64,21 @@ test('task gate "-" resolves the active task via env or pointer', async () => {
   } finally { cleanup(dir); }
 });
 
-test('task gate errors fail closed: bad task or action exits 1', async () => {
+test('task gate errors fail closed: bad task or action is non-zero', async () => {
   const { dir, ctx } = bootstrappedCtx();
   try {
     const task = createTask(ctx, {
       title: 'gate', contract: 'C', authorContext: 'a', scope: [],
     });
-    for (const args of [
-      ['task', 'gate', '--project', dir, task.id, 'nonsense'],
-      ['task', 'gate', '--project', dir, 'no-such-slug', 'read'],
-      ['task', 'gate', '--project', dir, '-', 'read'],
+    for (const [args, expected] of [
+      [['task', 'gate', '--project', dir, task.id, 'nonsense'], 1],
+      [['task', 'gate', '--project', dir, 'no-such-slug', 'read'], 1],
+      // `-` unresolved is INVALID_ARGS -> usage exit 2 (still fail-closed).
+      [['task', 'gate', '--project', dir, '-', 'read'], 2],
     ]) {
       const io = fakeIO();
       const code = await run(args, io);
-      assert.equal(code, 1, `args ${args.join(' ')} must fail closed`);
+      assert.equal(code, expected, `args ${args.join(' ')} must fail closed`);
     }
   } finally { cleanup(dir); }
 });

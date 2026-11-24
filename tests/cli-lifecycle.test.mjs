@@ -123,7 +123,7 @@ test('new commands reject bad flags and missing required flags pre-IO', async ()
     ['view', '--project', missing, '--save'],
   ]) {
     const result = await call(args);
-    assert.equal(result.code, 1, JSON.stringify(args));
+    assert.equal(result.code, 2, JSON.stringify(args));
     assert.equal(result.output.code, 'INVALID_ARGS', JSON.stringify(args));
   }
 });

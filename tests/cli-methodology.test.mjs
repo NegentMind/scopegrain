@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { run } from '../src/cli.mjs';
 import { resolveContext } from '../src/core/context.mjs';
@@ -92,6 +93,18 @@ async function readonly(f, args, expected = 0) {
   try { return await invoke(f, args, expected); }
   finally { assert.deepEqual(filesAndBytes(f.dir), before); }
 }
+// Bare invocations assert the missing --project contract: run them from
+// a cwd outside any project tree so autodetection finds no marker.
+async function outsideProject(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sg-noproj-'));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try { return await fn(); }
+  finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
 function input(f, value, name = 'input.json') {
   return writeJson(f.dir, `.inputs/${name}`, value);
 }
@@ -159,13 +172,15 @@ test('new families enforce project, positions, whitelists and safety flags', asy
       const sub = tokens[1];
       const tail = sub === 'show' || sub === 'check' ? [MISSING] : [];
       const io = fakeIO();
-      assert.equal(await run([family, sub, ...tail], io), 1);
+      await outsideProject(async () => {
+        assert.equal(await run([family, sub, ...tail], io), 2);
+      });
       assert.equal(JSON.parse(io.out.stderr[0]).error.code, 'INVALID_ARGS');
       for (const extra of [['--yes'], ['--force'], ['--title', 'bad'], ['extra', 'extra']]) {
-        const e = await readonly(f, [family, sub, ...tail, ...extra], 1);
+        const e = await readonly(f, [family, sub, ...tail, ...extra], 2);
         assert.equal(e.code, 'INVALID_ARGS');
       }
-      assert.equal((await readonly(f, [family, 'not-a-subcommand'], 1)).code, 'INVALID_ARGS');
+      assert.equal((await readonly(f, [family, 'not-a-subcommand'], 2)).code, 'INVALID_ARGS');
     }
   } finally { cleanup(f.dir); }
 });
@@ -183,12 +198,12 @@ test('JSON task combinations reject all legacy fields before input file access',
     try {
       for (const flag of ['--title', '--contract', '--author', '--scope', '--spec', '--design', '--plan']) {
         const e = await readonly(f,
-          ['task', 'create', '--input', filename, flag, 'supplied'], 1);
+          ['task', 'create', '--input', filename, flag, 'supplied'], 2);
         assert.equal(e.code, 'INVALID_ARGS');
       }
       assert.equal(inputReads, 0);
     } finally { mock.mock.restore(); }
-    const e = await readonly(f, ['task', 'create', '--apply'], 1);
+    const e = await readonly(f, ['task', 'create', '--apply'], 2);
     // The flag form also honors --apply (FIND-028): with neither --input
     // nor flags the first missing required flag is named.
     assert.deepEqual(e, { code: 'INVALID_ARGS',
@@ -578,15 +593,17 @@ test('methodology query errors are read-only and fail at intended seams', async 
   try {
     const task = (await create(f, 'task', { ...baseTask(), methodology: assessment() })).task;
     assert.equal((await readonly(f, ['methodology', 'check', task.id])).allowed, true);
-    for (const [args, code] of [
-      [[task.id, '--to', 'VERIFY'], 'INVALID_STATE'],
-      [[task.id, '--outcome-evidence', MISSING], 'INVALID_ARGS'],
-      [[task.id, '--to', 'ACCEPT', '--outcome-evidence', '../bad'], 'INVALID_ARGS'],
-      [[MISSING], 'TASK_NOT_FOUND'],
-      [['../escape'], 'INVALID_ID'],
-      [[task.id, '--input', 'ignored'], 'INVALID_ARGS'],
+    for (const [args, code, expected] of [
+      [[task.id, '--to', 'VERIFY'], 'INVALID_STATE', 1],
+      [[task.id, '--outcome-evidence', MISSING], 'INVALID_ARGS', 2],
+      [[task.id, '--to', 'ACCEPT', '--outcome-evidence', '../bad'], 'INVALID_ARGS', 2],
+      [[MISSING], 'TASK_NOT_FOUND', 1],
+      [['../escape'], 'INVALID_ID', 1],
+      [[task.id, '--input', 'ignored'], 'INVALID_ARGS', 2],
     ]) {
-      assert.equal((await readonly(f, ['methodology', 'check', ...args], 1)).code, code);
+      assert.equal(
+        (await readonly(f, ['methodology', 'check', ...args], expected)).code,
+        code);
     }
   } finally { cleanup(f.dir); }
 });

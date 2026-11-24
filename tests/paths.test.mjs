@@ -4,9 +4,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import {
   assertDestination, assertDistinctPaths, assertNoSymlinkChain,
-  isSameOrAncestor, resolveInside, resolveProjectRoot,
+  detectProjectRoot, isSameOrAncestor, resolveInside, resolveProjectRoot,
   toCanonicalRelative,
 } from '../src/core/paths.mjs';
 import { cleanup, makeTempDir, trySymlink, writeFile } from './helpers.mjs';
@@ -103,6 +104,30 @@ test('project root must exist and be a real directory', () => {
     const file = writeFile(dir, 'file.txt', 'x');
     assert.throws(() => resolveProjectRoot(file),
       (e) => e.code === 'PROJECT_NOT_DIR' || e.code === 'SYMLINK_REJECTED');
+  } finally { cleanup(dir); }
+});
+
+test('detectProjectRoot ascends to the nearest .scopegrain/config.json marker', () => {
+  const dir = makeTempDir('detect');
+  try {
+    const marker = path.join(dir, '.scopegrain', 'config.json');
+    fs.mkdirSync(path.dirname(marker), { recursive: true });
+    fs.writeFileSync(marker, '{malformed'); // still counts: loadConfig owns the error
+    const nested = path.join(dir, 'a', 'b', 'c');
+    fs.mkdirSync(nested, { recursive: true });
+    assert.equal(detectProjectRoot(nested), path.resolve(dir));
+    assert.equal(detectProjectRoot(dir), path.resolve(dir));
+    // The start dir itself is checked: a marker one level below the start
+    // is not an ancestor marker. os tmp sits outside any project tree.
+    const orphan = fs.mkdtempSync(path.join(os.tmpdir(), 'sg-detect-orphan-'));
+    try {
+      fs.mkdirSync(path.join(orphan, 'child', '.scopegrain'), { recursive: true });
+      assert.equal(detectProjectRoot(orphan), null);
+    } finally { cleanup(orphan); }
+    // maxLevels bounds the ascent: a marker 2 levels up is missed with 1.
+    const deep = path.join(dir, 'a', 'b');
+    assert.equal(detectProjectRoot(deep, { maxLevels: 1 }), null);
+    assert.equal(detectProjectRoot(deep, { maxLevels: 2 }), path.resolve(dir));
   } finally { cleanup(dir); }
 });
 

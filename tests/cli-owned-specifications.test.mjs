@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { run } from '../src/cli.mjs';
 import { applyPlan } from '../src/core/bootstrap.mjs';
@@ -93,6 +94,18 @@ async function readonly(root, argv, expected = 0) {
   try { return await call(argv, expected); }
   finally { assert.deepEqual(tree(root), before); }
 }
+// Bare invocations assert the missing --project contract: run them from
+// a cwd outside any project tree so autodetection finds no marker.
+async function outsideProject(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sg-noproj-'));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try { return await fn(); }
+  finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 function envelope(f, overrides = {}) {
   return { areaIds: [f.a, f.b], specification: structuredClone(SPEC),
@@ -145,10 +158,17 @@ test('owned commands require project/input and exact boolean flag/positional sur
       return original.call(this, file, ...rest);
     });
     try {
+      await outsideProject(async () => {
+        for (const argv of [
+          ['specification', 'create', '--owned', '--input', absent],
+          ['specification', 'show', UNKNOWN, '--owned'],
+        ]) {
+          const e = await readonly(f.dir, argv, 2);
+          assert.equal(e.code, 'INVALID_ARGS', JSON.stringify(argv));
+        }
+      });
       for (const argv of [
-        ['specification', 'create', '--owned', '--input', absent],
         args(f, ['specification', 'create', '--owned']),
-        ['specification', 'show', UNKNOWN, '--owned'],
         args(f, ['specification', 'show', '--owned']),
         args(f, ['specification', 'show', UNKNOWN, UNKNOWN, '--owned']),
         args(f, ['specification', 'create', '--owned', '--input', absent, 'extra']),
@@ -162,7 +182,7 @@ test('owned commands require project/input and exact boolean flag/positional sur
         ...['--yes', '--force'].map((flag) => args(f,
           ['specification', 'show', UNKNOWN, '--owned', flag])),
       ]) {
-        const e = await readonly(f.dir, argv, 1);
+        const e = await readonly(f.dir, argv, 2);
         assert.equal(e.code, 'INVALID_ARGS', JSON.stringify(argv));
       }
       assert.equal(inputReads, 0);
@@ -191,7 +211,7 @@ test('--owned is forbidden outside supported typed create/show before input acce
         ['journal', 'show', UNKNOWN],
         ['journal', 'recover', UNKNOWN, '--input', absent],
       ]) {
-        const e = await readonly(f.dir, args(f, [...command, '--owned']), 1);
+        const e = await readonly(f.dir, args(f, [...command, '--owned']), 2);
         assert.equal(e.code, 'INVALID_ARGS', JSON.stringify(command));
       }
       assert.equal(inputReads, 0);

@@ -11,14 +11,35 @@ recovery and the catalog aliases resolved at dispatch.
 
 Common conventions (source: `src/cli.mjs`):
 
-- All output is JSON on stdout; errors are JSON on stderr with exit
-  code 1.
+- All output is JSON on stdout; errors are JSON on stderr. The exit
+  code is 2 for `INVALID_ARGS` (usage errors: unknown flag, extra
+  positional, malformed value), 1 for any other failure and 0 on
+  success. Verbs with their own contract reserve semantic codes on
+  the success path (`task gate`: 2 deny, 3 require-gate;
+  `verify run --fail-on-error` propagates the child code) — a
+  usage-error 2 stays fail-closed for those consumers.
 - Mutating verbs show a read-only preview (`mode: 'dry-run'`) unless
   `--apply` is passed; `--apply` is create-only and never overwrites,
   merges or reinitializes.
+  Documented exception: the `dist` local-registry verbs
+  (`extension-register`, `extension-activate`, `extension-deactivate`,
+  `bundle-mount`, `bundle-unmount`, `preset-register`) mutate the
+  registry immediately — bounded non-destructive appends/flips
+  (duplicates conflict with `CONFLICT`), not file-tree mutations.
 - `--yes` and `--force` do not exist: confirmation is always explicit.
-- `--project PATH` is required unless stated otherwise; `--config REL`
-  selects an alternate config.
+- `--project PATH` autodetects: without the flag the CLI walks up from
+  the cwd to the first `.scopegrain/config.json` (bounded at 10 levels
+  or the filesystem root). An explicit flag always wins, and with no
+  marker at all the error is the historical `INVALID_ARGS`. `init` is
+  the exception: it names the directory to initialize, is never
+  inferred, and requires the flag. `--config REL` selects an
+  alternate config.
+- GNU flag syntax: `--flag=value` is equivalent to `--flag value`
+  (a boolean flag given `=value` is `INVALID_ARGS`), and `--` ends
+  flag parsing — what follows counts as positionals.
+- `<verb> --help` (or `-h`) prints that command's entry (usage,
+  flags, description); an unknown command with `--help` falls back to
+  the global table.
 - An `--input` resolving outside `--project` emits an
   `INPUT_OUTSIDE_PROJECT` warning on stderr — advisory
   defense-in-depth, never a block.
@@ -26,6 +47,11 @@ Common conventions (source: `src/cli.mjs`):
   `--cursor`, `--revision`, `--index`, `--since-sequence`,
   `--token-limit`, `--port`, `--structure-debounce`) require a
   non-negative decimal; anything else is `INVALID_ARGS`, never `NaN`.
+- `context` and `workflow` accept `--fields CSV` (top-level key
+  projection of the resulting packet) and `--compact` (single-line
+  JSON); every other verb rejects them with `INVALID_ARGS`.
+- Interactive prompts (`init` without `--answers`/`--defaults`) go to
+  stderr: stdout never carries anything but the result JSON.
 
 Error-code families (orientation list — the envelope is always
 `{error:{code,message,retryable}}`; the canonical command table and
@@ -328,7 +354,7 @@ When a VantaDB backend is enrolled, the projected project history is
 injected automatically at both resume points — no manual CLI queries:
 
 ```
-context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS]
+context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS] [--fields CSV] [--compact]
 session resume UUID [--no-vantadb] [--timeout MS]
 ```
 
@@ -344,6 +370,11 @@ session resume UUID [--no-vantadb] [--timeout MS]
   `{ enrolled: true, error: {...} }` without aborting the packet.
 - `--no-vantadb` skips the backend spawn entirely; `--timeout MS`
   bounds the wait (15 s default).
+- `--fields CSV` projects only the listed top-level keys
+  (`--fields project,methodology` returns `{project, methodology}`) —
+  meant for large packets where only a few sections are needed.
+- `--compact` emits the JSON document on a single line (no indent),
+  same as on `workflow`.
 - `--no-structure` serves the persisted structural index without
   rescanning the tree (equivalent to the MCP `noStructure` argument).
 - `--structure-debounce MS` is opt-in: within the `MS` window the

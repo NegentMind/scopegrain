@@ -250,7 +250,7 @@ test('checkCatalog reports corrupt manifest; CLI rejects unsupported flags', asy
   } finally { cleanup(dir); }
   const io = fakeIO();
   assert.equal(await run(
-    ['catalog', 'list', '--title', 'not-valid-for-catalog'], io), 1);
+    ['catalog', 'list', '--title', 'not-valid-for-catalog'], io), 2);
   const errOut = JSON.parse(io.out.stderr[0]);
   assert.equal(errOut.error.code, 'INVALID_ARGS');
   assert.equal(errOut.error.message, '--title is not valid for catalog list');

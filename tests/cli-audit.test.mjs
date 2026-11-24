@@ -70,7 +70,7 @@ test('non-decimal integer flags fail INVALID_ARGS instead of NaN', async () => {
     ];
     for (const args of cases) {
       const io = fakeIO();
-      assert.equal(await run([...args, '--project', dir], io), 1,
+      assert.equal(await run([...args, '--project', dir], io), 2,
         JSON.stringify(args));
       assert.equal(errPayload(io).error.code, 'INVALID_ARGS',
         JSON.stringify(args));
@@ -89,7 +89,7 @@ test('memory list accepts goals|activity logs', async () => {
     }
     const bad = fakeIO();
     assert.equal(await run(
-      ['memory', 'list', '--project', dir, '--log', 'bogus'], bad), 1);
+      ['memory', 'list', '--project', dir, '--log', 'bogus'], bad), 2);
     assert.equal(errPayload(bad).error.code, 'INVALID_ARGS');
   } finally { cleanup(dir); }
 });
@@ -219,7 +219,7 @@ test('session subcommands still route; unknown commands fail closed', async () =
     assert.equal(code, 1);
     assert.match(errPayload(io).error.code, /NOT_FOUND|INVALID/);
     const bad = fakeIO();
-    assert.equal(await run(['frobnicate', 'x'], bad), 1);
+    assert.equal(await run(['frobnicate', 'x'], bad), 2);
     assert.equal(errPayload(bad).error.code, 'INVALID_ARGS');
   } finally { cleanup(dir); }
 });
@@ -261,7 +261,7 @@ test('view walks to the next free port; explicit --port fails fast', async () =>
     assert.equal(io3.viewServer, undefined);
     const io4 = fakeIO();
     assert.equal(await run(
-      ['view', '--project', dir, '--port', 'abc'], io4), 1);
+      ['view', '--project', dir, '--port', 'abc'], io4), 2);
     assert.equal(errPayload(io4).error.code, 'INVALID_ARGS');
   } finally {
     if (io1.viewServer) await io1.viewServer.close();
@@ -278,7 +278,7 @@ test('--help usages cover the new flags and log names', async () => {
   const usages = lastJson(io).commands.map((c) => c.command);
   for (const u of [
     'memory list --project PATH --log lessons|outcomes|progress|goals|activity [--tail N]',
-    'context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS]',
+    'context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS] [--fields CSV] [--compact]',
     'dist bundle-uninstall --project PATH ID [--keep-files] [--apply]',
     'dist extension-remove --project PATH ID [--apply]',
     'dist preset-remove --project PATH ID [--apply]',

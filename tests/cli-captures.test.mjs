@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { run } from '../src/cli.mjs';
 import { applyPlan } from '../src/core/bootstrap.mjs';
@@ -35,6 +36,18 @@ async function call(args) {
   const code = await run(args, io);
   return { code, output: code === 0 ? JSON.parse(io.out.stdout.at(-1))
     : JSON.parse(io.out.stderr.at(-1)).error };
+}
+// Bare invocations assert the missing --project contract: run them from
+// a cwd outside any project tree so autodetection finds no marker.
+async function outsideProject(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sg-noproj-'));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try { return await fn(); }
+  finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function tree(dir) {
@@ -74,8 +87,11 @@ test('capture commands require project, input, exact flags and positionals', asy
   const f = fixture();
   try {
     const file = noteInput(f);
+    const bare = await outsideProject(() =>
+      call(['capture', 'create', '--input', file]));
+    assert.equal(bare.code, 2);
+    assert.equal(bare.output.code, 'INVALID_ARGS');
     for (const args of [
-      ['capture', 'create', '--input', file],
       ['capture', 'create', '--project', f.dir],
       ['capture', 'create', '--project', f.dir, '--input', file, 'extra'],
       ['capture', 'create', '--project', f.dir, '--input', file, '--bogus', 'x'],
@@ -90,7 +106,7 @@ test('capture commands require project, input, exact flags and positionals', asy
       ['capture', 'frobnicate', '--project', f.dir],
     ]) {
       const result = await call(args);
-      assert.equal(result.code, 1, JSON.stringify(args));
+      assert.equal(result.code, 2, JSON.stringify(args));
       assert.equal(result.output.code, 'INVALID_ARGS', JSON.stringify(args));
     }
   } finally { cleanup(f.dir); }

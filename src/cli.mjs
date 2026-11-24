@@ -7,7 +7,7 @@ import readline from 'node:readline/promises';
 import { err, toErrorPayload } from './core/errors.mjs';
 import { DEFAULT_PATH_PROPOSALS, KNOWN_HOSTS, PATH_KEYS, VERSIONING_KEYS, loadConfig, resolveConfigPath, validateMethodologyMode } from './core/config.mjs';
 import { resolveContext } from './core/context.mjs';
-import { configRel, resolveInside, resolveProjectRoot } from './core/paths.mjs';
+import { configRel, detectProjectRoot, resolveInside, resolveProjectRoot } from './core/paths.mjs';
 import { assertSafeId } from './core/identifiers.mjs';
 import {
   decodeUtf8Strict, mkdirpSync, readFileLimited, writeFileExclusive,
@@ -81,13 +81,13 @@ const VALUE_FLAGS = new Set([
   '--reason', '--by', '--log', '--tail', '--backlog', '--status', '--index',
   '--text', '--outcome', '--cursor', '--arguments', '--script',
   '--assessment', '--source', '--out', '--registry', '--op', '--id',
-  '--token-limit', '--hosts', '--structure-debounce',
+  '--token-limit', '--hosts', '--structure-debounce', '--fields',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
   '--record', '--keep-files', '--no-resume', '--lazy', '--no-structure',
-  '--all', '--allow-write',
+  '--all', '--allow-write', '--compact',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -320,11 +320,11 @@ const COMMANDS = {
   },
   'context': {
     flags: ['--project', '--config', '--tail', '--no-vantadb', '--timeout',
-      '--no-structure', '--structure-debounce'],
+      '--no-structure', '--structure-debounce', '--fields', '--compact'],
     pos: 0,
     usage: 'context --project PATH [--tail N] '
       + '[--no-vantadb] [--no-structure] [--structure-debounce MS] '
-      + '[--timeout MS]',
+      + '[--timeout MS] [--fields CSV] [--compact]',
   },
   'task check-action': {
     flags: ['--project', '--config'], pos: 2,
@@ -549,11 +549,13 @@ const COMMANDS = {
   },
   workflow: {
     flags: ['--project', '--config', '--mode', '--task', '--host',
-      '--profile', '--interaction', '--arguments', '--script', '--lazy'],
+      '--profile', '--interaction', '--arguments', '--script', '--lazy',
+      '--fields', '--compact'],
     pos: 1,
     usage: 'workflow COMMAND [--mode M] [--task UUID] [--host H] '
       + '[--profile ID] [--interaction direct|guided] '
-      + '[--arguments TEXT] [--script PATH] [--lazy]',
+      + '[--arguments TEXT] [--script PATH] [--lazy] '
+      + '[--fields CSV] [--compact]',
   },
   'plan create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
@@ -690,18 +692,73 @@ const COMMANDS = {
 const WORKFLOW_ALIAS_FLAGS = [
   '--project', '--config', '--mode', '--task', '--host', '--profile',
   '--interaction', '--arguments', '--script', '--lazy',
+  '--fields', '--compact',
 ];
+
+// Family-level descriptions: every command resolves its description by
+// exact key first, then by its first token (the family). Commands are
+// never documented as their own name.
+const FAMILY_DESCRIPTIONS = {
+  inspect: 'read-only manifest scan of a directory (pre-init snapshot)',
+  init: 'bootstrap a directory into a Scopegrain project',
+  doctor: 'health report for a configured project',
+  mcp: 'start the stdio MCP server bound to a project',
+  workflow: 'build a read-only workflow packet for a catalog command',
+  context: 'session-start packet (instructions, tasks, goals, journal)',
+  metrics: 'task metrics derived from the operational worklog',
+  adopt: 'report what adopting an initialized project would bind',
+  update: 're-project harness-owned files after an upgrade',
+  backup: 'export the config and declared paths into a bundle',
+  restore: 'restore a bundle produced by backup (create-only)',
+  uninstall: 'remove only files provably owned by the harness',
+  investigate: 'semantic project investigation and init suggestions',
+  assess: 'evidence-only risk classification of a unified diff',
+  view: 'serve the loopback project API/viewer',
+  workspace: 'workspace enrollment records',
+  journal: 'pending journal operations and recovery',
+  structure: 'structural code index (scan/status/show/refresh)',
+  vantadb: 'optional VantaDB memory backend integration',
+  capture: 'bounded external-input capture store and review',
+  task: 'task lifecycle records (create, meta, transition, gate...)',
+  plan: 'versioned implementation plans and story rendering',
+  specification: 'specification artifacts and clarification sessions',
+  design: 'design artifacts (owned records with --owned)',
+  outcome: 'outcome-evidence artifacts (owned records with --owned)',
+  constitution: 'versioned project constitution',
+  config: 'user-global onboarding defaults (~/.config/scopegrain)',
+  memory: 'append-only operational memory logs',
+  goal: 'goal/objective records linked from tasks',
+  report: 'persisted doctor reports',
+  activity: 'retroactive activity records (commits outside tasks)',
+  hooks: 'git post-commit hook management',
+  approval: 'digest-bound approval records (CAS)',
+  methodology: 'methodology gate checks for records',
+  catalog: 'resource catalog listing, lookup and integrity',
+  resource: 'catalog resource diagnosis and pinned restore',
+  dist: 'declarative distribution (bundles, presets, extensions)',
+  session: 'bounded session records with token budgets',
+  host: 'host activation, manifests, parity and gate proposals',
+  helper: 'project-local helper script installation',
+  verify: 'supervised verification commands (approve, run)',
+};
+
+function describeCommand(name) {
+  return FAMILY_DESCRIPTIONS[name] ?? FAMILY_DESCRIPTIONS[name.split(' ')[0]] ?? name;
+}
 
 function helpResult() {
   return {
-    usage: 'scopegrain <command> [options]  |  scopegrain --help',
+    usage: 'scopegrain <command> [options]  |  scopegrain --help  |  scopegrain <command> --help',
     commands: Object.entries(COMMANDS).map(([name, c]) => ({
       command: c.usage,
-      description: name,
+      description: describeCommand(name),
     })),
     notes: [
       '--yes and --force are not supported; confirmation is always explicit',
-      'results are JSON on stdout; errors are JSON on stderr with exit code 1',
+      'results are JSON on stdout; errors are JSON on stderr; exit 0 ok, 1 error, 2 usage error (INVALID_ARGS) — task gate also uses 2 for deny and 3 for require-gate, verify run --fail-on-error propagates the child code',
+      'GNU forms: --flag=value equals --flag value; a bare -- ends flag parsing and everything after it is positional; -h is --help',
+      'scopegrain <command> --help prints {command, usage, flags, description} for that verb',
+      '--project PATH: when omitted, the first ancestor directory (cwd included, up to 10 levels) holding .scopegrain/config.json is used; init always requires an explicit PATH — it names the directory to initialize',
       'JSON creation previews do not reserve IDs; use IDs returned by --apply',
       'task create --input is the supported creation path; the --title/--contract/--author flag form only applies to projects in manual methodology mode',
       'mutating verbs preview as {mode:"dry-run",plan|task} unless --apply; this includes task create (both forms), meta/disposition/note/step/transition, checklist mark, goal create/transition, memory add, journal compact, constitution set, dist bundle-uninstall/extension-remove/preset-remove and vantadb sync/reinforce/distill/sync-memory/sync-persona',
@@ -729,6 +786,16 @@ function parseArgs(argv) {
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
+    // GNU separator: everything after a bare `--` is positional, even
+    // strings that look like flags.
+    if (a === '--') {
+      positional.push(...argv.slice(i + 1));
+      break;
+    }
+    if (a === '-h') {
+      flags['--help'] = true;
+      continue;
+    }
     if (REJECTED_FLAGS.has(a)) {
       throw err('INVALID_ARGS',
         `${a} is not supported; confirmation is always explicit`);
@@ -746,7 +813,20 @@ function parseArgs(argv) {
       // elements; reject structurally instead of crashing on .startsWith.
       throw err('INVALID_ARGS', 'argv elements must be strings');
     } else if (a.startsWith('--')) {
-      throw err('INVALID_ARGS', `unknown flag ${a}`);
+      const eq = a.indexOf('=');
+      if (eq <= 2) throw err('INVALID_ARGS', `unknown flag ${a}`);
+      const name = a.slice(0, eq);
+      if (REJECTED_FLAGS.has(name)) {
+        throw err('INVALID_ARGS',
+          `${name} is not supported; confirmation is always explicit`);
+      }
+      if (BOOL_FLAGS.has(name)) {
+        throw err('INVALID_ARGS', `${name} does not take a value`);
+      }
+      if (!VALUE_FLAGS.has(name)) {
+        throw err('INVALID_ARGS', `unknown flag ${a}`);
+      }
+      flags[name] = a.slice(eq + 1);
     } else {
       positional.push(a);
     }
@@ -757,6 +837,17 @@ function parseArgs(argv) {
 function requireFlag(flags, name) {
   if (!flags[name]) throw err('INVALID_ARGS', `${name} is required`);
   return flags[name];
+}
+
+// --project default: explicit flag always wins; otherwise the nearest
+// ancestor directory (cwd included, up to 10 ascents) holding
+// .scopegrain/config.json is bound. With no marker, the error is the
+// same INVALID_ARGS an explicit-but-missing flag produced before.
+// init is the one verb that keeps requiring the flag explicitly: it
+// names the directory to initialize, not a project to bind.
+function projectFlag(flags) {
+  return flags['--project'] ?? detectProjectRoot(process.cwd())
+    ?? requireFlag(flags, '--project');
 }
 
 // CLI JSON inputs are bounded by the authored document limit.
@@ -1013,7 +1104,8 @@ async function defaultAnswers(projectRoot, configRel) {
 async function cmdInit(flags, io) {
   const { prepareInit, applyPlan } = await import('./core/bootstrap.mjs');
   const { openInitSession, status: sessionStatus, discard: discardInitSession } = await import('./core/init-session.mjs');
-  const projectRoot = resolveProjectRoot(requireFlag(flags, '--project'));
+  const projectRoot = resolveProjectRoot(
+    requireFlag(flags, '--project'));
   if (flags['--answers'] && flags['--defaults']) {
     throw err('INVALID_ARGS',
       '--answers and --defaults are mutually exclusive');
@@ -1119,7 +1211,7 @@ async function cmdTask(sub, positional, flags, io) {
   const { appendWorklog } = await import('./core/worklog.mjs');
   const { writeTaskDoc } = await import('./core/taskdoc.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'),
+    project: projectFlag(flags),
     config: flags['--config'],
   });
   if (sub === 'create') {
@@ -1501,7 +1593,7 @@ async function cmdCatalog(sub, positional, flags) {
 async function cmdResource(sub, rest, flags) {
   const { applyResourceRestore, diagnoseResource, findResources, prepareResourceRestore } = await import('./core/resource-recovery.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   if (sub === 'search') {
     return findResources(ctx, { kind: rest[0], query: flags['--query'] });
@@ -1528,7 +1620,7 @@ async function cmdResource(sub, rest, flags) {
 async function cmdDist(sub, rest, flags) {
   const d = await import('./core/distribution.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   if (sub === 'run') {
     const { runWorkflow } = await import('./core/workflow-runner.mjs');
@@ -1681,7 +1773,7 @@ async function cmdDist(sub, rest, flags) {
 async function cmdWorkflow(command, flags) {
   const { buildWorkflowPacket } = await import('./core/workflows.mjs');
   return buildWorkflowPacket(resolveContext({
-    project: requireFlag(flags, '--project'),
+    project: projectFlag(flags),
     config: flags['--config'],
   }), {
     command,
@@ -1703,7 +1795,7 @@ async function cmdPlan(sub, positional, flags) {
     getPlan, listPlans, nextPlanTasks, preparePlan, recordPlanRun,
   } = await import('./core/plans.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'),
+    project: projectFlag(flags),
     config: flags['--config'],
   });
   if (sub === 'create') {
@@ -1736,7 +1828,7 @@ async function cmdArtifact(sub, positional, flags) {
   const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
   const { getArtifact, listArtifacts, prepareArtifact } = await import('./core/artifacts.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'),
+    project: projectFlag(flags),
     config: flags['--config'],
   });
   if (sub === 'add') {
@@ -1783,7 +1875,7 @@ async function cmdContext(flags) {
   const { assembleContextPacket } =
     await import('./core/context-packet.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   return assembleContextPacket(ctx, {
     tail: flags['--tail'] !== undefined
@@ -1804,7 +1896,7 @@ async function cmdStructure(sub, flags) {
     structureStatus, writeStructureIndex,
   } = await import('./discovery/structure.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   if (sub === 'status') return structureStatus(ctx);
   if (sub === 'refresh') {
@@ -1856,7 +1948,7 @@ async function cmdUserConfig(sub, flags) {
 async function cmdWorkspace(sub, flags) {
   const { getWorkspace, prepareWorkspace } = await import('./core/workspaces.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   if (sub === 'show') return getWorkspace(ctx);
   const input = Object.hasOwn(flags, '--input')
@@ -1868,7 +1960,7 @@ async function cmdWorkspace(sub, flags) {
 async function cmdCapture(sub, positional, flags) {
   const { getWorkspace } = await import('./core/workspaces.mjs');
   const { createCaptureStore } = await import('./core/captures.mjs');
-  const project = requireFlag(flags, '--project');
+  const project = projectFlag(flags);
   if (sub === 'proposals') return await cmdCaptureProposals(project, flags);
   if (sub === 'review') return await cmdCaptureReview(project, flags);
   // The bounded input is read before context/workspace resolution so a
@@ -1923,7 +2015,7 @@ async function cmdCaptureProposals(project, flags) {
 async function cmdReport(sub, flags) {
   const { runDoctor } = await import('./core/doctor.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'),
+    project: projectFlag(flags),
     config: flags['--config'],
   });
   const dir = resolveInside(
@@ -1957,7 +2049,7 @@ async function cmdReport(sub, flags) {
 async function cmdMemory(sub, flags) {
   const { appendWorklog, readWorklog } = await import('./core/worklog.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'),
+    project: projectFlag(flags),
     config: flags['--config'],
   });
   if (sub === 'add') {
@@ -1990,7 +2082,7 @@ async function cmdActivity(sub, flags) {
     throw err('INVALID_ARGS', `unknown activity subcommand '${sub}'`);
   }
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'),
+    project: projectFlag(flags),
     config: flags['--config'],
   });
   const input = readInputFile(
@@ -2007,7 +2099,7 @@ async function cmdActivity(sub, flags) {
 async function cmdHooks(sub, flags) {
   const { installHooks, planHooks, uninstallHooks } = await import('./core/hooks.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'),
+    project: projectFlag(flags),
     config: flags['--config'],
   });
   if (sub === 'install') {
@@ -2035,7 +2127,7 @@ async function cmdHooks(sub, flags) {
 async function cmdGoal(sub, positional, flags) {
   const { listGoals, createGoal, transitionGoal } = await import('./core/worklog.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'),
+    project: projectFlag(flags),
     config: flags['--config'],
   });
   if (sub === 'create') {
@@ -2105,7 +2197,7 @@ async function cmdJournal(sub, positional, flags) {
   const { bindWorkspace, getWorkspace } = await import('./core/workspaces.mjs');
   const { getJournalOperation, listJournalPending, prepareJournalRecovery, recoverJournalOperation, compactJournal, countJournalPending } = await import('./core/journal.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   const workspace = getWorkspace(ctx);
   const bound = bindWorkspace(ctx, { areaIds: workspace.areas.map((area) => area.id) });
@@ -2144,7 +2236,7 @@ async function cmdVantaDB(sub, positional, flags) {
   const { bindWorkspace, getWorkspace } = await import('./core/workspaces.mjs');
   const { DEFAULT_VANTADB_VERSION, VANTADB_BACKEND_ID, callVantaDBTool, defaultInstallRoot, defaultStoragePath, ensureVantaDBBinary, getVantaDBRecord, releaseAsset, requireVantaDBConfig, saveVantaDBConfig, syncVantaDB, vantaDBContext, vantaDBDistill, vantaDBProbe, vantaDBReinforce, vantaDBStatus, vantaDBSyncPersona, vantaDBSyncWorklogs } = await import('./integrations/vantadb-runtime.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   if (sub === 'setup') {
     const version = flags['--version'] ?? DEFAULT_VANTADB_VERSION;
@@ -2343,7 +2435,7 @@ async function cmdVantaDB(sub, positional, flags) {
 async function cmdOwnedSpecification(sub, positional, flags) {
   const { createOwnedSpecificationStore } = await import('./core/owned-specifications.mjs');
   const { getWorkspace } = await import('./core/workspaces.mjs');
-  const project = requireFlag(flags, '--project');
+  const project = projectFlag(flags);
   const input = sub === 'create'
     ? readInputFile(requireFlag(flags, '--input'), 'owned specification input')
     : null;
@@ -2364,7 +2456,7 @@ async function cmdOwnedFormalArtifact(family, sub, positional, flags) {
     throw err('INVALID_ARGS',
       `${family} show requires --owned; use artifact show for structural reads`);
   }
-  const project = requireFlag(flags, '--project');
+  const project = projectFlag(flags);
   const input = sub === 'create'
     ? readInputFile(requireFlag(flags, '--input'), `owned ${family} input`)
     : null;
@@ -2383,7 +2475,7 @@ async function cmdTypedArtifact(family, sub, positional, flags) {
   const { getSpecification, prepareDesign, prepareSpecification } = await import('./core/specifications.mjs');
   const { prepareOutcomeEvidence } = await import('./core/outcomes.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   if (family === 'specification' && sub === 'show') {
     return getSpecification(ctx, positional[0]);
@@ -2410,7 +2502,7 @@ async function cmdConstitution(sub, flags) {
   const { getConstitution, setConstitution } =
     await import('./core/constitution.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   if (sub === 'show') {
     const c = getConstitution(ctx);
@@ -2434,7 +2526,7 @@ async function cmdConstitution(sub, flags) {
 async function cmdApproval(sub, positional, flags) {
   const { answerApproval, describeApprovalTarget, getApproval, prepareApproval, prepareApprovalAnswer } = await import('./core/approvals.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   if (sub === 'show') return getApproval(ctx, positional[0]);
   const input = readInputFile(requireFlag(flags, '--input'), 'approval input');
@@ -2462,7 +2554,7 @@ async function cmdApproval(sub, positional, flags) {
 async function cmdMethodology(positional, flags) {
   const { checkMethodology } = await import('./core/methodology.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   return checkMethodology(ctx, {
     taskId: positional[0],
@@ -2476,7 +2568,7 @@ async function cmdSession(sub, positional, flags) {
   const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
   const { ensureSessionsDir, getSession, prepareSession, prepareSessionRecord, recordSession, resumeSession } = await import('./core/sessions.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'),
+    project: projectFlag(flags),
     config: flags['--config'],
   });
   if (sub === 'create') {
@@ -2563,7 +2655,7 @@ async function cmdAdopt(flags) {
   const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
   const { prepareWorkspace } = await import('./core/workspaces.mjs');
   const { prepareAdopt } = await import('./core/lifecycle.mjs');
-  const project = requireFlag(flags, '--project');
+  const project = projectFlag(flags);
   const report = prepareAdopt(project, { config: flags['--config'] });
   if (!flags['--apply']) return report;
   // --apply performs ONLY the binding actions the report marks adoptable:
@@ -2584,7 +2676,7 @@ async function cmdAdopt(flags) {
 
 function lifecycleCtx(flags) {
   return resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
 }
 
@@ -2613,7 +2705,7 @@ async function cmdBackup(flags) {
 async function cmdRestore(flags) {
   const { applyRestore, prepareRestore } = await import('./core/lifecycle.mjs');
   const bundleRel = requireFlag(flags, '--from');
-  const projectRoot = resolveProjectRoot(requireFlag(flags, '--project'));
+  const projectRoot = resolveProjectRoot(projectFlag(flags));
   return flags['--apply']
     ? applyRestore(projectRoot, bundleRel) : prepareRestore(projectRoot, bundleRel);
 }
@@ -2686,7 +2778,7 @@ async function cmdAssess(flags) {
 async function cmdInvestigate(flags) {
   const { applyPlan } = await import('./core/bootstrap.mjs');
   const { buildResearchRecord, diffInvestigation, investigateProject, suggestAnswers } = await import('./discovery/semantic.mjs');
-  const project = requireFlag(flags, '--project');
+  const project = projectFlag(flags);
   let ctx = null;
   try {
     ctx = resolveContext({ project, config: flags['--config'] });
@@ -2774,7 +2866,7 @@ async function cmdVerify(sub, positional, flags, io) {
   const { investigateProject } = await import('./discovery/semantic.mjs');
   const { applyAddCommand, applyApproveCommand, applyApproveDiscoveredCommands, applyImportCommands, listVerifyCommands, prepareAddCommand, prepareApproveCommand, prepareApproveDiscoveredCommands, prepareImportCommands, runVerifyCommand } = await import('./core/verify-commands.mjs');
   const ctx = resolveContext({
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   });
   if (sub === 'list') return listVerifyCommands(ctx);
   if (sub === 'add') {
@@ -2848,7 +2940,7 @@ async function cmdView(flags, io) {
   const { loadCatalog, loadWorkspaceCatalog } = await import('./core/catalog.mjs');
   const { createApiServer } = await import('./api/server.mjs');
   const options = {
-    project: requireFlag(flags, '--project'), config: flags['--config'],
+    project: projectFlag(flags), config: flags['--config'],
   };
   if (Object.hasOwn(flags, '--host')) options.host = flags['--host'];
   const explicitPort = Object.hasOwn(flags, '--port');
@@ -2896,7 +2988,7 @@ export async function run(argv, io) {
     }
 
     const { flags, positional } = parseArgs(argv);
-    if (flags['--help'] || positional.length === 0) {
+    if (positional.length === 0) {
       io.stdout(JSON.stringify(helpResult(), null, 2));
       return 0;
     }
@@ -2920,10 +3012,22 @@ export async function run(argv, io) {
       // --project the alias set comes from the workspace snapshot.
       const { loadCatalog, loadWorkspaceCatalog } =
         await import('./core/catalog.mjs');
-      const cat = flags['--project']
-        ? loadWorkspaceCatalog(resolveContext({
-          project: flags['--project'], config: flags['--config'] }))
-        : loadCatalog({});
+      // A detected ancestor project also binds the workspace snapshot;
+      // a broken detected config falls back to the installation
+      // catalog and the real error surfaces at context resolution.
+      const aliasProject = flags['--project']
+        ?? detectProjectRoot(process.cwd());
+      let cat = null;
+      if (aliasProject) {
+        try {
+          cat = loadWorkspaceCatalog(resolveContext({
+            project: aliasProject, config: flags['--config'] }));
+        } catch (e) {
+          if (flags['--project']) throw e;
+          cat = null;
+        }
+      }
+      cat = cat ?? loadCatalog({});
       if (cat.byKey.has(`command/${positional[0]}`.toLowerCase())
           || cat.aliases?.some(
             (a) => a.kind === 'command'
@@ -2935,6 +3039,10 @@ export async function run(argv, io) {
       }
     }
     if (!spec) {
+      if (flags['--help']) {
+        io.stdout(JSON.stringify(helpResult(), null, 2));
+        return 0;
+      }
       throw err('INVALID_ARGS',
         `unknown command '${positional.slice(0, 2).join(' ')}'; run scopegrain --help`);
     }
@@ -2942,6 +3050,17 @@ export async function run(argv, io) {
       if (name !== '--help' && !spec.flags.includes(name)) {
         throw err('INVALID_ARGS', `${name} is not valid for ${cmdKey}`);
       }
+    }
+    if (flags['--help']) {
+      io.stdout(JSON.stringify({
+        command: cmdKey,
+        usage: `scopegrain ${spec.usage}`,
+        flags: [...spec.flags],
+        description: aliasCommand !== null
+          ? 'catalog command alias resolved to a workflow packet'
+          : describeCommand(cmdKey),
+      }, null, 2));
+      return 0;
     }
     const isAlias = aliasCommand !== null;
     const grouped = GROUPED.has(positional[0]);
@@ -2954,18 +3073,18 @@ export async function run(argv, io) {
     let result;
     if (cmdKey === 'inspect') {
       result = (await import('./discovery/inspect.mjs'))
-        .inspectProject(requireFlag(flags, '--project'));
+        .inspectProject(projectFlag(flags));
     } else if (cmdKey === 'init') {
       result = await cmdInit(flags, io);
     } else if (cmdKey === 'doctor') {
       result = (await import('./core/doctor.mjs')).runDoctor(resolveContext({
-        project: requireFlag(flags, '--project'),
+        project: projectFlag(flags),
         config: flags['--config'],
       }));
     } else if (cmdKey === 'mcp') {
       const { startMCPServer } = await import('./mcp/server.mjs');
       await startMCPServer({
-        project: requireFlag(flags, '--project'),
+        project: projectFlag(flags),
         config: flags['--config'],
       });
       return 0;
@@ -3036,7 +3155,7 @@ export async function run(argv, io) {
       result = await cmdGoal(cmdKey.slice(5), rest, flags);
     } else if (cmdKey === 'metrics') {
       result = (await import('./core/worklog.mjs')).taskMetrics(resolveContext({
-        project: requireFlag(flags, '--project'),
+        project: projectFlag(flags),
         config: flags['--config'],
       }));
     } else if (cmdKey.startsWith('report ')) {
@@ -3054,9 +3173,12 @@ export async function run(argv, io) {
     } else {
       throw err('INVALID_ARGS', `unknown command '${cmdKey}'`);
     }
-    if (flags['--input'] !== undefined && flags['--project'] !== undefined) {
+    const boundProject = flags['--project']
+      ?? detectProjectRoot(process.cwd());
+    if (flags['--input'] !== undefined && boundProject !== null
+        && boundProject !== undefined) {
       const inputAbs = path.resolve(flags['--input']);
-      const rel = path.relative(path.resolve(flags['--project']), inputAbs);
+      const rel = path.relative(path.resolve(boundProject), inputAbs);
       if (rel === '..' || rel.startsWith(`..${path.sep}`)
           || path.isAbsolute(rel)) {
         io.stderr(JSON.stringify({ warning: {
@@ -3065,7 +3187,17 @@ export async function run(argv, io) {
         } }));
       }
     }
-    io.stdout(JSON.stringify(result, null, 2));
+    // --fields CSV: top-level key projection for large packets
+    // (context/workflow whitelist the flag; other verbs reject it).
+    if (flags['--fields'] !== undefined && result !== null
+        && typeof result === 'object' && !Array.isArray(result)) {
+      const keep = flags['--fields'].split(',')
+        .map((s) => s.trim()).filter(Boolean);
+      result = Object.fromEntries(
+        keep.filter((k) => Object.hasOwn(result, k))
+          .map((k) => [k, result[k]]));
+    }
+    io.stdout(JSON.stringify(result, null, flags['--compact'] ? 0 : 2));
     // Commands may request a specific success-path exit code through
     // io.exitCode (verify run --fail-on-error); absent means 0.
     return Number.isInteger(io.exitCode) ? io.exitCode : 0;
@@ -3074,7 +3206,11 @@ export async function run(argv, io) {
     const payload = toErrorPayload(e);
     if (e.conflicts) payload.conflicts = e.conflicts;
     io.stderr(JSON.stringify({ error: payload }, null, 2));
-    return 1;
+    // Usage errors exit 2 (the common CLI convention); every other
+    // failure keeps exit 1. task gate's documented contract reserves
+    // 2 for deny on the success path — a usage-error 2 is equally
+    // fail-closed for a host hook.
+    return e && e.code === 'INVALID_ARGS' ? 2 : 1;
   } finally {
     if (typeof io.close === 'function') io.close();
   }
@@ -3100,7 +3236,9 @@ export function defaultIO() {
     stderr: (s) => process.stderr.write(s + '\n'),
     ask: async (label, def) => {
       rl = rl || readline.createInterface({
-        input: process.stdin, output: process.stdout,
+        // Two-stream rule: prompts are UI noise and belong to stderr so
+        // stdout never carries anything but the result JSON.
+        input: process.stdin, output: process.stderr,
       });
       const suffix = def ? ` [${def}]` : '';
       const answer = await rl.question(`${label}${suffix}: `);

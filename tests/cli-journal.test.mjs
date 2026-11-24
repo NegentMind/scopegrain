@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { run } from '../src/cli.mjs';
 import { applyPlan } from '../src/core/bootstrap.mjs';
@@ -63,6 +64,18 @@ async function call(args) {
   return { code, output: code === 0 ? JSON.parse(io.out.stdout.at(-1))
     : JSON.parse(io.out.stderr.at(-1)).error };
 }
+// Bare invocations assert the missing --project contract: run them from
+// a cwd outside any project tree so autodetection finds no marker.
+async function outsideProject(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sg-noproj-'));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try { return await fn(); }
+  finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 function tree(dir) {
   const result = {};
@@ -118,7 +131,7 @@ test('journal list pages unacknowledged events within the bound', async () => {
         ['--limit', 'NaN']]) {
       const rejected = await call(['journal', 'list', '--project', f.dir,
         '--config', f.configRel, ...bad]);
-      assert.equal(rejected.code, 1);
+      assert.equal(rejected.code, 2);
       assert.equal(rejected.output.code, 'INVALID_ARGS');
     }
     const rejected = await call(['journal', 'list', '--project', f.dir,
@@ -185,17 +198,19 @@ test('journal commands reject missing flags, extra args and invalid bounded JSON
     fs.writeFileSync(input, JSON.stringify({ action: 'finalize-committed',
       expectedIntentDigest, reason: 'ok', extra: true }));
     const before = tree(f.dir);
-    for (const args of [
-      ['journal', 'show', r.operationId],
-      ['journal', 'recover', r.operationId, '--project', f.dir, '--config', f.configRel],
-      ['journal', 'show', r.operationId, 'extra', '--project', f.dir, '--config', f.configRel],
-      ['journal', 'show', r.operationId, '--project', f.dir, '--config', f.configRel, '--apply'],
-      ['journal', 'recover', r.operationId, '--project', f.dir, '--config', f.configRel,
-        '--input', input, '--force'],
-      ['journal', 'recover', r.operationId, '--project', f.dir, '--config', f.configRel,
-        '--input', input, '--apply'],
+    const bare = await outsideProject(() =>
+      call(['journal', 'show', r.operationId]));
+    assert.equal(bare.code, 2);
+    for (const [args, expected] of [
+      [['journal', 'recover', r.operationId, '--project', f.dir, '--config', f.configRel], 2],
+      [['journal', 'show', r.operationId, 'extra', '--project', f.dir, '--config', f.configRel], 2],
+      [['journal', 'show', r.operationId, '--project', f.dir, '--config', f.configRel, '--apply'], 2],
+      [['journal', 'recover', r.operationId, '--project', f.dir, '--config', f.configRel,
+        '--input', input, '--force'], 2],
+      [['journal', 'recover', r.operationId, '--project', f.dir, '--config', f.configRel,
+        '--input', input, '--apply'], 1],
     ]) {
-      assert.equal((await call(args)).code, 1);
+      assert.equal((await call(args)).code, expected);
     }
     assert.deepEqual(tree(f.dir), before);
     fs.writeFileSync(input, '{bad');

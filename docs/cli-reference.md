@@ -9,14 +9,35 @@ resueltos en dispatch.
 
 Convenciones comunes (fuente: `src/cli.mjs`):
 
-- Toda salida es JSON en stdout; los errores son JSON en stderr con
-  codigo de salida 1.
+- Toda salida es JSON en stdout; los errores son JSON en stderr. El
+  codigo de salida es 2 para `INVALID_ARGS` (errores de uso: flag
+  desconocida, posicional de mas, valor mal formado), 1 para cualquier
+  otro fallo y 0 en exito. Verbos con contrato propio reservan codigos
+  semanticos en el camino feliz (`task gate`: 2 deny, 3 require-gate;
+  `verify run --fail-on-error` propaga el codigo del hijo) — un 2 por
+  error de uso sigue siendo fail-closed para esos consumidores.
 - Los verbos que mutan muestran una vista previa de solo lectura
   (`mode: 'dry-run'`) salvo que se pase `--apply`; `--apply` es
   create-only y nunca sobrescribe, fusiona ni reinicializa.
+  Excepcion normada: los verbos de registro local de `dist`
+  (`extension-register`, `extension-activate`, `extension-deactivate`,
+  `bundle-mount`, `bundle-unmount`, `preset-register`) mutan el
+  registro al momento — son append/flip acotados y no destructivos
+  (los duplicados chocan con `CONFLICT`), no mutaciones del arbol.
 - `--yes` y `--force` no existen: la confirmacion siempre es explicita.
-- `--project PATH` es obligatorio salvo que se indique lo contrario;
-  `--config REL` selecciona una config alternativa.
+- `--project PATH` se autodetecta: sin el flag se asciende desde el
+  cwd hasta el primer `.scopegrain/config.json` (tope de 10 niveles o
+  la raiz del sistema de archivos). El flag explicito siempre gana, y
+  sin marcador alguno el error es el `INVALID_ARGS` historico.
+  `init` es la excepcion: nombra el directorio a inicializar, nunca se
+  infiere, y exige el flag. `--config REL` selecciona una config
+  alternativa.
+- Sintaxis GNU de flags: `--flag=valor` equivale a `--flag valor`
+  (un flag booleano con `=valor` es `INVALID_ARGS`), y `--` cierra el
+  parseo de flags — lo que sigue cuenta como posicional.
+- `<verbo> --help` (o `-h`) imprime la entrada de ese comando (usage,
+  flags, descripcion); un comando desconocido con `--help` cae a la
+  tabla global.
 - Un `--input` que resuelve fuera de `--project` emite un aviso
   `INPUT_OUTSIDE_PROJECT` en stderr — defensa en profundidad
   declarativa, nunca un bloqueo.
@@ -24,6 +45,11 @@ Convenciones comunes (fuente: `src/cli.mjs`):
   `--cursor`, `--revision`, `--index`, `--since-sequence`,
   `--token-limit`, `--port`, `--structure-debounce`) exigen decimal
   no negativo; cualquier otra entrada es `INVALID_ARGS`, nunca `NaN`.
+- `context` y `workflow` aceptan `--fields CSV` (proyeccion de claves
+  de primer nivel del packet resultante) y `--compact` (JSON en una
+  sola linea); cualquier otro verbo los rechaza con `INVALID_ARGS`.
+- Los prompts interactivos (`init` sin `--answers`/`--defaults`) van a
+  stderr: stdout nunca lleva otra cosa que el JSON de resultado.
 
 Familias de codigos de error (lista orientativa — el envelope siempre
 es `{error:{code,message,retryable}}`; la tabla canonica de comandos y
@@ -328,7 +354,7 @@ proyecto se inyecta sola en los dos puntos de reanudacion — sin
 consultas manuales al CLI:
 
 ```
-context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS]
+context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS] [--fields CSV] [--compact]
 session resume UUID [--no-vantadb] [--timeout MS]
 ```
 
@@ -344,6 +370,11 @@ session resume UUID [--no-vantadb] [--timeout MS]
   `{ enrolled: true, error: {...} }` sin abortar el packet.
 - `--no-vantadb` omite por completo el spawn del backend;
   `--timeout MS` acota la espera (15 s por defecto).
+- `--fields CSV` proyecta solo las claves de primer nivel listadas
+  (`--fields project,methodology` devuelve `{project, methodology}`) —
+  pensado para packets grandes del que solo interesan unas secciones.
+- `--compact` emite el documento JSON en una sola linea (sin indentar),
+  igual que en `workflow`.
 - `--no-structure` sirve el indice estructural persistido sin
   re-escanear el arbol (equivale al argumento MCP `noStructure`).
 - `--structure-debounce MS` opt-in: dentro de la ventana `MS` la

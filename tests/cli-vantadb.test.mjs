@@ -182,31 +182,31 @@ test('vantadb commands reject unknown flags and missing required flags', async (
   try {
     const bad = await call(['vantadb', 'setup', '--project', f.dir,
       '--config', f.configRel, '--bogus', '1']);
-    assert.equal(bad.code, 1);
+    assert.equal(bad.code, 2);
     assert.equal(bad.output.code, 'INVALID_ARGS');
     const noNs = await call(['vantadb', 'get', '--project', f.dir,
       '--config', f.configRel, '--key', 'k']);
-    assert.equal(noNs.code, 1);
+    assert.equal(noNs.code, 2);
     assert.equal(noNs.output.code, 'INVALID_ARGS');
     const pending = await call(['vantadb', 'pending', '--project', f.dir]);
-    assert.equal(pending.code, 1);
+    assert.equal(pending.code, 2);
     assert.equal(pending.output.code, 'INVALID_ARGS');
     // Read verbs validate required flags before touching config (pre-IO).
     const noQuery = await call(['vantadb', 'recall', '--project', f.dir,
       '--config', f.configRel]);
-    assert.equal(noQuery.code, 1);
+    assert.equal(noQuery.code, 2);
     assert.equal(noQuery.output.code, 'INVALID_ARGS');
     const noNsSearch = await call(['vantadb', 'search', '--project', f.dir,
       '--config', f.configRel, '--query', 'q']);
-    assert.equal(noNsSearch.code, 1);
+    assert.equal(noNsSearch.code, 2);
     assert.equal(noNsSearch.output.code, 'INVALID_ARGS');
     const noNsList = await call(['vantadb', 'list', '--project', f.dir,
       '--config', f.configRel]);
-    assert.equal(noNsList.code, 1);
+    assert.equal(noNsList.code, 2);
     assert.equal(noNsList.output.code, 'INVALID_ARGS');
     const noRec = await call(['vantadb', 'context', '--project', f.dir,
       '--config', f.configRel]);
-    assert.equal(noRec.code, 1);
+    assert.equal(noRec.code, 2);
     assert.equal(noRec.output.code, 'INVALID_ARGS');
   } finally {
     cleanup(f.dir);

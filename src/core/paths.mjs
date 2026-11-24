@@ -199,6 +199,25 @@ export function resolveInside(rootAbs, rel, label = 'path') {
   return abs;
 }
 
+// Upward project detection for the CLI default of --project: the first
+// ancestor of startDir (itself included) holding a marker config file
+// wins. Bounded by maxLevels ascents or the filesystem root; returns
+// null when no marker exists. A found-but-unreadable or malformed
+// config still counts as the marker — loadConfig reports the real
+// problem instead of silently binding a higher ancestor.
+export function detectProjectRoot(startDir, { maxLevels = 10 } = {}) {
+  let dir = path.resolve(startDir ?? '.');
+  for (let level = 0; level <= maxLevels; level += 1) {
+    if (lstatOrNull(path.join(dir, '.scopegrain', 'config.json')) !== null) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+
 // The explicitly chosen project root must exist and be a real directory.
 export function resolveProjectRoot(input) {
   if (typeof input !== 'string' || input.length === 0) {

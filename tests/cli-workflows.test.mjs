@@ -46,7 +46,7 @@ test('catalog list/show/check/legacy resolve through grouped dispatch', async ()
   assert.ok(ledger.entries.every((e) => e.originalActivation === 'blocked'));
   io = fakeIO();
   assert.equal(await run(['catalog', 'legacy', 'command'], io), 0);
-  assert.equal(await run(['catalog', 'bogus', 'x'], fakeIO()), 1);
+  assert.equal(await run(['catalog', 'bogus', 'x'], fakeIO()), 2);
   const l1 = fakeIO();
   assert.equal(await run(['catalog', 'legacy', 'notakind'], l1), 1);
   assert.equal(errCode(l1), 'CATALOG_UNKNOWN_KIND');
@@ -75,7 +75,7 @@ test('all 13 catalog command ids dispatch as workflow aliases', async () => {
     assert.equal(await run(['pipeline', '--project', dir, '--mode', 'nope'], bad), 1);
     assert.equal(errCode(bad), 'INVALID_MODE');
     const extra = fakeIO();
-    assert.equal(await run(['pipeline', '--project', dir, 'extra'], extra), 1);
+    assert.equal(await run(['pipeline', '--project', dir, 'extra'], extra), 2);
     assert.equal(errCode(extra), 'INVALID_ARGS');
   } finally { cleanup(dir); }
 });
@@ -184,7 +184,7 @@ test('session create/record/resume: policy + dry-run validation + decimal', asyn
     // Non-decimal ints rejected.
     const hex = fakeIO();
     assert.equal(await run(['session', 'record', sid, '--project', dir,
-      '--revision', '0x10', '--input', ev, '--apply'], hex), 1);
+      '--revision', '0x10', '--input', ev, '--apply'], hex), 2);
     assert.equal(errCode(hex), 'INVALID_ARGS');
   } finally { cleanup(dir); cleanup(ev); }
 });

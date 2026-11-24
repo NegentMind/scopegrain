@@ -179,7 +179,7 @@ test('B: oversized transition write leaves task bytes valid', () => {
 test('C: prototype keys are INVALID_ARGS, not INTERNAL', async () => {
   for (const cmd of ['constructor', '__proto__', 'toString']) {
     const io = fakeIO();
-    assert.equal(await run([cmd], io), 1, cmd);
+    assert.equal(await run([cmd], io), 2, cmd);
     assert.equal(JSON.parse(io.out.stderr[0]).error.code, 'INVALID_ARGS');
   }
 });

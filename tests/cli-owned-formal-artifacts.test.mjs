@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { run } from '../src/cli.mjs';
 import { applyPlan } from '../src/core/bootstrap.mjs';
@@ -106,6 +107,18 @@ async function readonly(f, argv, expected = 0) {
   try { return await call(argv, expected); }
   finally { assert.deepEqual(tree(f.dir), before); }
 }
+// Bare invocations assert the missing --project contract: run them from
+// a cwd outside any project tree so autodetection finds no marker.
+async function outsideProject(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sg-noproj-'));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try { return await fn(); }
+  finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
 function input(f, value = f.envelope()) {
   return writeJson(f.dir, '.inputs/input.json', value);
 }
@@ -149,10 +162,17 @@ for (const type of TYPES) {
         return lstat.call(this, file, ...rest);
       });
       try {
+        await outsideProject(async () => {
+          for (const argv of [
+            [type.family, 'create', '--owned', '--input', absent],
+            [type.family, 'show', UNKNOWN, '--owned'],
+          ]) {
+            const e = await readonly(f, argv, 2);
+            assert.equal(e.code, 'INVALID_ARGS', JSON.stringify(argv));
+          }
+        });
         for (const argv of [
-          [type.family, 'create', '--owned', '--input', absent],
           args(f, [type.family, 'create', '--owned']),
-          [type.family, 'show', UNKNOWN, '--owned'],
           args(f, [type.family, 'show', '--owned']),
           args(f, [type.family, 'show', UNKNOWN, UNKNOWN, '--owned']),
           args(f, [type.family, 'create', '--owned', '--input', absent, 'extra']),
@@ -164,7 +184,7 @@ for (const type of TYPES) {
             '--namespace', '--bogus'].map((flag) =>
             args(f, [type.family, 'create', '--owned', '--input', absent, flag, 'x'])),
         ]) {
-          assert.equal((await readonly(f, argv, 1)).code, 'INVALID_ARGS', JSON.stringify(argv));
+          assert.equal((await readonly(f, argv, 2)).code, 'INVALID_ARGS', JSON.stringify(argv));
         }
         assert.equal(reads, 0);
       } finally { spy.mock.restore(); }
@@ -178,7 +198,7 @@ for (const type of TYPES) {
       for (const argv of [[type.family, 'show', UNKNOWN],
         [type.family, 'show', UNKNOWN, '--project', dir],
         [type.family, 'show', UNKNOWN, '--project', dir, '--config', 'missing.json']]) {
-        const error = await readonly(f, argv, 1);
+        const error = await readonly(f, argv, 2);
         assert.equal(error.code, 'INVALID_ARGS');
         assert.match(error.message, /requires --owned; use artifact show/);
       }

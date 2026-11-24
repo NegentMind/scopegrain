@@ -4,9 +4,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { run } from '../src/cli.mjs';
-import { createConfig } from '../src/core/config.mjs';
+import { createConfig, KNOWN_HOSTS } from '../src/core/config.mjs';
 import {
   VALID_ANSWERS, cleanup, exists, fakeIO, makeTempDir, readJson, writeJson,
 } from './helpers.mjs';
@@ -54,16 +55,27 @@ test('--help lists commands; unknown commands and flags fail', async () => {
   const help = lastJson(io);
   assert.ok(help.commands.length >= 8);
   const io2 = fakeIO();
-  assert.equal(await run(['frobnicate'], io2), 1);
+  assert.equal(await run(['frobnicate'], io2), 2);
   assert.equal(JSON.parse(io2.out.stderr[0]).error.code, 'INVALID_ARGS');
   const io3 = fakeIO();
-  assert.equal(await run(['inspect'], io3), 1);
+  // Missing --project still fails when no ancestor .scopegrain/config.json
+  // exists (autodetection runs from cwd; os tmp is outside the repo).
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'sg-noproj-'));
+  const cwd0 = process.cwd();
+  process.chdir(outside);
+  try {
+    assert.equal(await run(['task', 'list'], io3), 2);
+  } finally {
+    process.chdir(cwd0);
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+  assert.equal(JSON.parse(io3.out.stderr[0]).error.code, 'INVALID_ARGS');
   const io4 = fakeIO();
   // Flag that does not belong to the command is rejected.
-  assert.equal(await run(['inspect', '--project', 'x', '--apply'], io4), 1);
+  assert.equal(await run(['inspect', '--project', 'x', '--apply'], io4), 2);
   const io5 = fakeIO();
   // A flag value must not silently consume the next flag.
-  assert.equal(await run(['inspect', '--project', '--config'], io5), 1);
+  assert.equal(await run(['inspect', '--project', '--config'], io5), 2);
 });
 
 test('extra positionals are rejected before any write', async () => {
@@ -73,7 +85,7 @@ test('extra positionals are rejected before any write', async () => {
     const io = fakeIO();
     const code = await run(
       ['init', '--project', dir, '--answers', answersFile, 'typo', '--apply'], io);
-    assert.equal(code, 1);
+    assert.equal(code, 2);
     assert.equal(JSON.parse(io.out.stderr[0]).error.code, 'INVALID_ARGS');
     assert.ok(!exists(dir, '.scopegrain/config.json'));
     assert.ok(!exists(dir, 'AGENTS.md'));
@@ -170,13 +182,13 @@ test('init --defaults with no signals uses wizard defaults; --answers conflicts'
     assert.equal(await run(['init', '--project', dir, '--defaults'], io), 0);
     const dry = lastJson(io);
     // No host signals -> the full interactive default list.
-    assert.equal(dry.answers.hosts.length, 7);
+    assert.deepEqual(dry.answers.hosts, [...KNOWN_HOSTS]);
     assert.ok(dry.files.some((f) => f.path === 'AGENTS.md'));
     assert.ok(dry.files.some((f) => f.path === 'CLAUDE.md'));
 
     const both = fakeIO();
     assert.equal(await run(['init', '--project', dir, '--defaults',
-      '--answers', answersFile], both), 1);
+      '--answers', answersFile], both), 2);
     assert.equal(JSON.parse(both.out.stderr[0]).error.code, 'INVALID_ARGS');
     assert.ok(!exists(dir, '.scopegrain/config.json'));
   } finally { cleanup(dir); cleanup(answersFile); }
@@ -197,7 +209,7 @@ test('--yes and --force are rejected explicitly', async () => {
   try {
     for (const flag of ['--yes', '--force']) {
       const io = fakeIO({ tty: true });
-      assert.equal(await run(['init', '--project', dir, flag], io), 1);
+      assert.equal(await run(['init', '--project', dir, flag], io), 2);
       assert.equal(JSON.parse(io.out.stderr[0]).error.code, 'INVALID_ARGS');
     }
   } finally { cleanup(dir); }

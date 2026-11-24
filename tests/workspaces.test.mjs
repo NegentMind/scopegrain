@@ -716,7 +716,7 @@ test('CLI accepts external cwd-relative input and rejects parser/input errors be
     ];
     for (const args of bad) {
       const out = await cli(args);
-      assert.equal(out.code, 1);
+      assert.equal(out.code, 2);
       assert.equal(out.body.error.code, 'INVALID_ARGS');
     }
     const oversized = writeFile(inputDir, 'large.json',
