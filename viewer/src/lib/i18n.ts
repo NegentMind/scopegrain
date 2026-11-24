@@ -972,6 +972,10 @@ export function t(locale: Locale, key: string): string {
   return DICT[locale][key] ?? DICT.en[key] ?? key;
 }
 
+export function dictKeys(locale: Locale): string[] {
+  return Object.keys(DICT[locale]);
+}
+
 export function useT() {
   const locale = useLocale();
   return (key: string) => t(locale, key);

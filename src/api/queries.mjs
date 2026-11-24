@@ -434,7 +434,7 @@ export function createApiQueries(ctx, options = {}) {
       throw err('SYMLINK_REJECTED', `task doc may not be a link: ${uuid}`);
     }
     const limited = readFileLimited(file, loadLimits().maxDocumentBytes);
-    const text = decodeUtf8Strict(limited.content, 'task doc');
+    const text = decodeUtf8Strict(limited.content, 'MALFORMED', 'task doc');
     const cut = truncateString(text, LIMITS.maxBodyChars);
     return {
       id: uuid,
@@ -486,7 +486,8 @@ export function createApiQueries(ctx, options = {}) {
     const limited = readFileLimited(file, 8192);
     let text;
     try {
-      text = decodeUtf8Strict(limited.content, 'frontmatter');
+      text = decodeUtf8Strict(
+        limited.content, 'MALFORMED', 'frontmatter');
     } catch {
       return {};
     }
@@ -566,7 +567,8 @@ export function createApiQueries(ctx, options = {}) {
         throw err('SYMLINK_REJECTED', `artifact doc may not be a link: ${name}`);
       }
       const limited = readFileLimited(file, loadLimits().maxDocumentBytes);
-      const text = decodeUtf8Strict(limited.content, 'artifact doc');
+      const text = decodeUtf8Strict(
+        limited.content, 'MALFORMED', 'artifact doc');
       const cut = truncateString(text, LIMITS.maxBodyChars);
       return {
         kind, name, dir: dirRel,
@@ -595,7 +597,7 @@ export function createApiQueries(ctx, options = {}) {
       throw err('SYMLINK_REJECTED', `plan doc may not be a link: ${name}`);
     }
     const limited = readFileLimited(file, loadLimits().maxDocumentBytes);
-    const text = decodeUtf8Strict(limited.content, 'plan doc');
+    const text = decodeUtf8Strict(limited.content, 'MALFORMED', 'plan doc');
     const cut = truncateString(text, LIMITS.maxBodyChars);
     return {
       name,
@@ -880,13 +882,9 @@ export function createApiQueries(ctx, options = {}) {
     if (!st || st.isSymbolicLink() || !st.isFile()) {
       throw err('NOT_FOUND', `report '${name}' not found`);
     }
-    const limited = readFileLimited(abs, loadLimits().maxDocumentBytes);
-    if (limited.exceeded) {
-      throw err('DOCUMENT_TOO_LARGE', 'report exceeds document limit');
-    }
     return {
       name,
-      report: JSON.parse(decodeUtf8Strict(limited.content, 'report file')),
+      report: readJsonFile(abs, 'report file', loadLimits().maxDocumentBytes),
     };
   }
 
@@ -1074,7 +1072,8 @@ export function createApiQueries(ctx, options = {}) {
         `catalog doc may not be a link: ${kind}/${id}`);
     }
     const limited = readFileLimited(file, loadLimits().maxDocumentBytes);
-    const text = decodeUtf8Strict(limited.content, 'catalog doc');
+    const text = decodeUtf8Strict(
+      limited.content, 'MALFORMED', 'catalog doc');
     const cut = truncateString(text, LIMITS.maxBodyChars);
     return {
       doc: {

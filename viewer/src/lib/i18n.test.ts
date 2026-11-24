@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { adoptProjectLocale, setLocale, t, useLocale } from './i18n';
+import {
+  adoptProjectLocale, dictKeys, setLocale, t, useLocale,
+} from './i18n';
+
+describe('dictionary parity', () => {
+  it('en and es define exactly the same keys', () => {
+    const en = dictKeys('en');
+    const es = dictKeys('es');
+    expect(es.filter((k) => !en.includes(k))).toEqual([]);
+    expect(en.filter((k) => !es.includes(k))).toEqual([]);
+  });
+});
 
 describe('t()', () => {
   it('returns the localized string for a known key', () => {

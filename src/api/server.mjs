@@ -99,7 +99,7 @@ function sendStatic(res, segments) {
 
 // Route table: method whitelist is GET only. `query` lists the permitted
 // query-string keys per endpoint (strict schemas, nothing else passes).
-const ROUTES = [
+export const ROUTES = [
   { pattern: ['api', 'health'], query: [],
     handler: (q) => q.health() },
   { pattern: ['api', 'workspace'], query: [],
@@ -228,7 +228,8 @@ function sendJson(res, status, payload) {
 // browser Origin header rides along it must be loopback as well.
 // 'localhost' in Host is safe here because the connection already
 // arrived at this bound socket — DNS is not re-consulted.
-const TRUSTED_HOSTNAMES = new Set([...LOOPBACK_HOSTS, 'localhost']);
+const TRUSTED_HOSTNAMES = new Set(
+  [...LOOPBACK_HOSTS, '[::1]', 'localhost']);
 
 function isTrustedHostname(name) {
   return TRUSTED_HOSTNAMES.has(String(name).toLowerCase());
