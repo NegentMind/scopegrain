@@ -511,6 +511,25 @@ const DICT: Record<Locale, Record<string, string>> = {
     'journal.desc':
       'Create-only record operations; committed / prepared / abandoned.',
     'journal.recovery': 'Recovery receipt',
+    'nav.state': 'State',
+    'nav.state.desc':
+      'Active-task pointer, governing constitution and reviewer checklists.',
+    'active.title': 'Active task',
+    'active.desc':
+      'Task pointer resolved from SCOPEGRAIN_TASK or the persisted file.',
+    'active.none': 'No active task — set via `task activate` or SCOPEGRAIN_TASK.',
+    'active.source': 'source',
+    'const.title': 'Constitution',
+    'const.desc': 'Versioned governing principles with change history.',
+    'const.empty': 'No constitution recorded.',
+    'const.principles': 'principles',
+    'const.history': 'history entries',
+    'checklists.title': 'Checklists',
+    'checklists.desc': 'Reviewer-owned verification lists bound to tasks.',
+    'checklists.empty': 'No checklists recorded.',
+    'checklists.task': 'task',
+    'check.pending': 'pending',
+    'check.na': 'n/a',
   },
   es: {
     'app.title': 'Visor de Scopegrain',
@@ -965,6 +984,25 @@ const DICT: Record<Locale, Record<string, string>> = {
     'journal.desc':
       'Operaciones de registro de solo creación; committed / prepared / abandoned.',
     'journal.recovery': 'Recibo de recuperación',
+    'nav.state': 'Estado',
+    'nav.state.desc':
+      'Puntero de tarea activa, constitución rectora y checklists de revisión.',
+    'active.title': 'Tarea activa',
+    'active.desc':
+      'Puntero resuelto desde SCOPEGRAIN_TASK o el archivo persistido.',
+    'active.none': 'Sin tarea activa — actívala con `task activate` o SCOPEGRAIN_TASK.',
+    'active.source': 'origen',
+    'const.title': 'Constitución',
+    'const.desc': 'Principios rectores versionados con historial de cambios.',
+    'const.empty': 'Sin constitución registrada.',
+    'const.principles': 'principios',
+    'const.history': 'entradas de historial',
+    'checklists.title': 'Checklists',
+    'checklists.desc': 'Listas de verificación del revisor vinculadas a tareas.',
+    'checklists.empty': 'Sin checklists registrados.',
+    'checklists.task': 'tarea',
+    'check.pending': 'pendiente',
+    'check.na': 'n/a',
   },
 };
 

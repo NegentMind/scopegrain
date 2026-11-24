@@ -473,6 +473,62 @@ export interface GoalList {
   malformed: { line: string }[];
 }
 
+export type ChecklistItemStatus = 'pending' | 'pass' | 'fail' | 'na';
+
+export interface ChecklistItem {
+  id: string;
+  status: ChecklistItemStatus;
+  text: string;
+  textTruncated: boolean;
+  note: string | null;
+}
+
+export interface ChecklistSummary {
+  id: string;
+  taskId: string;
+  title: string;
+  titleTruncated: boolean;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+  items: ChecklistItem[];
+  counts: Record<ChecklistItemStatus, number>;
+}
+
+export interface ChecklistList {
+  checklists: ChecklistSummary[];
+  malformed: MalformedEntry[];
+  truncated: boolean;
+}
+
+export interface ConstitutionPrinciple {
+  id: string;
+  title: string;
+  statement: string;
+}
+
+export interface Constitution {
+  schemaVersion: number;
+  version: string;
+  principles: ConstitutionPrinciple[];
+  complexity: {
+    principles: number;
+    historyEntries: number;
+    statementChars: number;
+  };
+  history: { version: string; bump: string; at: string; summary: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConstitutionResponse { constitution: Constitution | null }
+
+export interface ActiveTaskResponse {
+  task: TaskSummary | null;
+  source: 'env' | 'file' | null;
+  error?: { code: string; message: string };
+}
+
 export interface Metrics {
   schemaVersion: number;
   tasks: {
@@ -580,6 +636,11 @@ export const api = {
     request<MemoryLogResult>(
       `/api/memory?log=${encodeURIComponent(log)}&tail=${encodeURIComponent(tail)}`),
   goals: () => request<GoalList>('/api/goals'),
+  checklists: (limit = 200) =>
+    request<ChecklistList>(
+      `/api/checklists?limit=${encodeURIComponent(limit)}`),
+  constitution: () => request<ConstitutionResponse>('/api/constitution'),
+  activeTask: () => request<ActiveTaskResponse>('/api/active-task'),
   metrics: () => request<Metrics>('/api/metrics'),
   reports: (limit = 200) =>
     request<ReportList>(`/api/reports?limit=${encodeURIComponent(limit)}`),

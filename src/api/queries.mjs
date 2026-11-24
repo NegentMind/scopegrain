@@ -15,8 +15,11 @@ import { loadLimits } from '../core/policy.mjs';
 import {
   listGoals, readWorklog, taskMetrics,
 } from '../core/worklog.mjs';
-import { resolveInside } from '../core/paths.mjs';
+import { configRel, resolveInside } from '../core/paths.mjs';
 import { getTask, listTasks } from '../core/tasks.mjs';
+import { getChecklist } from '../core/checklists.mjs';
+import { getConstitution } from '../core/constitution.mjs';
+import { getActiveTask } from '../core/active.mjs';
 import {
   getPlan, listPlans, nextPlanTasks, planRunState, planWaves,
 } from '../core/plans.mjs';
@@ -849,6 +852,47 @@ export function createApiQueries(ctx, options = {}) {
     return taskMetrics(ctx);
   }
 
+  function checklistSummary(c) {
+    const title = truncateString(c.title, LIMITS.maxFieldChars);
+    const counts = { pending: 0, pass: 0, fail: 0, na: 0 };
+    const items = c.items.map((it) => {
+      const text = truncateString(it.text ?? '', LIMITS.maxFieldChars);
+      counts[it.status] = (counts[it.status] ?? 0) + 1;
+      return {
+        id: it.id, status: it.status,
+        text: text.value, textTruncated: text.truncated,
+        note: it.note ?? null,
+      };
+    });
+    return {
+      id: c.id, taskId: c.taskId,
+      title: title.value, titleTruncated: title.truncated,
+      revision: c.revision, createdAt: c.createdAt, updatedAt: c.updatedAt,
+      items, counts,
+    };
+  }
+
+  function checklists({ limit, offset }) {
+    const dir = resolveInside(ctx.projectRoot,
+      configRel(ctx, 'checklists'), 'checklists');
+    const { items, malformed, truncated } = listStoreDir(
+      dir, (id) => checklistSummary(getChecklist(ctx, id)), limit, offset);
+    return { checklists: items, malformed, truncated };
+  }
+
+  function constitution() {
+    return { constitution: getConstitution(ctx) };
+  }
+
+  function activeTask() {
+    try {
+      const { task, source } = getActiveTask(ctx);
+      return { task: task ? taskSummary(task) : null, source };
+    } catch (e) {
+      return { task: null, source: null, error: toErrorPayload(e) };
+    }
+  }
+
   const reportsDirAbs = () =>
     resolveInside(ctx.projectRoot, ctx.config.paths.reports, 'paths.reports');
 
@@ -1276,6 +1320,6 @@ export function createApiQueries(ctx, options = {}) {
     memory, goals, metrics, reports, report,
     sessions, session, approvals, approval, catalog, catalogDoc,
     catalogDocWrite, verifyCommands,
-    vantadb, workflow,
+    vantadb, workflow, checklists, constitution, activeTask,
   });
 }

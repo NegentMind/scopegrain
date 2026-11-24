@@ -9,6 +9,7 @@ import {
   Globe,
   Handshake,
   LayoutDashboard,
+  ListChecks,
   ListTodo,
   MonitorCog,
   Newspaper,
@@ -55,6 +56,7 @@ import { MetricsView } from '@/views/MetricsView';
 import { PlansView } from '@/views/PlansView';
 import { ReportsView } from '@/views/ReportsView';
 import { SessionsView } from '@/views/SessionsView';
+import { StateView } from '@/views/StateView';
 import { SystemView } from '@/views/SystemView';
 import { TasksView } from '@/views/TasksView';
 import { WorkspaceView } from '@/views/WorkspaceView';
@@ -71,6 +73,7 @@ const NAV = [
   { value: 'captures', labelKey: 'nav.captures', descKey: 'nav.captures.desc', icon: Camera },
   { value: 'memory', labelKey: 'nav.memory', descKey: 'nav.memory.desc', icon: Brain },
   { value: 'goals', labelKey: 'nav.goals', descKey: 'nav.goals.desc', icon: Flag },
+  { value: 'state', labelKey: 'nav.state', descKey: 'nav.state.desc', icon: ListChecks },
   { value: 'sessions', labelKey: 'nav.sessions', descKey: 'nav.sessions.desc', icon: Timer },
   { value: 'approvals', labelKey: 'nav.approvals', descKey: 'nav.approvals.desc', icon: Handshake },
   { value: 'catalog', labelKey: 'nav.catalog', descKey: 'nav.catalog.desc', icon: BookMarked },
@@ -323,6 +326,9 @@ export default function App() {
             </TabsContent>
             <TabsContent value="goals">
               <GoalsView />
+            </TabsContent>
+            <TabsContent value="state">
+              <StateView />
             </TabsContent>
             <TabsContent value="sessions">
               <SessionsView />
