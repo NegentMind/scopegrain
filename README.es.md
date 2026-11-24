@@ -321,7 +321,7 @@ manualmente; su primera ejecucion remota completo con exito el 2026-11-18.
 
 Licenciado bajo Apache License, Version 2.0 — ver [LICENSE](LICENSE),
 [NOTICE](NOTICE) y [AUTHORS](AUTHORS). `package.json` declara los binarios
-CLI instalables (`scopegrain`, `scopegrain`) y una lista acotada de archivos
+CLI instalable (`scopegrain`) y una lista acotada de archivos
 (incluye `viewer/dist`; excluye `docs/assets` del tarball npm para mantener
 la descarga por debajo de 1 MB). Cualquier publicacion en registros externos
 requiere autorizacion explicita del propietario. El material heredado bajo

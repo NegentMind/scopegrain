@@ -73,8 +73,8 @@ Everything else is agent machinery. Boundaries worth knowing:
 - Commands discovered in project manifests are never executed.
 - Network access, git push and host fragment activation always require
   explicit consent.
-- Operational state lives under `.scopegrain/` by default
-  (`.scopegrain/` remains a supported legacy path); `context.md` there is
+- Operational state lives under `.scopegrain/` by default;
+  `context.md` there is
   the owner's persistent notes file — agents read it, they do not edit it.
 - The viewer is read-only by design; mutations go through the CLI or the
   MCP tools under the workflow gates.
@@ -320,7 +320,7 @@ manually only; its first remote run completed successfully on 2026-11-18.
 
 Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE),
 [NOTICE](NOTICE) and [AUTHORS](AUTHORS). `package.json` declares the
-installable CLI binaries (`scopegrain`, `scopegrain`) and bounded file
+installable CLI binary (`scopegrain`) and bounded file
 list (`viewer/dist` included; `docs/assets` excluded from npm tarballs to
 keep installs under 1 MB). Publication to any external registry requires
 explicit owner authorization. The inherited material under `legacy/` is

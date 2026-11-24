@@ -292,8 +292,6 @@ opt-in por categoría. Las claves de perfil requeridas son `skills`/`rules`/
 | `memory` | `.scopegrain/memory/` | worklogs JSONL, `archive/`, `captures/`, goals |
 | config dir | `.scopegrain/` | config.json, instructions.md, discovery.json, catalog.json, resources instalados, policy, context.md |
 
-Legacy `.scopegrain/` sigue siendo honrado como ruta de estado alternativa.
-
 ## 11. Deuda y gaps conocidos (auditoría 2026-11-20, actualizada 2026-11-22)
 
 1. **Discovery / Índice estructural**: resuelto en lo accionable — `structure scan|status|show|refresh` implementado (2026-11-21..22); `context` se mantiene estrictamente read-only reportando `refreshPolicy: "explicit"`. Siguen fuera del core por diseño: AST real/símbolos (delegado al host), Deno/Makefile/Docker/devcontainer y contenido de workflows CI.
