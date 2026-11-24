@@ -881,7 +881,9 @@ export function loadLegacyInventory({ installRoot = INSTALL_ROOT } = {}) {
       limitedDoc(abs, 'legacy inventory'), 'LEGACY_MALFORMED', 'legacy inventory'));
   } catch (e) {
     if (e && e.code === 'CATALOG_MISSING_FILE') {
-      throw err('LEGACY_NOT_FOUND', 'provenance/legacy-inventory.json not found');
+      throw err('LEGACY_NOT_FOUND',
+        'provenance/legacy-inventory.json not found; '
+        + 'the frozen ledger ships only with the source repository');
     }
     if (e instanceof SyntaxError) {
       throw err('LEGACY_MALFORMED', 'legacy inventory is not valid JSON');

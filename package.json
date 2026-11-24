@@ -47,8 +47,13 @@
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "test:fast": "node --test --test-concurrency=2 tests/*.test.mjs",
     "test:smoke": "node --test --test-concurrency=2 tests/cli.test.mjs tests/config.test.mjs tests/paths.test.mjs tests/tasks.test.mjs tests/plans.test.mjs tests/journal.test.mjs tests/methodology-gates.test.mjs tests/api-server.test.mjs tests/mcp.test.mjs tests/docs-cli-drift.test.mjs tests/structure.test.mjs tests/activity.test.mjs",
-    "build:viewer": "npm --prefix viewer run build"
+    "test:coverage": "node --test --experimental-test-coverage --test-concurrency=1 tests/*.test.mjs",
+    "test:eval": "node --test tests/eval/",
+    "test:eval:record": "node tests/eval/run-scenarios.mjs --record",
+    "build:viewer": "npm --prefix viewer run build",
+    "prepack": "npm run build:viewer && npm test"
   },
+  "mcpName": "io.github.negentmind/scopegrain",
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.27.1",
     "zod": "4.5.4"

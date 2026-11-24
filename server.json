@@ -1,0 +1,24 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.negentmind/scopegrain",
+  "title": "Scopegrain",
+  "description": "Project-neutral engineering harness for coding agents: task FSM, transactional journal, verification whitelist and host bridges.",
+  "version": "0.1.1",
+  "repository": {
+    "url": "https://github.com/NegentMind/scopegrain",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "scopegrain",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        "mcp"
+      ]
+    }
+  ]
+}

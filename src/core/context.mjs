@@ -9,6 +9,7 @@ export function resolveContext({ project, config: configPath }) {
   const { config, configPath: configRel } = loadConfig(projectRoot, configPath);
   return {
     projectRoot,
+    projectName: config.project?.name ?? null,
     configPath: configRel,
     configDir: configDirOf(configRel),
     config,
