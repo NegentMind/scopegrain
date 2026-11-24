@@ -5,7 +5,7 @@ kind: guide
 # Proyecciones de hosts nativos
 
 Scopegrain comparte procedimientos canonicos y snapshots de proyecto entre
-cinco hosts documentados, mas un host provisional admitido (Hermes) y un
+siete hosts documentados, mas un host provisional admitido (Hermes) y un
 adaptador de reserva `generic` no certificado (scaffold para hosts MCP
 stdio sin adaptador dedicado). Los
 archivos nativos son puentes delgados, no implementaciones mantenidas de
@@ -55,6 +55,8 @@ escriben automaticamente.
 | Devin CLI/Local | `/scopegrain-NAME` | `.devin/skills/<name>/SKILL.md` | `.devin/agents/<name>.md` |
 | Antigravity App/CLI | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | `.agents/agents/<name>.md` |
 | Antigravity IDE | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | Ninguna asumida; propuesta solo de skills |
+| GitHub Copilot | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | `.github/agents/<name>.md` |
+| Cursor | `/scopegrain-NAME` | `.cursor/skills/<name>/SKILL.md` | `.cursor/agents/<name>.md` |
 | Hermes Agent (provisional) | Ninguna verificada | `~/.hermes/skills/` (global; nunca escrita) | Ninguna asumida |
 
 Los puentes de comandos nativos de OpenCode apuntan adicionalmente a

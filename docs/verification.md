@@ -2,7 +2,7 @@
 
 ## Estado Actual
 
-La suite cuenta actualmente **1540 pruebas** (conteo verificado en la
+La suite cuenta actualmente **1703 pruebas** (conteo verificado en la
 auditoria integral del 2026-11-24; los commits posteriores a la ultima
 integral registrada ampliaron la suite sin una nueva ejecucion
 completa). La ultima ejecucion integral registrada (`npm test`, serial
@@ -100,7 +100,7 @@ deriva `0.1.0 -> 0.1.1` de `.devin`/`.agents`; `opencode:v2` queda en
 | Integral previa | `npm test` serial, 2026-11-18 | Exit 0: 1152 pass, 0 fail, 0 skipped, 0 cancelled |
 | Integral actual (release v0.1.0 prep) | `npm test` serial (`ca27e26`), 2026-11-22 | Exit 0: 1411 pass, 0 fail, 0 skipped, 0 cancelled (831.6 s); `npm run test:smoke` 215/215 pass (43.2 s) |
 | Integral tokens (estimacion + sesiones v2) | `npm test` serial, 2026-11-23 | Exit 1: 1440 tests, 1435 pass, 5 fail (4 inestables que pasan aislados; 1 pre-existente en `host-variants`, reproducible en `HEAD` limpio); gate focalizado 36/36; `cd viewer && npm run build` en verde |
-| Conteo vigente de la suite | Auditoria integral read-only, 2026-11-24 | 1540 tests declarados tras los commits posteriores a la integral del 2026-11-23 (`task suggest`/`gate`, purga `tasksystem`, i18n del visor, endurecimientos VantaDB); sin nueva ejecucion integral registrada |
+| Conteo vigente de la suite | Auditoria integral read-only, 2026-11-24 | 1703 tests; ejecucion integral registrada el 2026-11-24 tras las olas de remediacion de la auditoria (0 fallos) |
 | Visor (lint + typecheck + vitest + build + Chromium EN/ES) | `viewer/` + Playwright, 2026-11-22 | Exit 0: eslint 0, tsc 0, vitest 17/17 (5 archivos), build 816 ms; 30 vistas EN/ES sin errores ni overflow |
 | E2E proyecto limpio + `npm pack --dry-run` | CLI global `scopegrain@0.1.0`, 2026-11-22 | Exit 0: inspect/investigate/init/workspace/doctor/structure/context/dist selftest/light CLOSE/formal SDD plan+waves/backup; tarball 978.9 kB (341 archivos) |
 | Piloto MCP nativo aislado | Windows, servidor anunciado 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; sin certificar embeddings ni anfitriones |

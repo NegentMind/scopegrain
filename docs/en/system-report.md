@@ -322,7 +322,7 @@ See [security](security.md) and [compatibility](compatibility.md).
 
 ## 16. Verification status
 
-The suite currently numbers **1540 tests** (count verified in the
+The suite currently numbers **1703 tests** (count verified in the
 2026-11-24 audit). The latest recorded full run (`npm test` serial,
 2026-11-23) reported 1440 tests: 1435 pass, 5 fail (4 long-run flakes
 that pass standalone and 1 pre-existing `host-variants` failure

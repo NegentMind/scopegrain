@@ -67,6 +67,7 @@ const DIR_PROBES = [
   { rel: '.antigravity', kind: 'host', host: 'antigravity' },
   { rel: '.agents', kind: 'host', host: 'antigravity' },
   { rel: '.agent', kind: 'host', host: 'antigravity' },
+  { rel: '.cursor', kind: 'host', host: 'cursor' },
 ];
 
 // File probes: lstat only unless `read` names an allowlisted parser.
@@ -153,6 +154,9 @@ const FILE_PROBES = [
   { rel: 'opencode.json', host: 'opencode' },
   { rel: 'opencode.jsonc', host: 'opencode' },
   { rel: '.codex/config.toml', host: 'codex' },
+  { rel: '.cursor/mcp.json', host: 'cursor' },
+  { rel: '.github/copilot-instructions.md', host: 'copilot' },
+  { rel: '.vscode/mcp.json', host: 'copilot' },
   { rel: 'GEMINI.md', host: 'antigravity' },
   { rel: 'src/main.rs', cliHint: 'rust' },
 ];

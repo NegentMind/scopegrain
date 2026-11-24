@@ -8,7 +8,7 @@ kind: guide
 > English translation of the canonical Spanish document
 > (`../native-hosts.md`). The Spanish version prevails.
 
-Scopegrain shares canonical procedures and project snapshots across five
+Scopegrain shares canonical procedures and project snapshots across seven
 documented hosts, plus one admitted provisional host (Hermes) and an
 uncertified `generic` fallback adapter (scaffold for stdio MCP hosts
 without a dedicated adapter). Native
@@ -56,6 +56,8 @@ automatically.
 | Devin CLI/Local | `/scopegrain-NAME` | `.devin/skills/<name>/SKILL.md` | `.devin/agents/<name>.md` |
 | Antigravity App/CLI | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | `.agents/agents/<name>.md` |
 | Antigravity IDE | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | None assumed; skills-only proposal |
+| GitHub Copilot | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | `.github/agents/<name>.md` |
+| Cursor | `/scopegrain-NAME` | `.cursor/skills/<name>/SKILL.md` | `.cursor/agents/<name>.md` |
 | Hermes Agent (provisional) | None verified | `~/.hermes/skills/` (global; never written) | None assumed |
 
 OpenCode native command bridges additionally target `.opencode/commands/`,

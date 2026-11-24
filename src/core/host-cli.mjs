@@ -16,6 +16,8 @@ const BINARIES = {
   opencode: ['opencode'],
   devin: ['devin'],
   antigravity: ['antigravity'],
+  copilot: ['copilot'],
+  cursor: ['cursor-agent', 'cursor'],
   hermes: ['hermes'],
 };
 

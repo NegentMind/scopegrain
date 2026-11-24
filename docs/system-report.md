@@ -312,7 +312,7 @@ Ver [seguridad](security.md) y [compatibilidad](compatibility.md).
 
 ## 16. Estado de verificacion
 
-La suite cuenta actualmente **1540 pruebas** (conteo verificado en la
+La suite cuenta actualmente **1703 pruebas** (conteo verificado en la
 auditoria del 2026-11-24). La ultima ejecucion integral registrada
 (`npm test` serial, 2026-11-23) reporto 1440 pruebas: 1435 pass, 5 fail
 (4 inestables de la tanda larga que pasan aisladas y 1 fallo

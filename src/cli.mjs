@@ -767,7 +767,7 @@ function helpResult() {
       '--owned opts specification create/show into journal ownership; legacy behavior stays unchanged without it',
       '--owned opts design/outcome create/show into journal ownership; new show commands require it',
       'adopt/update/backup/restore/uninstall preview first; --apply is create-only and never overwrites, merges or reinitializes',
-      'update --reconcile rewrites ONLY diverged generated files under harness-owned roots (the config dir and generated subdirs) and applyable host destinations (.claude/.devin/.agents/.opencode/.codex); root-level files (AGENTS.md, CLAUDE.md), the config and manual merge targets always stay conflict',
+      'update --reconcile rewrites ONLY diverged generated files under harness-owned roots (the config dir and generated subdirs) and applyable host destinations (.claude/.devin/.agents/.opencode/.codex/.cursor/.vscode/.github); root-level files (AGENTS.md, CLAUDE.md), the config and manual merge targets always stay conflict',
       'init --defaults skips the prompt loop: answers come from the existing config (noop re-init) or from the investigation suggestions plus the wizard defaults; --apply still gates writes; mutually exclusive with --answers',
       'inspect is the bounded manifest-scan snapshot init stores as discovery.json; investigate is the deeper semantic analysis that adds init-answer suggestions',
       'investigate is read-only; --save writes one research record under paths.research when a config resolves',
