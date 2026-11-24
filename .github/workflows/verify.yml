@@ -54,6 +54,8 @@ jobs:
         run: npm install --ignore-scripts --no-package-lock --no-audit --no-fund
       - name: Run complete test suite
         run: npm test
+      - name: Run eval scenario + golden replay suite
+        run: node --test tests/eval/
 
   viewer:
     name: Viewer build + typecheck
