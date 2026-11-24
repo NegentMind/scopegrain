@@ -111,14 +111,20 @@ test('journal list pages unacknowledged events within the bound', async () => {
     assert.equal(rest.code, 0);
     assert.equal(rest.output.items.length, eventIds.length - 1);
     assert.equal(rest.output.nextAfterSequence, null);
-    // Malformed cursors and limits fail closed before any listing.
+    // Non-decimal cursors and limits fail at the CLI boundary
+    // (INVALID_ARGS); a well-formed value rejected by the journal domain
+    // still reports INVALID_JOURNAL_INPUT.
     for (const bad of [['--since-sequence', 'x'], ['--since-sequence', '-1'],
-        ['--limit', '0'], ['--limit', 'NaN']]) {
+        ['--limit', 'NaN']]) {
       const rejected = await call(['journal', 'list', '--project', f.dir,
         '--config', f.configRel, ...bad]);
       assert.equal(rejected.code, 1);
-      assert.equal(rejected.output.code, 'INVALID_JOURNAL_INPUT');
+      assert.equal(rejected.output.code, 'INVALID_ARGS');
     }
+    const rejected = await call(['journal', 'list', '--project', f.dir,
+      '--config', f.configRel, '--limit', '0']);
+    assert.equal(rejected.code, 1);
+    assert.equal(rejected.output.code, 'INVALID_JOURNAL_INPUT');
   } finally { cleanup(f.dir); }
 });
 

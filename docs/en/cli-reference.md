@@ -19,6 +19,32 @@ Common conventions (source: `src/cli.mjs`):
 - `--yes` and `--force` do not exist: confirmation is always explicit.
 - `--project PATH` is required unless stated otherwise; `--config REL`
   selects an alternate config.
+- An `--input` resolving outside `--project` emits an
+  `INPUT_OUTSIDE_PROJECT` warning on stderr — advisory
+  defense-in-depth, never a block.
+- Integer flags (`--limit`, `--tail`, `--timeout`, `--top-k`,
+  `--cursor`, `--revision`, `--index`, `--since-sequence`,
+  `--token-limit`, `--port`, `--structure-debounce`) require a
+  non-negative decimal; anything else is `INVALID_ARGS`, never `NaN`.
+
+Error-code families (orientation list — the envelope is always
+`{error:{code,message,retryable}}`; the canonical command table and
+usages come from `scopegrain --help`):
+
+| Family | Meaning |
+|---|---|
+| `INVALID_*`, `MALFORMED`, `UNKNOWN_KEY` | Rejected input, flag or document shape |
+| `NOT_FOUND`, `*_NOT_FOUND`, `INPUT_NOT_FOUND` | Missing resource, record or file |
+| `CONFLICT`, `*_CONFLICT`, `INIT_CONFLICT`, `CAS_MISMATCH`, `REVISION_MISMATCH`, `STATE_CONFLICT` | State/version collision; `*MISMATCH`, `STATE_CONFLICT`, `WRITE_FAILED` and `JOURNAL_BUSY` carry `retryable: true` |
+| `READ_FAILED`, `WRITE_FAILED`, `INVALID_PATH`, `DOCUMENT_TOO_LARGE`, `INPUT_TOO_LARGE` | Disk access or size problems |
+| `WORKSPACE_*`, `JOURNAL_*` | Workspace enrollment and journal kernel |
+| `SESSION_*` | Bounded sessions (budget, revision, schema) |
+| `APPROVAL_*` | Approval records (CAS, state, schema) |
+| `CATALOG_*`, `BUNDLE_*`, `HASH_MISMATCH`, `REMOTE_CATALOG_UNSUPPORTED` | Catalog, bundles and the `dist` mounted layer |
+| `VERIFY_*` | Verification commands (approval, cwd, executable, timeout) |
+| `VANTADB_*`, `BRAIN_*` | VantaDB backend and brain channel |
+| `METHODOLOGY_REQUIRED`, `INTERACTIVE_REQUIRED`, `HOST_*` | Methodology, interaction and host gates |
+| `INTERNAL` | Any unclassified failure — reportable as a defect |
 
 ## Lifecycle
 
@@ -177,7 +203,12 @@ alias dispatches through the same path as `workflow COMMAND`: it
 builds a read-only packet (canonical command + resolved resources +
 profile) for a host to interpret; the harness never executes the
 content. Common flags for every alias:
-`--project PATH [--config REL] [--mode M] [--task UUID] [--host H] [--profile ID] [--interaction direct|guided] [--lazy]`.
+`--project PATH [--config REL] [--mode M] [--task UUID] [--host H] [--profile ID] [--interaction direct|guided] [--arguments TEXT] [--script PATH] [--lazy]`.
+
+`--arguments`/`--script` feed the command's placeholder substitution
+(`{ARGUMENTS}`/`{SCRIPT}`): when the body declares a token and no value
+is supplied, resolution fails closed (`UNRESOLVED_PLACEHOLDER`) instead
+of silently stripping it.
 
 With `--lazy` the packet does not inline resource bodies: every
 `resources`/`contributedResources` entry carries `{kind,id,description,
@@ -297,7 +328,7 @@ When a VantaDB backend is enrolled, the projected project history is
 injected automatically at both resume points — no manual CLI queries:
 
 ```
-context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--timeout MS]
+context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS]
 session resume UUID [--no-vantadb] [--timeout MS]
 ```
 
@@ -314,9 +345,12 @@ session resume UUID [--no-vantadb] [--timeout MS]
 - `--no-vantadb` skips the backend spawn entirely; `--timeout MS`
   bounds the wait (15 s default).
 - `--no-structure` serves the persisted structural index without
-  rescanning the tree (equivalent to the MCP `noStructure` argument);
-  the API also accepts `structureDebounceMs` to bound refresh inside
-  long-lived processes.
+  rescanning the tree (equivalent to the MCP `noStructure` argument).
+- `--structure-debounce MS` is opt-in: within the `MS` window the
+  structural freshness answer comes from a bounded cache
+  (`<paths.state>/cache/structure-status.json`) instead of rescanning;
+  it is the only write `context` can produce — best-effort, derived,
+  and invalidated by any `structure scan|refresh`.
 - The MCP tool `scopegrain_session_resume` applies the same
   record-level rehydration. The MCP surface stays read-only.
 
@@ -331,14 +365,15 @@ Bounded append-only JSONL logs under `paths.memory`; field contract in
 
 ```text
 memory add --project PATH --log lessons|outcomes|progress --input FILE
-memory list --project PATH --log lessons|outcomes|progress|goals [--tail N]
+memory list --project PATH --log lessons|outcomes|progress|goals|activity [--tail N]
 ```
 
 `add` validates the entry against the per-log closed schema (lessons
 `{topic?,text,ref?,taskId?}`, outcomes `{taskId,outcome,skills[]}`,
 progress `{taskId,title,result,...}`) and appends it; `list` returns the
 latest `tail` entries (default 50, max 1000) plus malformed lines. The
-`goals` log is read-only here: goals enter through `goal *`.
+`goals` and `activity` logs are read-only here: goals enter through
+`goal *` and retroactive activity through `activity record`.
 
 Logs larger than the configured document cap are read as a bounded tail
 window, so an oversized log never breaks session start; the result marks
@@ -500,15 +535,15 @@ scopegrain dist bundle-validate --project PATH --input FILE
 scopegrain dist bundle-install --project PATH --input FILE [--apply]
 scopegrain dist bundle-mount --project PATH ID
 scopegrain dist bundle-unmount --project PATH ID
-scopegrain dist bundle-uninstall --project PATH ID [--keep-files]
+scopegrain dist bundle-uninstall --project PATH ID [--keep-files] [--apply]
 scopegrain dist mounted-list --project PATH
 scopegrain dist extension-register --project PATH --input FILE
 scopegrain dist extension-list --project PATH
 scopegrain dist extension-activate|deactivate --project PATH ID
-scopegrain dist extension-remove --project PATH ID
+scopegrain dist extension-remove --project PATH ID [--apply]
 scopegrain dist preset-register --project PATH --input FILE
 scopegrain dist preset-list --project PATH
-scopegrain dist preset-remove --project PATH ID
+scopegrain dist preset-remove --project PATH ID [--apply]
 scopegrain dist pack --project PATH --source DIR --out FILE
 ```
 
@@ -544,7 +579,13 @@ Directory-type sources mount the kind's conventional file (`SKILL.md`,
 entries. `bundle-uninstall` unmounts and deletes only files still
 matching provenance — divergent bytes land in `leftBehind`;
 `--keep-files` deletes nothing. Provenance tampered to point outside the
-bundle directory fails `MALFORMED`.
+bundle directory fails `MALFORMED`. `bundle-uninstall`,
+`extension-remove` and `preset-remove` follow the same
+preview/`--apply` contract as `bundle-install`: without `--apply` they
+return `mode: 'dry-run'` with the plan (entries to unmount,
+`deleteCandidates`, registry record to delete) validated against current
+state — `NOT_FOUND`/`CONFLICT` surface in the preview, not only at
+write time.
 
 Presets declare `overrides:[{target, op, content}]` where `target` is
 `'*'`, `'<kind>/*'` or `'<kind>/<id>'` and `op` is `replace`, `prepend`,
@@ -669,6 +710,30 @@ never writes shared host configuration:
 `interceptsNativeTools` stays `false`: interception only exists once the
 owner merges a proposal and a pilot proves it.
 
+### verify * — supervised verification commands
+
+```text
+scopegrain verify list --project PATH
+scopegrain verify add --project PATH --command CMD [--apply]
+scopegrain verify approve ID --project PATH [--apply]
+scopegrain verify discover --project PATH [--apply] [--approve]
+scopegrain verify approve-discovered --project PATH [--all] [--apply]
+scopegrain verify run ID --project PATH [--timeout MS] [--fail-on-error]
+```
+
+Full contract in `../verification.md`: nothing auto-approves or
+auto-executes — `add`/`approve`/`discover` preview like every other
+mutating verb, and `run` only executes an explicitly approved record as
+literal argv (bounded, never a shell). `--fail-on-error` propagates the
+child exit code (or 1 on timeout/signal) for CI.
+
+Windows note: a declared executable that resolves to a `.cmd`/`.bat`
+PATH shim (typically `npm`, `yarn`, `pnpm`) fails `run` with
+`VERIFY_EXEC_REJECTED` — Node >= 18.20.2 refuses to spawn batch files
+without a shell (CVE-2024-27980). Re-declare the command with a real
+executable: `node <script>` (e.g.
+`node node_modules/npm/bin/npm-cli.js test`) or the tool's `.exe`.
+
 ## Global user config, version, wave progress and VantaDB L3
 
 ### `--version` / `-v` / `-V` / `-h`
@@ -718,7 +783,8 @@ Explicit bounded structural index refresh: runs a cheap stat-only freshness
 check first and returns `mode: "noop"` without reading source files when
 already fresh. When missing or stale, previews without `--apply` and
 rebuilds/persists atomically with `--apply`. `context` remains strictly
-read-only and reports `refreshPolicy: "explicit"`.
+read-only and reports `refreshPolicy: "explicit"` (except the opt-in
+`--structure-debounce` cache, see above).
 
 ### vantadb sync-persona
 

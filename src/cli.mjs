@@ -8,6 +8,7 @@ import { err, toErrorPayload } from './core/errors.mjs';
 import { DEFAULT_PATH_PROPOSALS, KNOWN_HOSTS, PATH_KEYS, VERSIONING_KEYS, loadConfig, resolveConfigPath, validateMethodologyMode } from './core/config.mjs';
 import { resolveContext } from './core/context.mjs';
 import { configRel, resolveInside, resolveProjectRoot } from './core/paths.mjs';
+import { assertSafeId } from './core/identifiers.mjs';
 import {
   decodeUtf8Strict, mkdirpSync, readFileLimited, writeFileExclusive,
 } from './core/fsx.mjs';
@@ -80,7 +81,7 @@ const VALUE_FLAGS = new Set([
   '--reason', '--by', '--log', '--tail', '--backlog', '--status', '--index',
   '--text', '--outcome', '--cursor', '--arguments', '--script',
   '--assessment', '--source', '--out', '--registry', '--op', '--id',
-  '--token-limit', '--hosts',
+  '--token-limit', '--hosts', '--structure-debounce',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -319,10 +320,11 @@ const COMMANDS = {
   },
   'context': {
     flags: ['--project', '--config', '--tail', '--no-vantadb', '--timeout',
-      '--no-structure'],
+      '--no-structure', '--structure-debounce'],
     pos: 0,
     usage: 'context --project PATH [--tail N] '
-      + '[--no-vantadb] [--no-structure] [--timeout MS]',
+      + '[--no-vantadb] [--no-structure] [--structure-debounce MS] '
+      + '[--timeout MS]',
   },
   'task check-action': {
     flags: ['--project', '--config'], pos: 2,
@@ -342,7 +344,7 @@ const COMMANDS = {
   },
   'memory list': {
     flags: ['--project', '--config', '--log', '--tail'], pos: 0,
-    usage: 'memory list --project PATH --log lessons|outcomes|progress [--tail N]',
+    usage: 'memory list --project PATH --log lessons|outcomes|progress|goals|activity [--tail N]',
   },
   'goal create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
@@ -509,8 +511,8 @@ const COMMANDS = {
     usage: 'dist bundle-unmount --project PATH ID',
   },
   'dist bundle-uninstall': {
-    flags: ['--project', '--config', '--keep-files'], pos: 1,
-    usage: 'dist bundle-uninstall --project PATH ID [--keep-files]',
+    flags: ['--project', '--config', '--keep-files', '--apply'], pos: 1,
+    usage: 'dist bundle-uninstall --project PATH ID [--keep-files] [--apply]',
   },
   'dist mounted-list': {
     flags: ['--project', '--config'], pos: 0,
@@ -530,12 +532,12 @@ const COMMANDS = {
     usage: 'dist pack --project PATH --source DIR --out FILE',
   },
   'dist extension-remove': {
-    flags: ['--project', '--config'], pos: 1,
-    usage: 'dist extension-remove --project PATH ID',
+    flags: ['--project', '--config', '--apply'], pos: 1,
+    usage: 'dist extension-remove --project PATH ID [--apply]',
   },
   'dist preset-remove': {
-    flags: ['--project', '--config'], pos: 1,
-    usage: 'dist preset-remove --project PATH ID',
+    flags: ['--project', '--config', '--apply'], pos: 1,
+    usage: 'dist preset-remove --project PATH ID [--apply]',
   },
   'dist preset-register': {
     flags: ['--project', '--config', '--input'], pos: 0,
@@ -687,7 +689,7 @@ const COMMANDS = {
 // the flag set is fixed by the settled interface.
 const WORKFLOW_ALIAS_FLAGS = [
   '--project', '--config', '--mode', '--task', '--host', '--profile',
-  '--interaction',
+  '--interaction', '--arguments', '--script', '--lazy',
 ];
 
 function helpResult() {
@@ -702,7 +704,7 @@ function helpResult() {
       'results are JSON on stdout; errors are JSON on stderr with exit code 1',
       'JSON creation previews do not reserve IDs; use IDs returned by --apply',
       'task create --input is the supported creation path; the --title/--contract/--author flag form only applies to projects in manual methodology mode',
-      'mutating verbs preview as {mode:"dry-run",plan|task} unless --apply; this includes task create (both forms), meta/disposition/note/step/transition, checklist mark, goal create/transition, memory add, journal compact, constitution set and vantadb sync/reinforce/distill/sync-memory',
+      'mutating verbs preview as {mode:"dry-run",plan|task} unless --apply; this includes task create (both forms), meta/disposition/note/step/transition, checklist mark, goal create/transition, memory add, journal compact, constitution set, dist bundle-uninstall/extension-remove/preset-remove and vantadb sync/reinforce/distill/sync-memory/sync-persona',
       'intake.mode (off|capture|suggest|auto) lives in .scopegrain/config.json under "intake"; edit the key directly — it is not an interactive wizard question and init --answers does not carry it',
       'Methodology checks and stored approvals are not native tool permissions',
       '--owned opts specification create/show into journal ownership; legacy behavior stays unchanged without it',
@@ -716,7 +718,8 @@ function helpResult() {
       'capture proposals lists review proposals; capture review --apply creates an owned capture only from an approved decision',
       'verify add/approve/discover preview first; discover --approve bulk-approves the literal candidates just shown; approve-discovered without candidates approves all stored inferred and needs --all; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
       'verify run prints the result JSON and exits 0 by default; --fail-on-error propagates the command exit code (or 1 on timeout/signal)',
-      'view serves a loopback API and keeps running; press Ctrl+C to stop; --allow-write opts in to the bounded catalog-doc edit endpoint (CAS-checked PUT) — the API stays read-only without it',
+      'view serves a loopback API and keeps running; press Ctrl+C to stop; an occupied default port walks to the next free one (an explicit --port fails fast); --allow-write opts in to the bounded catalog-doc edit endpoint (CAS-checked PUT) — the API stays read-only without it',
+      'an --input file resolving outside --project emits an INPUT_OUTSIDE_PROJECT warning on stderr — advisory defense-in-depth, never a block',
     ],
   };
 }
@@ -1576,17 +1579,77 @@ async function cmdDist(sub, rest, flags) {
     return d.unmountBundle(ctx, rest[0]);
   }
   if (sub === 'bundle-uninstall') {
-    return d.uninstallBundle(ctx, rest[0],
-      { keepFiles: flags['--keep-files'] === true });
+    const keepFiles = flags['--keep-files'] === true;
+    if (flags['--apply']) {
+      return d.uninstallBundle(ctx, rest[0], { keepFiles });
+    }
+    assertSafeId(rest[0], 'bundle id');
+    const provRel = configRel(ctx, `bundles/${rest[0]}/provenance.json`);
+    const provAbs = resolveInside(
+      ctx.projectRoot, provRel, 'bundle provenance');
+    let provSt = null;
+    try { provSt = fs.lstatSync(provAbs); }
+    catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
+    if (provSt === null || provSt.isSymbolicLink() || !provSt.isFile()) {
+      throw err('NOT_FOUND', `bundle '${rest[0]}' is not installed`);
+    }
+    const limited = readFileLimited(provAbs, loadLimits().maxDocumentBytes);
+    if (limited.exceeded) throw err('DOCUMENT_TOO_LARGE', provRel);
+    let prov;
+    try {
+      prov = JSON.parse(
+        decodeUtf8Strict(limited.content, 'MALFORMED', provRel));
+    } catch (e) {
+      if (e && e.code === 'MALFORMED') throw e;
+      throw err('MALFORMED',
+        `bundle provenance is not valid JSON: ${provRel}`);
+    }
+    const mountedKeys = d.loadMounted(ctx).entries
+      .filter((e) => e.bundle === rest[0])
+      .map((e) => `${e.kind}/${e.id}`);
+    return {
+      mode: 'dry-run', applied: false,
+      plan: {
+        verb: 'dist bundle-uninstall', bundle: rest[0], keepFiles,
+        unmount: mountedKeys,
+        deleteCandidates: keepFiles ? []
+          : [...(prov.files ?? []).map((f) => f.rel), provRel],
+        note: 'files diverging from provenance are left behind',
+      },
+    };
   }
   if (sub === 'mounted-list') {
     return { mounted: d.loadMounted(ctx).entries };
   }
   if (sub === 'extension-remove') {
-    return d.removeExtension(ctx, rest[0]);
+    if (flags['--apply']) return d.removeExtension(ctx, rest[0]);
+    assertSafeId(rest[0], 'extension id');
+    const ext = d.listRegistry(ctx, 'extensions')
+      .find((e) => e.id === rest[0]);
+    if (!ext) {
+      throw err('NOT_FOUND', `extension '${rest[0]}' not registered`);
+    }
+    if (ext.state === 'active') {
+      throw err('CONFLICT',
+        `extension '${rest[0]}' is active; deactivate before removing`);
+    }
+    return {
+      mode: 'dry-run', applied: false,
+      plan: { verb: 'dist extension-remove', id: rest[0], extension: ext },
+    };
   }
   if (sub === 'preset-remove') {
-    return d.removePreset(ctx, rest[0]);
+    if (flags['--apply']) return d.removePreset(ctx, rest[0]);
+    assertSafeId(rest[0], 'preset id');
+    const preset = d.listRegistry(ctx, 'presets')
+      .find((p) => p.id === rest[0]);
+    if (!preset) {
+      throw err('NOT_FOUND', `preset '${rest[0]}' not registered`);
+    }
+    return {
+      mode: 'dry-run', applied: false,
+      plan: { verb: 'dist preset-remove', id: rest[0], preset },
+    };
   }
   if (sub === 'preset-register') {
     const input = readInputFile(requireFlag(flags, '--input'), 'preset input');
@@ -1601,7 +1664,7 @@ async function cmdDist(sub, rest, flags) {
   if (sub === 'journal') {
     return d.readDistJournal(ctx, {
       tail: flags['--tail'] === undefined ? null
-        : Number(flags['--tail']),
+        : decimalInt(flags['--tail'], '--tail'),
       registry: flags['--registry'] ?? null,
       op: flags['--op'] ?? null,
       id: flags['--id'] ?? null,
@@ -1729,6 +1792,9 @@ async function cmdContext(flags) {
       ? decimalInt(flags['--timeout'], '--timeout') : undefined,
     noVantadb: flags['--no-vantadb'] === true,
     noStructure: flags['--no-structure'] === true,
+    structureDebounceMs: flags['--structure-debounce'] !== undefined
+      ? decimalInt(flags['--structure-debounce'], '--structure-debounce')
+      : undefined,
   });
 }
 
@@ -1823,7 +1889,7 @@ async function cmdCapture(sub, positional, flags) {
 // capture CLI paths.
 async function cmdCaptureProposals(project, flags) {
   const { getWorkspace } = await import('./core/workspaces.mjs');
-  const { proposeFromInitAnswers, proposeFromJournal } = await import('./core/capture-proposals.mjs');
+  const { filterRejectedProposals, listProposalDecisions, proposeFromInitAnswers, proposeFromJournal } = await import('./core/capture-proposals.mjs');
   const options = {};
   if (Object.hasOwn(flags, '--since-sequence')) {
     options.sinceSequence = decimalInt(
@@ -1840,10 +1906,12 @@ async function cmdCaptureProposals(project, flags) {
     paths: config.paths, versioning: config.versioning,
     methodology: config.methodology,
   };
+  const { decisions } = listProposalDecisions(ctx);
   return {
     proposals: [
       ...proposeFromJournal(ctx, options),
-      ...proposeFromInitAnswers(answers, { areaIds }),
+      ...filterRejectedProposals(
+        proposeFromInitAnswers(answers, { areaIds }), decisions),
     ],
   };
 }
@@ -1999,7 +2067,7 @@ async function cmdGoal(sub, positional, flags) {
 async function cmdCaptureReview(project, flags) {
   const { getWorkspace } = await import('./core/workspaces.mjs');
   const { createCaptureStore } = await import('./core/captures.mjs');
-  const { reviewProposal } = await import('./core/capture-proposals.mjs');
+  const { persistProposalDecision, reviewProposal } = await import('./core/capture-proposals.mjs');
   const input = readInputFile(
     requireFlag(flags, '--input'), 'capture review input');
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
@@ -2017,17 +2085,20 @@ async function cmdCaptureReview(project, flags) {
   if (Object.hasOwn(input, 'changes')) decision.changes = input.changes;
   const review = reviewProposal(input.proposal, decision);
   if (!flags['--apply']) return { mode: 'dry-run', review };
-  if (review.status !== 'approved') {
-    return { mode: 'applied', applied: false, review };
-  }
   const ctx = resolveContext({ project, config: flags['--config'] });
+  const persisted = persistProposalDecision(ctx, input.proposal, decision);
+  if (persisted.review.status !== 'approved') {
+    return { mode: 'applied', applied: true,
+      review: persisted.review, decision: persisted.decision };
+  }
   const workspace = getWorkspace(ctx);
   const store = createCaptureStore(ctx, {
     areaIds: workspace.areas.map((area) => area.id), origin: 'local-cli',
   });
   const created = store.create(
-    { ...review.input.capture, areaIds: review.input.areaIds });
-  return { ...created, review: { status: review.status } };
+    { ...persisted.review.input.capture, areaIds: persisted.review.input.areaIds });
+  return { ...created, review: { status: persisted.review.status },
+    decision: persisted.decision };
 }
 
 async function cmdJournal(sub, positional, flags) {
@@ -2041,10 +2112,11 @@ async function cmdJournal(sub, positional, flags) {
   if (sub === 'list') {
     const options = {};
     if (flags['--since-sequence'] !== undefined) {
-      options.afterSequence = Number(flags['--since-sequence']);
+      options.afterSequence = decimalInt(
+        flags['--since-sequence'], '--since-sequence');
     }
     if (flags['--limit'] !== undefined) {
-      options.limit = Number(flags['--limit']);
+      options.limit = decimalInt(flags['--limit'], '--limit');
     }
     return listJournalPending(bound, options);
   }
@@ -2123,7 +2195,7 @@ async function cmdVantaDB(sub, positional, flags) {
   const workspace = getWorkspace(ctx);
   const bound = bindWorkspace(ctx, { areaIds: workspace.areas.map((area) => area.id) });
   const timeoutMs = flags['--timeout'] !== undefined
-    ? Number(flags['--timeout']) : undefined;
+    ? decimalInt(flags['--timeout'], '--timeout') : undefined;
   if (sub === 'status') {
     const report = vantaDBStatus({ ctx, bound });
     if (flags['--probe'] === true) {
@@ -2150,7 +2222,9 @@ async function cmdVantaDB(sub, positional, flags) {
   if (sub === 'search') {
     const args = { namespace: requireFlag(flags, '--namespace') };
     if (flags['--query'] !== undefined) args.text_query = flags['--query'];
-    if (flags['--top-k'] !== undefined) args.top_k = Number(flags['--top-k']);
+    if (flags['--top-k'] !== undefined) {
+      args.top_k = decimalInt(flags['--top-k'], '--top-k');
+    }
     if (flags['--mode'] !== undefined) {
       if (!SEARCH_MODES.includes(flags['--mode'])) {
         throw err('INVALID_ARGS',
@@ -2165,18 +2239,16 @@ async function cmdVantaDB(sub, positional, flags) {
     const namespace = requireFlag(flags, '--namespace');
     const args = { namespace };
     if (flags['--cursor'] !== undefined) {
-      const cursor = Number(flags['--cursor']);
-      if (!Number.isSafeInteger(cursor) || cursor < 0) {
-        throw err('INVALID_ARGS', '--cursor must be a non-negative integer');
-      }
-      args.cursor = cursor;
+      args.cursor = decimalInt(flags['--cursor'], '--cursor');
     }
     return callVantaDBTool({ cfg: requireVantaDBConfig(ctx),
       name: 'memory_list', arguments: args, timeoutMs });
   }
   if (sub === 'recall') {
     const args = { query: requireFlag(flags, '--query') };
-    if (flags['--top-k'] !== undefined) args.top_k = Number(flags['--top-k']);
+    if (flags['--top-k'] !== undefined) {
+      args.top_k = decimalInt(flags['--top-k'], '--top-k');
+    }
     // Explicit --scope opts INTO the engine's memory_recall pool
     // (machine-global at scope=agent); the default is project-scoped
     // memory_search at l1/sg-<projectHash> — see the module comment in
@@ -2217,9 +2289,10 @@ async function cmdVantaDB(sub, positional, flags) {
   if (sub === 'context') {
     const recordId = requireFlag(flags, '--record-id');
     return vantaDBContext({ cfg: requireVantaDBConfig(ctx), recordId,
-      topK: flags['--top-k'] !== undefined ? Number(flags['--top-k']) : undefined,
+      topK: flags['--top-k'] !== undefined
+        ? decimalInt(flags['--top-k'], '--top-k') : undefined,
       maxNamespaces: flags['--limit'] !== undefined
-        ? Number(flags['--limit']) : undefined,
+        ? decimalInt(flags['--limit'], '--limit') : undefined,
       timeoutMs });
   }
   if (sub === 'distill') {
@@ -2231,7 +2304,8 @@ async function cmdVantaDB(sub, positional, flags) {
       };
     }
     return vantaDBDistill({ bound, cfg,
-      limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
+      limit: flags['--limit'] !== undefined
+        ? decimalInt(flags['--limit'], '--limit') : undefined,
       timeoutMs });
   }
   if (sub === 'sync-memory') {
@@ -2243,14 +2317,16 @@ async function cmdVantaDB(sub, positional, flags) {
       };
     }
     return vantaDBSyncWorklogs({ ctx, bound, cfg,
-      limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
+      limit: flags['--limit'] !== undefined
+        ? decimalInt(flags['--limit'], '--limit') : undefined,
       timeoutMs });
   }
   if (sub === 'sync-persona') {
     const apply = !!flags['--apply'];
     const cfg = apply ? requireVantaDBConfig(ctx) : null;
     return vantaDBSyncPersona({ ctx, bound, cfg,
-      limit: flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined,
+      limit: flags['--limit'] !== undefined
+        ? decimalInt(flags['--limit'], '--limit') : undefined,
       apply, timeoutMs });
   }
   // sub === 'sync' — one-shot run; same preview/--apply gate as every
@@ -2259,7 +2335,8 @@ async function cmdVantaDB(sub, positional, flags) {
   if (!flags['--apply']) {
     return { mode: 'dry-run', applied: false, plan: { verb: 'vantadb sync' } };
   }
-  const limit = flags['--limit'] !== undefined ? Number(flags['--limit']) : undefined;
+  const limit = flags['--limit'] !== undefined
+    ? decimalInt(flags['--limit'], '--limit') : undefined;
   return syncVantaDB({ ctx, bound, cfg, limit, timeoutMs });
 }
 
@@ -2774,12 +2851,26 @@ async function cmdView(flags, io) {
     project: requireFlag(flags, '--project'), config: flags['--config'],
   };
   if (Object.hasOwn(flags, '--host')) options.host = flags['--host'];
-  if (Object.hasOwn(flags, '--port')) {
+  const explicitPort = Object.hasOwn(flags, '--port');
+  if (explicitPort) {
     options.port = decimalInt(flags['--port'], '--port');
   }
   if (flags['--allow-write']) options.allowWrite = true;
-  const api = createApiServer(options);
-  const bound = await api.listen();
+  const attempts = explicitPort ? 1 : 16;
+  let api = null;
+  let bound = null;
+  let lastErr = null;
+  for (let i = 0; i < attempts && bound === null; i++) {
+    api = createApiServer(options);
+    try {
+      bound = await api.listen();
+    } catch (e) {
+      lastErr = e;
+      if (!e || e.code !== 'EADDRINUSE') throw e;
+      options.port = api.port + 1;
+    }
+  }
+  if (bound === null) throw lastErr;
   if (io !== null && typeof io === 'object') io.viewServer = api;
   const host = bound.host.includes(':') ? `[${bound.host}]` : bound.host;
   return { url: `http://${host}:${bound.port}/`,
@@ -2840,7 +2931,7 @@ export async function run(argv, io) {
         aliasCommand = positional[0];
         cmdKey = positional[0];
         spec = { flags: WORKFLOW_ALIAS_FLAGS, pos: 0,
-          usage: `${positional[0]} --project PATH [--mode M] [--task UUID] [--host H] [--profile ID]` };
+          usage: `${positional[0]} --project PATH [--mode M] [--task UUID] [--host H] [--profile ID] [--arguments TEXT] [--script PATH] [--lazy]` };
       }
     }
     if (!spec) {
@@ -2958,8 +3049,21 @@ export async function run(argv, io) {
       result = await cmdHost(cmdKey.slice(5), flags);
     } else if (cmdKey.startsWith('helper ')) {
       result = await cmdHelper(cmdKey.slice(7), flags);
-    } else {
+    } else if (cmdKey.startsWith('session ')) {
       result = await cmdSession(cmdKey.slice(8), rest, flags);
+    } else {
+      throw err('INVALID_ARGS', `unknown command '${cmdKey}'`);
+    }
+    if (flags['--input'] !== undefined && flags['--project'] !== undefined) {
+      const inputAbs = path.resolve(flags['--input']);
+      const rel = path.relative(path.resolve(flags['--project']), inputAbs);
+      if (rel === '..' || rel.startsWith(`..${path.sep}`)
+          || path.isAbsolute(rel)) {
+        io.stderr(JSON.stringify({ warning: {
+          code: 'INPUT_OUTSIDE_PROJECT',
+          message: `--input resolves outside the project root: ${inputAbs}`,
+        } }));
+      }
     }
     io.stdout(JSON.stringify(result, null, 2));
     // Commands may request a specific success-path exit code through
