@@ -16,7 +16,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `140` entrad
 | Superficie | Inventario | Acceso |
 |---|---|---|
 | CLI `bin/scopegrain.mjs` | 141 subcomandos registrados, imports perezosos por comando | Humano y agente |
-| MCP `src/mcp/server.mjs` | 35 tools `scopegrain_*`: 23 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawn del binario VantaDB enrolado) + 6 de escritura (4 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | Hosts MCP (stdio) |
+| MCP `src/mcp/server.mjs` | 37 tools `scopegrain_*`: 23 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawn del binario VantaDB enrolado) + 8 de escritura (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | Hosts MCP (stdio) |
 | API local `src/api/server.mjs` | 30 rutas GET `/api/*` | Loopback-only, GET-only |
 | Visor `viewer/` (`scopegrain view`) | 15 vistas React 19 + TS + Vite + Tailwind | Read-only, humano |
 | Catálogo `resources/manifest.json` | 140 entradas + 32 aliases | Proyectable al proyecto |
@@ -171,7 +171,7 @@ committed+acked.
 
 ---
 
-## 3. MCP — 35 tools `scopegrain_*`
+## 3. MCP — 37 tools `scopegrain_*`
 
 ### Read-only locales (23) — `readOnlyHint`, `openWorldHint:false`
 
@@ -189,7 +189,7 @@ enrolado y envía datos al backend de memoria configurado:
 `context`, `memory_context`, `memory_get`, `memory_recall`, `memory_search`,
 `session_resume`
 
-### Escritura local (6)
+### Escritura local (8)
 
 | Tool | Mutación | Anotación |
 |---|---|---|
@@ -197,6 +197,8 @@ enrolado y envía datos al backend de memoria configurado:
 | `scopegrain_task_meta` | Aplica un patch controlado de metadatos con CAS de revisión | `WRITE_LOCAL` |
 | `scopegrain_memory_add` | Append a un worklog `lessons\|outcomes\|progress` | `WRITE_LOCAL` |
 | `scopegrain_goal_create` | Crea un goal | `WRITE_LOCAL` |
+| `scopegrain_task_transition` | Transición FSM de tarea con `--apply` (dry-run si se omite) | `WRITE_LOCAL` |
+| `scopegrain_task_create` | Crea tarea (input record o campos planos) | `WRITE_LOCAL` |
 | `scopegrain_task_disposition` | Fija/limpia la disposición de una tarea | `WRITE_DISCARD` (`destructiveHint`: semántica de descarte) |
 | `scopegrain_goal_transition` | Transición de goal (`open\|achieved\|dropped`) | `WRITE_DISCARD` (`destructiveHint`: `dropped` descarta el goal) |
 

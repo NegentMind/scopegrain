@@ -21,7 +21,7 @@ recorded in [verification](verification.md) (it changes with every run).
 | Surface | Inventory | Access |
 |---|---|---|
 | CLI `bin/scopegrain.mjs` | 141 registered subcommands, lazy per-command imports | Human and agent |
-| MCP `src/mcp/server.mjs` | 35 `scopegrain_*` tools: 23 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 6 writers (4 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
+| MCP `src/mcp/server.mjs` | 37 `scopegrain_*` tools: 23 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 8 writers (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
 | Local API `src/api/server.mjs` | 30 GET routes `/api/*` | Loopback-only, GET-only |
 | Viewer `viewer/` (`scopegrain view`) | 15 views, React 19 + TS + Vite + Tailwind | Read-only, human |
 | Catalog `resources/manifest.json` | 140 entries + 32 aliases | Projectable into the project |
@@ -172,7 +172,7 @@ committed+acked events.
 
 ---
 
-## 3. MCP — 35 `scopegrain_*` tools
+## 3. MCP — 37 `scopegrain_*` tools
 
 ### Local read-only (23) — `readOnlyHint`, `openWorldHint:false`
 
@@ -190,7 +190,7 @@ binary and sends data to the configured memory backend:
 `context`, `memory_context`, `memory_get`, `memory_recall`, `memory_search`,
 `session_resume`
 
-### Local write (6)
+### Local write (8)
 
 | Tool | Mutation | Annotation |
 |---|---|---|
@@ -198,6 +198,8 @@ binary and sends data to the configured memory backend:
 | `scopegrain_task_meta` | Applies a controlled metadata patch with revision CAS | `WRITE_LOCAL` |
 | `scopegrain_memory_add` | Appends to a `lessons\|outcomes\|progress` worklog | `WRITE_LOCAL` |
 | `scopegrain_goal_create` | Creates a goal | `WRITE_LOCAL` |
+| `scopegrain_task_transition` | Task FSM transition with `--apply` (dry-run when omitted) | `WRITE_LOCAL` |
+| `scopegrain_task_create` | Creates a task (input record or flat fields) | `WRITE_LOCAL` |
 | `scopegrain_task_disposition` | Sets/clears a task disposition | `WRITE_DISCARD` (`destructiveHint`: discard semantics) |
 | `scopegrain_goal_transition` | Goal transition (`open\|achieved\|dropped`) | `WRITE_DISCARD` (`destructiveHint`: `dropped` discards the goal) |
 

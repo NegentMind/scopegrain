@@ -134,3 +134,13 @@ node .\bin\scopegrain.mjs dist preset-remove --project . yagni-concise
 Extension and preset registries live under the project's config
 directory; mutations go through the `dist` CAS journal, queryable with
 `dist journal`.
+
+## Related documents
+
+- [release-runbook.md](release-runbook.md) — npm package release
+  process (distinct from the `dist` subsystem, which moves catalogs
+  between projects).
+- [skills-distribution-eval.md](skills-distribution-eval.md) —
+  evaluation of distributing `resources/skills/` through the Agent
+  Skills ecosystem (`npx skills add`), an alternative channel to
+  per-host projection.

@@ -235,7 +235,7 @@ See [onboarding](onboarding.md) and [workflows](workflows.md).
 
 ## 11. Optional MCP
 
-The MCP server offers 35 tools, strictly bound to the project and
+The MCP server offers 37 tools, strictly bound to the project and
 configuration selected at startup: 23 read-only (`READ_ONLY`), 4 that
 write local state under the same CAS/lock discipline as the CLI
 (`WRITE_LOCAL`: `scopegrain_next_task` with `claimBy`,
