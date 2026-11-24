@@ -1,3 +1,4 @@
+<!-- translated-from: docs/verification.md @ 2026-11-24 -->
 # Verification
 
 > English translation of the canonical Spanish document
@@ -5,7 +6,10 @@
 
 ## Current Status
 
-The latest full run (`npm test`, serial per file, 2026-11-23, token
+The suite currently numbers **1540 tests** (count verified in the
+full-repo audit of 2026-11-24; commits after the last recorded full run
+grew the suite without a new complete execution). The latest recorded
+full run (`npm test`, serial per file, 2026-11-23, token
 counting branch) reported **1440 tests: 1435 passing and 5 failing**. Of
 the 5 failures, 4 are long-run flakes (cli-lifecycle `update previews`,
 config-methodology `legacy no-op` and two docs-cli-drift cases): run
@@ -97,6 +101,7 @@ test:smoke` → 215 pass, 0 fail. `doctor` keeps 438 failures: 436
 | Prior full run | `npm test` serial, 2026-11-18 | Exit 0: 1152 pass, 0 fail, 0 skipped, 0 cancelled |
 | Current full run (v0.1.0 prep) | `npm test` serial (`ca27e26`), 2026-11-22 | Exit 0: 1411 pass, 0 fail, 0 skipped, 0 cancelled (831.6 s); `npm run test:smoke` 215/215 pass (43.2 s) |
 | Token full run (estimation + sessions v2) | `npm test` serial, 2026-11-23 | Exit 1: 1440 tests, 1435 pass, 5 fail (4 flakes that pass standalone; 1 pre-existing `host-variants` failure, reproducible on clean `HEAD`); focused gate 36/36; `cd viewer && npm run build` green |
+| Current suite count | Read-only full-repo audit, 2026-11-24 | 1540 declared tests after the commits following the 2026-11-23 full run (`task suggest`/`gate`, `tasksystem` purge, viewer i18n, VantaDB hardening); no new recorded full run |
 | Viewer (lint + typecheck + vitest + build + Chromium EN/ES) | `viewer/` + Playwright, 2026-11-22 | Exit 0: eslint 0, tsc 0, vitest 17/17 (5 files), build 816 ms; 30 EN/ES views with 0 errors and 0 overflow |
 | Clean-project E2E + `npm pack --dry-run` | Global CLI `scopegrain@0.1.0`, 2026-11-22 | Exit 0: inspect/investigate/init/workspace/doctor/structure/context/dist selftest/light CLOSE/formal SDD plan+waves/backup; tarball 978.9 kB (341 files) |
 | Isolated native MCP pilot | Windows, advertised server 0.9.0, 2026-11-16 | Exit 0: `passed-storage-only`; embeddings and hosts not certified |

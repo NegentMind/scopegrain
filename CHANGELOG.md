@@ -5,11 +5,51 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Suggestive task heuristic (`task suggest`, MCP `scopegrain_task_suggest`)** —
+  deterministic scoring of catalog skills against task metadata
+  (type/title/contract/scope) with declared `reasons`. Suggestive only:
+  it never writes `task.skills` and never enters the skills bucket; the
+  same suggestion is exposed as `packet.taskRouting.suggested` in
+  workflow packets. MCP tool surface grows 34 → 35.
+- **Native gate channel (`task gate`, `host gate`)** — `task gate` runs
+  the full state+methodology+preAction check and returns a decision with
+  the exit contract `0` allow / `2` deny / `3` require-gate / `1` error
+  (fail-closed for hooks); `-` resolves `SCOPEGRAIN_TASK` then the active
+  pointer. `host gate` emits read-only merge proposals for the native
+  interception channel (PreToolUse hook for claude, declarative
+  permission surfaces for opencode/codex, documented-only for
+  devin/antigravity/hermes/generic); `interceptsNativeTools` stays
+  `false` until owner merge plus a pilot.
+- **`task check-action` (CLI + MCP `scopegrain_check_action`)** —
+  shipped in v0.1.1, documented now: reports whether an action
+  (`edit`, `verify`, `review`, …) is permitted for a task in its
+  current state under the workflow policy and methodology gates,
+  without performing it.
+- **`dist` distribution family (21 verbs)** — shipped in v0.1.1,
+  documented now: declarative catalog/bundle/extension/preset
+  machinery constrained to `file://` sources (remote URIs validate
+  their shape but refuse at load). Verbs: `run`, `stack`, `compose`,
+  `validate`, `bundle-validate`, `bundle-install` (dry-run +
+  `--apply`), `bundle-mount`, `bundle-unmount`, `bundle-uninstall`,
+  `mounted-list`, `extension-register`, `extension-list`,
+  `extension-activate`, `extension-deactivate`, `extension-remove`,
+  `preset-register`, `preset-list`, `preset-remove`, `selftest`,
+  `journal` (CAS mutation trail) and `pack`. See
+  `docs/distribution.md`.
+- **Capture review proposals (`capture proposals`, `capture review`)** —
+  shipped in v0.1.1, documented now: `capture proposals` lists pending
+  review proposals and `capture review --apply` creates an owned
+  capture only from an approved decision.
+- **Helper installation (`helper install`, `helper list`)** — shipped
+  in v0.1.1, documented now: installs and lists host helper resources.
+
 ### Changed
 
 - **Documentation resynchronized with the wave-1 implementation** (docs
-  only, ES/EN pairs kept in sync): current counts (34 MCP tools in four
-  annotation classes — 22 `READ_ONLY`, 6 `READ_BACKEND`, 4 `WRITE_LOCAL`,
+  only, ES/EN pairs kept in sync): current counts (35 MCP tools in four
+  annotation classes — 23 `READ_ONLY`, 6 `READ_BACKEND`, 4 `WRITE_LOCAL`,
   2 `WRITE_DISCARD` —, 30 API routes, 140 catalog entries, 7 discovery
   stacks, ~35 doctor checks incl. `host-merge-targets`); corrected
   `policy/hooks.json` example shape; `managed` lifecycle action and
@@ -20,9 +60,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `constraints`; closed `dist run` per-op args and `evidence` alias;
   VantaDB `binarySha256`, env allowlist and `secretEgressCheck`; bilingual
   wizard, locale-aware `task doc` and the dry-run/`--apply` matrix;
-  `intake.mode` for operators; `scopegrain` as the primary command name
-  (`tasksystem` kept as compatibility alias); viewer/native-hosts docs
-  re-marked Spanish-canonical with English translations.
+  `intake.mode` for operators; `scopegrain` as the single command name
+  and bin entrypoint (the `tasksystem` compatibility alias and the
+  `.tasksystem` legacy config fallback were retired); viewer/native-hosts
+  docs re-marked Spanish-canonical with English translations.
 
 ## [0.1.1] - 2026-11-22
 

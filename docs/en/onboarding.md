@@ -1,3 +1,4 @@
+<!-- translated-from: docs/onboarding.md @ 2026-11-24 -->
 # Onboarding and customization
 
 > English translation of the canonical Spanish document
@@ -128,6 +129,73 @@ scopegrain config set --input user-defaults.json --apply
 
    ```powershell
    node .\bin\scopegrain.mjs doctor --project "C:\path\my-project"
+   ```
+
+## Next steps after `doctor`
+
+With the configuration and generated files healthy, the usual order is:
+
+1. **Session context packet** — `context` is the read-only entry point
+   of every session: it returns instructions, config, `locale`, the
+   owner's `.scopegrain/context.md` knowledge file, a task summary,
+   open goals, resumable sessions and pending journal events. Activated
+   hosts invoke it at session start per the generated instruction in
+   `AGENTS.md`/`CLAUDE.md`.
+
+   ```powershell
+   node .\bin\scopegrain.mjs context --project "C:\path\my-project"
+   ```
+
+   ```bash
+   node ./bin/scopegrain.mjs context --project /path/my-project
+   ```
+
+2. **Activate host bridges** — `init` only generates proposals under
+   `integrations/` and `integrations/native/`; nothing reaches host
+   roots until the owner reviews them and runs `host activate --apply`.
+   Use it when a specific host should load the generated skills, agents
+   or MCP fragments; it is machine-local and writes into host roots
+   outside `.scopegrain/`, which is why it requires explicit `--apply`
+   after the preview is reviewed.
+
+   ```powershell
+   node .\bin\scopegrain.mjs host activate --project "C:\path\my-project" --host claude
+   node .\bin\scopegrain.mjs host activate --project "C:\path\my-project" --host claude --apply
+   ```
+
+   ```bash
+   node ./bin/scopegrain.mjs host activate --project /path/my-project --host claude --apply
+   ```
+
+3. **Workspace identity (optional)** — `workspace init` enrolls the
+   workspace descriptor (areas, internal bindings) required by the
+   owned records (`capture`, `specification`, `design`, `outcome`).
+   Lightweight tasks alone do not need it; create it before the first
+   owned capture or spec. Details in the next section.
+
+4. **First task** — `task create` (preview, then `--apply`) creates the
+   record in `PLAN`, revision 0. Transitions advance the
+   `PLAN -> ACT -> VERIFY -> EVALUATE -> REVIEW -> ACCEPT -> CLOSE`
+   cycle with `--revision` CAS; the edges, evidence and dispositions
+   are in [task workflow](task-workflow.md) and the full walkthrough in
+   [getting started](getting-started.md).
+
+   ```powershell
+   node .\bin\scopegrain.mjs task create --project "C:\path\my-project" --input task.json --apply
+   ```
+
+   ```bash
+   node ./bin/scopegrain.mjs task create --project /path/my-project --input task.json --apply
+   ```
+
+5. **Bounded verification** — `verify discover` infers candidates from
+   the real manifests; `verify add`/`approve` whitelist them and
+   `verify run` only executes approved ones (literal argv, never
+   shell). Registering the project's test command here keeps it
+   available as evidence in transitions.
+
+   ```powershell
+   node .\bin\scopegrain.mjs verify discover --project "C:\path\my-project"
    ```
 
 ## Workspace identity

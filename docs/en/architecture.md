@@ -1,3 +1,4 @@
+<!-- translated-from: docs/architecture.md @ 2026-11-23 -->
 # Architecture
 
 > English translation of the canonical Spanish document

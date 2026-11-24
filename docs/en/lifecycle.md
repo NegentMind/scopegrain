@@ -1,3 +1,4 @@
+<!-- translated-from: docs/lifecycle.md @ 2026-11-23 -->
 # Product lifecycle
 
 > English translation of the canonical Spanish document

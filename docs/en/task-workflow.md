@@ -1,3 +1,4 @@
+<!-- translated-from: docs/task-workflow.md @ 2026-11-23 -->
 # Task workflow and evidence
 
 > English translation of the canonical Spanish document

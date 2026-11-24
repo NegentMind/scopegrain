@@ -1,4 +1,8 @@
+<!-- translated-from: docs/vantadb.md @ 2026-11-23 -->
 # VantaDB as the memory backend
+
+> English translation of the canonical Spanish document
+> (`../vantadb.md`). The Spanish version prevails.
 
 Scopegrain can project `committed` journal events into a machine-shared
 VantaDB instance. The integration is opt-in: nothing downloads, installs

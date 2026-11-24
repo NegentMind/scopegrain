@@ -288,7 +288,9 @@ The most recent local full run (`npm test`, per-file serial,
 2026-11-23) reported **1440 tests: 1435 passing and 5 failing** on
 Windows, Node.js v26.8.1 and npm 11.6.0 — of the 5 failures, 4 are
 long-run flakes that pass standalone and 1 is a pre-existing
-`host-variants` failure reproducible on a clean `HEAD` worktree. The
+`host-variants` failure reproducible on a clean `HEAD` worktree.
+Later commits grew the suite without a new registered full run — the
+2026-11-24 audit counts **1540 tests**. The
 previous certified run (commit `ca27e26`, 2026-11-22) finished
 1411/1411 alongside the viewer lane (**17/17 Vitest tests**, 0
 lint/typecheck errors, Vite build passing, and a 30-screen EN/ES
@@ -306,7 +308,8 @@ certified in a fresh real session on 2026-11-23 against `opencode v2.3.2`:
 15/15 `scopegrain-*` subagents resolved, 74 de-duplicated `scopegrain-*`
 skill IDs with `.opencode/skills` winning precedence over `.agents/skills`,
 `/scopegrain-status` expanding in the TUI composer, the `scopegrain` MCP
-exposing 34 tools (28 read-only, 6 local-write) with
+exposing the 34 tools registered at that time (28 read-only,
+6 local-write; the surface is now 35 in four annotation classes) with
 `scopegrain_status`/`catalog_list`/`list_tasks` invoked live, the read-only
 role blocking `edit`/`shell` by tool absence, interruption/resumption
 repeating no effects, and cleanup leaving no traces in the global OpenCode
@@ -314,7 +317,8 @@ config. Claude, Codex, the Antigravity IDE
 surface and the provisional Hermes still lack a native pilot. The tests do
 not certify the six hosts or a real execution of the declared work.
 The [GitHub Actions workflow](.github/workflows/verify.yml) is triggered
-manually only; its first remote run completed successfully on 2026-11-18.
+by manual dispatch, pushes to `develop`/`main` and PRs targeting
+`develop`; its first remote run completed successfully on 2026-11-18.
 
 ## Code and license
 
@@ -330,6 +334,7 @@ pending per-piece license review.
 ## Documentation
 
 - [Architecture](docs/en/architecture.md)
+- [Getting started: end-to-end tutorial](docs/en/getting-started.md)
 - [Onboarding and customization](docs/en/onboarding.md)
 - [Compatibility and official sources](docs/en/compatibility.md)
 - [Security and trust model](docs/en/security.md)
@@ -346,6 +351,7 @@ pending per-piece license review.
 - [Implementation contract](docs/en/implementation.md)
 - [Lifecycle: adopt, update, backup, restore, uninstall](docs/en/lifecycle.md)
 - [CLI surface reference](docs/en/cli-reference.md)
+- [Declarative distribution: bundles, extensions and presets](docs/en/distribution.md)
 - [Bounded semantic investigation](docs/en/semantic-discovery.md)
 - [Read-only viewer and API](docs/en/viewer.md)
 - [Catalog provenance and attestation](docs/en/provenance.md)

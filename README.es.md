@@ -51,6 +51,7 @@ superficie de comandos — solo los verbos siguientes.
 | Panel | `view` | Lanza el dashboard web local de solo lectura (15 vistas, ES/EN); nunca muta estado |
 | Verificacion | `verify approve` + `verify run` | Pone un comando de verificacion en lista blanca y luego ejecuta solo comandos aprobados con salida acotada |
 | Decisiones | `approval answer` | Resuelve aprobaciones humanas pendientes |
+| Intake de solicitudes | `intake.mode` en `.scopegrain/config.json` | `off\|capture\|suggest\|auto` — clasifica cada solicitud y persiste un registro; edita la clave `"intake"` directamente (no es pregunta del asistente ni llega por `--answers`) |
 
 ## Visor web de solo lectura
 
@@ -290,7 +291,9 @@ La ultima ejecucion integral local (`npm test`, serial por archivo,
 Windows, Node.js v26.8.1 y npm 11.6.0 — de los 5 fallos, 4 son
 inestables de la tanda larga (pasan aislados) y 1 es un fallo
 pre-existente de `host-variants` reproducible en un worktree limpio de
-`HEAD`. La integral certificada previa (commit `ca27e26`, 2026-11-22)
+`HEAD`. Los commits posteriores ampliaron la suite sin una nueva
+integral registrada — la auditoria del 2026-11-24 cuenta **1540
+pruebas**. La integral certificada previa (commit `ca27e26`, 2026-11-22)
 termino 1411/1411 junto con el carril del visor (**17/17 pruebas
 Vitest**, 0 errores de lint/typecheck, build Vite en verde y auditoria
 visual Playwright de 30 pantallas EN/ES con 0 errores y 0 overflow). Las integrales
@@ -298,14 +301,21 @@ intermedias y las tandas anteriores son ejecuciones separadas; su alcance
 y resultados historicos estan en [verificacion](docs/verification.md).
 El piloto nativo de Devin Local quedo certificado en una sesion fresca
 real el 2026-11-17 (42 skills `scopegrain-*` y 15 subagentes auto-cargados,
-MCP `scopegrain` activo desde `.devin/mcp_config.json`); Antigravity se piloto el
-2026-11-18 (activacion `.agents/` aplicada y consumida por su sesion de
-agente). El piloto nativo de OpenCode V2 quedo certificado en una sesion
+MCP `scopegrain` activo desde `.devin/mcp_config.json`); Antigravity se
+piloto primero el 2026-11-18 (activacion `.agents/` aplicada y consumida
+por su sesion de agente) y su superficie App/CLI completo el piloto
+nativo certificado en una sesion fresca real el 2026-11-19 (72 skills
+`scopegrain-*` y 15 subagentes auto-descubiertos, MCP `scopegrain`
+activo desde `.agents/mcp_config.json`, con invocaciones en vivo de
+`scopegrain_status` y `scopegrain_catalog_list`). El piloto nativo de
+OpenCode V2 quedo certificado en una sesion
 fresca real el 2026-11-23 contra `opencode v2.3.2`: 15/15 subagentes
 `scopegrain-*` resueltos, 74 IDs de skill `scopegrain-*` deduplicados con
 `.opencode/skills` ganando precedencia sobre `.agents/skills`,
 `/scopegrain-status` expandiendo en el composer TUI, el MCP `scopegrain`
-exponiendo 34 tools (28 read-only, 6 local-write) con
+exponiendo las 34 tools registradas en ese momento (28 read-only,
+6 local-write; la superficie actual es de 35 en cuatro clases de
+anotacion) con
 `scopegrain_status`/`catalog_list`/`list_tasks` invocados en vivo, el rol
 read-only bloqueando `edit`/`shell` por ausencia de tool, la
 interrupcion/reanudacion sin repetir efectos y la limpieza sin rastros en
@@ -314,8 +324,8 @@ Antigravity y el provisional Hermes siguen sin piloto nativo. Las pruebas
 no certifican los seis anfitriones ni una ejecucion real del trabajo
 declarado.
 El [workflow de GitHub Actions](.github/workflows/verify.yml) se activa
-solo
-manualmente; su primera ejecucion remota completo con exito el 2026-11-18.
+por despacho manual, por pushes a `develop`/`main` y por PRs hacia
+`develop`; su primera ejecucion remota completo con exito el 2026-11-18.
 
 ## Codigo y licencia
 
@@ -331,6 +341,7 @@ distribucion a la espera de una revision de licencias por pieza.
 ## Documentacion
 
 - [Arquitectura](docs/architecture.md)
+- [Primeros pasos: tutorial de punta a punta](docs/getting-started.md)
 - [Incorporacion y personalizacion](docs/onboarding.md)
 - [Compatibilidad y fuentes oficiales](docs/compatibility.md)
 - [Seguridad y modelo de confianza](docs/security.md)
@@ -347,6 +358,7 @@ distribucion a la espera de una revision de licencias por pieza.
 - [Contrato de implementacion](docs/implementation.md)
 - [Ciclo de vida: adopt, update, backup, restore, uninstall](docs/lifecycle.md)
 - [Referencia de la superficie CLI](docs/cli-reference.md)
+- [Distribucion declarativa: bundles, extensiones y presets](docs/distribution.md)
 - [Investigacion semantica acotada](docs/semantic-discovery.md)
 - [Visor y API de solo lectura](docs/viewer.md)
 - [Procedencia y atestacion del catalogo](docs/provenance.md)

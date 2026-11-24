@@ -1,3 +1,4 @@
+<!-- translated-from: docs/implementation.md @ 2026-11-23 -->
 # Scopegrain: implementation contract
 
 > English translation of the canonical Spanish document

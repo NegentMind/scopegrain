@@ -1,3 +1,4 @@
+<!-- translated-from: docs/migration.md @ 2026-11-23 -->
 # Migration and known limitations
 
 > English translation of the canonical Spanish document

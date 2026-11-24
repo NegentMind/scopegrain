@@ -15,7 +15,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `140` entrad
 
 | Superficie | Inventario | Acceso |
 |---|---|---|
-| CLI `bin/scopegrain.mjs` | 138 subcomandos registrados, imports perezosos por comando | Humano y agente |
+| CLI `bin/scopegrain.mjs` | 141 subcomandos registrados, imports perezosos por comando | Humano y agente |
 | MCP `src/mcp/server.mjs` | 35 tools `scopegrain_*`: 23 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawn del binario VantaDB enrolado) + 6 de escritura (4 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | Hosts MCP (stdio) |
 | API local `src/api/server.mjs` | 30 rutas GET `/api/*` | Loopback-only, GET-only |
 | Visor `viewer/` (`scopegrain view`) | 15 vistas React 19 + TS + Vite + Tailwind | Read-only, humano |
@@ -125,9 +125,17 @@ Implementados sobre `owned-store.mjs` (factory) + `owned-chain.mjs` (primitivas)
 | `dist stack` | Fusiona catálogos `file://` por prioridad; URIs remotas = `REMOTE_CATALOG_UNSUPPORTED` (nunca descarga) |
 | `dist compose` | Composición en capas `replace/prepend/append/wrap` de recursos |
 | `dist validate` / `dist bundle-validate` | Validación de submissions: id slug, semver, `source.uri`, sha256 obligatorio en fuentes remotas; bundles con pins + detección de missing |
-| `dist bundle-install` | Copia fuentes `file://` requeridas bajo `<configDir>/bundles/<id>/` (256 archivos / 16 MiB max, create-only, idempotente, provenance content-addressed) |
+| `dist bundle-install` | Copia fuentes `file://` requeridas bajo `<configDir>/bundles/<id>/` (256 archivos / 16 MiB max, create-only, idempotente, provenance content-addressed); dry-run por defecto, `--apply` escribe |
+| `dist bundle-mount/unmount` | Monta/desmonta un bundle instalado en el catálogo del workspace |
+| `dist bundle-uninstall` | Retira un bundle instalado; `--keep-files` conserva los archivos copiados |
+| `dist mounted-list` | Lista las entradas montadas activas |
 | `dist extension-register/list/activate/deactivate` | Registro create-only + lifecycle `registered→active⇄disabled`; activate valida `contributes` contra el catálogo del workspace |
+| `dist extension-remove` | Retira una extensión registrada (debe estar `disabled` primero) |
 | `dist preset-register/list` | Registro create-only de presets; `overrides` con `target` (`*`, `kind/*`, `kind/id`) se consumen en `buildWorkflowPacket` con traza en `packet.presets.applied` |
+| `dist preset-remove` | Retira un preset registrado |
+| `dist selftest` | Autodiagnóstico del subsistema dist |
+| `dist journal` | Lee el trail CAS de mutaciones (`--tail`, `--registry`, `--op`, `--id`) |
+| `dist pack` | Empaqueta un directorio en un bundle determinista (`--source DIR --out FILE`) |
 
 ### 2.8 Verificación acotada
 

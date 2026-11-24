@@ -2,6 +2,7 @@
 title: "Creation with proven ownership"
 kind: reference
 ---
+<!-- translated-from: docs/record-ownership.md @ 2026-11-23 -->
 
 # Creation with proven ownership
 

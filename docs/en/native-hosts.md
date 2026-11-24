@@ -2,6 +2,7 @@
 title: Native host projections and limits
 kind: guide
 ---
+<!-- translated-from: docs/native-hosts.md @ 2026-11-23 -->
 # Native Host Projections
 
 > English translation of the canonical Spanish document

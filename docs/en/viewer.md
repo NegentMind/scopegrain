@@ -1,3 +1,4 @@
+<!-- translated-from: docs/viewer.md @ 2026-11-23 -->
 # Viewer (block G)
 
 > English translation of the canonical Spanish document

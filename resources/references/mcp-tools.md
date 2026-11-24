@@ -1,21 +1,27 @@
 # Harness Tool Boundary
 
-MCP queries are bound to the selected project. The server registers 34
+MCP queries are bound to the selected project. The server registers 35
 `scopegrain_*` tools in four annotation classes:
 
-- **Read-only local (22)** — `readOnlyHint:true, openWorldHint:false`:
+- **Read-only local (23)** — `readOnlyHint:true, openWorldHint:false`:
   `approval_get`, `artifact_get`, `catalog_get`, `catalog_list`,
   `check_action`, `get_task`, `goal_list`, `inspect`, `list_tasks`,
   `mcp_inventory`, `memory_read`, `memory_status`, `methodology_check`,
   `metrics`, `plan_get`, `plan_next`, `resource_diagnose`,
   `resource_search`, `session_get`, `specification_get`, `status`,
-  `workflow_packet`.
+  `task_suggest`, `workflow_packet`.
 - **Read-only with backend (6)** — `readOnlyHint:true` BUT
   `openWorldHint:true`: `context`, `session_resume`, `memory_get`,
   `memory_search`, `memory_recall`, `memory_context`. Read semantics, yet
   the handler spawns the enrolled `vantadb-server` binary and sends data
   (queries, keys, record IDs) to the configured memory backend — the
   annotation honestly advertises the external world they reach.
+  `memory_recall` defaults to a project-scoped `memory_search` over
+  `l1/sg-<projectHash>` (this project's records only); passing an
+  explicit `scope` (`session`/`agent`/`team`) deliberately opts into the
+  engine's `memory_recall` pool, which is machine-global at `agent`/`team`
+  and can surface other projects' memories — a documented opt-in, not a
+  leak.
 - **Local write (4)** — `WRITE_LOCAL`: `next_task` (writes only when
   `claimBy` is set — otherwise it is a read), `task_meta` (CAS metadata
   patch), `memory_add`, `goal_create`. All bounded journaled mutations.

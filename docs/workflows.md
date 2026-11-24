@@ -119,10 +119,13 @@ tipo de carpeta ni una certificacion de los archivos citados.
 
 ## Aprobaciones y acciones
 
-La ultima integral local (`npm test` serial, 2026-11-18) termino con 1152
-pruebas aprobadas. El piloto de Devin Local quedo certificado en una sesion
-real; el piloto nativo de Antigravity App/CLI quedo certificado el
-2026-11-19; Claude, Codex, OpenCode, la superficie IDE de Antigravity y
+La suite cuenta actualmente 1540 pruebas (conteo verificado en la
+auditoria del 2026-11-24; la ultima integral registrada, del
+2026-11-23, reporto 1440 pruebas: 1435 pass y 5 fail). El piloto de
+Devin Local quedo certificado en una sesion real; el piloto nativo de
+Antigravity App/CLI quedo certificado el
+2026-11-19; el piloto nativo de OpenCode V2 quedo certificado el
+2026-11-23; Claude, Codex, la superficie IDE de Antigravity y
 Hermes siguen pendientes. Ver los resultados y limites
 en [verificacion](verification.md).
 

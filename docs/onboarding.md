@@ -127,6 +127,73 @@ scopegrain config set --input user-defaults.json --apply
    node .\bin\scopegrain.mjs doctor --project "C:\ruta\mi-proyecto"
    ```
 
+## Siguientes pasos tras `doctor`
+
+Con la configuracion y los archivos generados sanos, el orden habitual es:
+
+1. **Paquete de contexto de sesion** — `context` es el punto de entrada
+   read-only de cada sesion: devuelve instrucciones, config, `locale`,
+   el archivo `.scopegrain/context.md` del propietario, resumen de
+   tareas, metas abiertas, sesiones reanudables y eventos pendientes del
+   journal. Los anfitriones activados lo invocan al inicio segun la
+   instruccion generada en `AGENTS.md`/`CLAUDE.md`.
+
+   ```powershell
+   node .\bin\scopegrain.mjs context --project "C:\ruta\mi-proyecto"
+   ```
+
+   ```bash
+   node ./bin/scopegrain.mjs context --project /ruta/mi-proyecto
+   ```
+
+2. **Activar puentes de anfitrion** — `init` solo genera propuestas bajo
+   `integrations/` e `integrations/native/`; nada llega a las raices del
+   anfitrion hasta que el propietario las revisa y ejecuta
+   `host activate --apply`. Usarlo cuando se quiera que un host concreto
+   cargue las skills, agentes o fragmentos MCP generados; es
+   machine-local y escribe en raices del host fuera de `.scopegrain/`,
+   por eso exige `--apply` explicito tras revisar la vista previa.
+
+   ```powershell
+   node .\bin\scopegrain.mjs host activate --project "C:\ruta\mi-proyecto" --host claude
+   node .\bin\scopegrain.mjs host activate --project "C:\ruta\mi-proyecto" --host claude --apply
+   ```
+
+   ```bash
+   node ./bin/scopegrain.mjs host activate --project /ruta/mi-proyecto --host claude --apply
+   ```
+
+3. **Identidad de workspace (opcional)** — `workspace init` enrola el
+   descriptor de workspace (areas, bindings internos) que exigen los
+   registros owned (`capture`, `specification`, `design`, `outcome`).
+   Con solo tareas ligeras no hace falta; conviene crearlo antes de la
+   primera captura o spec owned. Detalles en la seccion siguiente.
+
+4. **Primera tarea** — `task create` (vista previa, luego `--apply`)
+   crea el registro en `PLAN`, revision 0. Las transiciones avanzan el
+   ciclo `PLAN -> ACT -> VERIFY -> EVALUATE -> REVIEW -> ACCEPT -> CLOSE`
+   con CAS por `--revision`; las aristas, la evidencia y las
+   disposiciones estan en [flujo de tareas](task-workflow.md) y el
+   recorrido completo en [primeros pasos](getting-started.md).
+
+   ```powershell
+   node .\bin\scopegrain.mjs task create --project "C:\ruta\mi-proyecto" --input task.json --apply
+   ```
+
+   ```bash
+   node ./bin/scopegrain.mjs task create --project /ruta/mi-proyecto --input task.json --apply
+   ```
+
+5. **Verificacion acotada** — `verify discover` infiere candidatos
+   desde los manifiestos reales; `verify add`/`approve` los ponen en
+   lista blanca y `verify run` solo ejecuta aprobados (argv literal,
+   nunca shell). Registrar aqui el comando de pruebas del proyecto lo
+   deja disponible como evidencia en las transiciones.
+
+   ```powershell
+   node .\bin\scopegrain.mjs verify discover --project "C:\ruta\mi-proyecto"
+   ```
+
 ## Identidad de workspace
 
 Tras crear la config, el enrolamiento es explicito y separado de `init`:

@@ -1,15 +1,15 @@
 # Frontera de herramientas del harness
 
 Las consultas MCP están vinculadas al proyecto seleccionado. El servidor
-registra 34 herramientas `scopegrain_*` en cuatro clases de anotación:
+registra 35 herramientas `scopegrain_*` en cuatro clases de anotación:
 
-- **Solo lectura local (22)** — `readOnlyHint:true, openWorldHint:false`:
+- **Solo lectura local (23)** — `readOnlyHint:true, openWorldHint:false`:
   `approval_get`, `artifact_get`, `catalog_get`, `catalog_list`,
   `check_action`, `get_task`, `goal_list`, `inspect`, `list_tasks`,
   `mcp_inventory`, `memory_read`, `memory_status`, `methodology_check`,
   `metrics`, `plan_get`, `plan_next`, `resource_diagnose`,
   `resource_search`, `session_get`, `specification_get`, `status`,
-  `workflow_packet`.
+  `task_suggest`, `workflow_packet`.
 - **Solo lectura con backend (6)** — `readOnlyHint:true` PERO
   `openWorldHint:true`: `context`, `session_resume`, `memory_get`,
   `memory_search`, `memory_recall`, `memory_context`. Semántica de lectura,
@@ -17,6 +17,12 @@ registra 34 herramientas `scopegrain_*` en cuatro clases de anotación:
   datos (consultas, claves, IDs de registro) al backend de memoria
   configurado — la anotación anuncia honestamente el mundo externo que
   alcanzan.
+  `memory_recall` usa por defecto un `memory_search` acotado al proyecto
+  sobre `l1/sg-<projectHash>` (solo los registros de este proyecto); un
+  `scope` explícito (`session`/`agent`/`team`) opta deliberadamente al
+  pool `memory_recall` del engine, que es machine-global en
+  `agent`/`team` y puede devolver memorias de otros proyectos — opt-in
+  documentado, no una fuga.
 - **Escritura local (4)** — `WRITE_LOCAL`: `next_task` (solo escribe cuando
   `claimBy` está fijado — si no, es una lectura), `task_meta` (parche de
   metadatos CAS), `memory_add`, `goal_create`. Todas mutaciones acotadas

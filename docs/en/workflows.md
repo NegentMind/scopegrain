@@ -2,6 +2,7 @@
 title: Workflows, plans and operational continuity
 kind: guide
 ---
+<!-- translated-from: docs/workflows.md @ 2026-11-24 -->
 # Workflows and continuity
 
 > English translation of the canonical Spanish document
@@ -123,10 +124,13 @@ new folder type or a certification of the cited files.
 
 ## Approvals and actions
 
-The latest local full suite (serial `npm test`, 2026-11-18) finished with
-1152 passing tests. The Devin Local pilot was certified in a real session;
-the Antigravity App/CLI native pilot was certified on 2026-11-19; Claude,
-Codex, OpenCode, the Antigravity IDE surface and Hermes are still pending. See results and limits in
+The suite currently numbers 1540 tests (count verified in the
+2026-11-24 audit; the latest recorded full run, from 2026-11-23,
+reported 1440 tests: 1435 pass and 5 fail). The Devin Local pilot was
+certified in a real session;
+the Antigravity App/CLI native pilot was certified on 2026-11-19; the
+OpenCode V2 native pilot was certified on 2026-11-23; Claude,
+Codex, the Antigravity IDE surface and Hermes are still pending. See results and limits in
 [verification](verification.md).
 
 The `approval target/create/show/answer` operations separate content

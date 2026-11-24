@@ -1,3 +1,4 @@
+<!-- translated-from: docs/methodology.md @ 2026-11-23 -->
 # Organic and SDD
 
 > English translation of the canonical Spanish document

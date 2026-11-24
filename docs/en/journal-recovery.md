@@ -1,3 +1,4 @@
+<!-- translated-from: docs/journal-recovery.md @ 2026-11-20 -->
 # Explicit journal recovery
 
 > English translation of the canonical Spanish document

@@ -1,4 +1,8 @@
+<!-- translated-from: docs/provenance.md @ 2026-11-23 -->
 # Resource provenance and attestation
+
+> English translation of the canonical Spanish document
+> (`../provenance.md`). The Spanish version prevails.
 
 Per-ID attestation record for the canonical catalog
 (`resources/manifest.json`). Complements and details the 2026-11-17

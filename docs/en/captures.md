@@ -2,6 +2,7 @@
 title: "Selective captures (core)"
 kind: reference
 ---
+<!-- translated-from: docs/captures.md @ 2026-11-23 -->
 
 # Selective captures (core)
 

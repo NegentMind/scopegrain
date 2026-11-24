@@ -1,11 +1,13 @@
+<!-- translated-from: docs/capability-map.md @ 2026-11-24 -->
 # Scopegrain — Complete capability map
 
 Detailed catalog of surfaces, subsystems, commands and guarantees of the
 harness. Reference state: `develop` branch, `scopegrain@0.1.1`, catalog
 `140` entries (`manifest.json` v`0.1.2`); the current test-suite figure is
 recorded in [verification](verification.md) (it changes with every run).
-Canonical Spanish version: `docs/capability-map.md`;
-this is its English twin.
+
+> English translation of the canonical Spanish document
+> (`../capability-map.md`). The Spanish version prevails.
 
 > Conventions: *(write)* = mutates state; *(preview/apply)* = dry-run by
 > default, `--apply` confirms; everything else is read-only.
@@ -18,7 +20,7 @@ this is its English twin.
 
 | Surface | Inventory | Access |
 |---|---|---|
-| CLI `bin/scopegrain.mjs` | 138 registered subcommands, lazy per-command imports | Human and agent |
+| CLI `bin/scopegrain.mjs` | 141 registered subcommands, lazy per-command imports | Human and agent |
 | MCP `src/mcp/server.mjs` | 35 `scopegrain_*` tools: 23 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 6 writers (4 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
 | Local API `src/api/server.mjs` | 30 GET routes `/api/*` | Loopback-only, GET-only |
 | Viewer `viewer/` (`scopegrain view`) | 15 views, React 19 + TS + Vite + Tailwind | Read-only, human |
@@ -124,9 +126,17 @@ Each kind is a hash chain: genesis + chained updates, scope binding
 | `dist stack` | Merges `file://` catalogs by priority; remote URIs = `REMOTE_CATALOG_UNSUPPORTED` (never downloads) |
 | `dist compose` | Layered `replace/prepend/append/wrap` resource composition |
 | `dist validate` / `dist bundle-validate` | Submission validation: slug id, semver, `source.uri`, mandatory sha256 on remote sources; bundles with pins + missing detection |
-| `dist bundle-install` | Copies required `file://` sources under `<configDir>/bundles/<id>/` (256 files / 16 MiB max, create-only, idempotent, content-addressed provenance) |
+| `dist bundle-install` | Copies required `file://` sources under `<configDir>/bundles/<id>/` (256 files / 16 MiB max, create-only, idempotent, content-addressed provenance); dry-run by default, `--apply` writes |
+| `dist bundle-mount/unmount` | Mounts/unmounts an installed bundle into the workspace catalog |
+| `dist bundle-uninstall` | Removes an installed bundle; `--keep-files` keeps the copied files |
+| `dist mounted-list` | Lists the active mounted entries |
 | `dist extension-register/list/activate/deactivate` | Create-only registry + `registered→active⇄disabled` lifecycle; activate validates `contributes` against the workspace catalog |
+| `dist extension-remove` | Removes a registered extension (must be `disabled` first) |
 | `dist preset-register/list` | Create-only preset registry; `overrides` with `target` (`*`, `kind/*`, `kind/id`) are consumed in `buildWorkflowPacket` with a trace on `packet.presets.applied` |
+| `dist preset-remove` | Removes a registered preset |
+| `dist selftest` | Self-check of the dist subsystem |
+| `dist journal` | Reads the CAS mutation trail (`--tail`, `--registry`, `--op`, `--id`) |
+| `dist pack` | Packs a directory into a deterministic bundle (`--source DIR --out FILE`) |
 
 ### 2.8 Bounded verification
 

@@ -1,3 +1,4 @@
+<!-- translated-from: docs/component-migration.md @ 2026-11-19 -->
 # Legacy components and migration destination
 
 > English translation of the canonical Spanish document

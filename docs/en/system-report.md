@@ -1,3 +1,4 @@
+<!-- translated-from: docs/system-report.md @ 2026-11-24 -->
 # Scopegrain system report
 
 > English translation of the canonical Spanish document
@@ -78,29 +79,30 @@ another state machine.
 
 ## 5. Catalog inventory
 
-The frozen inventory of the active manifest as of 2026-11-08 contains
-**130 entries**:
+The frozen inventory of the active manifest as of 2026-11-24
+(`resources/manifest.json` v`0.1.2`) contains
+**140 entries**:
 
 | Type | Count |
 | --- | ---: |
 | `agent` | 15 |
-| `command` | 17 |
+| `command` | 18 |
 | `mcp` | 1 |
 | `profile` | 5 |
-| `prompt` | 4 |
+| `prompt` | 11 |
 | `reference` | 24 |
 | `rule` | 22 |
-| `skill` | 42 |
+| `skill` | 44 |
 
 There are 24 distinct alias identifiers and 32 alias correspondences,
 including their mode variants. These counts are not equivalent.
-The 42 active skills do not certify the skills of the original archive.
+The 44 active skills do not certify the skills of the original archive.
 The catalog source is `resources/manifest.json`; proposals and
 snapshots do not constitute authorization to activate tools.
 
 ### Procedures
 
-The 17 catalog commands are grouped by responsibility:
+The 18 catalog commands are grouped by responsibility:
 
 - Planning and execution: `plan-work`, `implement-task`,
   `coordinate-plan`, `specify-change`, `triage-work`.
@@ -110,6 +112,7 @@ The 17 catalog commands are grouped by responsibility:
   `assess-release`, `plan-recovery`.
 - Technical improvement: `simplify-code`, `analyze-structure`,
   `audit-web-performance`.
+- Request classification: `intake`.
 
 Each procedure contributes instructions and context; it does not create
 a process, execute a model or delegate by itself.
@@ -232,20 +235,22 @@ See [onboarding](onboarding.md) and [workflows](workflows.md).
 
 ## 11. Optional MCP
 
-The MCP server offers 34 tools, strictly bound to the project and
-configuration selected at startup: 22 read-only (`READ_ONLY`), 6 that
+The MCP server offers 35 tools, strictly bound to the project and
+configuration selected at startup: 23 read-only (`READ_ONLY`), 4 that
 write local state under the same CAS/lock discipline as the CLI
 (`WRITE_LOCAL`: `scopegrain_next_task` with `claimBy`,
-`scopegrain_task_meta`, `scopegrain_task_disposition`,
-`scopegrain_memory_add`, `scopegrain_goal_create`,
-`scopegrain_goal_transition`) and 6 backend reads (`READ_BACKEND`) that
-spawn the enrolled `vantadb-server` binary and are annotated
-`openWorldHint: true`. `task_disposition` and `goal_transition` carry
-`destructiveHint: true` for their discard/drop semantics. Among the
+`scopegrain_task_meta`, `scopegrain_memory_add`,
+`scopegrain_goal_create`), 2 discard writers (`WRITE_DISCARD`:
+`scopegrain_task_disposition`, `scopegrain_goal_transition`, both with
+`destructiveHint: true` for their discard/drop semantics) and 6 backend
+reads (`READ_BACKEND`) that spawn the enrolled `vantadb-server` binary
+and are annotated `openWorldHint: true`. Among the
 read-only tools are `scopegrain_specification_get`,
 `scopegrain_approval_get`, `scopegrain_methodology_check`,
 `scopegrain_memory_read`, `scopegrain_goal_list`,
-`scopegrain_context` and `scopegrain_metrics`.
+`scopegrain_context`, `scopegrain_metrics` and `scopegrain_task_suggest`
+(a declared suggestion of skills from task metadata; it never writes
+`task.skills`).
 
 The optional transport is stdio. SDK loading is lazy; the declared
 dependencies are `@modelcontextprotocol/sdk` 1.27.1 and `zod`
@@ -317,13 +322,18 @@ See [security](security.md) and [compatibility](compatibility.md).
 
 ## 16. Verification status
 
-The latest full local run (`npm test` serial, 2026-11-17) finished
-with **1152 pass, 0 fail, 0 skipped and 0 cancelled**, exit 0, on
-Windows with Node.js v26.8.1 and npm 11.6.0. The intermediate full runs
-(673, 699, 770 and 813) and the earlier batches of each block are
-separate runs, not summable figures; their scope and historical results
-are in [verification](verification.md). Historical batches must not be
-summed as if they were a single suite of the current state.
+The suite currently numbers **1540 tests** (count verified in the
+2026-11-24 audit). The latest recorded full run (`npm test` serial,
+2026-11-23) reported 1440 tests: 1435 pass, 5 fail (4 long-run flakes
+that pass standalone and 1 pre-existing `host-variants` failure
+reproducible on a clean `HEAD` worktree), exit 1, on Windows with
+Node.js v26.8.1 and npm 11.6.0; later commits grew the suite without a
+new recorded full run. The intermediate full runs
+(673, 699, 770, 813, 1152 and 1411) and the earlier batches of each
+block are separate runs, not summable figures; their scope and
+historical results are in [verification](verification.md). Historical
+batches must not be summed as if they were a single suite of the
+current state.
 
 The Devin Local native pilot was certified in a fresh real session on
 2026-11-17: 42 `scopegrain-*` skills and 15 subagents auto-loaded, the
@@ -335,35 +345,50 @@ applied and consumed by its agent session), and its App/CLI surface
 completed the certified native pilot in a fresh real session on
 2026-11-19: 72 `scopegrain-*` skills and 15 subagents auto-discovered,
 the `scopegrain` MCP active from `.agents/mcp_config.json` and live
-`scopegrain_status` and `scopegrain_catalog_list` invocations. The other
-hosts and surfaces (Claude, Codex, OpenCode, the Antigravity IDE surface
+`scopegrain_status` and `scopegrain_catalog_list` invocations. The
+OpenCode V2 native pilot was certified in a fresh real session on
+2026-11-23 against `opencode v2.3.2`: 15/15 `scopegrain-*` subagents
+resolved, 74 de-duplicated skill IDs with `.opencode/skills` winning
+precedence over `.agents/skills`, the `scopegrain` MCP active with live
+`scopegrain_status`, `scopegrain_catalog_list` and
+`scopegrain_list_tasks` invocations, and cleanup leaving no traces in
+the global configuration. The other
+hosts and surfaces (Claude, Codex, the Antigravity IDE surface
 and Hermes) still lack one. CI was dispatched successfully on 2026-11-18. These tests do not certify untested hosts, versions or
 operating systems.
 
 ## 17. Continuous integration
 
 The [verification workflow](../../.github/workflows/verify.yml) is
-defined for manual `workflow_dispatch` triggering; it has not run. Its
-matrix declares Node 22 and 24 on `ubuntu-latest` and `windows-latest`,
-with `contents: read`, official actions pinned by SHA, checkout without
-persistent credentials and a 45-minute limit per job.
+triggered by manual `workflow_dispatch`, by `push` to `develop`/`main`
+and by `pull_request` targeting `develop`. It has already run: the
+first remote run (`44391417084` on `develop`, 2026-11-18) finished
+green on every matrix cell. The `test` job declares Node 22 and 24 on
+`ubuntu-latest` and `windows-latest`, with `contents: read`, official
+actions pinned by SHA, checkout without persistent credentials, a
+manifest-version guard on PRs touching `resources/` and a 180-minute
+limit. A second `viewer` job (ubuntu, 30 minutes) runs lint, typecheck,
+tests and build of the viewer.
 
 Only on runners does it install dependencies with `--ignore-scripts`,
 `--no-package-lock`, `--no-audit` and `--no-fund`, and run `npm test`.
-There is no automatic trigger on push or PR, nor deployment or release
-in that workflow. There is no lockfile guaranteeing exact
-reproducibility of transitive dependencies.
+There is no deployment or release in that workflow. There is no
+lockfile guaranteeing exact reproducibility of transitive dependencies.
 
 ## 18. Limitations and priorities
 
 1. Run isolated, authorized pilots per native version and surface;
    fixtures do not replace real permission and recovery testing.
-   Devin Local and Antigravity App/CLI already have their certified
-   pilots (real sessions, 2026-11-17 and 2026-11-19); Claude, Codex,
-   OpenCode, the Antigravity IDE surface and Hermes remain pending.
-2. Resolve licensing and provenance before granting redistribution. The
-   availability of the source code does not grant an open-source
-   license; `private: true` and `UNLICENSED` remain in the package.
+   Devin Local, Antigravity App/CLI and OpenCode V2 already have their
+   certified pilots (real sessions, 2026-11-17, 2026-11-19 and
+   2026-11-23); Claude, Codex, the Antigravity IDE surface and Hermes
+   remain pending.
+2. Resolve licensing and provenance before granting redistribution.
+   `package.json` already declares the Apache-2.0 license, the
+   `scopegrain` binary, a bounded `files` list and repository metadata;
+   publication to an external registry still requires explicit owner
+   authorization and the `legacy/` material remains outside the
+   distribution pending per-piece review.
 3. Decide a lockfile strategy to improve reproducibility without
    confusing pinned direct versions with pinned transitive ones.
 4. Evaluate any technical rename as an independent compatibility

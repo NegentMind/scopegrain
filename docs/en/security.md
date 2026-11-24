@@ -1,3 +1,4 @@
+<!-- translated-from: docs/security.md @ 2026-11-23 -->
 # Security and trust model
 
 > English translation of the canonical Spanish document

@@ -1,3 +1,4 @@
+<!-- translated-from: docs/product-contract.md @ 2026-11-23 -->
 # Product contract
 
 > English translation of the canonical Spanish document

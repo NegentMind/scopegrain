@@ -72,29 +72,30 @@ otra maquina de estados.
 
 ## 5. Inventario del catalogo
 
-El inventario congelado del manifest activo al 2026-11-08 contiene
-**130 entradas**:
+El inventario congelado del manifest activo al 2026-11-24
+(`resources/manifest.json` v`0.1.2`) contiene
+**140 entradas**:
 
 | Tipo | Cantidad |
 | --- | ---: |
 | `agent` | 15 |
-| `command` | 17 |
+| `command` | 18 |
 | `mcp` | 1 |
 | `profile` | 5 |
-| `prompt` | 4 |
+| `prompt` | 11 |
 | `reference` | 24 |
 | `rule` | 22 |
-| `skill` | 42 |
+| `skill` | 44 |
 
 Hay 24 identificadores de alias distintos y 32 correspondencias de alias,
 incluidas sus variantes de modo. Estos conteos no son equivalentes.
-Las 42 skills activas no certifican las skills del archivo original.
+Las 44 skills activas no certifican las skills del archivo original.
 La fuente del catalogo es `resources/manifest.json`; las propuestas y
 snapshots no constituyen autorizacion para activar herramientas.
 
 ### Procedimientos
 
-Los 17 comandos del catalogo se agrupan por responsabilidad:
+Los 18 comandos del catalogo se agrupan por responsabilidad:
 
 - Planificacion y ejecucion: `plan-work`, `implement-task`,
   `coordinate-plan`, `specify-change`, `triage-work`.
@@ -104,6 +105,7 @@ Los 17 comandos del catalogo se agrupan por responsabilidad:
   `assess-release`, `plan-recovery`.
 - Mejora tecnica: `simplify-code`, `analyze-structure`,
   `audit-web-performance`.
+- Clasificacion de solicitudes: `intake`.
 
 Cada procedimiento aporta instrucciones y contexto; no crea un proceso,
 ejecuta un modelo ni delega por si mismo.
@@ -225,19 +227,21 @@ Ver [onboarding](onboarding.md) y [workflows](workflows.md).
 
 ## 11. MCP opcional
 
-El servidor MCP ofrece 34 herramientas estrictamente vinculadas al
-proyecto y configuracion seleccionados al iniciar: 22 de solo lectura
-(`READ_ONLY`), 6 que escriben estado local bajo la misma disciplina
+El servidor MCP ofrece 35 herramientas estrictamente vinculadas al
+proyecto y configuracion seleccionados al iniciar: 23 de solo lectura
+(`READ_ONLY`), 4 que escriben estado local bajo la misma disciplina
 CAS/lock que el CLI (`WRITE_LOCAL`: `scopegrain_next_task` con
-`claimBy`, `scopegrain_task_meta`, `scopegrain_task_disposition`,
-`scopegrain_memory_add`, `scopegrain_goal_create`,
-`scopegrain_goal_transition`) y 6 de lectura de backend (`READ_BACKEND`)
-que lanzan el binario `vantadb-server` enrolado y llevan
-`openWorldHint: true`. `task_disposition` y `goal_transition` llevan
-`destructiveHint: true` por sus semanticas de descarte. Entre las de
+`claimBy`, `scopegrain_task_meta`, `scopegrain_memory_add`,
+`scopegrain_goal_create`), 2 de descarte (`WRITE_DISCARD`:
+`scopegrain_task_disposition`, `scopegrain_goal_transition`, ambas con
+`destructiveHint: true` por sus semanticas de descarte) y 6 de lectura
+de backend (`READ_BACKEND`) que lanzan el binario `vantadb-server`
+enrolado y llevan `openWorldHint: true`. Entre las de
 lectura estan `scopegrain_specification_get`, `scopegrain_approval_get`,
 `scopegrain_methodology_check`, `scopegrain_memory_read`,
-`scopegrain_goal_list`, `scopegrain_context` y `scopegrain_metrics`.
+`scopegrain_goal_list`, `scopegrain_context`, `scopegrain_metrics` y
+`scopegrain_task_suggest` (sugerencia declarativa de skills por
+metadatos de tarea; nunca escribe `task.skills`).
 
 El transporte opcional es stdio. La carga del SDK es perezosa; las
 dependencias declaradas son `@modelcontextprotocol/sdk` 1.27.1 y `zod`
@@ -308,13 +312,18 @@ Ver [seguridad](security.md) y [compatibilidad](compatibility.md).
 
 ## 16. Estado de verificacion
 
-La ultima ejecucion integral local (`npm test` serial, 2026-11-18) termino
-con **1152 pass, 0 fail, 0 skipped y 0 cancelled**, exit 0, en Windows con
-Node.js v26.8.1 y npm 11.6.0. Las integrales intermedias (673, 699, 770 y
-813) y las tandas anteriores de cada bloque son ejecuciones separadas, no
-cifras sumables; su alcance y resultados historicos estan en
-[verificacion](verification.md). No se deben sumar tandas historicas como
-si fueran una sola suite del estado actual.
+La suite cuenta actualmente **1540 pruebas** (conteo verificado en la
+auditoria del 2026-11-24). La ultima ejecucion integral registrada
+(`npm test` serial, 2026-11-23) reporto 1440 pruebas: 1435 pass, 5 fail
+(4 inestables de la tanda larga que pasan aisladas y 1 fallo
+pre-existente de `host-variants` reproducible en un worktree limpio de
+`HEAD`), exit 1, en Windows con Node.js v26.8.1 y npm 11.6.0; los
+commits posteriores ampliaron la suite sin una nueva integral
+registrada. Las integrales intermedias (673, 699, 770, 813, 1152 y
+1411) y las tandas anteriores de cada bloque son ejecuciones separadas,
+no cifras sumables; su alcance y resultados historicos estan en
+[verificacion](verification.md). No se deben sumar tandas historicas
+como si fueran una sola suite del estado actual.
 
 El piloto nativo de Devin Local quedo certificado en una sesion fresca real
 el 2026-11-17: 42 skills `scopegrain-*` y 15 subagentes auto-cargados, MCP
@@ -325,23 +334,35 @@ aplicada y consumida por su sesion de agente) y su superficie App/CLI
 completo el piloto nativo certificado en una sesion fresca real el
 2026-11-19: 72 skills `scopegrain-*` y 15 subagentes auto-descubiertos,
 MCP `scopegrain` activo desde `.agents/mcp_config.json` e invocaciones
-en vivo de `scopegrain_status` y `scopegrain_catalog_list`. Los demas
-anfitriones y superficies (Claude, Codex, OpenCode, la IDE de
+en vivo de `scopegrain_status` y `scopegrain_catalog_list`. El piloto
+nativo de OpenCode V2 quedo certificado en una sesion fresca real el
+2026-11-23 contra `opencode v2.3.2`: 15/15 subagentes `scopegrain-*`
+resueltos, 74 IDs de skill deduplicados con `.opencode/skills` ganando
+precedencia sobre `.agents/skills`, el MCP `scopegrain` activo con
+invocaciones en vivo de `scopegrain_status`, `scopegrain_catalog_list`
+y `scopegrain_list_tasks`, y limpieza sin rastros en la configuracion
+global. Los demas
+anfitriones y superficies (Claude, Codex, la IDE de
 Antigravity y Hermes) no tienen piloto nativo.
 CI ya se despacho con exito (2026-11-18). Estas pruebas no
 certifican anfitriones, versiones o sistemas operativos no probados.
 
 ## 17. Integracion continua
 
-El [workflow de verificacion](../.github/workflows/verify.yml) esta definido
-para activacion manual `workflow_dispatch`; no se ha ejecutado. Su matriz
-declara Node 22 y 24 sobre `ubuntu-latest` y `windows-latest`, con
-`contents: read`, acciones oficiales fijadas por SHA, checkout sin
-credenciales persistentes y limite de 45 minutos por job.
+El [workflow de verificacion](../.github/workflows/verify.yml) se activa
+por `workflow_dispatch` manual, por `push` a `develop`/`main` y por
+`pull_request` hacia `develop`. Ya se ejecuto: la primera corrida remota
+(run `44391417084` sobre `develop`, 2026-11-18) termino en verde en
+todas las celdas de la matriz. El job `test` declara Node 22 y 24 sobre
+`ubuntu-latest` y `windows-latest`, con `contents: read`, acciones
+oficiales fijadas por SHA, checkout sin credenciales persistentes,
+guarda de version de manifest en PRs que tocan `resources/` y limite de
+180 minutos. Un segundo job `viewer` (ubuntu, 30 minutos) ejecuta
+lint, typecheck, tests y build del visor.
 
 Solo en runners, instala dependencias con `--ignore-scripts`,
 `--no-package-lock`, `--no-audit` y `--no-fund`, y ejecuta `npm test`.
-No hay disparo automatico por push o PR, ni despliegue o release en ese
+No hay despliegue o release en ese
 workflow. No hay lockfile que garantice reproducibilidad exacta de las
 dependencias transitivas.
 
@@ -349,12 +370,16 @@ dependencias transitivas.
 
 1. Realizar pilotos aislados y autorizados por version y superficie nativa;
    los fixtures no sustituyen pruebas reales de permisos y recuperacion.
-   Devin Local y Antigravity App/CLI ya tienen su piloto certificado
-   (sesiones reales, 2026-11-17 y 2026-11-19); quedan pendientes Claude,
-   Codex, OpenCode, la superficie IDE de Antigravity y Hermes.
-2. Resolver licencia y procedencia antes de conceder redistribucion. La
-   disponibilidad del codigo fuente no concede licencia open-source;
-   `private: true` y `UNLICENSED` permanecen en el paquete.
+   Devin Local, Antigravity App/CLI y OpenCode V2 ya tienen su piloto
+   certificado (sesiones reales, 2026-11-17, 2026-11-19 y 2026-11-23);
+   quedan pendientes Claude, Codex, la superficie IDE de Antigravity y
+   Hermes.
+2. Resolver licencia y procedencia antes de conceder redistribucion.
+   `package.json` ya declara licencia Apache-2.0, binario `scopegrain`,
+   lista acotada de `files` y metadatos de repositorio; la publicacion
+   en un registro externo sigue requiriendo autorizacion explicita del
+   propietario y el material de `legacy/` permanece fuera de la
+   distribucion a la espera de revision por pieza.
 3. Decidir una estrategia de lockfile para mejorar reproducibilidad sin
    confundir versiones directas fijadas con transitivas fijadas.
 4. Evaluar cualquier renombre tecnico como cambio independiente de
