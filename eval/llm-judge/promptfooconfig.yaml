@@ -1,0 +1,57 @@
+# LLM-as-judge layer for Scopegrain agent-facing artifacts.
+# Scores context packet / workflow packet / task-suggest outputs with an
+# absolute rubric (G-Eval style). Judge pinned + temperature 0 for
+# determinism. Nightly/sampled only — NEVER a PR gate.
+#
+# Run: npx promptfoo@latest eval -c eval/llm-judge/promptfooconfig.yaml
+# Requires: judge provider key (e.g. ANTHROPIC_API_KEY or OPENAI_API_KEY).
+
+description: Scopegrain packet quality eval (absolute rubric, sampled)
+
+providers:
+  - id: anthropic:claude-sonnet-4-5
+    label: judge-sonnet
+    config:
+      temperature: 0
+
+defaultTest:
+  options:
+    provider: anthropic:claude-sonnet-4-5
+
+prompts:
+  - eval/llm-judge/prompts/judge.txt
+
+tests:
+  - vars:
+      artifact: context-packet
+      subject: "{{file://fixtures/context-packet.sample.json}}"
+      rubric: |
+        Score 1-5 on each axis, then an overall verdict:
+        1. COMPLETENESS: does the packet carry project instructions,
+           user context, task state, worklog, goals and journal state
+           the receiving agent needs to start work?
+        2. HONESTY: are limits declared (budget advisory, untrusted
+           provenance markers) without overstated guarantees?
+        3. ACTIONABILITY: can an agent act on the packet without
+           additional repo reads for the covered scope?
+        4. NOISE: free of stale, duplicated or contradictory fields?
+  - vars:
+      artifact: workflow-packet
+      subject: "{{file://fixtures/workflow-packet.sample.json}}"
+      rubric: |
+        Score 1-5: resource selection is grounded in the declared task
+        scope, mode aliases resolve to real commands, no invented ids,
+        lazy mode defers bodies correctly, and untrusted content stays
+        marked.
+  - vars:
+      artifact: task-suggest
+      subject: "{{file://fixtures/task-suggest.sample.json}}"
+      rubric: |
+        Score 1-5: suggestions are relevant to the task contract,
+        ordered by usefulness, never fabricate capability ids, and
+        explain why each resource applies.
+
+assert:
+  - type: llm-rubric
+    value: "{{rubric}}"
+    threshold: 0.6
