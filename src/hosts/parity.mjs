@@ -13,7 +13,8 @@ import { loadNativeVariants } from './native.mjs';
 // The canonical resource a projected file bridges lives in its
 // frontmatter (`source: "command/plan-work"`), not in f.source — the
 // latter is the install-tree path and is per-host by construction.
-const SOURCE_FM = /^[ \t]*source:\s*"?([^\s"']+)"?\s*$/m;
+// TOML projections carry the same marker as a `# source:` comment line.
+const SOURCE_FM = /^[ \t]*(?:#[ \t]*)?source:\s*"?([^\s"']+)"?\s*$/m;
 
 function fileSource(content) {
   const text = Buffer.isBuffer(content)

@@ -92,7 +92,9 @@ export function buildInitPlan({
       ? discoveryContent
       : JSON.stringify(discovery ?? null, null, 2) + '\n'));
 
-  // Common entrypoint for codex/opencode/devin; CLAUDE.md for claude.
+  // Common entrypoint for codex/opencode/devin; claude gets CLAUDE.md AND
+  // AGENTS.md — the cross-agent convention 16-19 hosts read, so a
+  // claude-only project is not left without the universal entrypoint.
   // Distinct filenames: no duplicates inside a single plan. The entrypoint
   // is wrapped in managed markers: bytes outside the markers belong to the
   // user, so update can refresh the section without a whole-file conflict.
@@ -101,7 +103,8 @@ export function buildInitPlan({
       instructionsPath: instructionsRel,
       configPath: cfgRel,
     }));
-  if (config.hosts.some((h) => AGENTS_HOSTS.has(h))) {
+  if (config.hosts.some((h) => AGENTS_HOSTS.has(h))
+      || config.hosts.includes('claude')) {
     files.push(planFile(projectRoot, 'AGENTS.md', entry));
   }
   if (config.hosts.includes('claude')) {

@@ -19,14 +19,19 @@ const GATE_EXIT = {
   1: 'error — fail-closed: a hook must treat non-zero as block',
 };
 
+// Claude Code blocks a PreToolUse call ONLY on exit 2 (stderr feeds
+// back to the model); every other non-zero exit is a NON-blocking
+// error. `task gate` returns {0,2,3} plus 1 on error, so the emitted
+// command remaps any non-zero to 2 — the documented fail-closed policy
+// ("any non-zero must block") then actually holds once merged.
 function gateCmd(ctx, action) {
-  return `scopegrain task gate --project "${ctx.projectRoot}" - ${action}`;
+  return `scopegrain task gate --project "${ctx.projectRoot}" - ${action}`
+    + '; s=$?; [ "$s" -eq 0 ] || exit 2';
 }
 
 // Claude Code: settings.json hooks.PreToolUse runs a command before the
-// matched tool; a non-zero exit blocks the call (exit 2 feeds stderr
-// back). We gate only mutation-class tools on the abstract `edit`
-// action — read tools stay ungated by design.
+// matched tool. We gate only mutation-class tools on the abstract
+// `edit` action — read tools stay ungated by design.
 function claudeProposal(ctx) {
   return {
     surface: 'settings.json hooks.PreToolUse',
@@ -44,8 +49,10 @@ function claudeProposal(ctx) {
       },
     },
     note: 'exit contract: 0 allow, 2 deny, 3 require-gate; any non-zero'
-      + ' (incl. 1 error) must block per fail-closed policy. The "-" task'
-      + ' argument resolves SCOPEGRAIN_TASK env then the active pointer.',
+      + ' (incl. 1 error) must block per fail-closed policy. Claude Code'
+      + ' blocks only on exit 2, so the wrapper remaps {1,3} to 2.'
+      + ' The "-" task argument resolves SCOPEGRAIN_TASK env then the'
+      + ' active pointer.',
   };
 }
 

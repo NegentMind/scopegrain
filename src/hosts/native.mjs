@@ -667,7 +667,9 @@ export function renderNativeAdapters(config, {
             '',
           ].join('\n');
           emitV('agent', e.id,
-            `${hp.agentRoot}/${name}.toml`, provComment + toml);
+            `${hp.agentRoot}/${name}.toml`,
+            `${provComment}# source: ${JSON.stringify(`agent/${e.id}`)}\n`
+              + toml);
         } else {
           emitV('agent', e.id,
             `${hp.agentRoot}/${name}.md`,
@@ -775,6 +777,27 @@ export function renderNativeAdapters(config, {
         + 'the project uses that name) and keep that file unversioned; '
         + 'regenerate per machine with `host activate --host opencode --apply` '
         + 'after relocating the project or installation',
+    });
+  }
+
+  // Generic: the scaffold fragment exists (render.mjs emits it at init)
+  // but no canonical merge target is defined for an unknown host — the
+  // entry is registered with a null destination so `host manifest`
+  // discloses the merge target as `shared` instead of staying silent.
+  if (config.hosts.includes('generic')) {
+    const rel = `${cfgPrefix}integrations/generic-mcp.json`;
+    entries.push({
+      host: 'generic', kind: 'mcp', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.generic.permissionScope,
+      source: rel, destination: null,
+      manualMerge: true, activationMode: 'merge', machineLocal: true,
+      note: 'generic scaffold: merge mcpServers.scopegrain into the '
+        + 'host\'s own MCP configuration — no canonical destination file '
+        + 'exists for an unspecified host. The fragment embeds '
+        + 'machine-local absolute paths; keep the merged file unversioned '
+        + 'and regenerate per machine after relocating the project or '
+        + 'installation',
     });
   }
 

@@ -91,7 +91,10 @@ test('host gate emits a claude PreToolUse command-hook proposal', () => {
     assert.equal(p.interceptsNativeTools, false);
     const hook = p.fragment.hooks.PreToolUse[0];
     assert.equal(hook.matcher, 'Edit|Write|MultiEdit|NotebookEdit');
-    assert.match(hook.hooks[0].command, /task gate .* - edit$/);
+    // The emitted command must remap every non-zero gate exit to 2 —
+    // Claude Code treats only exit 2 as blocking (fail-closed P0 fix).
+    assert.match(hook.hooks[0].command,
+      /task gate .* - edit; s=\$\?; \[ "\$s" -eq 0 \] \|\| exit 2$/);
     assert.equal(p.mergeTarget, '.claude/settings.json');
     assert.equal(p.exitContract[2], 'deny');
   } finally { cleanup(dir); }

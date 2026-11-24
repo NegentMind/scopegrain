@@ -217,7 +217,7 @@ export function generatedFilePaths(configRel, hosts) {
     prefix + '.gitignore',
     prefix + 'integrations/gitignore-proposal.txt',
   ];
-  if (hosts.some((h) => AGENTS_MD_HOSTS.has(h))) {
+  if (hosts.some((h) => AGENTS_MD_HOSTS.has(h)) || hosts.includes('claude')) {
     files.push('AGENTS.md');
   }
   if (hosts.includes('claude')) {
