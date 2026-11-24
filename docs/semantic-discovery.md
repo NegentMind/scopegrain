@@ -43,8 +43,8 @@ Compone `inspectProject` (no lo reimplementa) y agrega senales:
   `[[bin]]` de Cargo, src/main.rs con stack rust).
 - **Pruebas:** frameworks por configuracion permitida (vitest, jest,
   playwright, cypress, karma, mocha, pytest, phpunit, cargo-nextest) o
-  por dependencias declaradas; `cargo-test`, `go-test`, `dotnet-test`,
-  `xunit`, `nunit`, `mstest`, `flutter_test` segun manifiesto.
+  por dependencias declaradas; `cargo-test`, `dotnet-test`, `xunit`,
+  `nunit`, `mstest`, `flutter_test` segun manifiesto.
 - **Docs:** archivos de instrucciones (AGENTS.md, CLAUDE.md, README
   variantes) por existencia y directorios docs/ o doc/.
 - **CI:** `.github/workflows` listado solo por nombres `*.yml`/`*.yaml`

@@ -24,6 +24,13 @@ const MAX_DEPTH = 8;
 const MAX_ENTRIES = 50000;
 const MAX_FILE_BYTES = 512 * 1024;
 const MAX_INDEX_FILES = 8192;
+// The persisted index must always re-read cleanly: readStructureIndex
+// accepts up to MAX_INDEX_BYTES and the writer bounds the serialized
+// rows to MAX_INDEX_BYTES - INDEX_SLACK, leaving headroom for the
+// non-row sections (warnings, languages, edges, top lists).
+const MAX_INDEX_BYTES = 4 * 1024 * 1024;
+const INDEX_SLACK = 1024 * 1024;
+const MAX_WARNINGS = 512;
 const MAX_SPECIFIERS_PER_FILE = 200;
 const TOP_N = 20;
 const MAX_EXTERNAL_PACKAGES = 400;
@@ -210,13 +217,22 @@ export function scanStructure(projectRoot, { statOnly = false } = {}) {
   const root = resolveProjectRoot(projectRoot);
   const queue = [{ rel: '', depth: 0 }];
   const warnings = [];
+  // Bounded warning list: the index is a bounded document, so warnings
+  // cannot grow with tree size — a marker records the truncation.
+  const warn = (code, message) => {
+    if (warnings.length < MAX_WARNINGS) warnings.push({ code, message });
+    else if (warnings.length === MAX_WARNINGS) {
+      warnings.push({ code: 'SCAN_WARNINGS',
+        message: 'warning list truncated' });
+    }
+  };
   const files = [];
   const relPaths = new Set();
 
   // Pass 1: inventory (lstat-only) — always needed for the fingerprint.
   while (queue.length > 0) {
     if (files.length + relPaths.size > MAX_ENTRIES * 2) {
-      warnings.push({ code: 'SCAN_BUDGET', message: 'entry budget reached' });
+      warn('SCAN_BUDGET', 'entry budget reached');
       break;
     }
     const { rel, depth } = queue.shift();
@@ -228,7 +244,7 @@ export function scanStructure(projectRoot, { statOnly = false } = {}) {
       if (!dh || !dh.isDirectory()) continue;
       for (const e of readdirSyncBound(abs)) dirents.push(e);
     } catch (e2) {
-      warnings.push({ code: 'SCAN_DIR_UNREADABLE', message: `${rel}: ${e2.message}` });
+      warn('SCAN_DIR_UNREADABLE', `${rel}: ${e2.message}`);
       continue;
     }
     for (const e of dirents) {
@@ -237,13 +253,13 @@ export function scanStructure(projectRoot, { statOnly = false } = {}) {
       if (e.isDirectory()) {
         if (e.name.startsWith('.') || SKIP_DIRS.has(e.name)) continue;
         if (depth + 1 <= MAX_DEPTH) queue.push({ rel: childRel, depth: depth + 1 });
-        else warnings.push({ code: 'SCAN_DEPTH', message: `${childRel} beyond depth ${MAX_DEPTH}` });
+        else warn('SCAN_DEPTH', `${childRel} beyond depth ${MAX_DEPTH}`);
         continue;
       }
       if (!e.isFile()) continue;
       if (e.name.startsWith('.')) continue;
       if (relPaths.size >= MAX_ENTRIES) {
-        warnings.push({ code: 'SCAN_BUDGET', message: 'file budget reached' });
+        warn('SCAN_BUDGET', 'file budget reached');
         break;
       }
       const st = lstatOrNull(resolveInside(root, childRel, 'scan'));
@@ -303,7 +319,7 @@ export function scanStructure(projectRoot, { statOnly = false } = {}) {
       if (limited.exceeded) continue;
       text = decodeUtf8Strict(limited.content, 'SCAN_DECODE', f.rel);
     } catch {
-      warnings.push({ code: 'SCAN_READ', message: `${f.rel} unreadable` });
+      warn('SCAN_READ', `${f.rel} unreadable`);
       continue;
     }
     metricFiles += 1;
@@ -410,8 +426,17 @@ export function scanStructure(projectRoot, { statOnly = false } = {}) {
     f.lines ?? -1, f.code ?? -1, f.functions ?? -1, f.complexity ?? -1,
     (f.imports ?? []).length,
   ]);
-  index.filesTruncated = rows.length > MAX_INDEX_FILES;
-  index.files = index.filesTruncated ? rows.slice(0, MAX_INDEX_FILES) : rows;
+  // Rows are additionally bounded by serialized bytes, not just count:
+  // a written index must always satisfy readStructureIndex's document
+  // limit no matter how long the individual paths are.
+  const rowBudget = MAX_INDEX_BYTES - INDEX_SLACK;
+  let kept = rows.slice(0, MAX_INDEX_FILES);
+  while (kept.length > 0
+      && Buffer.byteLength(JSON.stringify(kept, null, 1)) > rowBudget) {
+    kept = kept.slice(0, Math.ceil(kept.length / 2));
+  }
+  index.filesTruncated = kept.length < rows.length;
+  index.files = kept;
   return index;
 }
 
@@ -453,7 +478,7 @@ export function readStructureIndex(ctx) {
   if (st.isSymbolicLink() || !st.isFile()) {
     throw err('STRUCTURE_MALFORMED', `${rel} is not a regular file`);
   }
-  const l = readFileLimited(abs, 1048576);
+  const l = readFileLimited(abs, MAX_INDEX_BYTES);
   if (l.exceeded) {
     throw err('STRUCTURE_MALFORMED', `${rel} exceeds document limit`);
   }

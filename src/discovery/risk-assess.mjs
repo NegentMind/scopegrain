@@ -12,10 +12,10 @@ const LINE_CAP = 400_000;
 
 // --- signal tables -------------------------------------------------------
 
-const SECURITY_PATH = /(?:^|\/)(?:auth|security|secrets?|credentials?|tokens?|permissions?|crypto|passwords?)(?:\/|\.|_|-)/i;
+const SECURITY_PATH = /(?:^|\/)(?:auth(?:entication|orization|[zn])?|security|secrets?|credentials?|tokens?|permissions?|crypto|passwords?|sessions?|logins?|oauth|jwt|saml|rbac|acls?|middlewares?|polic(?:y|ies)|certs?|certificates?|tls)(?:\/|\.|_|-|\d|$)|\.env(?:$|[\/._-]|rc\b)/i;
 const SHELL_SOURCE = /\.(?:sh|bash|zsh|fish|ps1|psm1|bat|cmd)$/i;
 const CI_WORKFLOW = /(?:^|\/)\.(?:github\/workflows|gitlab-ci\.|circleci|buildkite)|(?:^|\/)(?:azure-pipelines[^/]*\.ya?ml|\.travis\.yml|\.drone\.yml|bitbucket-pipelines\.yml|cloudbuild[^/]*\.(?:ya?ml|json))|Jenkinsfile/i;
-const DELIVERY_PATH = /(?:^|\/)(?:Dockerfile[^/]*|docker-compose[^/]*|deploy(?:ment)?s?\/|install(?:er)?s?\/|releases?\/|helm\/|charts\/|terraform\/|k8s\/)/i;
+const DELIVERY_PATH = /(?:^|\/)(?:Dockerfile[^/]*|docker-compose[^/]*|deploy(?:ment)?s?\/|install(?:er)?s?\/|releases?\/|helm\/|charts\/|terraform\/|k8s\/|(?:GNU)?Makefile[^/]*|packaging\/|systemd\/|\.github\/actions|\.github\/dependabot[^/]*|\.renovaterc[^/]*|renovate[^/]*\.json5?|renovate[^/]*\/)/i;
 const MIGRATION_PATH = /(?:^|\/)(?:migrations?|migrate|dbmigrate|alembic|flyway|liquibase)(?:\/|\.|_|-)/i;
 const CONTRACT_PATH = /(?:^|\/)resources\/manifest\.json$|(?:^|\/)schemas?\/|(?:^|\/)api(?:s)?\/|\.proto$|openapi[^/]*\.(?:ya?ml|json)$|(?:^|\/)package\.json$|(?:^|\/)go\.mod$|(?:^|\/)Cargo\.toml$/i;
 const PASSIVE_EXT = /\.(?:md|markdown|rst|adoc|txt|org|tex)$/i;
@@ -34,6 +34,11 @@ const PROCESS_BOUNDARY = new RegExp(
 const PROCESS_EXCLUDE =
   /(?:\b(?:re|regexp|db|sql|conn)\.exec|\.execSql|\.execQuery)/gi;
 
+// Dangerous evaluation/deserialization/TLS-defeating calls — matched in
+// ADDED lines only, same rule as PROCESS_BOUNDARY: removing eval() must
+// never raise the tier.
+const DANGEROUS_API = /\beval\s*\(|new\s+Function|\bpickle\.loads|\byaml\.load|\bunserialize\s*\(|rejectUnauthorized\s*:\s*false|\bverify\s*[:=]\s*false|chmod\s+777/i;
+
 const SHEBANG = /^#!/;
 // Any odd octal digit in the last three positions means an execute bit is
 // set somewhere (owner/group/other) — e.g. 100755, 100775, 671.
@@ -49,6 +54,44 @@ const CONCURRENCY_HINT = /(?:\bmutex\b|\brwlock\b|\batomic|\bthread\b|goroutine|
 // validated against the lines actually consumed — a truncated or
 // overstated hunk makes the file undecidable, never passive.
 const HUNK_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+// git writes C-style quoted paths in headers when a name carries
+// non-ASCII bytes or escape-worthy chars ("a/caf\303\251.md"). The
+// decoded name is display-only evidence — the file is always flagged
+// quoted -> undecidable, because the escaped form cannot be verified
+// against the real on-disk name.
+function unquoteGitPath(tok) {
+  if (tok[0] !== '"') return tok;
+  const body = tok.slice(1, -1);
+  let out = '';
+  let bytes = [];
+  const flush = () => {
+    if (bytes.length > 0) {
+      out += Buffer.from(bytes).toString('utf8');
+      bytes = [];
+    }
+  };
+  const ESC = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13,
+    '"': 34, '\\': 92 };
+  for (let i = 0; i < body.length; i += 1) {
+    const c = body[i];
+    if (c !== '\\') { flush(); out += c; continue; }
+    const e = body[i + 1];
+    if (e === undefined) return null;
+    i += 1;
+    if (e >= '0' && e <= '7') {
+      const oct = body.slice(i, i + 3);
+      if (!/^[0-7]{3}$/.test(oct)) return null;
+      bytes.push(parseInt(oct, 8));
+      i += 2;
+      continue;
+    }
+    if (ESC[e] === undefined) return null;
+    bytes.push(ESC[e]);
+  }
+  flush();
+  return out;
+}
 
 export function parseUnifiedDiff(text) {
   const files = [];
@@ -69,6 +112,28 @@ export function parseUnifiedDiff(text) {
       cur = { path: m[2], oldPath: m[1], oldMode: null, newMode: null,
         added: 0, removed: 0, addedLines: [], binary: false,
         malformed: false };
+      files.push(cur);
+      continue;
+    }
+    if (line.startsWith('diff --')) {
+      // A header line the plain a//b/ pattern could not read: quoted
+      // non-ASCII names, missing a//b/ prefixes (diff.noprefix) or a
+      // non-git format (--cc/--combined). Dropping the file would be
+      // fail-open — record it as undecidable instead.
+      if (cur) closeHunk();
+      const q = /^diff --git ("(?:[^"\\]|\\.)*"|\S+) ("(?:[^"\\]|\\.)*"|\S+)$/
+        .exec(line);
+      const dec = (tok, prefix) => {
+        const d = tok === undefined ? null : unquoteGitPath(tok);
+        return d !== null && d.startsWith(prefix) ? d.slice(2) : null;
+      };
+      const np = q ? dec(q[2], 'b/') : null;
+      const op = q ? dec(q[1], 'a/') : null;
+      const cc = /^diff --(?:cc|combined) (.+)$/.exec(line);
+      cur = { path: np ?? q?.[2] ?? cc?.[1] ?? '<unparseable>',
+        oldPath: op ?? q?.[1] ?? null, oldMode: null, newMode: null,
+        added: 0, removed: 0, addedLines: [], binary: false,
+        malformed: false, quoted: true };
       files.push(cur);
       continue;
     }
@@ -203,6 +268,10 @@ export function classifyRisk(parsed) {
       reasons.push(reason('undecidable', f.path,
         'binary content cannot be inspected'));
     }
+    if (f.quoted) {
+      reasons.push(reason('undecidable', f.path,
+        'quoted or non-standard header path — name unverifiable'));
+    }
     if (f.malformed) {
       reasons.push(reason('undecidable', f.path,
         'diff lines outside any hunk — malformed input'));
@@ -212,6 +281,11 @@ export function classifyRisk(parsed) {
     if (hit !== undefined) {
       reasons.push(reason('process-boundary', f.path,
         `added process-boundary call: ${hit.trim().slice(0, 80)}`));
+    }
+    const dangerous = f.addedLines.find((l) => DANGEROUS_API.test(l));
+    if (dangerous !== undefined) {
+      reasons.push(reason('dangerous-api', f.path,
+        `added dangerous API call: ${dangerous.trim().slice(0, 80)}`));
     }
     if (CONCURRENCY_HINT.test(joined)) {
       reasons.push(reason('concurrency', f.path,
@@ -243,9 +317,14 @@ export function classifyRisk(parsed) {
       'no changed files parsed — empty or malformed diff'));
   }
 
+  // 'concurrency' sits in HIGH because policy/methodology.json lists it
+  // as a first-class risk category — an emitted signal that never moves
+  // the tier was inert evidence, so the hint now fails closed like every
+  // other recognised risk surface.
   const HIGH = new Set(['security', 'delivery', 'data-integrity',
-    'public-contract', 'process-boundary', 'executable-mode',
-    'undecidable', 'byte-cap', 'line-cap']);
+    'public-contract', 'process-boundary', 'dangerous-api',
+    'concurrency', 'executable-mode', 'undecidable', 'byte-cap',
+    'line-cap']);
   const tier = reasons.some((r) => HIGH.has(r.signal)) ? 'high'
     : allPassive ? 'passive' : 'medium';
 

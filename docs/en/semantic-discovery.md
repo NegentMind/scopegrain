@@ -1,6 +1,8 @@
+<!-- translated-from: docs/semantic-discovery.md @ 2026-11-24 -->
 # Bounded semantic investigation
 
-> English version of the canonical document (`../semantic-discovery.md`).
+> English translation of the canonical Spanish document
+> (`../semantic-discovery.md`). The Spanish version prevails.
 
 `src/discovery/semantic.mjs` extends manifest discovery with a
 read-only semantic layer. It does not write, does not execute, does
@@ -46,8 +48,8 @@ signals:
   Cargo `[[bin]]`, src/main.rs with rust stack).
 - **Tests:** frameworks by permitted configuration (vitest, jest,
   playwright, cypress, karma, mocha, pytest, phpunit, cargo-nextest) or
-  by declared dependencies; `cargo-test`, `go-test`, `dotnet-test`,
-  `xunit`, `nunit`, `mstest`, `flutter_test` per manifest.
+  by declared dependencies; `cargo-test`, `dotnet-test`, `xunit`,
+  `nunit`, `mstest`, `flutter_test` per manifest.
 - **Docs:** instruction files (AGENTS.md, CLAUDE.md, README variants)
   by existence and docs/ or doc/ directories.
 - **CI:** `.github/workflows` listed only by `*.yml`/`*.yaml` names

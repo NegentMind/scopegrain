@@ -220,6 +220,35 @@ test('secret-adjacent files are inventoried but never opened', () => {
   } finally { cleanup(dir); }
 });
 
+// Audit regression: a full-scale index (8192 rows, realistic path
+// lengths) serializes above the old 1MiB read limit — the read cap and
+// the writer bound must agree so a written index always re-reads.
+test('index at MAX_INDEX_FILES scale round-trips through the read cap', () => {
+  const { dir, ctx } = bootstrappedCtx();
+  try {
+    const rows = Array.from({ length: 8192 }, (_, i) => [
+      `src/${'m'.repeat(120)}/module-${i}.js`,
+      'javascript', 1000, 20, 15, 2, 4, 1,
+    ]);
+    const idx = { schemaVersion: 1, fingerprint: 'f'.repeat(64),
+      generatedAt: 't', files: rows };
+    writeStructureIndex(ctx, idx);
+    const back = readStructureIndex(ctx);
+    assert.equal(back.files.length, 8192);
+  } finally { cleanup(dir); }
+});
+
+test('index beyond the document limit still fails closed', () => {
+  const { dir, ctx } = bootstrappedCtx();
+  try {
+    const idx = { schemaVersion: 1,
+      files: [['x'.repeat(4 * 1024 * 1024 + 1024)]] };
+    writeStructureIndex(ctx, idx);
+    assert.throws(() => readStructureIndex(ctx),
+      (e) => e.code === 'STRUCTURE_MALFORMED');
+  } finally { cleanup(dir); }
+});
+
 test('init --apply seeds the structural index', async () => {
   const dir = makeTempDir('init-struct');
   try {
