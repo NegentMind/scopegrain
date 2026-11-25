@@ -127,15 +127,40 @@ export function LifecycleFunnel({
   );
 }
 
+// Node tone from readiness status (plan members) or raw state (task links):
+// ready = actionable accent, blocked = warn, closed = ok, abandoned = err,
+// active = soft accent, everything else neutral.
+const NODE_TONE: Record<string, string> = {
+  ready: 'fill-primary/15 stroke-primary/60',
+  blocked: 'fill-warn/10 stroke-warn/60',
+  closed: 'fill-ok/10 stroke-ok/50',
+  CLOSE: 'fill-ok/10 stroke-ok/50',
+  ABANDON: 'fill-err/10 stroke-err/50',
+  active: 'fill-primary/5 stroke-primary/30',
+  triaged: 'fill-muted/40 stroke-border',
+};
+const nodeTone = (n: { state?: string; status?: string }) =>
+  (n.status && NODE_TONE[n.status]) || (n.state && NODE_TONE[n.state])
+  || 'fill-card stroke-border';
+
+const edgeStroke = (kind: string) =>
+  kind === 'dependsOn'
+    ? 'stroke-primary/60'
+    : kind === 'blocks'
+      ? 'stroke-err/50'
+      : 'stroke-muted-foreground/60';
+
 // Simple topologically-layered DAG for task dependsOn/relations edges.
 export function TaskDag({
   nodes,
   edges,
   labels,
+  nodeHref,
 }: {
-  nodes: { id: string; label: string; state?: string }[];
+  nodes: { id: string; label: string; state?: string; status?: string }[];
   edges: { from: string; to: string; kind: string }[];
   labels: { empty: string; dag: string };
+  nodeHref?: (id: string) => string;
 }) {
   const t = useT();
   if (nodes.length === 0) {
@@ -203,7 +228,7 @@ export function TaskDag({
           const b = pos.get(e.to)!;
           return (
             <line key={i} x1={a.x + W} y1={a.y + H / 2} x2={b.x} y2={b.y + H / 2}
-              className={e.kind === 'dependsOn' ? 'stroke-primary/60' : 'stroke-muted-foreground/60'}
+              className={edgeStroke(e.kind)}
               strokeWidth={1.4} strokeDasharray={e.kind === 'dependsOn' ? '' : '4 3'}
               markerEnd="url(#darrow)" />
           );
@@ -211,16 +236,23 @@ export function TaskDag({
         {[...pos.entries()].map(([id, p]) => {
           const n = byId.get(id)!;
           const short = n.label.length > 18 ? `${n.label.slice(0, 17)}…` : n.label;
-          return (
+          const sub = n.status ?? n.state ?? id.slice(0, 8);
+          const node = (
             <g key={id}>
+              <title>{`${n.label} — ${[n.state, n.status].filter(Boolean).join(' · ')}`}</title>
               <rect x={p.x} y={p.y} width={W} height={H} rx={7}
-                className="fill-card stroke-border" strokeWidth={1.4} />
+                className={nodeTone(n)} strokeWidth={1.4} />
               <text x={p.x + W / 2} y={p.y + 17} textAnchor="middle"
                 className="fill-foreground text-[10px] font-medium">{short}</text>
               <text x={p.x + W / 2} y={p.y + 32} textAnchor="middle"
-                className="fill-muted-foreground text-[10px]">{n.state ?? id.slice(0, 8)}</text>
+                className="fill-muted-foreground text-[10px]">{sub}</text>
             </g>
           );
+          return nodeHref ? (
+            <a key={id} href={nodeHref(id)} className="cursor-pointer">
+              {node}
+            </a>
+          ) : node;
         })}
       </svg>
     </div>

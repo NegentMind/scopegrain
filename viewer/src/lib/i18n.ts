@@ -330,7 +330,14 @@ const DICT: Record<Locale, Record<string, string>> = {
       + 'network, git push and host activation require explicit consent; '
       + 'this dashboard never mutates state.',
     'graph.dag': 'Dependency graph',
-    'graph.dagDesc': 'dependsOn and typed relations between recorded tasks.',
+    'graph.dagDesc':
+      'Plan-enforced dependency DAGs and declared links between recorded tasks.',
+    'graph.context':
+      '{linked} of {total} tasks linked · {plans} plan DAGs · {edges} edges',
+    'graph.taskLinks': 'Declared task links',
+    'graph.legend.dep': 'dependsOn (gate-enforced inside plans)',
+    'graph.legend.rel': 'typed relation',
+    'graph.legend.blocks': 'blocks',
     'graph.empty': 'No dependencies or relations recorded yet.',
     'viz.funnel': 'Lifecycle funnel diagram (horizontally scrollable)',
     'viz.dag': 'Task dependency diagram (horizontally scrollable)',
@@ -812,7 +819,14 @@ const DICT: Record<Locale, Record<string, string>> = {
       + 'ejecutan; la red, git push y la activación de hosts requieren '
       + 'consentimiento explícito; este panel nunca muta estado.',
     'graph.dag': 'Grafo de dependencias',
-    'graph.dagDesc': 'dependsOn y relaciones tipadas entre tareas registradas.',
+    'graph.dagDesc':
+      'DAGs de dependencia exigidos por planes y enlaces declarados entre tareas.',
+    'graph.context':
+      '{linked} de {total} tareas enlazadas · {plans} DAGs de plan · {edges} aristas',
+    'graph.taskLinks': 'Enlaces declarados entre tareas',
+    'graph.legend.dep': 'dependsOn (exigido por el gate dentro de planes)',
+    'graph.legend.rel': 'relación tipada',
+    'graph.legend.blocks': 'bloquea',
     'graph.empty': 'Sin dependencias ni relaciones registradas aún.',
     'viz.funnel': 'Diagrama del embudo del ciclo de vida (desplazable horizontalmente)',
     'viz.dag': 'Diagrama de dependencias de tareas (desplazable horizontalmente)',
