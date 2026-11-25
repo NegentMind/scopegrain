@@ -234,6 +234,7 @@ function taskSummary(task) {
     allowedTools: Array.isArray(task.allowedTools) ? task.allowedTools : null,
     requiredCapabilities: Array.isArray(task.requiredCapabilities)
       ? task.requiredCapabilities : null,
+    agentRole: task.agentRole ?? null,
   };
 }
 

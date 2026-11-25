@@ -33,7 +33,7 @@ const TASK_KEYS = new Set([
   'estimate', 'source', 'relations', 'dependsOn', 'goalIds', 'analysis',
   'steps', 'notes', 'skills', 'uncertainty',
   // V3 extension fields (optional on read, emitted on write)
-  'allowedTools', 'requiredCapabilities',
+  'allowedTools', 'requiredCapabilities', 'agentRole',
 ]);
 const V3_KEYS = new Set([
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
@@ -43,7 +43,9 @@ const V3_KEYS = new Set([
 // Additive fields introduced after V3 shipped. Stored V3 records may omit
 // them entirely (same rule as slug): validated when present, never
 // required on read, and always emitted by new writes via V3_DEFAULTS.
-const V3_EXT_KEYS = new Set(['allowedTools', 'requiredCapabilities']);
+const V3_EXT_KEYS = new Set([
+  'allowedTools', 'requiredCapabilities', 'agentRole',
+]);
 const TASK_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3', 'backlog']);
 const TASK_SEVERITIES = new Set(['critical', 'high', 'medium', 'low', 'info']);
 const TASK_TYPES = new Set([
@@ -53,13 +55,14 @@ const TASK_EFFORTS = new Set(['hours', 'day', 'days', 'weeks']);
 const TASK_DISPOSITIONS = new Set([
   'deferred', 'icebox', 'future', 'discarded', 'cancelled',
 ]);
-const RELATION_KINDS = new Set(['see', 'supersedes', 'duplicateOf', 'blocks']);
+export const RELATION_KINDS = new Set(
+  ['see', 'supersedes', 'duplicateOf', 'blocks']);
 const STEP_STATUSES = new Set(['pending', 'done', 'skipped']);
 const BACKLOG_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const META_KEYS = new Set([
   'priority', 'severity', 'type', 'effort', 'estimate', 'source',
   'relations', 'dependsOn', 'goalIds', 'analysis', 'skills', 'backlog',
-  'allowedTools', 'requiredCapabilities',
+  'allowedTools', 'requiredCapabilities', 'agentRole',
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
@@ -67,6 +70,7 @@ const CREATE_KEYS = new Set([
   'backlog', 'priority', 'severity', 'type', 'effort', 'estimate',
   'source', 'relations', 'dependsOn', 'goalIds', 'analysis', 'steps',
   'notes', 'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
+  'agentRole',
 ]);
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
@@ -212,6 +216,11 @@ function validateV3Fields(task, label) {
           (v) => typeof v === 'string' && v.trim() !== ''))) {
     throw err('TASK_MALFORMED',
       `${label}.requiredCapabilities must be an array of capability names or null`);
+  }
+  if (task.agentRole !== undefined && task.agentRole !== null
+      && (typeof task.agentRole !== 'string' || task.agentRole.trim() === '')) {
+    throw err('TASK_MALFORMED',
+      `${label}.agentRole must be a non-empty string or null`);
   }
   if (task.uncertainty !== null) {
     const u = task.uncertainty;
@@ -688,6 +697,14 @@ export function normalizeV3Input(input) {
     }
     v3.source = input.source;
   }
+  if (has('agentRole')) {
+    if (input.agentRole !== null
+        && (typeof input.agentRole !== 'string' || input.agentRole.trim() === '')) {
+      throw err('INVALID_VALUE',
+        'agentRole must be a non-empty string or null');
+    }
+    v3.agentRole = input.agentRole;
+  }
   if (has('relations')) {
     v3.relations = input.relations === null ? null : (() => {
       const r = input.relations;
@@ -785,7 +802,7 @@ export const V3_DEFAULTS = {
   type: null, effort: null, estimate: null, source: null, relations: null,
   dependsOn: null, goalIds: null, analysis: null, steps: null, notes: null,
   skills: null, uncertainty: null,
-  allowedTools: null, requiredCapabilities: null,
+  allowedTools: null, requiredCapabilities: null, agentRole: null,
 };
 
 // Pure task record factory: no I/O, no side effects. V2 records carry the

@@ -141,6 +141,40 @@ test('requiredCapabilities: distinct from skills/allowedTools, same shape', () =
   } finally { cleanup(dir); }
 });
 
+test('agentRole: non-empty string or null; unresolved reference allowed', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, {
+      ...BASE, agentRole: 'reviewers/finance-senior',
+    });
+    assert.equal(task.agentRole, 'reviewers/finance-senior');
+    assert.throws(() => prepareTask(ctx, { ...BASE, agentRole: '' }),
+      (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, { ...BASE, agentRole: ['a'] }),
+      (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, { ...BASE, agentRole: 42 }),
+      (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, agentRole: null });
+    assert.equal(applied.agentRole, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { agentRole: 'agents/architect' },
+    });
+    assert.equal(next.agentRole, 'agents/architect');
+    // Stored-shape: non-string and empty-string values are rejected;
+    // an absent key (pre-extension record) stays readable.
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.agentRole = '';
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.agentRole;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).agentRole, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

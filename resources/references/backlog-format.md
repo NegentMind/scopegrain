@@ -34,6 +34,7 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `uncertainty` | `{uphill: int, downhill: int}` or null | Known-unknown vs settled work split. |
 | `allowedTools` | `[string]` or null | Per-task least-privilege tool list. Declarative only: the record carries the intent, hosts and `preAction` hooks enforce it — the harness never executes or intercepts tools itself. Optional on stored V3 records (additive extension); always emitted on new writes. |
 | `requiredCapabilities` | `[string]` or null | Capabilities the executor must have for dispatch. Distinct semantics: `skills` = capabilities exercised (historical record), `allowedTools` = permitted boundary, `requiredCapabilities` = required for routing — a declarative hint the host uses to pick an executor. Additive extension, same read/write rule as `allowedTools`. |
+| `agentRole` | string or null | Declarative profile assigned to the task (e.g. a `resources/agents/*` persona). Reference is not resolved at write time: stored records stay readable even if the profile later disappears. Additive extension, same read/write rule as `allowedTools`. |
 
 ## Plan semantic layer (schemaVersion 3)
 
@@ -42,7 +43,10 @@ at `plan create` upgrades the stored plan to `schemaVersion: 3`;
 `specId`/`designId` become present-but-nullable (both null or both
 UUIDs). Every plan task entry may also carry `triage`
 (`do|defer|skip|blocked`) + `triageReason`, and any task semantic field
-except `dependsOn` (which inside a plan names plan keys, the DAG).
+except `dependsOn` (which inside a plan names plan keys, the DAG). On
+materialization those key edges propagate into each generated V3 task
+record as resolved UUID `dependsOn`, so task-level consumers (ordering,
+viewers) see the same structure the ACT gate enforces.
 
 | Field | Type | Meaning |
 |---|---|---|

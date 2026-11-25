@@ -249,6 +249,16 @@ const COMMANDS = {
     pos: 1,
     usage: 'task reassess --project PATH ID --revision N --input FILE [--apply]',
   },
+  'task link': {
+    flags: ['--project', '--config', '--revision', '--kind', '--apply'],
+    pos: 2,
+    usage: 'task link --project PATH ID TARGET --revision N [--kind REL] [--apply]',
+  },
+  'task unlink': {
+    flags: ['--project', '--config', '--revision', '--kind', '--apply'],
+    pos: 2,
+    usage: 'task unlink --project PATH ID TARGET --revision N [--kind REL] [--apply]',
+  },
   'task disposition': {
     flags: ['--project', '--config', '--revision', '--reason', '--by',
       '--apply'], pos: 2,
@@ -1222,7 +1232,8 @@ async function cmdInit(flags, io) {
 }
 
 async function cmdTask(sub, positional, flags, io) {
-  const { getTask, listTasks, prepareTask } = await import('./core/tasks.mjs');
+  const { getTask, listTasks, prepareTask, RELATION_KINDS } =
+    await import('./core/tasks.mjs');
   const {
     transitionTask, updateTaskMeta, checkAction, evaluateTaskMeta,
     evaluateTaskTransition, validateMetaUpdateInput,
@@ -1346,6 +1357,47 @@ async function cmdTask(sub, positional, flags, io) {
       return { mode: 'dry-run', applied: false, task: evaluated.next };
     }
     return reassessTask(ctx, reassessInput);
+  }
+  if (sub === 'link' || sub === 'unlink') {
+    if (flags['--revision'] === undefined) {
+      throw err('INVALID_ARGS', '--revision N is required');
+    }
+    const kind = flags['--kind'];
+    if (kind !== undefined && !RELATION_KINDS.has(kind)) {
+      throw err('INVALID_VALUE',
+        `--kind must be one of ${[...RELATION_KINDS].join('|')}`);
+    }
+    const [id, target] = positional;
+    if (target === id) {
+      throw err('INVALID_VALUE', 'a task cannot depend on or relate to itself');
+    }
+    const task = getTask(ctx, id);
+    const remove = sub === 'unlink';
+    let set;
+    if (kind === undefined) {
+      // dependsOn names task records, not external refs — resolve the
+      // target so typos do not write dead edges into the graph.
+      getTask(ctx, target);
+      const cur = task.dependsOn ?? [];
+      const next = remove
+        ? cur.filter((x) => x !== target) : [...new Set([...cur, target])];
+      set = { dependsOn: next };
+    } else {
+      const rel = { ...(task.relations ?? {}) };
+      const cur = rel[kind] ?? [];
+      const next = remove
+        ? cur.filter((x) => x !== target) : [...new Set([...cur, target])];
+      if (next.length === 0) delete rel[kind];
+      else rel[kind] = next;
+      set = { relations: rel };
+    }
+    const metaInput = {
+      id,
+      expectedRevision: decimalInt(flags['--revision'], '--revision'),
+      set,
+    };
+    return flags['--apply']
+      ? updateTaskMeta(ctx, metaInput) : previewMeta(metaInput);
   }
   if (sub === 'disposition') {
     if (flags['--revision'] === undefined) {
