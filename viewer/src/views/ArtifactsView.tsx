@@ -32,8 +32,14 @@ import {
   ListSkeleton,
   ShortId,
 } from '@/components/StatusBits';
-import { cn } from '@/lib/utils';
-import { useT, useTEnum } from '@/lib/i18n';
+import {
+  SelectableRow,
+  useRovingTabindex,
+} from '@/components/SelectableRow';
+import { DocListItem } from '@/components/DocListItem';
+import { DocPanel } from '@/components/DocPanel';
+import { fmtDateTime, fmtRel, shortHash } from '@/lib/format';
+import { useLocale, useT, useTEnum } from '@/lib/i18n';
 import { Markdown } from '@/components/Markdown';
 
 const CHAIN_KINDS: ArtifactKind[] = ['spec', 'design', 'report'];
@@ -54,6 +60,7 @@ type Selection =
 export function ArtifactsView() {
   const t = useT();
   const te = useTEnum();
+  const locale = useLocale();
   const [kind, setKind] = useState<ArtifactKind>('spec');
   const [sel, setSel] = useState<Selection>(null);
   const list = useApi(() => api.artifacts(kind), [kind]);
@@ -65,6 +72,7 @@ export function ArtifactsView() {
         : Promise.resolve(null),
     [kind, sel],
   );
+  const roving = useRovingTabindex<HTMLTableSectionElement>();
 
   const artifactCount = list.data?.artifacts.length ?? 0;
   const docCount = docs.data?.docs.length ?? 0;
@@ -87,7 +95,7 @@ export function ArtifactsView() {
       >
         {ALL_KINDS.map((k) => (
           <ToggleGroupItem key={k} value={k} className="font-mono">
-            {k}
+            {te('akind', k)}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
@@ -106,6 +114,8 @@ export function ArtifactsView() {
                 <CardTitle className="font-mono">{kind}</CardTitle>
                 <CardDescription>
                   {artifactCount} {t('artifacts.count')}
+                  {/* TODO(i18n): 'chain: spec → design → report' needs a
+                      catalog key (W3). */}
                   {kind === 'spec' || kind === 'design' || kind === 'report'
                     ? ' · chain: spec → design → report'
                     : ''}
@@ -116,7 +126,7 @@ export function ArtifactsView() {
                 {artifactCount === 0 ? (
                   <EmptyBox>{t('artifacts.empty')}</EmptyBox>
                 ) : (
-                  <Table role="grid">
+                  <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-20">{t('common.id')}</TableHead>
@@ -125,35 +135,28 @@ export function ArtifactsView() {
                         <TableHead className="hidden md:table-cell">{t('artifacts.created')}</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
-                      {list.data?.artifacts.map((a) => (
-                        <TableRow
+                    <TableBody {...roving}>
+                      {list.data?.artifacts.map((a, i) => (
+                        <SelectableRow
                           key={a.id}
-                          onClick={() => setSel({ type: 'artifact', id: a.id })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault(); // Space must not scroll the page
-                              setSel({ type: 'artifact', id: a.id });
-                            }
-                          }}
-                          tabIndex={0}
-                          aria-selected={sel?.type === 'artifact' && sel.id === a.id}
-                          className={cn(
-                            'cursor-pointer focus-visible:outline-ring',
-                            sel?.type === 'artifact' && sel.id === a.id && 'bg-accent',
-                          )}
+                          selected={sel?.type === 'artifact' && sel.id === a.id}
+                          onSelect={() => setSel({ type: 'artifact', id: a.id })}
+                          tabIndex={sel?.type !== 'artifact' && i === 0 ? 0 : undefined}
+                          className="animate-in fade-in-50 duration-200"
                         >
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap">
                             <ShortId id={a.id} />
                           </TableCell>
                           <TableCell className="font-medium">{a.title}</TableCell>
-                          <TableCell className="font-mono text-xs">
+                          <TableCell className="whitespace-nowrap font-mono tabular-nums text-xs">
                             v{a.schemaVersion}
                           </TableCell>
-                          <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
-                            {a.createdAt.slice(0, 19).replace('T', ' ')}
+                          <TableCell className="hidden whitespace-nowrap tabular-nums text-xs text-muted-foreground md:table-cell">
+                            <span title={fmtDateTime(a.createdAt, locale)}>
+                              {fmtRel(a.createdAt, locale)}
+                            </span>
                           </TableCell>
-                        </TableRow>
+                        </SelectableRow>
                       ))}
                     </TableBody>
                   </Table>
@@ -176,31 +179,20 @@ export function ArtifactsView() {
                     <ul className="space-y-1.5">
                       {docs.data?.docs.map((d) => (
                         <li key={`${d.dir}/${d.name}`}>
-                          <button
-                            type="button"
-                            onClick={() => setSel({ type: 'doc', name: d.name })}
-                            className={cn(
-                              'flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-ring',
-                              sel?.type === 'doc' && sel.name === d.name && 'bg-accent',
-                            )}
-                          >
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate font-medium">
-                                {d.title}
-                              </span>
-                              <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                                {d.dir}/{d.name}
-                              </span>
-                            </span>
-                            {d.status ? (
-                              <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
-                                {te('astatus', d.status)}
-                              </Badge>
-                            ) : null}
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {d.date ?? d.updatedAt.slice(0, 10)}
-                            </span>
-                          </button>
+                          <DocListItem
+                            selected={sel?.type === 'doc' && sel.name === d.name}
+                            onSelect={() => setSel({ type: 'doc', name: d.name })}
+                            title={d.title}
+                            subtitle={`${d.dir}/${d.name}`}
+                            badge={
+                              d.status ? (
+                                <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+                                  {te('astatus', d.status)}
+                                </Badge>
+                              ) : null
+                            }
+                            meta={d.date ?? fmtDateTime(d.updatedAt, locale)}
+                          />
                         </li>
                       ))}
                     </ul>
@@ -210,56 +202,66 @@ export function ArtifactsView() {
             </Card>
           </div>
 
-          <Card className="min-w-0 self-start">
-            <CardHeader>
-              <CardTitle>{t('artifacts.detail')}</CardTitle>
-              <CardDescription>
-                {sel === null
-                  ? t('artifacts.selectArtifact')
-                  : sel.type === 'artifact'
-                    ? <ShortId id={sel.id} />
-                    : sel.name}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!sel ? (
-                <EmptyBox>{t('artifacts.selectPromptFull')}</EmptyBox>
-              ) : sel.type === 'artifact' ? (
-                detail.loading ? (
+          {sel?.type === 'doc' ? (
+            <ArtifactDocPanel key={sel.name} kind={kind} name={sel.name} />
+          ) : (
+            <Card className="min-w-0 self-start">
+              <CardHeader>
+                <CardTitle>{t('artifacts.detail')}</CardTitle>
+                <CardDescription>
+                  {sel === null
+                    ? t('artifacts.selectArtifact')
+                    : <ShortId id={sel.id} />}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!sel ? (
+                  <EmptyBox title={t('artifacts.selectArtifact')}>
+                    {t('artifacts.selectPromptFull')}
+                  </EmptyBox>
+                ) : detail.loading ? (
                   <ListSkeleton rows={3} />
                 ) : detail.error ? (
                   <ErrorBox error={detail.error} onRetry={detail.reload} />
                 ) : detail.data ? (
-                  <ArtifactPanel artifact={detail.data} />
-                ) : null
-              ) : (
-                <DocPanel kind={kind} name={sel.name} />
-              )}
-            </CardContent>
-          </Card>
+                  <div
+                    key={sel.id}
+                    className="animate-in fade-in-50 slide-in-from-right-1 duration-200"
+                  >
+                    <ArtifactPanel artifact={detail.data} />
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function DocPanel({ kind, name }: { kind: ArtifactKind; name: string }) {
+function ArtifactDocPanel({ kind, name }: { kind: ArtifactKind; name: string }) {
   const t = useT();
+  const locale = useLocale();
   const doc = useApi(() => api.artifactDoc(kind, name), [kind, name]);
-  if (doc.loading) return <ListSkeleton rows={3} />;
-  if (doc.error) return <ErrorBox error={doc.error} onRetry={doc.reload} />;
-  if (!doc.data) return null;
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        {doc.data.dir}/{doc.data.name} · {doc.data.bytes} B ·{' '}
-        {doc.data.updatedAt.slice(0, 10)}
-        {doc.data.docTruncated ? ` ${t('artifacts.bodyTruncated')}` : ''}
-      </p>
-      <ScrollArea className="max-h-[36rem] rounded-md border bg-muted/40 p-4">
+    <DocPanel
+      title={name}
+      description={
+        doc.data
+          ? `${doc.data.dir}/${doc.data.name} · ${doc.data.bytes} B · ${fmtDateTime(doc.data.updatedAt, locale)}${doc.data.docTruncated ? ` ${t('artifacts.bodyTruncated')}` : ''}`
+          : undefined
+      }
+      className="min-w-0 animate-in fade-in-50 slide-in-from-right-1 self-start duration-200 max-h-[36rem]"
+    >
+      {doc.loading ? (
+        <ListSkeleton rows={3} />
+      ) : doc.error ? (
+        <ErrorBox error={doc.error} onRetry={doc.reload} />
+      ) : doc.data ? (
         <Markdown>{doc.data.doc}</Markdown>
-      </ScrollArea>
-    </div>
+      ) : null}
+    </DocPanel>
   );
 }
 
@@ -273,12 +275,12 @@ function ArtifactPanel({ artifact }: { artifact: ArtifactSummary }) {
         <Badge variant="secondary" className="font-mono">
           {te('akind', artifact.kind)}
         </Badge>
-        <Badge variant="secondary" className="font-mono">
+        <Badge variant="secondary" className="font-mono tabular-nums">
           v{artifact.schemaVersion}
         </Badge>
       </div>
       <section aria-label={t('artifacts.body')}>
-        <div className="max-h-96 overflow-auto rounded-md border bg-muted/50 p-3">
+        <div className="max-h-[36rem] overflow-auto rounded-md border bg-muted/50 p-3">
           <Markdown>{artifact.body}</Markdown>
         </div>
         {artifact.bodyTruncated ? (
@@ -292,11 +294,13 @@ function ArtifactPanel({ artifact }: { artifact: ArtifactSummary }) {
           <h4 className="mb-1 font-medium uppercase text-muted-foreground">
             {t('artifacts.specBinding')}
           </h4>
+          {/* TODO(i18n): 'specId'/'specDigest' field labels need catalog
+              keys (W3). */}
           <p className="break-all font-mono">
             specId {String(data.specId ?? '—')}
           </p>
           <p className="break-all font-mono text-muted-foreground">
-            specDigest {String(data.specDigest ?? '—').slice(0, 24)}…
+            specDigest {shortHash(String(data.specDigest ?? '—'), 24)}…
           </p>
         </section>
       ) : null}

@@ -24,11 +24,17 @@ import {
   ListSkeleton,
   ShortId,
 } from '@/components/StatusBits';
-import { cn } from '@/lib/utils';
-import { useT } from '@/lib/i18n';
+import {
+  SelectableRow,
+  useRovingTabindex,
+} from '@/components/SelectableRow';
+import { MalformedNote } from '@/components/MalformedNote';
+import { fmtDateTime, fmtRel, shortHash } from '@/lib/format';
+import { useLocale, useT } from '@/lib/i18n';
 
 export function JournalView() {
   const t = useT();
+  const locale = useLocale();
   const [selected, setSelected] = useState<string | null>(null);
   const list = useApi(() => api.journalOperations());
   const detail = useApi<JournalOperationDetail | null>(
@@ -38,6 +44,7 @@ export function JournalView() {
         : Promise.resolve(null),
     [selected],
   );
+  const roving = useRovingTabindex<HTMLTableSectionElement>();
 
   if (list.loading) return <ListSkeleton />;
   if (list.error) return <ErrorBox error={list.error} onRetry={list.reload} />;
@@ -58,7 +65,7 @@ export function JournalView() {
           {ops.length === 0 && malformed.length === 0 ? (
             <EmptyBox>{t('journal.empty')}</EmptyBox>
           ) : (
-            <Table role="grid">
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-20">{t('common.op')}</TableHead>
@@ -68,31 +75,24 @@ export function JournalView() {
                   <TableHead className="hidden md:table-cell">{t('common.created')}</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {ops.map((op) => (
-                  <TableRow
+              <TableBody {...roving}>
+                {ops.map((op, i) => (
+                  <SelectableRow
                     key={op.operationId}
-                    onClick={() => setSelected(op.operationId)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault(); // Space must not scroll the page
-                        setSelected(op.operationId);
-                      }
-                    }}
-                    tabIndex={0}
-                    aria-selected={selected === op.operationId}
-                    className={cn(
-                      'cursor-pointer focus-visible:outline-ring',
-                      selected === op.operationId && 'bg-accent',
-                    )}
+                    selected={selected === op.operationId}
+                    onSelect={() => setSelected(op.operationId)}
+                    tabIndex={selected === null && i === 0 ? 0 : undefined}
+                    className="animate-in fade-in-50 duration-200"
                   >
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap">
                       <ShortId id={op.operationId} />
                     </TableCell>
                     <TableCell>
                       <JournalStateBadge state={op.state} />
                     </TableCell>
-                    <TableCell className="font-mono">{op.eventCount}</TableCell>
+                    <TableCell className="whitespace-nowrap font-mono tabular-nums">
+                      {op.eventCount}
+                    </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {op.sourceKinds.map((k) => (
                         <Badge key={k} variant="secondary" className="mr-1">
@@ -100,19 +100,17 @@ export function JournalView() {
                         </Badge>
                       ))}
                     </TableCell>
-                    <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
-                      {op.createdAt.slice(0, 19).replace('T', ' ')}
+                    <TableCell className="hidden whitespace-nowrap tabular-nums text-xs text-muted-foreground md:table-cell">
+                      <span title={fmtDateTime(op.createdAt, locale)}>
+                        {fmtRel(op.createdAt, locale)}
+                      </span>
                     </TableCell>
-                  </TableRow>
+                  </SelectableRow>
                 ))}
               </TableBody>
             </Table>
           )}
-          {malformed.length > 0 ? (
-            <p className="mt-4 text-xs text-destructive">
-              {malformed.length} {t('common.malformedEntries')}
-            </p>
-          ) : null}
+          <MalformedNote count={malformed.length} />
         </CardContent>
       </Card>
 
@@ -125,13 +123,20 @@ export function JournalView() {
         </CardHeader>
         <CardContent>
           {!selected ? (
-            <EmptyBox>{t('journal.selectPromptFull')}</EmptyBox>
+            <EmptyBox title={t('journal.selectOperation')}>
+              {t('journal.selectPromptFull')}
+            </EmptyBox>
           ) : detail.loading ? (
             <ListSkeleton rows={3} />
           ) : detail.error ? (
             <ErrorBox error={detail.error} onRetry={detail.reload} />
           ) : detail.data ? (
-            <OperationPanel op={detail.data} />
+            <div
+              key={selected}
+              className="animate-in fade-in-50 slide-in-from-right-1 duration-200"
+            >
+              <OperationPanel op={detail.data} />
+            </div>
           ) : null}
         </CardContent>
       </Card>
@@ -145,27 +150,30 @@ function OperationPanel({ op }: { op: JournalOperationDetail }) {
     <div className="space-y-3 text-sm">
       <div className="flex items-center gap-2">
         <JournalStateBadge state={op.state} />
-        <span className="font-mono text-xs text-muted-foreground break-all">
-          digest {op.intentDigest.slice(0, 16)}…
+        {/* TODO(i18n): 'digest' label needs a catalog key (W3). */}
+        <span className="break-all font-mono text-xs text-muted-foreground">
+          digest {shortHash(op.intentDigest)}…
         </span>
       </div>
       <ol className="space-y-2">
         {op.intent.events.map((ev) => (
           <li key={ev.eventId} className="rounded-md border p-2 text-xs">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="font-mono">
+              {/* TODO(i18n): 'seq' label needs a catalog key (W3). */}
+              <Badge variant="secondary" className="font-mono tabular-nums">
                 seq {ev.journalSequence}
               </Badge>
               <span className="font-medium">
-                {ev.sourceKind}/{ev.recordId.slice(0, 8)}
+                {ev.sourceKind}/{shortHash(ev.recordId)}
               </span>
               <span className="text-muted-foreground">{ev.operation}</span>
             </div>
             <p className="mt-1 break-all font-mono text-muted-foreground">
               {ev.sourceRel}
             </p>
+            {/* TODO(i18n): 'sha256' label needs a catalog key (W3). */}
             <p className="break-all font-mono text-muted-foreground">
-              sha256 {ev.sourceHash.slice(0, 16)}…
+              sha256 {shortHash(ev.sourceHash)}…
             </p>
           </li>
         ))}

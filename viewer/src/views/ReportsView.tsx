@@ -19,12 +19,16 @@ import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useT } from '@/lib/i18n';
 import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
+import {
+  SelectableRow,
+  useRovingTabindex,
+} from '@/components/SelectableRow';
+import { toneClasses, type Tone } from '@/lib/tones';
 import { cn } from '@/lib/utils';
 
-const STATUS_TONE: Record<string, string> = {
-  ok: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-  'needs-attention':
-    'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+const STATUS_TONE: Record<string, Tone> = {
+  ok: 'ok',
+  'needs-attention': 'warn',
 };
 
 export function ReportsView() {
@@ -35,6 +39,7 @@ export function ReportsView() {
     () => (selected ? api.report(selected) : Promise.resolve(null)),
     [selected],
   );
+  const roving = useRovingTabindex<HTMLTableSectionElement>();
 
   if (loading) return <ListSkeleton />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
@@ -54,32 +59,22 @@ export function ReportsView() {
           {reports.length === 0 ? (
             <EmptyBox>{t('reports.empty')}</EmptyBox>
           ) : (
-            <Table role="grid">
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('reports.file')}</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {reports.map((name) => (
-                  <TableRow
+              <TableBody {...roving}>
+                {reports.map((name, i) => (
+                  <SelectableRow
                     key={name}
-                    onClick={() => setSelected(name)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault(); // Space must not scroll the page
-                        setSelected(name);
-                      }
-                    }}
-                    tabIndex={0}
-                    aria-selected={selected === name}
-                    className={cn(
-                      'cursor-pointer focus-visible:outline-ring',
-                      selected === name && 'bg-accent',
-                    )}
+                    selected={selected === name}
+                    onSelect={() => setSelected(name)}
+                    tabIndex={selected === null && i === 0 ? 0 : undefined}
                   >
                     <TableCell className="font-mono text-xs">{name}</TableCell>
-                  </TableRow>
+                  </SelectableRow>
                 ))}
               </TableBody>
             </Table>
@@ -99,20 +94,24 @@ export function ReportsView() {
           ) : detail.error ? (
             <ErrorBox error={detail.error} onRetry={detail.reload} />
           ) : detail.data ? (
-            <div className="space-y-4">
+            <div
+              key={selected}
+              className="animate-in fade-in-50 slide-in-from-right-1 space-y-4 duration-200"
+            >
               <div className="flex items-center gap-3">
                 <Badge
                   variant="outline"
                   className={cn(
                     'font-mono',
-                    STATUS_TONE[detail.data.report.status] ??
-                      STATUS_TONE['needs-attention'],
+                    toneClasses(
+                      STATUS_TONE[detail.data.report.status] ?? 'warn',
+                    ).badge,
                   )}
                 >
                   {detail.data.report.status}
                 </Badge>
                 {detail.data.report.summary ? (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs tabular-nums text-muted-foreground">
                     {t('common.ok')} {detail.data.report.summary.ok} ·{' '}
                     {t('common.warn')} {detail.data.report.summary.warnings} ·{' '}
                     {t('common.fail')} {detail.data.report.summary.failures}

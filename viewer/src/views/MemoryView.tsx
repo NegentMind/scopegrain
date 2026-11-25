@@ -24,20 +24,20 @@ import {
   type MemoryLogName,
 } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { useT } from '@/lib/i18n';
+import { useLocale, useT, type Locale } from '@/lib/i18n';
 import {
   EmptyBox,
   ErrorBox,
   ListSkeleton,
 } from '@/components/StatusBits';
+import { MalformedNote } from '@/components/MalformedNote';
+import { fmtDateTime, shortHash } from '@/lib/format';
+import { toneClasses } from '@/lib/tones';
+import { cn } from '@/lib/utils';
 
 const LOGS: MemoryLogName[] = [
   'lessons', 'outcomes', 'progress', 'activity', 'goals',
 ];
-
-function at(e: Record<string, unknown>): string {
-  return typeof e.at === 'string' ? e.at.slice(0, 19).replace('T', ' ') : '';
-}
 
 function str(v: unknown): string | null {
   return typeof v === 'string' && v !== '' ? v : null;
@@ -47,6 +47,7 @@ function str(v: unknown): string | null {
 // each log keeps its own shape, so the table headers follow the log.
 export function MemoryView() {
   const t = useT();
+  const locale = useLocale();
   const [log, setLog] = useState<MemoryLogName>('lessons');
   const { data, loading, error, reload } = useApi(
     () => api.memory(log),
@@ -91,33 +92,36 @@ export function MemoryView() {
         {entries.length === 0 && malformed.length === 0 ? (
           <EmptyBox>{t('memory.empty')}</EmptyBox>
         ) : goalsView ? (
-          <GoalsTable entries={entries} />
+          <GoalsTable entries={entries} locale={locale} />
         ) : (
-          <EntriesTable log={log} entries={entries} />
+          <EntriesTable log={log} entries={entries} locale={locale} />
         )}
-        {malformed.length > 0 ? (
-          <div className="mt-4 space-y-1 text-xs">
-            <p className="font-medium text-destructive">
-              {malformed.length} {t('common.malformedEntries')}
-            </p>
-            {malformed.map((m, i) => (
-              <p key={i} className="font-mono text-muted-foreground">
-                {m.line}
-              </p>
-            ))}
-          </div>
-        ) : null}
+        <MalformedNote
+          count={malformed.length}
+          details={malformed.map((m) => m.line)}
+        />
       </CardContent>
     </Card>
+  );
+}
+
+function At({ value, locale }: { value: unknown; locale: Locale }) {
+  const iso = str(value);
+  return (
+    <TableCell className="whitespace-nowrap font-mono tabular-nums text-xs text-muted-foreground">
+      {iso ? fmtDateTime(iso, locale) : ''}
+    </TableCell>
   );
 }
 
 function EntriesTable({
   log,
   entries,
+  locale,
 }: {
   log: MemoryLogName;
   entries: Record<string, unknown>[];
+  locale: Locale;
 }) {
   const t = useT();
   return (
@@ -148,9 +152,7 @@ function EntriesTable({
       <TableBody>
         {entries.map((e, i) => (
           <TableRow key={i}>
-            <TableCell className="font-mono text-xs text-muted-foreground">
-              {at(e)}
-            </TableCell>
+            <At value={e.at} locale={locale} />
             {log === 'lessons' ? (
               <>
                 <TableCell>
@@ -168,16 +170,16 @@ function EntriesTable({
             ) : log === 'outcomes' ? (
               <>
                 <TableCell className="font-mono text-xs">
-                  {str(e.taskId)?.slice(0, 8) ?? ''}
+                  {str(e.taskId) ? shortHash(str(e.taskId)!) : ''}
                 </TableCell>
                 <TableCell>
                   <Badge
                     variant="outline"
-                    className={
+                    className={cn(
                       str(e.outcome) === 'ok'
-                        ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                        : 'border-red-500/40 text-red-600 dark:text-red-400'
-                    }
+                        ? toneClasses('ok').badge
+                        : toneClasses('err').badge,
+                    )}
                   >
                     {str(e.outcome) ?? ''}
                   </Badge>
@@ -214,7 +216,13 @@ function EntriesTable({
 // returns the raw goals worklog (id/title/description/status/horizon/
 // metrics) — the linked-task join only exists on api.goals(), which is
 // what GoalsView consumes.
-function GoalsTable({ entries }: { entries: Record<string, unknown>[] }) {
+function GoalsTable({
+  entries,
+  locale,
+}: {
+  entries: Record<string, unknown>[];
+  locale: Locale;
+}) {
   const t = useT();
   return (
     <Table>
@@ -229,9 +237,7 @@ function GoalsTable({ entries }: { entries: Record<string, unknown>[] }) {
       <TableBody>
         {entries.map((e, i) => (
           <TableRow key={i}>
-            <TableCell className="font-mono text-xs text-muted-foreground">
-              {at(e)}
-            </TableCell>
+            <At value={e.at} locale={locale} />
             <TableCell>
               <div className="space-y-1">
                 <p className="text-sm font-medium">{str(e.title) ?? ''}</p>

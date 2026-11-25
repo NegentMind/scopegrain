@@ -16,7 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { useT } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n';
 import {
   EmptyBox,
   ErrorBox,
@@ -24,9 +24,12 @@ import {
   OwnershipBadge,
   ShortId,
 } from '@/components/StatusBits';
+import { MalformedNote } from '@/components/MalformedNote';
+import { fmtDateTime, fmtRel } from '@/lib/format';
 
 export function CapturesView() {
   const t = useT();
+  const locale = useLocale();
   const { data, loading, error, reload } = useApi(() => api.captures());
 
   if (loading) return <ListSkeleton />;
@@ -61,7 +64,7 @@ export function CapturesView() {
             <TableBody>
               {captures.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <ShortId id={c.id} />
                   </TableCell>
                   <TableCell>
@@ -73,7 +76,7 @@ export function CapturesView() {
                         {c.record.category}
                       </Badge>
                     ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">{t('common.none')}</span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -81,26 +84,28 @@ export function CapturesView() {
                       <span className="font-medium">{c.record.title}</span>
                     ) : (
                       <span className="font-mono text-xs text-destructive">
+                        {/* TODO(i18n): 'unreadable' fallback needs a catalog
+                            key (W3). */}
                         {c.error?.code ?? 'unreadable'}
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">
-                    {c.scope ? c.scope.areaIds.length : '—'}
+                  <TableCell className="hidden font-mono tabular-nums text-xs text-muted-foreground md:table-cell">
+                    {c.scope ? c.scope.areaIds.length : t('common.none')}
                   </TableCell>
-                  <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
-                    {c.record?.capturedAt.slice(0, 19).replace('T', ' ') ?? '—'}
+                  <TableCell className="hidden whitespace-nowrap tabular-nums text-xs text-muted-foreground md:table-cell">
+                    {c.record ? (
+                      <span title={fmtDateTime(c.record.capturedAt, locale)}>
+                        {fmtRel(c.record.capturedAt, locale)}
+                      </span>
+                    ) : t('common.none')}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
-        {malformed.length > 0 ? (
-          <p className="mt-4 text-xs text-destructive">
-            {malformed.length} {t('common.malformedEntries')}
-          </p>
-        ) : null}
+        <MalformedNote count={malformed.length} />
       </CardContent>
     </Card>
   );
