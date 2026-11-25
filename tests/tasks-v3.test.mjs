@@ -317,6 +317,34 @@ test('outputContract: non-empty string or null', () => {
   } finally { cleanup(dir); }
 });
 
+test('reviewRubric: non-empty string or null', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, {
+      ...BASE, reviewRubric: 'responde a todos los puntos; min 8/10',
+    });
+    assert.equal(task.reviewRubric, 'responde a todos los puntos; min 8/10');
+    assert.throws(() => prepareTask(ctx, { ...BASE, reviewRubric: ' ' }),
+      (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, reviewRubric: null });
+    assert.equal(applied.reviewRubric, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { reviewRubric: 'rubric v2' },
+    });
+    assert.equal(next.reviewRubric, 'rubric v2');
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.reviewRubric = [];
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.reviewRubric;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).reviewRubric, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

@@ -39,6 +39,7 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `sideEffects` | `none|reversible|irreversible` or null | Declarative impact classification of the task's effects (e.g. `irreversible` for production deploys or external sends). Consumable by `preAction` hooks and hosts — the classification is data, not enforcement: the harness does not execute the effects. Additive extension, same read/write rule as `allowedTools`. |
 | `executionType` | `atomic|delegated|hitl` or null | Declarative execution pattern for the host's routing. `consensus`/debate is deliberately excluded: personas do not invoke personas (`resources/references/orchestration-patterns.md`). Additive extension, same read/write rule as `allowedTools`. |
 | `outputContract` | string or null | Declarative pointer to the schema or template the deliverable must satisfy (e.g. `schemas/`, `templates/` or a doc). The field points; the harness does not run schema validation over the agent's output. Additive extension, same read/write rule as `allowedTools`. |
+| `reviewRubric` | string or null | Scorable criteria the fresh reviewer applies. Guides the attestation without becoming an automatic LLM judge — the review stays a declared attestation (non-executing posture). Additive extension, same read/write rule as `allowedTools`. |
 
 ## Plan semantic layer (schemaVersion 3)
 

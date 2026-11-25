@@ -240,6 +240,7 @@ function taskSummary(task) {
     sideEffects: task.sideEffects ?? null,
     executionType: task.executionType ?? null,
     outputContract: task.outputContract ?? null,
+    reviewRubric: task.reviewRubric ?? null,
   };
 }
 

@@ -49,7 +49,7 @@ const TASK_V3_FORWARD = [
   'source', 'relations', 'goalIds', 'analysis', 'steps', 'notes',
   'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
   'agentRole', 'expectedOutputs', 'sideEffects', 'executionType',
-  'outputContract',
+  'outputContract', 'reviewRubric',
 ];
 const PLAN_V3_KEYS = new Set([
   'triage', 'appetite', 'cynefin', 'riskRegister', 'premortem',
