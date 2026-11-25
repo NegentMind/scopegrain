@@ -38,6 +38,7 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `expectedOutputs` | `[{path, mustExist?, mustBeNonEmpty?}]` or null | Artifacts the task must produce for its definition-of-done. `path` is a canonical relative path inside the project root (same rule as `scope`); existence is not required at write time. VERIFY/EVALUATE consumers may check the files as a deterministic check. Additive extension, same read/write rule as `allowedTools`. |
 | `sideEffects` | `none|reversible|irreversible` or null | Declarative impact classification of the task's effects (e.g. `irreversible` for production deploys or external sends). Consumable by `preAction` hooks and hosts — the classification is data, not enforcement: the harness does not execute the effects. Additive extension, same read/write rule as `allowedTools`. |
 | `executionType` | `atomic|delegated|hitl` or null | Declarative execution pattern for the host's routing. `consensus`/debate is deliberately excluded: personas do not invoke personas (`resources/references/orchestration-patterns.md`). Additive extension, same read/write rule as `allowedTools`. |
+| `outputContract` | string or null | Declarative pointer to the schema or template the deliverable must satisfy (e.g. `schemas/`, `templates/` or a doc). The field points; the harness does not run schema validation over the agent's output. Additive extension, same read/write rule as `allowedTools`. |
 
 ## Plan semantic layer (schemaVersion 3)
 
