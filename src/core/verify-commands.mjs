@@ -768,9 +768,12 @@ function wrapSpawnError(e, exe) {
     `cannot start '${exe}': ${e && e.message ? e.message : e}`);
 }
 
+const MAX_ASSERT_CHARS = 512;
+const ASSERT_KEYS = ['expectExit', 'expectStdout', 'expectStderr'];
+
 function runOptions(input) {
   const opts = closedOptions(
-    input, ['timeoutMs', 'maxOutputBytes'], 'run options');
+    input, ['timeoutMs', 'maxOutputBytes', 'asserts'], 'run options');
   let timeoutMs = DEFAULT_TIMEOUT_MS;
   let maxOutputBytes = DEFAULT_MAX_OUTPUT;
   if (opts.timeoutMs !== undefined) {
@@ -789,7 +792,52 @@ function runOptions(input) {
     }
     maxOutputBytes = opts.maxOutputBytes;
   }
-  return { timeoutMs, maxOutputBytes };
+  let asserts = null;
+  if (opts.asserts !== undefined && opts.asserts !== null) {
+    const a = closedOptions(opts.asserts, ASSERT_KEYS, 'run asserts');
+    asserts = {};
+    if (a.expectExit !== undefined) {
+      if (!Number.isInteger(a.expectExit) || a.expectExit < 0
+          || a.expectExit > 255) {
+        throw err('INVALID_VALUE',
+          'asserts.expectExit must be an integer in 0..255');
+      }
+      asserts.expectExit = a.expectExit;
+    }
+    for (const k of ['expectStdout', 'expectStderr']) {
+      if (a[k] !== undefined) {
+        if (typeof a[k] !== 'string' || a[k] === ''
+            || a[k].length > MAX_ASSERT_CHARS
+            || CONTROL_CHARS.test(a[k])) {
+          throw err('INVALID_VALUE',
+            `asserts.${k} must be a non-empty literal substring ` +
+            `of at most ${MAX_ASSERT_CHARS} chars`);
+        }
+        asserts[k] = a[k];
+      }
+    }
+    if (Object.keys(asserts).length === 0) asserts = null;
+  }
+  return { timeoutMs, maxOutputBytes, asserts };
+}
+
+// Literal-substring matching only — no regex, so an asserted pattern can
+// never inject matching semantics the operator did not read.
+function evalAsserts(asserts, result) {
+  if (!asserts) return null;
+  const checks = [];
+  if (asserts.expectExit !== undefined) {
+    checks.push({ kind: 'exit', expected: asserts.expectExit,
+      actual: result.code, matched: result.code === asserts.expectExit });
+  }
+  for (const [key, stream] of
+    [['expectStdout', 'stdout'], ['expectStderr', 'stderr']]) {
+    if (asserts[key] !== undefined) {
+      checks.push({ kind: stream, contains: asserts[key],
+        matched: result[stream].includes(asserts[key]) });
+    }
+  }
+  return { passed: checks.every((c) => c.matched), checks };
 }
 
 // Executes ONE explicitly approved record. Refuses unapproved commands —
@@ -798,7 +846,7 @@ function runOptions(input) {
 // Output capture is bounded; excess output is dropped, never buffered.
 // Async contract: validation failures reject, they never throw sync.
 export async function runVerifyCommand(ctx, id, options = {}) {
-  const { timeoutMs, maxOutputBytes } = runOptions(options);
+  const { timeoutMs, maxOutputBytes, asserts } = runOptions(options);
   const doc = readStoreDoc(verifyStoreAbs(ctx));
   const rec = findCommand(doc, id);
   if (rec.approved !== true) {
@@ -901,5 +949,8 @@ export async function runVerifyCommand(ctx, id, options = {}) {
         stderr: Buffer.concat(errChunks).toString('utf8'),
       });
     });
+  }).then((result) => {
+    const evaluated = evalAsserts(asserts, result);
+    return evaluated === null ? result : { ...result, asserts: evaluated };
   });
 }

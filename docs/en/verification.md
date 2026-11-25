@@ -687,10 +687,14 @@ The `verify` surface persists closed records under
   (unresolved ones stay `skipped`, never stored);
   `verify approve-discovered [--apply]` approves the stored
   `inferred` records. Both preview by default.
-- `verify run ID [--timeout MS] [--fail-on-error]` — executes a single
+- `verify run ID [--timeout MS] [--expect-exit N] [--expect-stdout PAT]
+  [--expect-stderr PAT] [--fail-on-error]` — executes a single
   approved record. By default it prints the result JSON and exits 0;
   `--fail-on-error` propagates the command's exit code when it is not 0
-  (or 1 on timeout/signal) for CI use.
+  (or 1 on timeout/signal/assert failure) for CI use. Asserts are
+  literal-substring comparisons (`--expect-exit` compares the integer
+  code); every evaluated check is recorded as structured evidence in
+  the result's `asserts.checks`, never silently.
 
 Safety model: nothing is auto-approved or auto-executed; `verify run`
 refuses unapproved records with `VERIFY_COMMAND_NOT_APPROVED`. Commands
@@ -701,4 +705,4 @@ default, 600 s cap), bounded captured output and a `cwd` contained in
 the project. The declared `executesProjectCommands:false` capability
 still holds: the harness never runs commands on its own initiative;
 `verify run` is an explicit operator order. Verified with
-`node --test tests/verify-commands.test.mjs` (21 pass, 0 fail).
+`node --test tests/verify-commands.test.mjs` (22 pass, 0 fail).

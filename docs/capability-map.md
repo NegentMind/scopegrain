@@ -143,7 +143,7 @@ Implementados sobre `owned-store.mjs` (factory) + `owned-chain.mjs` (primitivas)
 |---|---|
 | `verify discover` | Infiere candidatos desde manifests reales (nunca inventados; pm ambiguo → skipped) |
 | `verify add/approve/approve-discovered` | Whitelist explícita, tamper-evident, preview+apply |
-| `verify run ID` | Ejecuta solo comandos aprobados como argv literal (nunca shell): timeout acotado, output capado, `--fail-on-error` opcional |
+| `verify run ID` | Ejecuta solo comandos aprobados como argv literal (nunca shell): timeout acotado, output capado, `--fail-on-error` opcional, asserts literales de salida (`--expect-exit/-stdout/-stderr`) |
 
 ### 2.9 Ciclo de vida de la instalación
 

@@ -512,6 +512,64 @@ test('verify run --fail-on-error propagates non-clean exits; default stays 0', a
   } finally { cleanup(dir); }
 });
 
+test('verify run asserts are literal-substring evidence, never silent', async () => {
+  const { dir, ctx } = bootstrappedMiniCtx();
+  try {
+    writeFile(dir, 'scripts/check.mjs',
+      "console.log('vc-ok'); console.error('vc-warn'); process.exitCode = 7;\n");
+    const { record } = applyAddCommand(
+      ctx, { command: 'node scripts/check.mjs' });
+    applyApproveCommand(ctx, record.id);
+
+    // Passing asserts: every check is recorded with its verdict.
+    const pass = await runVerifyCommand(ctx, record.id, {
+      asserts: { expectExit: 7, expectStdout: 'vc-ok',
+        expectStderr: 'vc-warn' },
+    });
+    assert.equal(pass.asserts.passed, true);
+    assert.equal(pass.asserts.checks.length, 3);
+    assert.deepEqual(
+      pass.asserts.checks.map((c) => c.kind), ['exit', 'stdout', 'stderr']);
+    assert.ok(pass.asserts.checks.every((c) => c.matched));
+
+    // Failing asserts stay recorded — the run itself still reports honest
+    // status; only the assert verdict flips.
+    const fail = await runVerifyCommand(ctx, record.id, {
+      asserts: { expectExit: 0, expectStdout: 'never-emitted' },
+    });
+    assert.equal(fail.code, 7);
+    assert.equal(fail.asserts.passed, false);
+    assert.equal(fail.asserts.checks[0].matched, false);
+    assert.equal(fail.asserts.checks[1].matched, false);
+
+    // No asserts declared: no asserts key at all (absent, not null).
+    const plain = await runVerifyCommand(ctx, record.id);
+    assert.equal(Object.hasOwn(plain, 'asserts'), false);
+
+    // Assert validation: closed key set, bounded values, literal patterns.
+    await assert.rejects(
+      runVerifyCommand(ctx, record.id, { asserts: { expectExit: 300 } }),
+      (e) => e.code === 'INVALID_VALUE');
+    await assert.rejects(
+      runVerifyCommand(ctx, record.id, { asserts: { bogus: 'x' } }),
+      (e) => e.code === 'INVALID_VERIFY_INPUT');
+    await assert.rejects(
+      runVerifyCommand(ctx, record.id, { asserts: { expectStdout: 42 } }),
+      (e) => e.code === 'INVALID_VALUE');
+
+    // --fail-on-error maps a failed assert to exit 1 even on child exit 0.
+    writeFile(dir, 'scripts/ok.mjs', "console.log('vc-ok');\n");
+    const okAdd = applyAddCommand(ctx, { command: 'node scripts/ok.mjs' });
+    applyApproveCommand(ctx, okAdd.record.id);
+    const io = fakeIO();
+    assert.equal(await run(['verify', 'run', '--project', dir,
+      okAdd.record.id, '--expect-exit', '1', '--fail-on-error'], io), 1);
+    const out = lastJson(io);
+    assert.equal(out.code, 0);
+    assert.equal(out.asserts.passed, false);
+  } finally { cleanup(dir); }
+});
+
 // --- CLI plumbing ----------------------------------------------------------
 
 test('unknown verify subcommands, bad arity and stray flags fail', async () => {

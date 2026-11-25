@@ -696,10 +696,15 @@ Superficie `verify` con registros cerrados persistidos en
   bloqueada (los no resueltos quedan en `skipped`, nunca se guardan);
   `verify approve-discovered [--apply]` aprueba los registros
   `inferred` ya almacenados. Ambas vistas previas por defecto.
-- `verify run ID [--timeout MS] [--fail-on-error]` — ejecuta un unico
+- `verify run ID [--timeout MS] [--expect-exit N] [--expect-stdout PAT]
+  [--expect-stderr PAT] [--fail-on-error]` — ejecuta un unico
   registro aprobado. Por defecto imprime el JSON del resultado y sale
   con codigo 0; `--fail-on-error` propaga el codigo de salida del
-  comando cuando no es 0 (o 1 en timeout/senal) para uso en CI.
+  comando cuando no es 0 (o 1 en timeout/senal/fallo de assert) para
+  uso en CI. Los asserts son comparaciones literales de subcadena
+  (`--expect-exit` compara el codigo entero); cada check evaluado se
+  registra como evidencia estructurada en `asserts.checks` del
+  resultado, nunca silencioso.
 
 Modelo de seguridad: nada se auto-aprueba ni se auto-ejecuta;
 `verify run` rechaza registros no aprobados con
@@ -711,4 +716,4 @@ defecto, tope 600 s), salida acotada y `cwd` contenido en el proyecto.
 La capacidad declarada `executesProjectCommands:false` se mantiene: el
 arnes no ejecuta comandos por iniciativa propia; `verify run` es una
 orden explicita del operador. Verificado con
-`node --test tests/verify-commands.test.mjs` (21 pass, 0 fail).
+`node --test tests/verify-commands.test.mjs` (22 pass, 0 fail).

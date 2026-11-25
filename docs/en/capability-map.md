@@ -144,7 +144,7 @@ Each kind is a hash chain: genesis + chained updates, scope binding
 |---|---|
 | `verify discover` | Infers candidates from real manifests (never invented; ambiguous pm → skipped) |
 | `verify add/approve/approve-discovered` | Explicit whitelist, tamper-evident, preview+apply |
-| `verify run ID` | Executes only approved commands as literal argv (never shell): bounded timeout, capped output, optional `--fail-on-error` |
+| `verify run ID` | Executes only approved commands as literal argv (never shell): bounded timeout, capped output, optional `--fail-on-error`, literal output asserts (`--expect-exit/-stdout/-stderr`) |
 
 ### 2.9 Installation lifecycle
 

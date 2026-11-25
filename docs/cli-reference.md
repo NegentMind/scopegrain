@@ -848,7 +848,7 @@ scopegrain verify add --project PATH --command CMD [--apply]
 scopegrain verify approve ID --project PATH [--apply]
 scopegrain verify discover --project PATH [--apply] [--approve]
 scopegrain verify approve-discovered --project PATH [--all] [--apply]
-scopegrain verify run ID --project PATH [--timeout MS] [--fail-on-error]
+scopegrain verify run ID --project PATH [--timeout MS] [--expect-exit N] [--expect-stdout PAT] [--expect-stderr PAT] [--fail-on-error]
 ```
 
 Contrato completo en `docs/verification.md`: nada se auto-aprueba ni se

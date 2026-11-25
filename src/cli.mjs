@@ -83,7 +83,7 @@ const VALUE_FLAGS = new Set([
   '--assessment', '--source', '--out', '--registry', '--op', '--id',
   '--token-limit', '--hosts', '--structure-debounce', '--fields',
   '--actor', '--reference', '--expect-digest', '--kind', '--baseline',
-  '--min',
+  '--min', '--expect-exit', '--expect-stdout', '--expect-stderr',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -743,8 +743,9 @@ const COMMANDS = {
     usage: 'verify approve-discovered --project PATH [--all] [--apply]',
   },
   'verify run': {
-    flags: ['--project', '--config', '--timeout', '--fail-on-error'], pos: 1,
-    usage: 'verify run ID --project PATH [--timeout MS] [--fail-on-error]',
+    flags: ['--project', '--config', '--timeout', '--fail-on-error',
+      '--expect-exit', '--expect-stdout', '--expect-stderr'], pos: 1,
+    usage: 'verify run ID --project PATH [--timeout MS] [--expect-exit N] [--expect-stdout PAT] [--expect-stderr PAT] [--fail-on-error]',
   },
   'eval replay': {
     flags: ['--project', '--config', '--input', '--baseline'], pos: 0,
@@ -871,7 +872,8 @@ function helpResult() {
       'host activate writes project-local destinations only; global host paths and shared merges are never written',
       'capture proposals lists review proposals; capture review --apply creates an owned capture only from an approved decision',
       'verify add/approve/discover preview first; discover --approve bulk-approves the literal candidates just shown; approve-discovered without candidates approves all stored inferred and needs --all; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
-      'verify run prints the result JSON and exits 0 by default; --fail-on-error propagates the command exit code (or 1 on timeout/signal)',
+      'verify run prints the result JSON and exits 0 by default; --fail-on-error propagates the command exit code (or 1 on timeout/signal/assert failure)',
+      'verify run accepts literal-substring asserts: --expect-exit N, --expect-stdout PAT, --expect-stderr PAT — evaluated checks are recorded as structured evidence in the result JSON',
       'view serves a loopback API and keeps running; press Ctrl+C to stop; the server auto-reloads (Worker thread respawn) when the install src tree changes — --no-reload disables; an occupied default port walks to the next free one (an explicit --port fails fast); --allow-write opts in to the bounded catalog-doc edit endpoint (CAS-checked PUT) — the API stays read-only without it',
       'an --input/--baseline file resolving outside --project emits an INPUT_OUTSIDE_PROJECT warning on stderr — advisory defense-in-depth, never a block',
     ],
@@ -3211,14 +3213,29 @@ async function cmdVerify(sub, positional, flags, io) {
     if (Object.hasOwn(flags, '--timeout')) {
       options.timeoutMs = decimalInt(flags['--timeout'], '--timeout');
     }
+    // Structured output asserts: recorded evidence in the result JSON,
+    // never silent. --fail-on-error propagates an assert failure as exit 1.
+    const asserts = {};
+    if (Object.hasOwn(flags, '--expect-exit')) {
+      asserts.expectExit = decimalInt(flags['--expect-exit'], '--expect-exit');
+    }
+    if (flags['--expect-stdout'] !== undefined) {
+      asserts.expectStdout = flags['--expect-stdout'];
+    }
+    if (flags['--expect-stderr'] !== undefined) {
+      asserts.expectStderr = flags['--expect-stderr'];
+    }
+    if (Object.keys(asserts).length > 0) options.asserts = asserts;
     const result = await runVerifyCommand(ctx, positional[0], options);
     // Opt-in CI mode: the result JSON is still printed on stdout, but a
     // run that is not a clean exit-0 (non-zero code, timeout or signal)
-    // propagates as a non-zero process exit. The child code is preserved
-    // when it exists; timeout/signal terminations have no code and map
-    // to 1. run() reads io.exitCode like cmdView's io.viewServer handle.
+    // or a declared assert that failed propagates as a non-zero process
+    // exit. The child code is preserved when it exists; timeout/signal
+    // terminations and assert failures map to 1. run() reads io.exitCode
+    // like cmdView's io.viewServer handle.
     if (flags['--fail-on-error']
-        && !(result.status === 'exit' && result.code === 0)) {
+        && (!(result.status === 'exit' && result.code === 0)
+            || (result.asserts && !result.asserts.passed))) {
       io.exitCode = result.status === 'exit'
           && Number.isInteger(result.code) && result.code > 0
         ? result.code : 1;
