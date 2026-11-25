@@ -45,7 +45,10 @@ ciclo de vida. El conjunto cerrado de claves es `category`, `status`
 `enforcement.verificationRef`, `examples.good` y `examples.bad`,
 definido en `src/core/rule-meta.mjs` y expuesto en los recursos
 `kind=rule` como `meta` a través de `getResource` tras la comprobación
-de integridad. Los archivos sin bloque obtienen los defaults declarados
+de integridad. Sin clave `status` declarada, la cabecera humana
+`> **Status:**` del archivo actúa de fallback (`Active | In review |
+Draft | Deprecated` mapean a `active | proposed | proposed |
+archived`). Los archivos sin bloque obtienen los defaults declarados
 (`status: active`, `origin.source: canonical`,
 `enforcement.level: advisory`); un bloque malformado falla cerrado.
 Límites: valores escalares ≤300 caracteres, listas separadas por comas

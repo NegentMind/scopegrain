@@ -9,7 +9,7 @@ import { err } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, readFileLimited } from './fsx.mjs';
 import { configRel, isInside, portableKey, resolveInside, toCanonicalRelative } from './paths.mjs';
 import { loadLimits } from './policy.mjs';
-import { parseRuleMeta } from './rule-meta.mjs';
+import { parseRuleMeta, stripRuleFrontmatter } from './rule-meta.mjs';
 
 export const INSTALL_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -500,7 +500,9 @@ export function getResource(kind, id, opts = {}) {
   // frontmatter: single source of truth, parsed post-integrity-check so
   // only verified bytes produce meta. Malformed blocks fail closed.
   const meta = e.kind === 'rule'
-    ? parseRuleMeta(content, `${kind}/${e.id}`) : undefined;
+    ? parseRuleMeta(content, `${kind}/${e.id}`,
+      e.overlay === 'local' ? { source: 'local' } : undefined)
+    : undefined;
   return {
     ...e, content,
     ...(meta !== undefined ? { meta } : {}),
@@ -680,6 +682,82 @@ function mergeMounted(cat, configDir, containmentRoot, verify) {
   return cat;
 }
 
+// --- Local rules overlay ---
+// <configDir>/rules/local/*.md merge into the workspace catalog as
+// un-pinned rule entries (overlay:'local'): owner-authored rules that
+// live outside the signed snapshot. sha256 is stamped from the bytes
+// read at merge time so served resources still re-hash at delivery —
+// a file edited between load and serve fails closed at getResource.
+// A local id colliding with a canonical or mounted entry, or shadowing
+// an alias, is an explicit error — never silent shadowing.
+const LOCAL_RULES_REL = 'rules/local';
+const LOCAL_RULES_MAX = 128;
+
+function localRuleDescription(bytes, id) {
+  const body = stripRuleFrontmatter(decodeUtf8Strict(
+    bytes, 'CATALOG_MALFORMED', `local rule ${id}`));
+  for (const line of body.split(/\r?\n/)) {
+    const t = line.trim().replace(/^[#>\s*_]+/, '').slice(0, 120);
+    if (t !== '') return t;
+  }
+  return `local:${id}`;
+}
+
+function mergeLocalOverlay(cat, configDir, containmentRoot) {
+  cat.localRules = 0;
+  const dirAbs = path.join(configDir, LOCAL_RULES_REL);
+  const st = lstatOrNull(dirAbs);
+  if (st === null) return cat; // no overlay — the common case
+  if (!st.isDirectory() || st.isSymbolicLink()) {
+    throw err('CATALOG_INVALID_FILE',
+      `${LOCAL_RULES_REL} exists but is not a real directory`);
+  }
+  const names = fs.readdirSync(dirAbs)
+    .filter((n) => n.toLowerCase().endsWith('.md')).sort();
+  if (names.length > LOCAL_RULES_MAX) {
+    throw err('CATALOG_MALFORMED',
+      `${LOCAL_RULES_REL} exceeds ${LOCAL_RULES_MAX} files`);
+  }
+  for (const name of names) {
+    const id = name.slice(0, -3);
+    if (!ID_RE.test(id)) {
+      // Declared, not silent: an unusable filename is a warning, not a
+      // load failure — the file simply never becomes a rule entry.
+      cat.warnings.push(
+        `local rule file '${name}' has an invalid id — skipped`);
+      continue;
+    }
+    const rel = `${LOCAL_RULES_REL}/${name}`;
+    const fileSt = lstatOrNull(path.join(dirAbs, name));
+    if (fileSt === null || fileSt.isSymbolicLink() || !fileSt.isFile()) {
+      // Declared, not silent: directories, symlinks and ghosts named
+      // *.md never become rule entries.
+      cat.warnings.push(
+        `local rule file '${name}' is not a regular file — skipped`);
+      continue;
+    }
+    const key = `rule/${id}`.toLowerCase();
+    if (cat.byKey.has(key)) {
+      throw err('CATALOG_DUPLICATE',
+        `local rule ${key} collides with a catalog entry`);
+    }
+    if (cat.aliases.some((a) => a.kind === 'rule'
+        && a.id.toLowerCase() === id.toLowerCase())) {
+      throw err('CATALOG_DUPLICATE',
+        `local rule ${key} shadows a catalog alias`);
+    }
+    const bytes = readEntryContent(configDir, rel, containmentRoot);
+    const canon = { kind: 'rule', id, path: rel,
+      description: localRuleDescription(bytes, id),
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+      overlay: 'local' };
+    cat.entries.push(canon);
+    cat.byKey.set(key, canon);
+    cat.localRules += 1;
+  }
+  return cat;
+}
+
 // Per-process reuse of the verified workspace catalog. The eager sha256
 // pass over every snapshot and mounted entry is repeated only when the
 // fingerprint changes: manifest and mounted-catalog bytes hashed (two
@@ -780,11 +858,12 @@ export function loadWorkspaceCatalog(ctx, { verifyResources = true } = {}) {
   const configDir = ctx.configDir === '.'
     ? ctx.projectRoot
     : resolveInside(ctx.projectRoot, ctx.configDir, 'config directory');
-  const load = (verify) => mergeMounted(loadCatalog({
+  const load = (verify) => mergeLocalOverlay(mergeMounted(loadCatalog({
     installRoot: configDir, manifestRel: 'catalog.json',
     verifyResources: verify,
     snapshot: true, containmentRoot: ctx.projectRoot,
-  }), configDir, ctx.projectRoot, verify);
+  }), configDir, ctx.projectRoot, verify),
+    configDir, ctx.projectRoot);
   if (!verifyResources) return load(false);
   const manifestAbs = path.join(configDir, 'catalog.json');
   const mountedAbs = path.join(configDir, 'mounted-catalog.json');

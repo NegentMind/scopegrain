@@ -205,6 +205,10 @@ export function runDoctor(ctx, opts = {}) {
     workspace = loadWorkspaceCatalog({ projectRoot, configDir: ctx.configDir });
     push('workspace-catalog', true,
       `snapshot integrity ${workspace.integrity} (${workspace.entries.length} entries)`);
+    // Local rules overlay: owner-authored rules under rules/local/ are
+    // un-pinned by design — report the count so the layer is visible.
+    push('rule-overlay', true,
+      `${workspace.localRules ?? 0} local overlay rule(s) under rules/local/`);
     if (workspace.snapshotVersion === 1) {
       push('workspace-catalog', false,
         'legacy-unpinned snapshot: no sha256 coverage; upgrade recommended');
@@ -221,8 +225,12 @@ export function runDoctor(ctx, opts = {}) {
       // mergeMounted AFTER the snapshot manifest and would make this
       // comparison diverge permanently (false 'upgrade' every doctor
       // run once any bundle is mounted).
+      // Exclude mounted AND local-overlay layers — both are appended
+      // after the snapshot manifest and would make this comparison
+      // diverge permanently.
       const snapshotEntries = workspace.entries.slice(
-        0, workspace.entries.length - (workspace.mounted ?? 0));
+        0, workspace.entries.length
+          - (workspace.mounted ?? 0) - (workspace.localRules ?? 0));
       const snapshotManifest = {
         schemaVersion: workspace.snapshotVersion,
         entries: snapshotEntries.map((e) => ({

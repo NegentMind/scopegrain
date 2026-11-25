@@ -54,11 +54,11 @@ export const RULE_META_KEYS = new Set([
   ...LIST_KEYS,
 ]);
 
-export function defaultRuleMeta() {
+export function defaultRuleMeta(source = 'canonical') {
   return {
     category: null,
     status: 'active',
-    origin: { source: 'canonical', evidenceRefs: [] },
+    origin: { source, evidenceRefs: [] },
     activation: null,
     enforcement: { level: 'advisory', verificationRef: null },
     examples: null,
@@ -133,10 +133,24 @@ function list(raw, label, key, itemRe, itemMax) {
   return out;
 }
 
-// parseRuleMeta(text|buffer, label) -> normalized meta object.
+// Human-authored status header (`> **Status:** Active`) — the
+// canonical rules convention. A frontmatter `status` key always wins;
+// the header is the fallback for files without a fence. Vocabulary
+// differs from the enum: 'in review' and 'draft' count as proposed,
+// 'deprecated' as archived; unrecognized values keep the default.
+const STATUS_HEADER_RE = /\*\*Status:\*\*\s*([A-Za-z][A-Za-z -]{0,29})/;
+const STATUS_HEADER_MAP = new Map([
+  ['active', 'active'], ['proposed', 'proposed'], ['in review', 'proposed'],
+  ['draft', 'proposed'], ['archived', 'archived'],
+  ['deprecated', 'archived'],
+]);
+
+// parseRuleMeta(text|buffer, label, {source}) -> normalized meta object.
 // Always returns every key (defaults applied); `activation` and
 // `examples` stay null unless at least one of their keys is declared.
-export function parseRuleMeta(input, label = 'rule') {
+// `source` sets the default origin.source (placement: 'local' overlay
+// files vs 'canonical' snapshot entries).
+export function parseRuleMeta(input, label = 'rule', opts = {}) {
   const raw = Buffer.isBuffer(input)
     ? decodeUtf8Strict(input, CODE, label) : String(input ?? '');
   // A BOM before the fence must not silently downgrade the file to
@@ -144,7 +158,12 @@ export function parseRuleMeta(input, label = 'rule') {
   const text = raw.replace(/^\uFEFF/, '');
   const head = text.length > HEAD_MAX_CHARS
     ? text.slice(0, HEAD_MAX_CHARS) : text;
-  if (!head.startsWith('---')) return defaultRuleMeta();
+  const source = opts.source ?? 'canonical';
+  if (!head.startsWith('---')) {
+    const meta = defaultRuleMeta(source);
+    applyStatusHeader(meta, head);
+    return meta;
+  }
   const m = FENCE_RE.exec(head);
   if (!m) {
     bad(label, 'frontmatter fence does not close within the head cap');
@@ -166,7 +185,7 @@ export function parseRuleMeta(input, label = 'rule') {
     }
     flat[key] = kv[2].trim().replace(/^["']|["']$/g, '');
   }
-  const meta = defaultRuleMeta();
+  const meta = defaultRuleMeta(source);
   for (const [key, raw] of Object.entries(flat)) {
     if (raw === '') bad(label, `'${key}' must not be empty`);
     switch (key) {
@@ -235,5 +254,29 @@ export function parseRuleMeta(input, label = 'rule') {
       bad(label, `'${key}' exceeds ${SCALAR_MAX} chars`);
     }
   }
+  if (flat.status === undefined) applyStatusHeader(meta, head);
   return meta;
+}
+
+function applyStatusHeader(meta, head) {
+  const m = STATUS_HEADER_RE.exec(head);
+  if (!m) return;
+  const v = m[1].trim().toLowerCase();
+  // Longest-prefix match: 'Deprecated - replaced by X' still resolves
+  // to archived; unrecognized values keep the declared default.
+  for (const key of [...STATUS_HEADER_MAP.keys()]
+    .sort((a, b) => b.length - a.length)) {
+    if (v === key || v.startsWith(`${key} `) || v.startsWith(`${key}-`)) {
+      meta.status = STATUS_HEADER_MAP.get(key);
+      return;
+    }
+  }
+}
+
+// Body text with any leading frontmatter block removed — for consumers
+// that need the rule's prose, not its metadata (e.g. descriptions).
+export function stripRuleFrontmatter(text) {
+  const t = String(text ?? '').replace(/^﻿/, '');
+  const m = FENCE_RE.exec(t);
+  return m ? t.slice(m[0].length) : t;
 }

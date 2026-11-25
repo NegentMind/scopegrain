@@ -43,7 +43,10 @@ key set is `category`, `status` (`active|proposed|archived`),
 (`advisory|strict`), `enforcement.verificationRef`, `examples.good`
 and `examples.bad`, defined in `src/core/rule-meta.mjs` and exposed on
 `kind=rule` resources as `meta` through `getResource` after the
-integrity check. Files without a block get the declared defaults
+integrity check. When no `status` key is declared, the file's human
+`> **Status:**` header is the fallback (`Active | In review | Draft |
+Deprecated` map to `active | proposed | proposed | archived`).
+Files without a block get the declared defaults
 (`status: active`, `origin.source: canonical`,
 `enforcement.level: advisory`); a malformed block fails closed.
 Bounds: scalar values ≤300 chars, comma-separated list values ≤32

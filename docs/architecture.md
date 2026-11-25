@@ -370,6 +370,18 @@ un esquema editado con keywords fuera del subconjunto falla en voz alta.
   por el mismo pipeline que los del snapshot — la capa mounted es overlay,
   nunca altera el manifest proyectado ni dispara `upgradeAvailable` en
   `doctor`.
+- Una segunda capa overlay son las reglas locales del owner en
+  `<configDir>/rules/local/*.md`: entradas `kind=rule` sin pin del
+  snapshot (`overlay: 'local'`), con sha256 calculado al vuelo en cada
+  merge — se re-hashean al servirse, asi que una edicion entre carga y
+  entrega falla cerrada. El ciclo de vida lo gobierna el frontmatter
+  `status` o, sin el, la cabecera `> **Status:**` del archivo
+  (`Active | In review | Draft | Deprecated` mapean a
+  `active | proposed | proposed | archived`). Un id local que colisiona
+  con una entrada canonica o mounted — o que sombrea un alias — es
+  `CATALOG_DUPLICATE`, nunca shadowing silencioso. `doctor` reporta el
+  conteo bajo `rule-overlay`; el fingerprint de la cache verificada las
+  cubre, asi que cualquier edicion invalida la caché.
 - Las mutaciones de distribucion (registros de extensiones/presets,
   `mounted-catalog.json`, install/uninstall de bundles) dejan rastro en
   `<configDir>/dist-journal.jsonl` bajo `dist.lock`: cada entrada lleva

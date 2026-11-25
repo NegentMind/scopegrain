@@ -388,6 +388,18 @@ the subset fails loudly.
   through the same pipeline as snapshot resources — the mounted
   layer is an overlay, never altering the projected manifest nor
   triggering `upgradeAvailable` in `doctor`.
+- A second overlay layer is the owner's local rules in
+  `<configDir>/rules/local/*.md`: `kind=rule` entries un-pinned from
+  the snapshot (`overlay: 'local'`), sha256 stamped at merge time —
+  re-hashed at serve, so an edit between load and delivery fails
+  closed. Lifecycle is governed by frontmatter `status` or, without
+  one, the file's `> **Status:**` header (`Active | In review |
+  Draft | Deprecated` map to `active | proposed | proposed |
+  archived`). A local id colliding with a canonical or mounted
+  entry — or shadowing an alias — is `CATALOG_DUPLICATE`, never
+  silent shadowing. `doctor` reports the count as `rule-overlay`;
+  the verified-cache fingerprint covers the files, so any edit
+  invalidates the cache.
 - Distribution mutations (extension/preset registries,
   `mounted-catalog.json`, bundle install/uninstall) leave a trail in
   `<configDir>/dist-journal.jsonl` under `dist.lock`: each entry carries
