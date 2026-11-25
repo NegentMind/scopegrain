@@ -324,7 +324,7 @@
           "written": ".scopegrain/state/cache/structure-index.json",
           "files": 3
         },
-        "created": 246,
+        "created": 247,
         "files": [
           ".scopegrain/config.json",
           ".scopegrain/instructions.md",
@@ -468,6 +468,7 @@
           ".scopegrain/references/graph-investigation.md",
           ".scopegrain/references/accessibility-checklist.md",
           ".scopegrain/references/reference-maintenance.md",
+          ".scopegrain/references/rules-format.md",
           ".scopegrain/profiles/core.json",
           ".scopegrain/profiles/web.json",
           ".scopegrain/profiles/rust.json",
@@ -575,7 +576,7 @@
         ],
         "noop": [],
         "counts": {
-          "create": 246,
+          "create": 247,
           "noop": 0,
           "conflict": 0
         }
@@ -1011,12 +1012,12 @@
           {
             "name": "catalog",
             "ok": true,
-            "detail": "141 catalog entries validated"
+            "detail": "142 catalog entries validated"
           },
           {
             "name": "workspace-catalog",
             "ok": true,
-            "detail": "snapshot integrity hash-verified (141 entries)"
+            "detail": "snapshot integrity hash-verified (142 entries)"
           },
           {
             "name": "rule-overlay",
@@ -1096,7 +1097,7 @@
           {
             "name": "policy",
             "ok": true,
-            "detail": "6 policy files parse"
+            "detail": "7 policy files parse"
           },
           {
             "name": "verify-store",
@@ -1210,5 +1211,5 @@
       "stderr": ""
     }
   ],
-  "storeHash": "472b37846614fbb4137f8b2db1d3831f9eff901c3ae43f67079a3564f84c4f5d"
+  "storeHash": "743fcbb74ea31f378161a55e34873f48f4356d9e23b0b9fe9ae523648bde6967"
 }
