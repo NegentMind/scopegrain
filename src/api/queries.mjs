@@ -697,6 +697,7 @@ export function createApiQueries(ctx, options = {}) {
           supersedes: p.supersedes ?? null,
           version: p.version ?? null,
           createKey: p.createKey ?? null,
+          ioBindings: p.ioBindings ?? null,
           taskCount: p.tasks.length,
           readiness,
           readinessError,

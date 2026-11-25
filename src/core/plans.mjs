@@ -64,7 +64,7 @@ const PLAN_V3_EXT_KEYS = new Set([
   'request', 'planType', 'trigger', 'acceptanceCriteria', 'deliverables',
   'synthesisStrategy', 'replanPolicy', 'executiveSummary',
   'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes',
-  'version', 'createKey',
+  'version', 'createKey', 'ioBindings',
 ]);
 // Non-null defaults emitted on write; every other ext key defaults to null.
 const PLAN_V3_EXT_DEFAULTS = { version: 1 };
@@ -329,6 +329,10 @@ function normalizePlanV3(input, taskKeys, errorFn) {
     }
     v3.createKey = input.createKey;
   }
+  if (has('ioBindings')) {
+    v3.ioBindings = input.ioBindings === null ? null
+      : validateIoBindings(input.ioBindings, 'ioBindings', taskKeys);
+  }
   if (Object.keys(v3).length) {
     for (const k of PLAN_V3_EXT_KEYS) {
       if (v3[k] === undefined) v3[k] = PLAN_V3_EXT_DEFAULTS[k] ?? null;
@@ -391,6 +395,50 @@ function validatePlanMemberExt(t, label, code) {
     out.instructionPatches = t.instructionPatches;
   }
   return out;
+}
+
+// Declarative output->input wiring between members: each binding names
+// the producer member (from.output) feeding a consumer member input
+// (to.input). The harness validates references and shape only — hosts
+// resolve and evaluate the bindings at run time.
+function validateIoBindings(value, label, memberKeys) {
+  if (!Array.isArray(value)) {
+    throw err('INVALID_PLAN', `${label} must be an array or null`);
+  }
+  const seen = new Set();
+  return value.map((b, i) => {
+    const bl = `${label}[${i}]`;
+    if (b === null || typeof b !== 'object' || Array.isArray(b)) {
+      throw err('INVALID_PLAN', `${bl} must be an object`);
+    }
+    for (const k of Object.keys(b)) {
+      if (!['to', 'input', 'from', 'output'].includes(k)) {
+        throw err('UNKNOWN_KEY', `${bl} received unknown key '${k}'`);
+      }
+    }
+    for (const k of ['to', 'input', 'from', 'output']) {
+      if (typeof b[k] !== 'string' || b[k].trim() === '') {
+        throw err('INVALID_PLAN', `${bl}.${k} must be a non-empty string`);
+      }
+    }
+    for (const k of ['to', 'from']) {
+      if (!memberKeys.has(b[k])) {
+        throw err('INVALID_PLAN',
+          `${bl}.${k} references unknown task key '${b[k]}'`);
+      }
+    }
+    if (b.to === b.from) {
+      throw err('INVALID_PLAN',
+        `${bl} binds member '${b.to}' to itself`);
+    }
+    const pair = `${b.to}|${b.input}`;
+    if (seen.has(pair)) {
+      throw err('INVALID_PLAN',
+        `${bl} duplicates binding to '${b.to}.${b.input}'`);
+    }
+    seen.add(pair);
+    return { to: b.to, input: b.input, from: b.from, output: b.output };
+  });
 }
 
 // Same entry shape as task expectedOutputs: a canonical path the plan

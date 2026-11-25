@@ -178,6 +178,9 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     p.tasks[0].rationale = 'foundation for everything else';
     p.tasks[0].parameterOverrides = { timeout: 300, strict: true };
     p.tasks[0].instructionPatches = ['prefer strict TS'];
+    p.ioBindings = [
+      { to: 'api', input: 'files', from: 'base', output: 'scaffold' },
+    ];
     const prepared = preparePlan(ctx, p);
     assert.equal(prepared.plan.schemaVersion, 3);
     assert.equal(prepared.plan.request, 'Ship the release with zero known P0s');
@@ -209,6 +212,9 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     assert.equal(prepared.plan.tasks[1].rationale, null);
     assert.equal(prepared.plan.tasks[1].parameterOverrides, null);
     assert.equal(prepared.plan.tasks[1].instructionPatches, null);
+    assert.deepEqual(prepared.plan.ioBindings, [
+      { to: 'api', input: 'files', from: 'base', output: 'scaffold' },
+    ]);
     applyPlan(dir, preflightPlan(dir, prepared.files));
     const stored = getPlan(ctx, 'rel-3');
     assert.equal(stored.request, 'Ship the release with zero known P0s');
@@ -220,7 +226,7 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     for (const k of ['request', 'planType', 'trigger', 'acceptanceCriteria',
       'deliverables', 'synthesisStrategy', 'replanPolicy', 'executiveSummary',
       'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes',
-      'createKey']) {
+      'createKey', 'ioBindings']) {
       assert.equal(prepared2.plan[k], null);
     }
     assert.equal(prepared2.plan.version, 1);
@@ -291,6 +297,22 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     bad((b) => { b.tasks[0].parameterOverrides = { deep: { x: 1 } }; },
       'INVALID_PLAN');
     bad((b) => { b.tasks[0].instructionPatches = [42]; }, 'INVALID_PLAN');
+    bad((b) => {
+      b.ioBindings = [{ to: 'api', input: 'x', from: 'ghost',
+        output: 'y' }];
+    }, 'INVALID_PLAN');
+    bad((b) => {
+      b.ioBindings = [{ to: 'api', input: 'x', from: 'api', output: 'y' }];
+    }, 'INVALID_PLAN');
+    bad((b) => {
+      b.ioBindings = [
+        { to: 'api', input: 'x', from: 'base', output: 'y' },
+        { to: 'api', input: 'x', from: 'docs', output: 'z' }];
+    }, 'INVALID_PLAN');
+    bad((b) => {
+      b.ioBindings = [{ to: 'api', input: 'x', from: 'base',
+        output: 'y', extra: 1 }];
+    }, 'UNKNOWN_KEY');
     // ext keys are V3-layer: a V1 record may not carry them
     const f1 = path.join(dir, 'docs/agent/plans/rel-4.json');
     const d1 = JSON.parse(fs.readFileSync(f1, 'utf8'));

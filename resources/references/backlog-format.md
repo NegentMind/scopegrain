@@ -114,6 +114,12 @@ annotations (optional on input, emitted as null defaults on V3 writes):
 | `parameterOverrides` | `{key: string|number|boolean}` or null | Scalar values overriding the member's defaults for this instance (e.g. timeout, input payload). Declarative; hosts resolve them. |
 | `instructionPatches` | `[non-empty string]` or null | Extra instructions appended only to this instance of the member. |
 
+Declarative data-flow wiring also lives on the V3 plan record:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `ioBindings` | `[{to, input, from, output}]` or null | `from.output` of one member feeds `input` of member `to`. `to`/`from` must be plan member keys, self-bindings and duplicate `(to,input)` pairs are rejected. The harness validates shape and references only — hosts resolve bindings at run time. |
+
 `plan next` is triage-aware: entries triaged `defer|skip|blocked` report
 status `triaged` instead of `ready`/`blocked`.
 
