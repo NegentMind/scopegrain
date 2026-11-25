@@ -7,9 +7,10 @@ import path from 'node:path';
 import { createConfig } from '../src/core/config.mjs';
 import { resolveContext } from '../src/core/context.mjs';
 import {
-  createTask, getTask, listTasks, taskFilePath,
+  createTask, getTask, listTasks, prepareTask, taskFilePath,
 } from '../src/core/tasks.mjs';
-import { checkAction, transitionTask } from '../src/core/transition.mjs';
+import { checkAction, transitionTask, updateTaskMeta }
+  from '../src/core/transition.mjs';
 import {
   VALID_ANSWERS, cleanup, makeTempDir, trySymlink, writeJson,
 } from './helpers.mjs';
@@ -100,6 +101,47 @@ test('history events carry runId; stored events without it stay valid', () => {
     data.history[0].runId = 'not-a-uuid';
     fs.writeFileSync(file, JSON.stringify(data));
     assert.throws(() => getTask(ctx, task.id),
+      (e) => e.code === 'TASK_MALFORMED');
+  } finally { cleanup(dir); }
+});
+
+test('createKey dedups active records; terminal outcomes free the key', () => {
+  const { dir, ctx } = setup();
+  try {
+    const a = createTask(ctx, { title: 'K1', contract: 'C',
+      authorContext: 'a', createKey: 'key-1' });
+    assert.equal(a.createKey, 'key-1');
+    // Retried creation with the same key is an explicit conflict —
+    // never a silent return of the existing record.
+    for (const fn of [createTask, prepareTask]) {
+      assert.throws(() => fn(ctx, { title: 'K1b', contract: 'C',
+        authorContext: 'a', createKey: 'key-1' }),
+        (e) => e.code === 'TASK_CONFLICT');
+    }
+    // A different key is unaffected.
+    createTask(ctx, { title: 'K2', contract: 'C', authorContext: 'a',
+      createKey: 'key-2' });
+    // ABANDON frees the key.
+    step(ctx, a.id, 'ABANDON', 0);
+    const b = createTask(ctx, { title: 'K1 retry', contract: 'C',
+      authorContext: 'a', createKey: 'key-1' });
+    assert.equal(b.createKey, 'key-1');
+    // cancelled disposition frees it too.
+    const c = createTask(ctx, { title: 'K3', contract: 'C',
+      authorContext: 'a', createKey: 'key-3' });
+    updateTaskMeta(ctx, { id: c.id, expectedRevision: 0,
+      disposition: { kind: 'cancelled', reason: 'superseded' } });
+    assert.throws(() => createTask(ctx, { title: 'X', contract: 'C',
+      authorContext: 'a', createKey: 'key-2' }),
+      (e) => e.code === 'TASK_CONFLICT');
+    createTask(ctx, { title: 'K3 retry', contract: 'C',
+      authorContext: 'a', createKey: 'key-3' });
+    // Shape: stored createKey must be a non-empty string.
+    const file = taskFilePath(ctx, b.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.createKey = '  ';
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, b.id),
       (e) => e.code === 'TASK_MALFORMED');
   } finally { cleanup(dir); }
 });

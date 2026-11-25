@@ -27,7 +27,7 @@ const TASK_KEYS = new Set([
   'schemaVersion', 'id', 'title', 'contract', 'authorContext', 'scope',
   'state', 'revision', 'verification', 'review', 'createdAt', 'updatedAt',
   'history', 'methodology', 'specId', 'designId', 'planKey', 'scenarioRefs',
-  'slug',
+  'slug', 'createKey',
   // V3 semantic extensions (parity with the legacy backlog/task-file model)
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
   'estimate', 'source', 'relations', 'dependsOn', 'goalIds', 'analysis',
@@ -79,7 +79,7 @@ const META_KEYS = new Set([
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
-  'specId', 'designId', 'planKey', 'scenarioRefs',
+  'specId', 'designId', 'planKey', 'scenarioRefs', 'createKey',
   'backlog', 'priority', 'severity', 'type', 'effort', 'estimate',
   'source', 'relations', 'dependsOn', 'goalIds', 'analysis', 'steps',
   'notes', 'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
@@ -398,6 +398,13 @@ export function validateTaskShape(task, label = 'task') {
       && (typeof task.slug !== 'string' || !SLUG_RE.test(task.slug))) {
     throw err('TASK_MALFORMED', `${label}.slug must match NNN-slug form`);
   }
+  // createKey is optional on stored records; when present it must be a
+  // non-empty client-supplied idempotency identity.
+  if (task.createKey !== undefined && task.createKey !== null
+      && (typeof task.createKey !== 'string' || task.createKey.trim() === '')) {
+    throw err('TASK_MALFORMED',
+      `${label}.createKey must be a non-empty string`);
+  }
   requireNonEmpty(task.title, `${label}.title`);
   requireNonEmpty(task.contract, `${label}.contract`);
   requireNonEmpty(task.authorContext, `${label}.authorContext`);
@@ -665,6 +672,12 @@ export function normalizeTaskInput(ctx, input) {
     : input.methodology === null ? null
       : validateMethodologyData(input.methodology, 'task.methodology');
   const out = { title, contract, authorContext, scope: cleanScope };
+  if (input.createKey !== undefined) {
+    if (typeof input.createKey !== 'string' || input.createKey.trim() === '') {
+      throw err('INVALID_VALUE', 'createKey must be a non-empty string');
+    }
+    out.createKey = input.createKey;
+  }
   out.v3 = normalizeV3Input(input);
   if (!hasRefs) {
     // Mode gating for non-formal creation.
@@ -969,6 +982,7 @@ export function buildTaskRecord(input, { id, at, initial, slug }) {
     updatedAt: at,
     history: [{ at, event: 'created', state: initial, revision: 0,
       runId: crypto.randomUUID() }],
+    ...(input.createKey !== undefined ? { createKey: input.createKey } : {}),
   };
   const v3 = input.v3;
   if (input.schemaVersion === 2 || input.schemaVersion === 3) {
@@ -1006,6 +1020,21 @@ export function buildTaskRecord(input, { id, at, initial, slug }) {
 // without writing. Shared factory with createTask.
 export function prepareTask(ctx, input) {
   const clean = normalizeTaskInput(ctx, input);
+  // Idempotent creation: a createKey held by an active record conflicts.
+  // Active = not ABANDON and not cancelled/discarded disposition — a
+  // CLOSED record still conflicts (the intent was delivered; a new task
+  // needs a new key). Scanning listTasks is acceptable at registry scale.
+  if (clean.createKey !== undefined) {
+    const dup = listTasks(ctx).tasks.find((t) =>
+      t.createKey === clean.createKey
+      && t.state !== 'ABANDON'
+      && !(t.disposition && (t.disposition.kind === 'cancelled'
+        || t.disposition.kind === 'discarded')));
+    if (dup) {
+      throw err('TASK_CONFLICT',
+        `createKey '${clean.createKey}' already held by task ${dup.id}`);
+    }
+  }
   const policy = loadPolicy();
   const id = crypto.randomUUID();
   const at = nowIso();

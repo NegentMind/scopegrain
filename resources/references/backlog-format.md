@@ -52,6 +52,15 @@ tolerated when present, never required on read. Transitions do not open
 sessions, so a session cannot inherit a runId; session↔task correlation
 stays on the session's own record.
 
+`createKey` (non-empty string, create input only — not a V3 field and
+never meta-settable) makes creation idempotent: `task create` fails
+`TASK_CONFLICT` when a stored record already holds the key while still
+active. Active means not `ABANDON` and not `cancelled`/`discarded`
+disposition — a `CLOSE`d record still conflicts (the intent was
+delivered; a new task needs a new key). An explicit conflict is returned
+rather than silently returning the existing record, so retries cannot
+hide a real collision.
+
 ## Plan semantic layer (schemaVersion 3)
 
 Plan records may carry the legacy plan-file semantics. Any semantic key
