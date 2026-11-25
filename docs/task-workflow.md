@@ -124,6 +124,10 @@ node .\bin\scopegrain.mjs task disposition --project P <UUID> deferred --revisio
 node .\bin\scopegrain.mjs task note --project P <UUID> --revision 3 --text "root cause confirmed"
 node .\bin\scopegrain.mjs task step --project P <UUID> --revision 4 --index 0 --status done
 
+# Autorizacion post-creacion (unica via legal para methodology
+# authorization 'missing'; CAS con --revision N)
+node .\bin\scopegrain.mjs task authorize --project P <UUID> --revision 1 --actor owner --reference "decision D-7" --apply
+
 # Listar por backlog nombrado (sin filtro = todos)
 node .\bin\scopegrain.mjs task list --project P --backlog futuro
 

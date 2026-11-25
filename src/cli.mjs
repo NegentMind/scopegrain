@@ -82,12 +82,13 @@ const VALUE_FLAGS = new Set([
   '--text', '--outcome', '--cursor', '--arguments', '--script',
   '--assessment', '--source', '--out', '--registry', '--op', '--id',
   '--token-limit', '--hosts', '--structure-debounce', '--fields',
+  '--actor', '--reference', '--expect-digest',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
   '--record', '--keep-files', '--no-resume', '--lazy', '--no-structure',
-  '--all', '--allow-write', '--compact',
+  '--all', '--allow-write', '--compact', '--skip-chain-scan',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -128,6 +129,15 @@ const COMMANDS = {
   'journal recover': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 1,
     usage: 'journal recover OPERATION --project PATH [--config REL] --input FILE [--apply]',
+  },
+  'journal checkpoint': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'journal checkpoint --project PATH [--config REL]',
+  },
+  'journal verify': {
+    flags: ['--project', '--config', '--expect-digest', '--skip-chain-scan',
+      '--fail-on-error'], pos: 0,
+    usage: 'journal verify --project PATH [--config REL] [--expect-digest HEX] [--skip-chain-scan] [--fail-on-error]',
   },
   'journal compact': {
     flags: ['--project', '--config', '--apply'], pos: 0,
@@ -228,6 +238,11 @@ const COMMANDS = {
     flags: ['--project', '--config', '--revision', '--input', '--apply'],
     pos: 1,
     usage: 'task meta --project PATH ID --revision N --input FILE [--apply]',
+  },
+  'task authorize': {
+    flags: ['--project', '--config', '--revision', '--actor', '--reference',
+      '--apply'], pos: 1,
+    usage: 'task authorize --project PATH ID --revision N --actor NAME --reference REF [--apply]',
   },
   'task disposition': {
     flags: ['--project', '--config', '--revision', '--reason', '--by',
@@ -1206,7 +1221,8 @@ async function cmdTask(sub, positional, flags, io) {
   const {
     transitionTask, updateTaskMeta, checkAction, evaluateTaskMeta,
     evaluateTaskTransition, validateMetaUpdateInput,
-    validateTransitionInput,
+    validateTransitionInput, authorizeTask, evaluateTaskAuthorization,
+    validateAuthorizeInput,
   } = await import('./core/transition.mjs');
   const { appendWorklog } = await import('./core/worklog.mjs');
   const { writeTaskDoc } = await import('./core/taskdoc.mjs');
@@ -1288,6 +1304,24 @@ async function cmdTask(sub, positional, flags, io) {
     };
     return flags['--apply']
       ? updateTaskMeta(ctx, metaInput) : previewMeta(metaInput);
+  }
+  if (sub === 'authorize') {
+    if (flags['--revision'] === undefined) {
+      throw err('INVALID_ARGS', '--revision N is required');
+    }
+    const authInput = {
+      id: positional[0],
+      expectedRevision: decimalInt(flags['--revision'], '--revision'),
+      actor: requireFlag(flags, '--actor'),
+      reference: requireFlag(flags, '--reference'),
+    };
+    if (!flags['--apply']) {
+      validateAuthorizeInput(authInput);
+      const evaluated = evaluateTaskAuthorization(
+        ctx, getTask(ctx, authInput.id), authInput);
+      return { mode: 'dry-run', applied: false, task: evaluated.next };
+    }
+    return authorizeTask(ctx, authInput);
   }
   if (sub === 'disposition') {
     if (flags['--revision'] === undefined) {
@@ -2193,7 +2227,7 @@ async function cmdCaptureReview(project, flags) {
     decision: persisted.decision };
 }
 
-async function cmdJournal(sub, positional, flags) {
+async function cmdJournal(sub, positional, flags, io) {
   const { bindWorkspace, getWorkspace } = await import('./core/workspaces.mjs');
   const { getJournalOperation, listJournalPending, prepareJournalRecovery, recoverJournalOperation, compactJournal, countJournalPending } = await import('./core/journal.mjs');
   const ctx = resolveContext({
@@ -2201,6 +2235,21 @@ async function cmdJournal(sub, positional, flags) {
   });
   const workspace = getWorkspace(ctx);
   const bound = bindWorkspace(ctx, { areaIds: workspace.areas.map((area) => area.id) });
+  if (sub === 'checkpoint') {
+    const { createJournalCheckpoint } =
+      await import('./core/integrity/checkpoints.mjs');
+    return createJournalCheckpoint(bound);
+  }
+  if (sub === 'verify') {
+    const { verifyJournalIntegrity } =
+      await import('./core/integrity/checkpoints.mjs');
+    const result = verifyJournalIntegrity(bound, {
+      expectDigest: flags['--expect-digest'],
+      skipChainScan: flags['--skip-chain-scan'] === true,
+    });
+    if (flags['--fail-on-error'] === true && !result.ok) io.exitCode = 1;
+    return result;
+  }
   if (sub === 'list') {
     const options = {};
     if (flags['--since-sequence'] !== undefined) {
@@ -3099,7 +3148,7 @@ export async function run(argv, io) {
     } else if (cmdKey.startsWith('workspace ')) {
       result = await cmdWorkspace(cmdKey.slice(10), flags);
     } else if (cmdKey.startsWith('journal ')) {
-      result = await cmdJournal(cmdKey.slice(8), rest, flags);
+      result = await cmdJournal(cmdKey.slice(8), rest, flags, io);
     } else if (cmdKey.startsWith('structure ')) {
       result = await cmdStructure(cmdKey.slice(10), flags);
     } else if (cmdKey.startsWith('config ')) {

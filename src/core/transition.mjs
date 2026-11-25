@@ -475,6 +475,109 @@ export function updateTaskMeta(ctx, input) {
   return next;
 }
 
+// --- Authorize: the legal post-creation path for records wedged by
+// AUTHORIZATION_MISSING. Only `missing` may become `authorized`; declined
+// and authorized are terminal decisions here (a declined task is reopened
+// through the lifecycle, not silently re-authorized).
+const AUTHORIZE_KEYS = new Set([
+  'id', 'expectedRevision', 'actor', 'reference',
+]);
+
+export function validateAuthorizeInput(input) {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw err('INVALID_ARGS', 'authorizeTask input must be an object');
+  }
+  for (const key of Object.keys(input)) {
+    if (!AUTHORIZE_KEYS.has(key)) {
+      throw err('UNKNOWN_KEY',
+        `authorizeTask received unknown key '${key}'`);
+    }
+  }
+  if (!Number.isSafeInteger(input.expectedRevision)
+      || input.expectedRevision < 0) {
+    throw err('REVISION_MISMATCH',
+      'expectedRevision must be a non-negative safe integer');
+  }
+  for (const k of ['actor', 'reference']) {
+    if (typeof input[k] !== 'string' || input[k].trim() === '') {
+      throw err('INVALID_VALUE', `${k} must be a non-empty string`);
+    }
+  }
+}
+
+export function evaluateTaskAuthorization(ctx, task, input,
+    at = new Date().toISOString()) {
+  if (task.revision !== input.expectedRevision) {
+    throw err('REVISION_MISMATCH',
+      `task ${task.id} is at revision ${task.revision}, ` +
+      `expected ${input.expectedRevision}`);
+  }
+  if (task.methodology === null) {
+    throw err('INVALID_VALUE',
+      'task carries no methodology assessment to authorize');
+  }
+  const status = task.methodology.authorization?.status;
+  if (status !== 'missing') {
+    throw err('INVALID_VALUE',
+      `authorization is already '${status}'; only 'missing' can be ` +
+      'authorized post-creation');
+  }
+  const actor = input.actor.trim();
+  const reference = input.reference.trim();
+  const next = {
+    ...task,
+    methodology: {
+      ...task.methodology,
+      authorization: { status: 'authorized', actor, reference },
+    },
+    revision: task.revision + 1,
+    updatedAt: at,
+    history: [...task.history, {
+      at, event: 'authorized', actor, reference,
+      revision: task.revision + 1,
+    }],
+  };
+  validateTaskShape(next, `task ${input.id}`);
+  const serialized = JSON.stringify(next, null, 2) + '\n';
+  if (Buffer.byteLength(serialized, 'utf8') > loadLimits().maxDocumentBytes) {
+    throw err('DOCUMENT_TOO_LARGE',
+      'task record would exceed document bytes limit');
+  }
+  return { next, serialized };
+}
+
+export function authorizeTask(ctx, input) {
+  validateAuthorizeInput(input);
+  const file = taskFilePath(ctx, input.id);
+  const lock = acquireLock(file);
+  let tmpPath = null;
+  let tmpOwned = false;
+  let next;
+  let failure;
+  try {
+    const task = getTask(ctx, input.id);
+    const evaluated = evaluateTaskAuthorization(ctx, task, input);
+    mkdirpSync(path.dirname(file));
+    tmpPath = `${file}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
+    writeFileExclusive(tmpPath, evaluated.serialized);
+    tmpOwned = true;
+    fs.renameSync(tmpPath, file);
+    tmpOwned = false;
+    next = evaluated.next;
+  } catch (e) {
+    failure = e;
+  } finally {
+    if (tmpOwned) removeIfExists(tmpPath);
+    try {
+      releaseVerifiedLock(lock);
+    } catch (e) {
+      if (!failure) failure = e;
+    }
+  }
+  if (failure) throw failure;
+  return next;
+}
+
 // checkAction reports whether an action is permitted by policy in the task's
 // current stored state. It does not intercept native host tool calls.
 export function checkAction(ctx, taskId, action) {
