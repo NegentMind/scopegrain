@@ -1473,6 +1473,12 @@
       "id": "chained-pr",
       "path": "resources/skills/chained-pr/SKILL.md",
       "description": "Use when a change forecasts beyond the reviewable-slice budget to select a bounded delivery-slice strategy."
+    },
+    {
+      "kind": "reference",
+      "id": "external-runner-contract",
+      "path": "resources/references/external-runner-contract.md",
+      "description": "Scheduler-agnostic protocol for resumable external plan runners: plan next -> CAS claim -> brief -> RESULT -> plan-runs checkpoint; advisory gates caveat."
     }
   ],
   "aliases": [
