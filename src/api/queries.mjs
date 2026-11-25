@@ -18,6 +18,7 @@ import {
 import { configRel, resolveInside } from '../core/paths.mjs';
 import { getTask, listTasks } from '../core/tasks.mjs';
 import { readStructureIndex } from '../discovery/structure.mjs';
+import { srcStamp } from './stamp.mjs';
 import { getChecklist } from '../core/checklists.mjs';
 import { getConstitution } from '../core/constitution.mjs';
 import { getActiveTask } from '../core/active.mjs';
@@ -32,7 +33,7 @@ import { createCaptureStore } from '../core/captures.mjs';
 import { classifyWork } from '../core/methodology-data.mjs';
 import { getSession, sessionsDirAbs } from '../core/sessions.mjs';
 import { getApproval } from '../core/approvals.mjs';
-import { loadWorkspaceCatalog } from '../core/catalog.mjs';
+import { getResource, loadWorkspaceCatalog } from '../core/catalog.mjs';
 import { listVerifyCommands } from '../core/verify-commands.mjs';
 import { loadPolicy } from '../core/policy.mjs';
 import { vantaDBStatus } from '../integrations/vantadb-runtime.mjs';
@@ -354,12 +355,26 @@ export function createApiQueries(ctx, options = {}) {
     resolveInside(ctx.projectRoot,
       `${ctx.config.paths.memory}/captures`, 'captures');
 
+  // Freshness contract for the viewer: `stamp` fingerprints the src
+  // tree each request; `stale` means the tree changed since THIS
+  // process loaded its modules — under a manual (non-supervised)
+  // server that is a real "the code you're talking to is old" signal.
+  // A supervised server respawns before the viewer's next poll, so a
+  // `reloadMode:'supervised'` server reports it but viewers should
+  // only treat an unsupervised stale as actionable.
+  const bootedAt = new Date().toISOString();
+  const bootStamp = srcStamp().stamp;
   function health() {
+    const live = srcStamp();
     return {
       status: 'ok',
       api: 'scopegrain-viewer',
       schemaVersion: 1,
       serverTime: new Date().toISOString(),
+      startedAt: bootedAt,
+      stamp: live.stamp,
+      stale: live.stamp !== bootStamp,
+      reloadMode: options.reloadMode ?? 'manual',
     };
   }
 
@@ -1090,6 +1105,45 @@ export function createApiQueries(ctx, options = {}) {
       truncated: dropped > 0 || null, aliases: c.aliases ?? {} } };
   }
 
+  // Rules index: every `kind=rule` entry (canonical + mounted + local
+  // overlay) with the lifecycle metadata hydrated from its own bytes.
+  // `getResource` re-hashes pinned content before parsing frontmatter —
+  // an entry that fails closed at serve time (meta parse or hash
+  // re-check) can never fabricate a status: it lands in `malformed`
+  // with its code instead.
+  function rulesIndex() {
+    const c = loadWorkspaceCatalog(ctx);
+    const items = [];
+    const malformed = [];
+    let dropped = 0;
+    for (const e of c.entries ?? []) {
+      if (e.kind !== 'rule') continue;
+      if (items.length >= LIMITS.maxListLimit) {
+        dropped += 1;
+        continue;
+      }
+      try {
+        const r = getResource('rule', e.id, { catalog: c });
+        const meta = r.meta ?? {};
+        items.push({
+          id: e.id,
+          status: meta.status ?? null,
+          origin: meta.origin?.source ?? null,
+          category: meta.category ?? null,
+          activation: meta.activation ?? null,
+          enforcement: meta.enforcement ?? null,
+          path: e.path ?? null,
+          ...(e.overlay === 'local' ? { overlay: 'local' } : {}),
+        });
+      } catch (ex) {
+        malformed.push({ id: e.id, code: ex?.code ?? 'INTERNAL' });
+      }
+    }
+    return { rules: { items,
+      truncated: dropped > 0 || null,
+      malformed: malformed.length > 0 ? malformed : null } };
+  }
+
   const CATALOG_ID_RE = /^[a-z0-9][a-z0-9-]{0,120}$/;
 
   // Alias-aware entry resolution shared by the read and write paths: the
@@ -1497,6 +1551,6 @@ export function createApiQueries(ctx, options = {}) {
     sessions, session, approvals, approval, catalog, catalogDoc,
     catalogDocWrite, verifyCommands,
     vantadb, workflow, checklists, constitution, activeTask,
-    graphFiles,
+    graphFiles, rulesIndex,
   });
 }

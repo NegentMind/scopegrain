@@ -22,8 +22,21 @@ model and no TLS. Do not expose the port.
 ## Running
 
 ```powershell
-scopegrain view --project PATH [--host 127.0.0.1|::1] [--port N] [--allow-write]
+scopegrain view --project PATH [--host 127.0.0.1|::1] [--port N] [--allow-write] [--no-reload]
 ```
+
+Auto-reload (default): the API runs inside a Worker thread with its own
+module registry — the supervisor polls the install root's `src/` tree
+(stat-only fingerprint, ~1.5 s interval) and respawns the worker on
+change, so a long-lived `view` process never serves stale code (old
+validators against new records, freshly added routes 404ing). The bind
+and walked port are preserved across respawns and the result reports
+`reloadMode: "supervised"`. `--no-reload` disables the supervisor for
+embedders and tests that manage the process lifecycle by hand; with
+it, the API runs in-process as before. `GET /api/health` exposes
+`startedAt`, `stamp` (live tree fingerprint), `stale` (changed since
+boot — actionable only in manual mode) and `reloadMode` so the viewer
+can warn or refresh data.
 
 `--allow-write` (opt-in): enables `PUT /api/catalog/:kind/:id`, the
 bounded edit of a catalog entry's projected file. The body is
@@ -91,7 +104,7 @@ unknown paths 404; unknown query parameters 400.
 
 | Endpoint | Payload |
 | --- | --- |
-| `GET /api/health` | `{status, api, schemaVersion, serverTime}` |
+| `GET /api/health` | `{status, api, schemaVersion, serverTime, startedAt, stamp, stale, reloadMode}` |
 | `GET /api/workspace` | project summary, workspace descriptor (or `null` when not enrolled), store counts, areas |
 | `GET /api/tasks?limit=&offset=` | task summaries + `malformed[]` + `truncated` |
 | `GET /api/tasks/:id` | full task record (`contract`/`authorContext` capped) |
@@ -117,6 +130,7 @@ unknown paths 404; unknown query parameters 400.
 | `GET /api/catalog` | workspace resource catalog and hash verification |
 | `GET /api/catalog/:kind/:id` | projected file body of a catalog entry (confined to configDir, bounded, `sha256` included); resolves aliases; `writable` reports whether PUT is enabled for this doc. `?locale=xx` serves the display variant at `resources/i18n/<locale>/<entry.path>` when it exists (read-only, `writable:false`); the response `doc.locale` reports which language was served |
 | `PUT /api/catalog/:kind/:id` | projected file edit, only with `--allow-write`: `{content, expectedSha256}` → `{kind,id,path,sha256,applied}`; CAS 409 `WRITE_CONFLICT`, 403 `WRITE_DISABLED` |
+| `GET /api/rules` | rules index (snapshot, mounted and local overlay): `{id, status, origin, category, activation, enforcement, path}` hydrated from verified bytes; a rule whose meta fails closed lands in `malformed` with its code — it never fabricates a status. The Catalog view's Rules panel renders it and links proposals to the Captures inbox |
 | `GET /api/verify` | discovered and approved verification commands |
 | `GET /api/vantadb` | VantaDB enrollment status (never spawns binary) |
 | `GET /api/workflow` | canonical state machine and allowed transitions |

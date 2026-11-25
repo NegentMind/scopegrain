@@ -174,6 +174,8 @@ export const ROUTES = [
     handler: (q) => q.workflow() },
   { pattern: ['api', 'graph', 'files'], query: ['limit', 'offset'],
     handler: (q, url) => q.graphFiles(parseListOptions(url)) },
+  { pattern: ['api', 'rules'], query: [],
+    handler: (q) => q.rulesIndex() },
 ];
 
 function matchRoute(segments) {
@@ -318,7 +320,8 @@ export function createApiHandler(options) {
   const ctx = resolveContext({ project: options.project,
     config: options.config });
   const allowWrite = options.allowWrite === true;
-  const queries = createApiQueries(ctx, { allowWrite });
+  const queries = createApiQueries(ctx, { allowWrite,
+    reloadMode: options.reloadMode ?? 'manual' });
   return async function apiHandler(req, res) {
     try {
       if (!requestOriginAllowed(req)) {

@@ -81,7 +81,7 @@ test('help lists the new wave-2 commands with exact usages', async () => {
     'host activate --project PATH --host NAME [--surface X] [--apply]',
     'capture proposals --project PATH [--config REL] [--since-sequence N]',
     'capture review --project PATH --input FILE [--apply]',
-    'view --project PATH [--config REL] [--port N] [--host ADDR] [--allow-write]',
+    'view --project PATH [--config REL] [--port N] [--host ADDR] [--allow-write] [--no-reload]',
   ]) {
     assert.ok(usages.includes(usage), `missing usage: ${usage}`);
   }

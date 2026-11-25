@@ -20,8 +20,22 @@ ni TLS. No exponer el puerto.
 ## Ejecucion
 
 ```powershell
-scopegrain view --project PATH [--host 127.0.0.1|::1] [--port N] [--allow-write]
+scopegrain view --project PATH [--host 127.0.0.1|::1] [--port N] [--allow-write] [--no-reload]
 ```
+
+Auto-recarga (por defecto): la API corre en un hilo Worker con su
+propio registro de modulos — el supervisor vigila el arbol `src/` del
+install root (fingerprint stat-only, ~1.5s de intervalo) y respawna el
+worker cuando cambia, asi que un proceso `view` largo nunca sirve
+codigo desfasado (validadores viejos contra records nuevos, rutas
+recien añadidas devolviendo 404). El bind y el puerto caminado se
+conservan entre respawns y el resultado reporta `reloadMode:
+"supervised"`. `--no-reload` desactiva el supervisor para embedders y
+tests que gestionan el ciclo de vida del proceso a mano; con el, la
+API corre in-process como antes. `GET /api/health` expone `startedAt`,
+`stamp` (fingerprint vivo del arbol), `stale` (cambio desde el arranque
+— accionable solo en modo manual) y `reloadMode` para que el visor
+pueda avisar o refrescar datos.
 
 `--allow-write` (opt-in): habilita `PUT /api/catalog/:kind/:id`, la
 edicion acotada del archivo proyectado de una entrada del catalogo. El
@@ -92,7 +106,7 @@ sin `--allow-write` devuelve 403 `WRITE_DISABLED`); rutas desconocidas
 
 | Endpoint | Payload |
 | --- | --- |
-| `GET /api/health` | `{status, api, schemaVersion, serverTime}` |
+| `GET /api/health` | `{status, api, schemaVersion, serverTime, startedAt, stamp, stale, reloadMode}` |
 | `GET /api/workspace` | resumen del proyecto, descriptor de workspace (o `null` cuando no esta enrolado), conteos de stores, areas |
 | `GET /api/tasks?limit=&offset=` | resumenes de tareas + `malformed[]` + `truncated` |
 | `GET /api/tasks/:id` | registro de tarea completo (`contract`/`authorContext` truncados) |
@@ -118,6 +132,7 @@ sin `--allow-write` devuelve 403 `WRITE_DISABLED`); rutas desconocidas
 | `GET /api/catalog` | catalogo de recursos del workspace y verificacion por hash |
 | `GET /api/catalog/:kind/:id` | cuerpo del archivo proyectado de una entrada (confinado al configDir, acotado, `sha256` incluido); resuelve aliases; `writable` indica si PUT esta habilitado para este doc. `?locale=xx` sirve la variante de `resources/i18n/<locale>/<entry.path>` cuando existe (solo lectura, `writable:false`); `doc.locale` en la respuesta indica el idioma servido |
 | `PUT /api/catalog/:kind/:id` | edicion del archivo proyectado, solo con `--allow-write`: `{content, expectedSha256}` → `{kind,id,path,sha256,applied}`; CAS 409 `WRITE_CONFLICT`, 403 `WRITE_DISABLED` |
+| `GET /api/rules` | indice de reglas (snapshot, mounted y overlay local): `{id, status, origin, category, activation, enforcement, path}` hidratado desde bytes verificados; una regla cuyo meta falla cerrada sale en `malformed` con su codigo — nunca fabrica un status. El panel Reglas de la vista Catalogo lo muestra y enlaza las propuestas a la bandeja Capturas |
 | `GET /api/verify` | comandos de verificacion descubiertos y aprobados |
 | `GET /api/vantadb` | estado de enrolamiento VantaDB (sin spawnear binario) |
 | `GET /api/workflow` | maquina de estados canonica y transiciones permitidas |

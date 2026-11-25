@@ -90,7 +90,7 @@ const BOOL_FLAGS = new Set([
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
   '--record', '--keep-files', '--no-resume', '--lazy', '--no-structure',
   '--all', '--allow-write', '--compact', '--skip-chain-scan', '--explain',
-  '--gate', '--partial', '--report',
+  '--gate', '--partial', '--report', '--no-reload',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -771,9 +771,10 @@ const COMMANDS = {
     usage: 'rule import --project PATH --from FILE [--apply]',
   },
   view: {
-    flags: ['--project', '--config', '--port', '--host', '--allow-write'],
+    flags: ['--project', '--config', '--port', '--host', '--allow-write',
+      '--no-reload'],
     pos: 0,
-    usage: 'view --project PATH [--config REL] [--port N] [--host ADDR] [--allow-write]',
+    usage: 'view --project PATH [--config REL] [--port N] [--host ADDR] [--allow-write] [--no-reload]',
   },
 };
 
@@ -867,7 +868,7 @@ function helpResult() {
       'capture proposals lists review proposals; capture review --apply creates an owned capture only from an approved decision',
       'verify add/approve/discover preview first; discover --approve bulk-approves the literal candidates just shown; approve-discovered without candidates approves all stored inferred and needs --all; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
       'verify run prints the result JSON and exits 0 by default; --fail-on-error propagates the command exit code (or 1 on timeout/signal)',
-      'view serves a loopback API and keeps running; press Ctrl+C to stop; an occupied default port walks to the next free one (an explicit --port fails fast); --allow-write opts in to the bounded catalog-doc edit endpoint (CAS-checked PUT) — the API stays read-only without it',
+      'view serves a loopback API and keeps running; press Ctrl+C to stop; the server auto-reloads (Worker thread respawn) when the install src tree changes — --no-reload disables; an occupied default port walks to the next free one (an explicit --port fails fast); --allow-write opts in to the bounded catalog-doc edit endpoint (CAS-checked PUT) — the API stays read-only without it',
       'an --input/--baseline file resolving outside --project emits an INPUT_OUTSIDE_PROJECT warning on stderr — advisory defense-in-depth, never a block',
     ],
   };
@@ -3269,6 +3270,24 @@ async function cmdView(flags, io) {
     options.port = decimalInt(flags['--port'], '--port');
   }
   if (flags['--allow-write']) options.allowWrite = true;
+  if (!flags['--no-reload']) {
+    // Supervised mode: the API runs in a Worker thread (fresh module
+    // registry per spawn) and respawns when the src tree changes —
+    // a stale server was a proven failure mode (old validators vs new
+    // records, routes added mid-session 404ing). --no-reload opts out
+    // for embedders/tests that manage the process lifecycle.
+    const { startReloadingView } = await import('./api/view-reload.mjs');
+    options.portWalk = !explicitPort;
+    const supervised = await startReloadingView(options);
+    if (io !== null && typeof io === 'object') {
+      io.viewServer = supervised;
+    }
+    const sh = supervised.host.includes(':')
+      ? `[${supervised.host}]` : supervised.host;
+    return { url: `http://${sh}:${supervised.port}/`,
+      host: supervised.host, port: supervised.port,
+      reloadMode: 'supervised' };
+  }
   const attempts = explicitPort ? 1 : 16;
   let api = null;
   let bound = null;
