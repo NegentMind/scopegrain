@@ -278,7 +278,7 @@ test('--help usages cover the new flags and log names', async () => {
   const usages = lastJson(io).commands.map((c) => c.command);
   for (const u of [
     'memory list --project PATH --log lessons|outcomes|progress|goals|activity [--tail N]',
-    'context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS] [--fields CSV] [--compact]',
+    'context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS] [--fields CSV] [--compact] [--explain]',
     'dist bundle-uninstall --project PATH ID [--keep-files] [--apply]',
     'dist extension-remove --project PATH ID [--apply]',
     'dist preset-remove --project PATH ID [--apply]',

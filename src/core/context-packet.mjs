@@ -11,8 +11,12 @@ import { configRel, resolveInside } from './paths.mjs';
 import { estimateJson, estimateTokens, TOKEN_ESTIMATOR }
   from './tokens.mjs';
 
+const CONTEXT_MD_MAX = 32 * 1024;
+const SESSION_CAP = 3;
+
 // opts: { tail?: number, timeoutMs?: number, noVantadb?: boolean,
-//   noStructure?: boolean, structureDebounceMs?: number }
+//   noStructure?: boolean, structureDebounceMs?: number,
+//   explain?: boolean, fields?: string, compact?: boolean }
 export async function assembleContextPacket(ctx, opts = {}) {
   const noVantadb = opts.noVantadb === true;
   const noStructure = opts.noStructure === true;
@@ -40,7 +44,6 @@ export async function assembleContextPacket(ctx, opts = {}) {
     pendingJournal = countJournalPending(bound);
   } catch { /* journal absent or unreadable — surface as 0 */ }
   // User-owned session-start knowledge: .scopegrain/context.md, bounded.
-  const CONTEXT_MD_MAX = 32 * 1024;
   const contextMdPath = configRel(ctx, `context.md`);
   let userContext = null;
   try {
@@ -63,7 +66,7 @@ export async function assembleContextPacket(ctx, opts = {}) {
       })
       .filter(Boolean)
       .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
-      .slice(0, 3)
+      .slice(0, SESSION_CAP)
       .map((s) => ({ id: s.id, taskId: s.taskId, used: s.used,
         limit: s.limit, revision: s.revision, updatedAt: s.updatedAt }));
   } catch { /* sessions dir absent — empty list */ }
@@ -239,5 +242,179 @@ export async function assembleContextPacket(ctx, opts = {}) {
   } catch {
     packet.tokenEstimate = null;
   }
+  if (opts.explain === true) {
+    packet.explain = explainPacket(ctx, packet, opts);
+  }
   return packet;
+}
+
+// X-ray layer (opt-in via opts.explain): per-section provenance of the
+// assembled packet — where each section's data came from, the selection
+// rule that included it and what degraded or was skipped by flags.
+// Pure projection over the packet plus declared opts; it runs after
+// tokenEstimate, so the estimate figures never cover this block.
+// Unknown future keys degrade to a generic entry rather than going
+// undocumented.
+function explainPacket(ctx, packet, opts) {
+  const sections = {};
+  const push = (k, source, basis, notes = []) => {
+    sections[k] = {
+      source, basis,
+      estimatedTokens:
+        packet.tokenEstimate?.sections?.[k]?.estimatedTokens ?? null,
+      ...(notes.length ? { notes } : {}),
+    };
+  };
+  const memory = ctx.config.paths.memory;
+  const state = ctx.config.paths.state;
+  const tail = opts.tail ?? 5;
+  for (const k of Object.keys(packet)) {
+    if (k === 'explain') continue;
+    switch (k) {
+      case 'schemaVersion':
+        push(k, 'packet contract', 'shape marker'); break;
+      case 'generatedAt':
+        push(k, 'runtime clock', 'assembly timestamp'); break;
+      case 'instructions':
+        push(k, packet.instructions,
+          'pointer to the project instructions file'); break;
+      case 'config':
+        push(k, packet.config, 'pointer to the project config'); break;
+      case 'methodology':
+        push(k, 'config.methodology', 'workflow mode'); break;
+      case 'intake':
+        push(k, 'config.intake', 'request intake mode'); break;
+      case 'locale':
+        push(k, 'config.locale', 'operational-artifact language'); break;
+      case 'userContext': {
+        const notes = [];
+        if (packet.userContext === null) {
+          notes.push('file absent or unreadable — null');
+        } else if (packet.userContext.truncated === true) {
+          notes.push(`content truncated at the ${CONTEXT_MD_MAX / 1024} KiB cap`);
+        }
+        push(k, configRel(ctx, 'context.md'),
+          `owner session knowledge, bounded ${CONTEXT_MD_MAX / 1024} KiB`,
+          notes);
+        break;
+      }
+      case 'sessions':
+        push(k, `${state}/sessions`,
+          `${packet.sessions.length} most recent by updatedAt `
+            + `(cap ${SESSION_CAP})`);
+        break;
+      case 'project':
+        push(k, 'project.root', 'project identity'); break;
+      case 'workspace':
+        push(k, `${state}/workspace.json`,
+          `${packet.workspace.areas} area(s), revision `
+            + `${packet.workspace.revision}`);
+        break;
+      case 'activeTask': {
+        const notes = [];
+        if (packet.activeTask?.error) {
+          notes.push(`dangling pointer: ${packet.activeTask.error.code}`);
+        } else if (packet.activeTask === null) {
+          notes.push('no active task pointer');
+        }
+        push(k, 'env SCOPEGRAIN_TASK or <configDir>/active-task',
+          'active task pointer', notes);
+        break;
+      }
+      case 'tasks':
+        push(k, ctx.config.paths.tasks,
+          'ready = state PLAN && disposition == null '
+            + `(${packet.tasks.ready.length} ready)`);
+        break;
+      case 'progress':
+        push(k, `${memory}/progress.jsonl`, `tail ${tail}`,
+          packet.progress.error
+            ? [`read error: ${packet.progress.error.code}`] : []);
+        break;
+      case 'activity':
+        push(k, `${memory}/activity.jsonl`, `tail ${tail}`,
+          packet.activity.error
+            ? [`read error: ${packet.activity.error.code}`] : []);
+        break;
+      case 'goals':
+        push(k, `${memory}/goals.jsonl`, 'status == open',
+          packet.goals.length === 0 ? ['no open goals'] : []);
+        break;
+      case 'pendingJournalOperations':
+        push(k, 'journal outbox', 'pending operations count'); break;
+      case 'warnings':
+        push(k, 'assembly', 'advisory warnings emitted this packet',
+          packet.warnings.length === 0 ? ['none'] : []);
+        break;
+      case 'structure': {
+        const notes = [];
+        if (opts.noStructure === true) {
+          notes.push('--no-structure: stored-index view, no live rescan');
+        } else if (opts.structureDebounceMs !== undefined) {
+          notes.push(`debounce window ${opts.structureDebounceMs} ms`);
+        }
+        if (packet.structure?.stale === true) {
+          notes.push('index stale — run structure refresh');
+        }
+        push(k, `${state}/cache/structure-index.json`,
+          'structural code index freshness (stat-only)', notes);
+        break;
+      }
+      case 'vantadb': {
+        const notes = [];
+        if (opts.noVantadb === true) {
+          notes.push('excluded by --no-vantadb');
+        }
+        if (packet.vantadb?.error) {
+          notes.push(`rehydration error: ${packet.vantadb.error.code}`);
+        }
+        if (packet.vantadb?.enrolled === false) {
+          notes.push('backend not enrolled');
+        }
+        push(k, 'src/integrations/vantadb-rehydrate.mjs',
+          'project-scoped memory rehydration (optional backend)', notes);
+        break;
+      }
+      case 'tokenEstimate':
+        push(k, 'tokens.mjs estimator',
+          'per-section and wire figures; excludes the explain block',
+          packet.tokenEstimate === null
+            ? ['estimation unavailable — degraded packet'] : []);
+        break;
+      default:
+        push(k, 'packet', 'section without registered provenance');
+    }
+  }
+  const explain = {
+    schemaVersion: 1,
+    estimator: TOKEN_ESTIMATOR,
+    note: 'debug provenance layer; tokenEstimate figures exclude '
+      + 'this block',
+    flags: {
+      tail,
+      timeoutMs: opts.timeoutMs ?? null,
+      noVantadb: opts.noVantadb === true,
+      noStructure: opts.noStructure === true,
+      structureDebounceMs: opts.structureDebounceMs ?? null,
+      fields: opts.fields ?? null,
+      compact: opts.compact === true,
+    },
+    sections,
+  };
+  // --fields projects top-level keys downstream of assembly; the layer
+  // reports the requested set, which names actually exist and which the
+  // projection will silently drop (typo surface).
+  if (typeof opts.fields === 'string') {
+    const requested = opts.fields.split(',')
+      .map((s) => s.trim()).filter(Boolean);
+    explain.projection = {
+      appliedAfter: 'assembly',
+      requested,
+      matched: requested.filter((k) => Object.hasOwn(packet, k)
+        || k === 'explain'),
+      unknown: requested.filter((k) => !Object.hasOwn(packet, k)
+        && k !== 'explain'),
+    };
+  }
+  return explain;
 }

@@ -212,5 +212,10 @@ test('scopegrain_context returns the shared session-start packet', async () => {
     // Unknown args are rejected by strictify, never silently stripped.
     const rejected = await tool.handler({ bogus: 1 });
     assert.equal(rejected.isError, true);
+    // explain arg: MCP parity with the CLI --explain flag — the same
+    // provenance layer lands on the tool payload.
+    const explained = await tool.handler({ explain: true });
+    assert.equal(
+      JSON.parse(explained.content[0].text).explain.schemaVersion, 1);
   } finally { cleanup(dir); }
 });

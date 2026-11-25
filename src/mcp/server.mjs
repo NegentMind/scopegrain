@@ -296,14 +296,17 @@ export function createMCPTools(ctx, z) {
               + 'window and refresh the cache record under <state>/cache '
               + '(small derived write); omit for a strictly read-only '
               + 'stat-only rescan'),
+          explain: z.boolean().optional()
+            .describe('append per-section provenance (source, selection '
+              + 'rule, flag-driven exclusions, estimatedTokens)'),
         },
         annotations: READ_BACKEND,
       },
       handler: wrapUntrusted('session-packet',
         async ({ tail, timeoutMs, noVantadb, noStructure,
-          structureDebounceMs }) =>
+          structureDebounceMs, explain }) =>
           assembleContextPacket(ctx, { tail, timeoutMs, noVantadb,
-            noStructure, structureDebounceMs })),
+            noStructure, structureDebounceMs, explain })),
     },
     {
       name: 'scopegrain_list_tasks',
