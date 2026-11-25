@@ -294,6 +294,21 @@ const DICT: Record<Locale, Record<string, string>> = {
       'The document changed on disk since it was loaded. Reloading '
       + 'discards your edits and shows the current version.',
     'catalog.reloadDoc': 'Reload document',
+    'catalog.rules.title': 'Rules index',
+    'catalog.rules.desc':
+      'Lifecycle metadata hydrated from each rule file: status, origin, '
+      + 'activation and enforcement. Read-only — proposals are reviewed '
+      + 'in the Captures inbox.',
+    'catalog.rules.openCaptures': 'Open Captures',
+    'catalog.rules.capturesHint': 'Rule proposals awaiting review live in Captures',
+    'catalog.rules.status': 'Status',
+    'catalog.rules.origin': 'Origin',
+    'catalog.rules.activation': 'Activation',
+    'catalog.rules.enforcement': 'Enforcement',
+    'catalog.rules.local': 'local',
+    'catalog.rules.transversal': 'transversal',
+    'catalog.rules.empty': 'No rules in the workspace catalog.',
+    'catalog.rules.malformedTitle': 'Rules that failed closed',
     'common.cancel': 'Cancel',
     'system.lifecycle': 'Lifecycle',
     'system.lifecycleDesc': 'C0 workflow policy with live task counts per state.',
@@ -808,6 +823,22 @@ const DICT: Record<Locale, Record<string, string>> = {
       'El documento cambió en disco desde que se cargó. Recargar '
       + 'descarta tus cambios y muestra la versión actual.',
     'catalog.reloadDoc': 'Recargar documento',
+    'catalog.rules.title': 'Índice de reglas',
+    'catalog.rules.desc':
+      'Metadatos de ciclo de vida hidratados desde cada archivo de regla: '
+      + 'estado, origen, activation y enforcement. Solo lectura — las '
+      + 'propuestas se revisan en la bandeja de Capturas.',
+    'catalog.rules.openCaptures': 'Abrir Capturas',
+    'catalog.rules.capturesHint':
+      'Las propuestas de regla pendientes de revisión viven en Capturas',
+    'catalog.rules.status': 'Estado',
+    'catalog.rules.origin': 'Origen',
+    'catalog.rules.activation': 'Activation',
+    'catalog.rules.enforcement': 'Enforcement',
+    'catalog.rules.local': 'local',
+    'catalog.rules.transversal': 'transversal',
+    'catalog.rules.empty': 'Sin reglas en el catálogo del workspace.',
+    'catalog.rules.malformedTitle': 'Reglas que fallaron cerradas',
     'common.cancel': 'Cancelar',
     'system.lifecycle': 'Ciclo de vida',
     'system.lifecycleDesc': 'Política C0 con conteo de tareas en vivo por estado.',

@@ -24,7 +24,11 @@ import {
   ApiError,
   type CatalogDepKey,
   type CatalogEntry,
+  type RuleIndexItem,
 } from '@/lib/api';
+import { navigate } from '@/lib/hashRoute';
+import { toneClasses, type Tone } from '@/lib/tones';
+import { cn } from '@/lib/utils';
 import { buildDocIndex, resolveDocRef } from '@/lib/docIndex';
 import { Markdown } from '@/components/Markdown';
 import { useApi } from '@/lib/useApi';
@@ -290,6 +294,165 @@ function DocPanel({
   );
 }
 
+const RULE_STATUS_TONE: Record<string, Tone> = {
+  active: 'ok',
+  proposed: 'info',
+  archived: 'neutral',
+};
+
+// Rules index panel (read-only): the lifecycle surface the workspace
+// catalog + local overlay expose — hydrated meta, never the rule body
+// (that stays behind the catalog doc panel). A rule whose bytes drifted
+// or whose frontmatter failed closed lands in `malformed` with its
+// code; the index never fabricates a status for it.
+function RulesPanel({ onOpenDoc }: { onOpenDoc: (id: string) => void }) {
+  const t = useT();
+  const { data, loading, error, reload } = useApi(() => api.rulesIndex());
+  if (loading) return <ListSkeleton label={t('common.loading')} />;
+  if (error) return <ErrorBox error={error} onRetry={reload} />;
+  const items = data?.rules?.items ?? [];
+  const malformed = data?.rules?.malformed ?? [];
+  return (
+    <Card>
+      <CardContent className="space-y-3 pt-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold">{t('catalog.rules.title')}</h2>
+            <p className="text-xs text-muted-foreground">
+              {t('catalog.rules.desc')}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('captures')}
+            title={t('catalog.rules.capturesHint')}
+          >
+            {t('catalog.rules.openCaptures')}
+          </Button>
+        </div>
+        {malformed.length > 0 ? (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{t('catalog.rules.malformedTitle')}</AlertTitle>
+            <AlertDescription className="font-mono text-xs">
+              {malformed.map((m) => `${m.id} (${m.code})`).join(' · ')}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {items.length === 0 ? (
+          <EmptyBox>{t('catalog.rules.empty')}</EmptyBox>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-56">{t('common.id')}</TableHead>
+                <TableHead>{t('catalog.rules.status')}</TableHead>
+                <TableHead>{t('catalog.rules.origin')}</TableHead>
+                <TableHead>{t('catalog.rules.activation')}</TableHead>
+                <TableHead>{t('catalog.rules.enforcement')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((r: RuleIndexItem) => (
+                <TableRow key={r.id}>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onOpenDoc(r.id)}
+                        title={t('catalog.viewDoc')}
+                      >
+                        <Badge variant="outline" className="font-mono">
+                          {r.id}
+                        </Badge>
+                      </button>
+                      {r.overlay === 'local' ? (
+                        <Badge
+                          variant="secondary"
+                          className="font-mono text-xs"
+                        >
+                          {t('catalog.rules.local')}
+                        </Badge>
+                      ) : null}
+                      {r.category ? (
+                        <Badge variant="secondary" className="text-xs">
+                          {r.category}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {r.path ? (
+                      <div className="mt-0.5 font-mono text-xs text-muted-foreground">
+                        {r.path}
+                      </div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={cn(
+                        'inline-flex rounded-md border px-1.5 py-0.5 text-xs font-medium',
+                        toneClasses(RULE_STATUS_TONE[r.status ?? ''] ?? 'warn').badge,
+                      )}
+                    >
+                      {r.status ?? t('common.none')}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {r.origin ?? t('common.none')}
+                  </TableCell>
+                  <TableCell>
+                    {r.activation?.globs?.length ? (
+                      <div className="flex max-w-xs flex-wrap gap-1">
+                        {r.activation.globs.slice(0, 3).map((g) => (
+                          <Badge
+                            key={g}
+                            variant="secondary"
+                            className="font-mono text-xs"
+                          >
+                            {g}
+                          </Badge>
+                        ))}
+                        {r.activation.globs.length > 3 ? (
+                          <span className="text-xs text-muted-foreground">
+                            +{r.activation.globs.length - 3}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {t('catalog.rules.transversal')}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    <span
+                      className={cn(
+                        toneClasses(r.enforcement?.level === 'strict' ? 'warn' : 'neutral').text,
+                      )}
+                    >
+                      {r.enforcement?.level ?? t('common.none')}
+                    </span>
+                    {r.enforcement?.verificationRef ? (
+                      <div className="mt-0.5 font-mono text-xs text-muted-foreground">
+                        {r.enforcement.verificationRef}
+                      </div>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        {data?.rules?.truncated ? (
+          <p className="text-xs text-muted-foreground">
+            {t('catalog.docTruncated')}
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function CatalogView() {
   const t = useT();
   const locale = useLocale();
@@ -344,6 +507,7 @@ export function CatalogView() {
   const counts = data?.catalog?.counts ?? {};
 
   return (
+    <div className="space-y-4">
     <Card>
       {/* No duplicated CardHeader (audit P2-07): the view header above
           already shows title + description. */}
@@ -446,5 +610,7 @@ export function CatalogView() {
         )}
       </CardContent>
     </Card>
+    <RulesPanel onOpenDoc={(id) => navigateDoc('rule', id)} />
+    </div>
   );
 }

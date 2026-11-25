@@ -768,6 +768,7 @@ export const api = {
   verify: () => request<VerifyResponse>('/api/verify'),
   vantadb: () => request<VantaDBResponse>('/api/vantadb'),
   workflow: () => request<WorkflowResponse>('/api/workflow'),
+  rulesIndex: () => request<RulesIndexResponse>('/api/rules'),
 };
 
 export interface SessionSummary {
@@ -867,6 +868,34 @@ export interface CatalogResponse {
     // The API emits `c.aliases ?? {}` (queries.mjs): an array when the
     // catalog declares aliases, an empty object otherwise.
     aliases: CatalogAlias[] | Record<string, unknown>;
+  };
+}
+
+export interface RuleIndexItem {
+  id: string;
+  status: 'active' | 'proposed' | 'archived' | null;
+  origin: string | null;
+  category: string | null;
+  activation: {
+    globs: string[];
+    stacks: string[];
+    languages: string[];
+  } | null;
+  enforcement: {
+    level: string;
+    verificationRef: string | null;
+  } | null;
+  path: string | null;
+  // Present only on entries merged from the owner's rules/local overlay.
+  overlay?: 'local';
+}
+export interface RulesIndexResponse {
+  rules: {
+    items: RuleIndexItem[];
+    truncated?: boolean | null;
+    // Entries whose pinned bytes drifted or whose meta failed closed —
+    // surfaced with their code, never fabricated into the index.
+    malformed?: { id: string; code: string }[] | null;
   };
 }
 

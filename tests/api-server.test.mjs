@@ -430,6 +430,65 @@ test('catalog doc endpoint serves the projected entry body', async () => {
   }
 });
 
+// /api/rules: the rules index serves per-rule lifecycle metadata hydrated
+// from verified bytes (frontmatter wins, `> **Status:**` header is the
+// fallback). A rule whose meta fails closed can never fabricate a status —
+// it lands in `malformed` with its code instead of poisoning the index.
+test('rules index serves hydrated meta and reports malformed rules', async () => {
+  const f = baseFixture();
+  const ruleBody = '---\nstatus: proposed\norigin.source: user-manual\n'
+    + 'activation.globs: src/**/*.ts\nenforcement.level: strict\n'
+    + 'enforcement.verificationRef: vc001122334455\n---\n# Demo rule\n';
+  const headerBody = '# Plain rule\n> **Status:** Active\n';
+  const malformedBody = '---\nstatus: bogus\n---\n# Bad\n';
+  const localBody = '---\nstatus: active\norigin.source: user-manual\n'
+    + '---\n# Owner local rule\n';
+  const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+  writeFile(f.dir, '.scopegrain/rules/demo-rule.md', ruleBody);
+  writeFile(f.dir, '.scopegrain/rules/plain-rule.md', headerBody);
+  writeFile(f.dir, '.scopegrain/rules/bad-rule.md', malformedBody);
+  // Local overlay entries are not in the snapshot: mergeLocalOverlay
+  // picks them up from <configDir>/rules/local/ at load time.
+  writeFile(f.dir, '.scopegrain/rules/local/owner-rule.md', localBody);
+  writeJson(f.dir, '.scopegrain/catalog.json', {
+    schemaVersion: 2,
+    entries: [
+      { kind: 'rule', id: 'demo-rule', path: 'rules/demo-rule.md',
+        description: 'Frontmatter rule', sha256: sha(ruleBody) },
+      { kind: 'rule', id: 'plain-rule', path: 'rules/plain-rule.md',
+        description: 'Header rule', sha256: sha(headerBody) },
+      { kind: 'rule', id: 'bad-rule', path: 'rules/bad-rule.md',
+        description: 'Malformed meta', sha256: sha(malformedBody) },
+    ],
+  });
+  const srv = await serve(f);
+  try {
+    const res = await srv.get('/api/rules');
+    assert.equal(res.status, 200);
+    const items = res.body.rules.items;
+    assert.equal(items.length, 3);
+    const demo = items.find((i) => i.id === 'demo-rule');
+    assert.equal(demo.status, 'proposed');
+    assert.equal(demo.origin, 'user-manual');
+    assert.deepEqual(demo.activation.globs, ['src/**/*.ts']);
+    assert.equal(demo.enforcement.level, 'strict');
+    assert.equal(demo.enforcement.verificationRef, 'vc001122334455');
+    const plain = items.find((i) => i.id === 'plain-rule');
+    assert.equal(plain.status, 'active');
+    assert.equal(plain.activation, null);
+    assert.equal(plain.enforcement.level, 'advisory');
+    const local = items.find((i) => i.id === 'owner-rule');
+    assert.equal(local.overlay, 'local');
+    assert.equal(local.status, 'active');
+    assert.equal(local.origin, 'user-manual');
+    assert.deepEqual(res.body.rules.malformed,
+      [{ id: 'bad-rule', code: 'RULE_META_MALFORMED' }]);
+  } finally {
+    await srv.close();
+    cleanup(f.dir);
+  }
+});
+
 // --- PUT /api/catalog/:kind/:id (opt-in --allow-write) --------------------
 //
 // One pinned prompt entry in a minimal catalog.json snapshot; the sha256
