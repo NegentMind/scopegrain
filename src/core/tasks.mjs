@@ -35,7 +35,8 @@ const TASK_KEYS = new Set([
   // V3 extension fields (optional on read, emitted on write)
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
-  'fallback', 'contextInheritance', 'modelTier',
+  'fallback', 'contextInheritance', 'modelTier', 'directives',
+  'sharedContext',
 ]);
 const V3_KEYS = new Set([
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
@@ -48,7 +49,8 @@ const V3_KEYS = new Set([
 const V3_EXT_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
-  'fallback', 'contextInheritance', 'modelTier',
+  'fallback', 'contextInheritance', 'modelTier', 'directives',
+  'sharedContext',
 ]);
 const TASK_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3', 'backlog']);
 const TASK_SEVERITIES = new Set(['critical', 'high', 'medium', 'low', 'info']);
@@ -66,6 +68,35 @@ const TASK_EXECUTION_TYPES = new Set(['atomic', 'delegated', 'hitl']);
 const TASK_FALLBACK_ON_FAIL = new Set(['stall', 'abandon', 'needs-human']);
 const TASK_CONTEXT_INHERITANCE = new Set(['isolated', 'summary', 'full']);
 const TASK_MODEL_TIERS = new Set(['fast', 'standard', 'reasoning']);
+const SHARED_CONTEXT_MAX_KEYS = 32;
+const SHARED_CONTEXT_MAX_VALUE_BYTES = 1024;
+// Closed string->string dict shared between plan and task records. Used
+// by normalizeV3Input, validateTaskShape and the plan-level equivalent.
+export function validateSharedContext(value, label, code = 'INVALID_VALUE') {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw err(code, `${label} must be an object or null`);
+  }
+  const entries = Object.entries(value);
+  if (entries.length > SHARED_CONTEXT_MAX_KEYS) {
+    throw err(code,
+      `${label} allows at most ${SHARED_CONTEXT_MAX_KEYS} keys`);
+  }
+  const out = {};
+  for (const [k, v] of entries) {
+    if (k.trim() === '') {
+      throw err(code, `${label} keys must be non-empty strings`);
+    }
+    if (typeof v !== 'string') {
+      throw err(code, `${label}['${k}'] must be a string`);
+    }
+    if (Buffer.byteLength(v, 'utf8') > SHARED_CONTEXT_MAX_VALUE_BYTES) {
+      throw err(code,
+        `${label}['${k}'] exceeds ${SHARED_CONTEXT_MAX_VALUE_BYTES} bytes`);
+    }
+    out[k] = v;
+  }
+  return out;
+}
 export const RELATION_KINDS = new Set(
   ['see', 'supersedes', 'duplicateOf', 'blocks']);
 const STEP_STATUSES = new Set(['pending', 'done', 'skipped']);
@@ -75,7 +106,8 @@ const META_KEYS = new Set([
   'relations', 'dependsOn', 'goalIds', 'analysis', 'skills', 'backlog',
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
-  'fallback', 'contextInheritance', 'modelTier',
+  'fallback', 'contextInheritance', 'modelTier', 'directives',
+  'sharedContext',
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
@@ -85,7 +117,7 @@ const CREATE_KEYS = new Set([
   'notes', 'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
   'agentRole', 'expectedOutputs', 'sideEffects', 'executionType',
   'outputContract', 'reviewRubric', 'fallback', 'contextInheritance',
-  'modelTier',
+  'modelTier', 'directives', 'sharedContext',
 ]);
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
@@ -258,6 +290,17 @@ function validateV3Fields(task, label) {
           `${label}.expectedOutputs entry is not canonical: ${o.path}`);
       }
     }
+  }
+  if (task.directives !== undefined && task.directives !== null
+      && (!Array.isArray(task.directives)
+        || !task.directives.every(
+          (s) => typeof s === 'string' && s.trim() !== ''))) {
+    throw err('TASK_MALFORMED',
+      `${label}.directives must be [non-empty string] or null`);
+  }
+  if (task.sharedContext !== undefined && task.sharedContext !== null) {
+    validateSharedContext(task.sharedContext,
+      `${label}.sharedContext`, 'TASK_MALFORMED');
   }
   if (task.sideEffects !== undefined && task.sideEffects !== null
       && !TASK_SIDE_EFFECTS.has(task.sideEffects)) {
@@ -949,6 +992,19 @@ export function normalizeV3Input(input) {
       return { uphill: u.uphill ?? 0, downhill: u.downhill ?? 0 };
     })();
   }
+  if (has('directives')) {
+    if (input.directives !== null && (!Array.isArray(input.directives)
+        || !input.directives.every(
+          (s) => typeof s === 'string' && s.trim() !== ''))) {
+      throw err('INVALID_VALUE',
+        'directives must be an array of non-empty strings or null');
+    }
+    v3.directives = input.directives;
+  }
+  if (has('sharedContext')) {
+    v3.sharedContext = input.sharedContext === null ? null
+      : validateSharedContext(input.sharedContext, 'sharedContext');
+  }
   return Object.keys(v3).length ? v3 : null;
 }
 
@@ -960,7 +1016,8 @@ export const V3_DEFAULTS = {
   allowedTools: null, requiredCapabilities: null, agentRole: null,
   expectedOutputs: null, sideEffects: null, executionType: null,
   outputContract: null, reviewRubric: null, fallback: null,
-  contextInheritance: null, modelTier: null,
+  contextInheritance: null, modelTier: null, directives: null,
+  sharedContext: null,
 };
 
 // Pure task record factory: no I/O, no side effects. V2 records carry the

@@ -72,7 +72,9 @@ export function renderTaskDoc(task, locale = 'en') {
       ['reviewRubric', task.reviewRubric],
       ['fallback', task.fallback],
       ['contextInheritance', task.contextInheritance],
-      ['modelTier', task.modelTier]]) {
+      ['modelTier', task.modelTier],
+      ['directives', task.directives],
+      ['sharedContext', task.sharedContext]]) {
     if (v !== undefined && v !== null) L.push(`${k}: ${JSON.stringify(v)}`);
   }
   L.push(`createdAt: "${task.createdAt}"`);

@@ -15,7 +15,7 @@ import {
 import { loadPolicy, loadLimits } from './policy.mjs';
 import {
   buildTaskRecord, getTask, nextTaskSlug, normalizeTaskInput,
-  validateTaskShape,
+  validateSharedContext, validateTaskShape,
 } from './tasks.mjs';
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
 import { getArtifact } from './artifacts.mjs';
@@ -50,7 +50,7 @@ const TASK_V3_FORWARD = [
   'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
   'agentRole', 'expectedOutputs', 'sideEffects', 'executionType',
   'outputContract', 'reviewRubric', 'fallback', 'contextInheritance',
-  'modelTier',
+  'modelTier', 'directives', 'sharedContext',
 ];
 const PLAN_V3_KEYS = new Set([
   'triage', 'appetite', 'cynefin', 'riskRegister', 'premortem',
@@ -64,7 +64,7 @@ const PLAN_V3_EXT_KEYS = new Set([
   'request', 'planType', 'trigger', 'acceptanceCriteria', 'deliverables',
   'synthesisStrategy', 'replanPolicy', 'executiveSummary',
   'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes',
-  'version', 'createKey', 'ioBindings',
+  'version', 'createKey', 'ioBindings', 'directives', 'sharedContext',
 ]);
 // Non-null defaults emitted on write; every other ext key defaults to null.
 const PLAN_V3_EXT_DEFAULTS = { version: 1 };
@@ -333,6 +333,20 @@ function normalizePlanV3(input, taskKeys, errorFn) {
     v3.ioBindings = input.ioBindings === null ? null
       : validateIoBindings(input.ioBindings, 'ioBindings', taskKeys);
   }
+  if (has('directives')) {
+    if (input.directives !== null && (!Array.isArray(input.directives)
+        || !input.directives.every(
+          (s) => typeof s === 'string' && s.trim() !== ''))) {
+      throw errorFn(
+        'directives must be an array of non-empty strings or null');
+    }
+    v3.directives = input.directives;
+  }
+  if (has('sharedContext')) {
+    v3.sharedContext = input.sharedContext === null ? null
+      : validateSharedContext(input.sharedContext, 'sharedContext',
+        'INVALID_PLAN');
+  }
   if (Object.keys(v3).length) {
     for (const k of PLAN_V3_EXT_KEYS) {
       if (v3[k] === undefined) v3[k] = PLAN_V3_EXT_DEFAULTS[k] ?? null;
@@ -515,6 +529,20 @@ export function validatePlanInput(ctx, input) {
     typeof input.authorContext === 'string' && input.authorContext.trim() !== ''
       ? input.authorContext
       : (() => { throw err('INVALID_VALUE', 'plan.authorContext must be non-empty'); })();
+  // Fail fast on plan-level shared fields: the member loop below forwards
+  // them into task records before normalizePlanV3 runs, so invalid input
+  // must surface here as INVALID_PLAN, not as a task-level error.
+  if (input.directives !== undefined && input.directives !== null
+      && (!Array.isArray(input.directives)
+        || !input.directives.every(
+          (s) => typeof s === 'string' && s.trim() !== ''))) {
+    throw err('INVALID_PLAN',
+      'plan input directives must be an array of non-empty strings or null');
+  }
+  if (input.sharedContext !== undefined && input.sharedContext !== null) {
+    validateSharedContext(input.sharedContext,
+      'plan input sharedContext', 'INVALID_PLAN');
+  }
   // Optional formal pair: both UUIDs together, design bound to the spec at
   // its current digest — resolved at prepare, stored at V2.
   const hasPair = input.specId !== undefined || input.designId !== undefined;
@@ -572,6 +600,24 @@ export function validatePlanInput(ctx, input) {
     const v3Forward = {};
     for (const k of TASK_V3_FORWARD) {
       if (t[k] !== undefined) v3Forward[k] = t[k];
+    }
+    // Plan-level shared fields flow to members: directives inherit
+    // whole-field when the member doesn't declare its own; sharedContext
+    // merges plan keys under member keys (member wins per key), and an
+    // explicit member null clears the plan map for that member. Member
+    // records still validate the forwarded value through
+    // normalizeTaskInput, so invalid plan-level input cannot slip through.
+    if (v3Forward.directives === undefined
+        && input.directives !== undefined) {
+      v3Forward.directives = input.directives;
+    }
+    if (t.sharedContext === null) {
+      v3Forward.sharedContext = null;
+    } else if (input.sharedContext !== undefined
+        || t.sharedContext !== undefined) {
+      v3Forward.sharedContext = {
+        ...(input.sharedContext ?? {}), ...(t.sharedContext ?? {}),
+      };
     }
     const clean = normalizeTaskInput(ctx, {
       title: t.title, contract: t.contract,

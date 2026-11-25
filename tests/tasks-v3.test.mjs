@@ -436,6 +436,53 @@ test('modelTier: enum fast|standard|reasoning or null', () => {
   } finally { cleanup(dir); }
 });
 
+test('directives/sharedContext: bounded declarative fields or null', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, {
+      ...BASE,
+      directives: ['strict TS', 'answer in Spanish'],
+      sharedContext: { repo_url: 'https://x', brand_tone: 'warm' },
+    });
+    assert.deepEqual(task.directives, ['strict TS', 'answer in Spanish']);
+    assert.deepEqual(task.sharedContext,
+      { repo_url: 'https://x', brand_tone: 'warm' });
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, directives: [''],
+    }), (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, sharedContext: { k: 42 },
+    }), (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, sharedContext: { '': 'x' },
+    }), (e) => e.code === 'INVALID_VALUE');
+    const overKeys = {};
+    for (let i = 0; i < 33; i += 1) overKeys[`k${i}`] = 'v';
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, sharedContext: overKeys,
+    }), (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, sharedContext: { big: 'x'.repeat(1025) },
+    }), (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, sharedContext: null });
+    assert.equal(applied.sharedContext, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { sharedContext: { env: 'prod' } },
+    });
+    assert.deepEqual(next.sharedContext, { env: 'prod' });
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.sharedContext = { k: null };
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.sharedContext;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).sharedContext, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

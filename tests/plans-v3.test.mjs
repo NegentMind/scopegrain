@@ -181,6 +181,10 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     p.ioBindings = [
       { to: 'api', input: 'files', from: 'base', output: 'scaffold' },
     ];
+    p.directives = ['strict TS', 'answer in Spanish'];
+    p.sharedContext = { repo_url: 'https://x', brand_tone: 'warm' };
+    p.tasks[1].sharedContext = { brand_tone: 'cool', extra: 'y' };
+    p.tasks[2].directives = ['only mine'];
     const prepared = preparePlan(ctx, p);
     assert.equal(prepared.plan.schemaVersion, 3);
     assert.equal(prepared.plan.request, 'Ship the release with zero known P0s');
@@ -215,6 +219,23 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     assert.deepEqual(prepared.plan.ioBindings, [
       { to: 'api', input: 'files', from: 'base', output: 'scaffold' },
     ]);
+    assert.deepEqual(prepared.plan.directives,
+      ['strict TS', 'answer in Spanish']);
+    assert.deepEqual(prepared.plan.sharedContext,
+      { repo_url: 'https://x', brand_tone: 'warm' });
+    // plan-level fields forward into member task records: directives
+    // inherit whole-field; sharedContext merges with member winning per key
+    const files = JSON.parse(prepared.files[0].content);
+    assert.deepEqual(files.directives,
+      ['strict TS', 'answer in Spanish']);
+    const apiFile = JSON.parse(prepared.files[1].content);
+    assert.deepEqual(apiFile.directives, ['strict TS', 'answer in Spanish']);
+    assert.deepEqual(apiFile.sharedContext,
+      { repo_url: 'https://x', brand_tone: 'cool', extra: 'y' });
+    const docsFile = JSON.parse(prepared.files[2].content);
+    assert.deepEqual(docsFile.directives, ['only mine']);
+    assert.deepEqual(docsFile.sharedContext,
+      { repo_url: 'https://x', brand_tone: 'warm' });
     applyPlan(dir, preflightPlan(dir, prepared.files));
     const stored = getPlan(ctx, 'rel-3');
     assert.equal(stored.request, 'Ship the release with zero known P0s');
@@ -226,7 +247,7 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     for (const k of ['request', 'planType', 'trigger', 'acceptanceCriteria',
       'deliverables', 'synthesisStrategy', 'replanPolicy', 'executiveSummary',
       'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes',
-      'createKey', 'ioBindings']) {
+      'createKey', 'ioBindings', 'directives', 'sharedContext']) {
       assert.equal(prepared2.plan[k], null);
     }
     assert.equal(prepared2.plan.version, 1);
@@ -313,6 +334,10 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
       b.ioBindings = [{ to: 'api', input: 'x', from: 'base',
         output: 'y', extra: 1 }];
     }, 'UNKNOWN_KEY');
+    bad((b) => { b.directives = ['']; }, 'INVALID_PLAN');
+    bad((b) => { b.sharedContext = { k: 42 }; }, 'INVALID_PLAN');
+    bad((b) => { b.tasks[0].sharedContext = { k: 5 }; },
+      'INVALID_VALUE');
     // ext keys are V3-layer: a V1 record may not carry them
     const f1 = path.join(dir, 'docs/agent/plans/rel-4.json');
     const d1 = JSON.parse(fs.readFileSync(f1, 'utf8'));
