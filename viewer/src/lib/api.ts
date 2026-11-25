@@ -242,6 +242,18 @@ export interface PlanBreakdown {
   derivedStatus?: PlanDerivedStatus;
 }
 
+export interface PlanStatusDetail {
+  plan: string;
+  status: PlanDerivedStatus;
+  percent: number | null;
+  done: number;
+  total: number;
+  counts: Record<string, number>;
+  activeTasks: { key: string; id: string; state: string }[];
+  members: { key: string; id: string; state: string | null;
+    disposition: unknown; error: string | null }[];
+}
+
 export interface PlanWaveTask {
   key: string;
   id?: string;
@@ -477,6 +489,19 @@ export interface GoalList {
   malformed: { line: string }[];
 }
 
+export interface GoalRollup {
+  goal: Goal;
+  tasks: { id: string; title: string | null; state: string;
+    disposition: unknown; planKey: string | null }[];
+  taskCount: number;
+  counts: Record<string, number>;
+  percent: number | null;
+  plans: { key: string; status: PlanDerivedStatus | null;
+    percent?: number | null; error?: string }[];
+  successMetrics: unknown[];
+  health: 'on-track' | 'at-risk' | null;
+}
+
 export type ChecklistItemStatus = 'pending' | 'pass' | 'fail' | 'na';
 
 export interface ChecklistItem {
@@ -616,6 +641,9 @@ export const api = {
     request<PlanDoc>(`/api/plan-docs/${encodeURIComponent(name)}`),
   plan: (key: string) =>
     request<PlanDetail>(`/api/plans/${encodeURIComponent(key)}`),
+  planStatus: (key: string) =>
+    request<PlanStatusDetail>(
+      `/api/plans/${encodeURIComponent(key)}/status`),
   artifactDocs: (kind: ArtifactKind) =>
     request<{ kind: ArtifactKind; docs: ArtifactDocSummary[] }>(
       `/api/artifact-docs?kind=${encodeURIComponent(kind)}`),
@@ -640,6 +668,8 @@ export const api = {
     request<MemoryLogResult>(
       `/api/memory?log=${encodeURIComponent(log)}&tail=${encodeURIComponent(tail)}`),
   goals: () => request<GoalList>('/api/goals'),
+  goal: (id: string) =>
+    request<GoalRollup>(`/api/goals/${encodeURIComponent(id)}`),
   checklists: (limit = 200) =>
     request<ChecklistList>(
       `/api/checklists?limit=${encodeURIComponent(limit)}`),
