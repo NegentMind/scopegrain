@@ -101,6 +101,8 @@ semantic or extension key still requires the full required V3 set above.
 | `autonomyPolicy` | `full-auto|approve-first|gate-on-critical` or null | Human-supervision level for the whole plan. Declarative; enforcement lives in hosts and `preAction` hooks. |
 | `concurrencyPolicy` | `allow-parallel|queue|cancel-replace` or null | What a host should do if the same plan triggers while a prior run is active. |
 | `ttlSeconds` | int >= 0 or null | Declared time-to-live; expiry itself is host-side. |
+| `supersedes` | plan key or null | Points to the plan this one replaces — replanning creates `v+1` with `supersedes` naming the prior plan, preserving the chain. The referenced plan must exist (`PLAN_NOT_FOUND`). |
+| `version` | int >= 1 (default `1`) | Human-meaningful revision of the planning chain, independent of the storage-layer `revision`. |
 
 `plan next` is triage-aware: entries triaged `defer|skip|blocked` report
 status `triaged` instead of `ready`/`blocked`.

@@ -694,6 +694,8 @@ export function createApiQueries(ctx, options = {}) {
           autonomyPolicy: p.autonomyPolicy ?? null,
           concurrencyPolicy: p.concurrencyPolicy ?? null,
           ttlSeconds: p.ttlSeconds ?? null,
+          supersedes: p.supersedes ?? null,
+          version: p.version ?? null,
           taskCount: p.tasks.length,
           readiness,
           readinessError,

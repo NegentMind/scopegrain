@@ -173,6 +173,7 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     p.autonomyPolicy = 'gate-on-critical';
     p.concurrencyPolicy = 'queue';
     p.ttlSeconds = 86400;
+    p.version = 1;
     const prepared = preparePlan(ctx, p);
     assert.equal(prepared.plan.schemaVersion, 3);
     assert.equal(prepared.plan.request, 'Ship the release with zero known P0s');
@@ -191,18 +192,35 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     assert.equal(prepared.plan.autonomyPolicy, 'gate-on-critical');
     assert.equal(prepared.plan.concurrencyPolicy, 'queue');
     assert.equal(prepared.plan.ttlSeconds, 86400);
+    assert.equal(prepared.plan.version, 1);
+    assert.equal(prepared.plan.supersedes, null);
     applyPlan(dir, preflightPlan(dir, prepared.files));
     const stored = getPlan(ctx, 'rel-3');
     assert.equal(stored.request, 'Ship the release with zero known P0s');
     // absent ext keys are emitted with null defaults on write
+    // (version defaults to 1)
     const p2 = JSON.parse(JSON.stringify(V3_PLAN));
     p2.key = 'rel-4';
     const prepared2 = preparePlan(ctx, p2);
     for (const k of ['request', 'planType', 'trigger', 'acceptanceCriteria',
       'deliverables', 'synthesisStrategy', 'replanPolicy', 'executiveSummary',
-      'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds']) {
+      'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes']) {
       assert.equal(prepared2.plan[k], null);
     }
+    assert.equal(prepared2.plan.version, 1);
+    // supersedes chains to an existing plan; unknown targets are rejected
+    const p5 = JSON.parse(JSON.stringify(V3_PLAN));
+    p5.key = 'rel-5';
+    p5.supersedes = 'rel-3';
+    p5.version = 2;
+    const prepared5 = preparePlan(ctx, p5);
+    assert.equal(prepared5.plan.supersedes, 'rel-3');
+    assert.equal(prepared5.plan.version, 2);
+    const p6 = JSON.parse(JSON.stringify(V3_PLAN));
+    p6.key = 'rel-6';
+    p6.supersedes = 'never-existed';
+    assert.throws(() => preparePlan(ctx, p6),
+      (e) => e.code === 'PLAN_NOT_FOUND');
     // stored V3 records predating the ext keys stay readable
     const prepared3 = preparePlan(ctx, p2);
     applyPlan(dir, preflightPlan(dir, prepared3.files));
@@ -234,6 +252,9 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     bad((b) => { b.concurrencyPolicy = 'brawl'; }, 'INVALID_PLAN');
     bad((b) => { b.ttlSeconds = -5; }, 'INVALID_PLAN');
     bad((b) => { b.ttlSeconds = 1.5; }, 'INVALID_PLAN');
+    bad((b) => { b.supersedes = 'NOT A KEY'; }, 'INVALID_PLAN');
+    bad((b) => { b.version = 0; }, 'INVALID_PLAN');
+    bad((b) => { b.version = 'two'; }, 'INVALID_PLAN');
     // ext keys are V3-layer: a V1 record may not carry them
     const f1 = path.join(dir, 'docs/agent/plans/rel-4.json');
     const d1 = JSON.parse(fs.readFileSync(f1, 'utf8'));

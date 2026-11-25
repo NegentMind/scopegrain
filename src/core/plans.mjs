@@ -63,8 +63,11 @@ const PLAN_V3_KEYS = new Set([
 const PLAN_V3_EXT_KEYS = new Set([
   'request', 'planType', 'trigger', 'acceptanceCriteria', 'deliverables',
   'synthesisStrategy', 'replanPolicy', 'executiveSummary',
-  'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds',
+  'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes',
+  'version',
 ]);
+// Non-null defaults emitted on write; every other ext key defaults to null.
+const PLAN_V3_EXT_DEFAULTS = { version: 1 };
 const PLAN_TYPES = new Set(['static', 'dynamic', 'hybrid']);
 const TRIGGER_KINDS = new Set(['manual', 'scheduled', 'event', 'derived']);
 const SYNTHESIS_STRATEGIES = new Set(
@@ -298,9 +301,24 @@ function normalizePlanV3(input, taskKeys, errorFn) {
     }
     v3.ttlSeconds = input.ttlSeconds;
   }
+  if (has('supersedes')) {
+    if (input.supersedes !== null
+        && (typeof input.supersedes !== 'string'
+          || !KEY_RE.test(input.supersedes))) {
+      throw errorFn('supersedes must be a plan key or null');
+    }
+    v3.supersedes = input.supersedes;
+  }
+  if (has('version')) {
+    if (input.version !== null
+        && (!Number.isSafeInteger(input.version) || input.version < 1)) {
+      throw errorFn('version must be an integer >= 1 or null');
+    }
+    v3.version = input.version ?? null;
+  }
   if (Object.keys(v3).length) {
     for (const k of PLAN_V3_EXT_KEYS) {
-      if (v3[k] === undefined) v3[k] = null;
+      if (v3[k] === undefined) v3[k] = PLAN_V3_EXT_DEFAULTS[k] ?? null;
     }
   }
   return Object.keys(v3).length ? v3 : null;
@@ -481,6 +499,11 @@ export function validatePlanInput(ctx, input) {
 
   const v3 = normalizePlanV3(input, seen,
     (msg) => err('INVALID_PLAN', `plan input: ${msg}`));
+  if (v3?.supersedes != null
+      && !lstatOrNull(planFileAbs(ctx, v3.supersedes))) {
+    throw err('PLAN_NOT_FOUND',
+      `supersedes references unknown plan '${v3.supersedes}'`);
+  }
   validateDag(tasks.map((t) => ({ key: t.key, dependsOn: t.dependsOn })),
     'plan input', seen);
   // Formal coverage: union of task assignments must cover the whole spec —
