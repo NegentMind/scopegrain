@@ -829,6 +829,7 @@ scopegrain rule show ID --project PATH
 scopegrain rule propose --project PATH --input FILE [--id ID] [--apply]
 scopegrain rule approve ID --project PATH --revision N [--apply]
 scopegrain rule archive ID --project PATH --revision N [--apply]
+scopegrain rule import --project PATH --from FILE [--apply]
 ```
 
 `list`/`show` leen todas las capas (canonica, montada, local) con el
@@ -848,6 +849,16 @@ verbos mutantes previsualizan sin `--apply` como en el resto. Los ids
 de reglas locales son slugs en minusculas — un `Foo.md` creado a mano
 aparece en `rule list` pero sus mutaciones fallan `INVALID_ID` (el
 overlay acepta el archivo, el store no).
+
+`import` es un importador unidireccional: lee un archivo de
+instrucciones dentro del proyecto (AGENTS.md, `.cursorrules`, ...),
+lo segmenta por encabezados markdown y prepara cada seccion como
+borrador `Status: Proposed` con `origin.source: imported` en
+`rules/local/`. El texto importado es dato — nunca se ejecuta ni se
+escribe de vuelta al origen. Reimportar es idempotente: contenido
+byte-identico se omite (`unchanged`); un id ocupado por contenido
+distinto o en colision con el catalogo se omite (`conflict`), nunca
+sobreescribe. Tope de 32 secciones por archivo.
 
 ## Configuracion global, version, progreso de olas y VantaDB L3
 
@@ -908,6 +919,29 @@ declarado), `completed` (todos CLOSE o con disposicion terminal
 `GET /api/plans/:key/status` expone lo mismo mas `runState`, y la
 proyeccion `plans`/`plan` incluye `derivedStatus` junto al `status`
 grueso previo (sin cambios para compatibilidad).
+
+### plan preview (radiografia pre-ejecucion)
+
+```text
+scopegrain plan preview --project PATH KEY
+```
+
+Vista previa read-only de un plan almacenado — nada se persiste
+(`mode:"preview"`). Compone las lecturas existentes en una sola salida
+JSON estable: `derivedStatus`+`percent` (misma taxonomia que
+`plan status`), `readiness` (counts por estado mas listas
+ready/blocked/active/closed/triaged con `blockedBy`), `waves` y
+`unscheduled` del solver, `orderingRisks` (`unreadable`, `unschedulable`,
+`triage-block` — miembro bloqueado detras de un miembro triado,
+transitivamente — `dropped-scheduled` — miembro con disposicion terminal
+que `plan next`/`waves` siguen programando — y `scope-overlap` — miembros
+paralelos en la misma ola que declaran regiones de escritura solapadas,
+con la misma regla de contencion que los hooks preAction) y
+`tokenEstimate` (estimador `utf8-bytes/4` sobre el documento del plan mas
+cada registro de tarea miembro legible). Si algun miembro no se puede
+leer, `readiness` degrada a `{degraded, counts}` y `waves`/`unscheduled`
+salen `null` en vez de fallar — el riesgo `unreadable` lo registra.
+`scopegrain_plan_preview` expone el mismo resultado via MCP.
 
 ### plan conclude (retrospectiva de cierre)
 

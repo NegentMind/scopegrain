@@ -227,7 +227,7 @@ Ver [onboarding](onboarding.md) y [workflows](workflows.md).
 
 ## 11. MCP opcional
 
-El servidor MCP ofrece 37 herramientas estrictamente vinculadas al
+El servidor MCP ofrece 38 herramientas estrictamente vinculadas al
 proyecto y configuracion seleccionados al iniciar: 23 de solo lectura
 (`READ_ONLY`), 4 que escriben estado local bajo la misma disciplina
 CAS/lock que el CLI (`WRITE_LOCAL`: `scopegrain_next_task` con

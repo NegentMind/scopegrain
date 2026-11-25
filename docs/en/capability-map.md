@@ -21,7 +21,7 @@ recorded in [verification](verification.md) (it changes with every run).
 | Surface | Inventory | Access |
 |---|---|---|
 | CLI `bin/scopegrain.mjs` | 147 registered subcommands, lazy per-command imports | Human and agent |
-| MCP `src/mcp/server.mjs` | 37 `scopegrain_*` tools: 23 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 8 writers (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
+| MCP `src/mcp/server.mjs` | 38 `scopegrain_*` tools: 24 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 8 writers (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
 | Local API `src/api/server.mjs` | 30 GET routes `/api/*` | Loopback-only, GET-only |
 | Viewer `viewer/` (`scopegrain view`) | 15 views, React 19 + TS + Vite + Tailwind | Read-only, human |
 | Catalog `resources/manifest.json` | 140 entries + 32 aliases | Projectable into the project |
@@ -172,13 +172,14 @@ committed+acked events.
 
 ---
 
-## 3. MCP — 37 `scopegrain_*` tools
+## 3. MCP — 38 `scopegrain_*` tools
 
-### Local read-only (23) — `readOnlyHint`, `openWorldHint:false`
+### Local read-only (24) — `readOnlyHint`, `openWorldHint:false`
 
 `approval_get`, `artifact_get`, `catalog_get`, `catalog_list`, `check_action`,
 `get_task`, `goal_list`, `inspect`, `list_tasks`, `mcp_inventory`, `memory_read`,
 `memory_status`, `methodology_check`, `metrics`, `plan_get`, `plan_next`,
+`plan_preview`,
 `resource_diagnose`, `resource_search`, `session_get`, `specification_get`,
 `status`, `task_suggest`, `workflow_packet`
 
@@ -286,7 +287,7 @@ plus `RESEARCH`, `STALL`, `ABANDON` (terminal). Rules:
 
 ## 9. Canonical resources (projectable)
 
-`resources/` — 44 skills · 22 rules · 18 commands · 15 agents · 24 references ·
+`resources/` — 44 skills · 23 rules · 18 commands · 15 agents · 24 references ·
 11 prompts · 5 profiles · 1 mcp = **140 entries** + 32 aliases. `manifest.json`
 is the catalog with SHA snapshots (`catalog check` verifies drift;
 byte-deterministic, no `generatedAt`); installation via

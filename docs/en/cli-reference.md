@@ -828,6 +828,7 @@ scopegrain rule show ID --project PATH
 scopegrain rule propose --project PATH --input FILE [--id ID] [--apply]
 scopegrain rule approve ID --project PATH --revision N [--apply]
 scopegrain rule archive ID --project PATH --revision N [--apply]
+scopegrain rule import --project PATH --from FILE [--apply]
 ```
 
 `list`/`show` read across layers (canonical, mounted, local) with the
@@ -846,6 +847,15 @@ last rename). Every mutation is recorded in
 like everywhere else. Local rule ids are lowercase slugs — a hand-made
 `Foo.md` lists in `rule list` but its mutations fail `INVALID_ID`
 (the overlay accepts the file, the store does not).
+
+`import` is a one-way importer: it reads an instruction file inside
+the project (AGENTS.md, `.cursorrules`, ...), segments it on markdown
+headings and stages each section as a `Status: Proposed` draft with
+`origin.source: imported` under `rules/local/`. Imported text is data
+— never executed and never written back to the source. Re-import is
+idempotent: byte-identical content is skipped (`unchanged`); an id
+taken by different content or colliding with a catalog id is skipped
+(`conflict`), never overwritten. Cap of 32 sections per file.
 
 ## Global user config, version, wave progress and VantaDB L3
 
@@ -905,6 +915,29 @@ buckets; `activeTasks` lists in-flight members.
 `GET /api/plans/:key/status` exposes the same plus `runState`, and the
 `plans`/`plan` projections now include `derivedStatus` next to the prior
 coarse `status` (unchanged for compatibility).
+
+### plan preview (pre-execution x-ray)
+
+```text
+scopegrain plan preview --project PATH KEY
+```
+
+Read-only preview of a stored plan — nothing is persisted
+(`mode:"preview"`). Composes the existing reads into one stable JSON
+output: `derivedStatus`+`percent` (same taxonomy as `plan status`),
+`readiness` (per-state counts plus ready/blocked/active/closed/triaged
+lists with `blockedBy`), the solver's `waves` and `unscheduled`,
+`orderingRisks` (`unreadable`, `unschedulable`, `triage-block` — a member
+blocked behind a triaged member, transitively — `dropped-scheduled` — a
+member with a terminal disposition that `plan next`/`waves` still
+schedules — and `scope-overlap` — parallel members in the same wave
+declaring overlapping write regions, under the same containment rule as
+preAction hooks) and `tokenEstimate` (the `utf8-bytes/4` estimator over
+the plan document plus each readable member task record). When any
+member cannot be read, `readiness` degrades to `{degraded, counts}` and
+`waves`/`unscheduled` come out `null` instead of failing — the
+`unreadable` risk records it.
+`scopegrain_plan_preview` exposes the same result via MCP.
 
 ### plan conclude (closing retrospective)
 

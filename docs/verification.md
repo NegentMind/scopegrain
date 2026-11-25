@@ -492,7 +492,7 @@ Ejecucion registrada el 2026-11-07 (UTC). Evidencia local:
 | Siete tipos de artefactos | Bajo `.scopegrain/`, reviews en reports/reviews; no se crea docs/ |
 | Catalogo y proyecciones | 111 recursos y fuentes de propuestas existentes en disco |
 | Preferencias Git del fixture | Ignore anidado segun seleccion; `.gitignore` de raiz intacto |
-| MCP con transporte real stdio | 23 de 37 herramientas read-only; consultas de catalogo, workflow, plan, artefacto y sesion |
+| MCP con transporte real stdio | 24 de 38 herramientas read-only; consultas de catalogo, workflow, plan, artefacto y sesion |
 
 Archivos de evidencia:
 

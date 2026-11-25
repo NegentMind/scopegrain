@@ -30,7 +30,8 @@ import { catalogDestRel, getResource, loadCatalog, loadWorkspaceCatalog } from '
 import { diagnoseResource, findResources } from '../core/resource-recovery.mjs';
 import { err } from '../core/errors.mjs';
 import { buildWorkflowPacket } from '../core/workflows.mjs';
-import { getPlan, nextPlanTasks } from '../core/plans.mjs';
+import { getPlan, nextPlanTasks, previewPlan }
+  from '../core/plans.mjs';
 import { getArtifact } from '../core/artifacts.mjs';
 import { getSpecification } from '../core/specifications.mjs';
 import { getApproval } from '../core/approvals.mjs';
@@ -475,6 +476,17 @@ export function createMCPTools(ctx, z) {
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ key }) => ({ tasks: nextPlanTasks(ctx, key) })),
+    },
+    {
+      name: 'scopegrain_plan_preview',
+      config: {
+        title: 'Plan Preview',
+        description: 'Pre-execution x-ray: readiness, waves, ordering '
+          + 'risks and aggregate token estimate; read-only',
+        inputSchema: { key: z.string().max(MAX_ARG_CHARS) },
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async ({ key }) => previewPlan(ctx, key)),
     },
     {
       name: 'scopegrain_artifact_get',

@@ -20,6 +20,7 @@ import {
   validateTaskShape,
 } from './tasks.mjs';
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
+import { estimateJson, TOKEN_ESTIMATOR } from './tokens.mjs';
 import { getArtifact, prepareArtifact } from './artifacts.mjs';
 import { appendWorklog, listGoals } from './worklog.mjs';
 import { getSpecification } from './specifications.mjs';
@@ -1569,6 +1570,128 @@ export function planStatus(ctx, key) {
 // Read-only — nothing persists. Lives here rather than worklog.mjs
 // because it joins plans (planStatus) — worklog cannot import this
 // module without a cycle.
+// `plan preview KEY`: the pre-execution x-ray — members, wave schedule,
+// initial readiness, ordering risks and an aggregate token estimate of
+// what a host reads to run the plan. Strictly read-only: nothing is
+// persisted, mirroring the recordPlanRun preview contract.
+export function previewPlan(ctx, key) {
+  const plan = getPlan(ctx, key);
+  // planStatus tolerates unreadable member files (per-member try/catch);
+  // nextPlanTasks and planWaves throw on them — so member records are
+  // read first and readiness/waves degrade when any read fails.
+  const status = planStatus(ctx, key);
+  const records = new Map();
+  const risks = [];
+  for (const t of plan.tasks) {
+    try {
+      records.set(t.key, getTask(ctx, t.id));
+    } catch (e) {
+      risks.push({ kind: 'unreadable', member: t.key,
+        error: e.code ?? 'ERROR' });
+    }
+  }
+  const schedulable = !risks.some((r) => r.kind === 'unreadable');
+  const next = schedulable ? nextPlanTasks(ctx, key) : [];
+  const schedule = schedulable
+    ? planWaves(ctx, key) : { waves: null, unscheduled: null };
+
+  if (schedule.unscheduled?.length > 0) {
+    risks.push({ kind: 'unschedulable',
+      members: schedule.unscheduled.map((u) => u.key),
+      note: 'wave solver left members unscheduled — inspect dependsOn '
+        + 'for cycles or unsatisfiable chains' });
+  }
+  const triaged = new Map(plan.tasks
+    // V3 descriptors carry explicit `triage: null` — truthy check, same
+    // as nextPlanTasks; `!== undefined` would count nulls as triaged.
+    .filter((t) => t.triage && t.triage !== 'do')
+    .map((t) => [t.key, t.triage]));
+  for (const n of next) {
+    if (n.status !== 'blocked') continue;
+    const hit = n.blockedBy.filter((d) => triaged.has(d));
+    if (hit.length > 0) {
+      risks.push({ kind: 'triage-block', member: n.key, blockers: hit,
+        note: 'blocked by triaged member(s)' });
+    }
+  }
+  // nextPlanTasks/planWaves ignore terminal dispositions — a dropped
+  // member in a non-terminal state is still scheduled. Flag it instead
+  // of changing upstream semantics (out of scope for a read-only
+  // surface; same gap exists in `plan next`/`plan run`).
+  for (const n of next) {
+    const rec = records.get(n.key);
+    if (rec && PLAN_STATUS_DROPPED.has(rec.disposition?.kind)
+        && n.status !== 'closed' && n.status !== 'triaged') {
+      risks.push({ kind: 'dropped-scheduled', member: n.key,
+        disposition: rec.disposition.kind,
+        note: 'terminally disposed member is still scheduled — '
+          + 'plan next/waves do not filter dispositions (upstream gap)' });
+    }
+  }
+  // Parallel wave members declaring overlapping write regions can
+  // collide — same equal-or-containment rule as preAction hooks; an
+  // empty scope declares no region and never overlaps.
+  for (const w of schedule.waves ?? []) {
+    if (!w.parallel) continue;
+    const scoped = w.tasks
+      .map((t) => [t.key, records.get(t.key)?.scope ?? []])
+      .filter(([, s]) => s.length > 0);
+    for (let i = 0; i < scoped.length; i++) {
+      for (let j = i + 1; j < scoped.length; j++) {
+        const [ka, sa] = scoped[i];
+        const [kb, sb] = scoped[j];
+        const overlaps = sa.some((a) => sb.some((b) => a === b
+          || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)));
+        if (overlaps) {
+          risks.push({ kind: 'scope-overlap', wave: w.wave,
+            members: [ka, kb],
+            note: 'parallel members declare overlapping write regions' });
+        }
+      }
+    }
+  }
+
+  const members = plan.tasks.map((t) => ({
+    key: t.key, id: t.id,
+    estimatedTokens: records.has(t.key)
+      ? estimateJson(records.get(t.key)).estimatedTokens : null,
+  }));
+  const membersTokens = members
+    .reduce((acc, m) => acc + (m.estimatedTokens ?? 0), 0);
+  // estimateJson measures the re-serialized doc — file whitespace is
+  // lost; heuristic only, not a byte count.
+  const planTokens = estimateJson(plan).estimatedTokens;
+  const byStatus = (s) => next.filter((n) => n.status === s);
+  return {
+    schemaVersion: 1,
+    mode: 'preview',
+    plan: { key: plan.key, title: plan.title },
+    derivedStatus: status.status,
+    percent: status.percent,
+    readiness: schedulable ? {
+      counts: status.counts,
+      ready: byStatus('ready').map((n) => n.key),
+      blocked: byStatus('blocked')
+        .map((n) => ({ key: n.key, blockedBy: n.blockedBy })),
+      active: byStatus('active').map((n) => n.key),
+      closed: byStatus('closed').map((n) => n.key),
+      triaged: byStatus('triaged')
+        .map((n) => ({ key: n.key, triage: n.triage,
+          reason: n.triageReason ?? null })),
+    } : { degraded: true, counts: status.counts,
+      note: 'member read failures — see orderingRisks' },
+    waves: schedule.waves,
+    unscheduled: schedule.unscheduled,
+    orderingRisks: risks,
+    tokenEstimate: {
+      estimator: TOKEN_ESTIMATOR,
+      plan: planTokens,
+      members,
+      total: planTokens + membersTokens,
+    },
+  };
+}
+
 function evaluateGoalMetric(m) {
   const out = { ...m, met: null };
   if (m.current === null || m.current === undefined) return out;

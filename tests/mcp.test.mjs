@@ -17,7 +17,8 @@ const EXPECTED_TOOLS = [
   'scopegrain_task_suggest',
   'scopegrain_catalog_list', 'scopegrain_catalog_get',
   'scopegrain_workflow_packet', 'scopegrain_plan_get',
-  'scopegrain_plan_next', 'scopegrain_artifact_get',
+  'scopegrain_plan_next', 'scopegrain_plan_preview',
+  'scopegrain_artifact_get',
   'scopegrain_session_get', 'scopegrain_session_resume',
   'scopegrain_resource_search', 'scopegrain_resource_diagnose',
   'scopegrain_specification_get', 'scopegrain_approval_get',
@@ -40,15 +41,15 @@ test('importing server.mjs does not start a server or require deps', async () =>
   assert.equal(typeof mod.createMCPTools, 'function');
 });
 
-test('descriptors are exactly 37 tools bound to ctx', async (t) => {
+test('descriptors are exactly 38 tools bound to ctx', async (t) => {
   const { z } = await import('zod');
   const { createMCPTools } = await import('../src/mcp/server.mjs');
   const { resolveContext } = await import('../src/core/context.mjs');
   const { dir, ctx } = bootstrappedCtx();
   try {
     const tools = createMCPTools(ctx, z);
-    assert.equal(tools.length, 37);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 37);
+    assert.equal(tools.length, 38);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 38);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     const BACKEND_TOOLS = new Set([
       'scopegrain_context', 'scopegrain_session_resume',
@@ -101,8 +102,8 @@ test('in-memory transport round-trip lists and calls tools', async (t) => {
       server.connect(serverT), client.connect(clientT),
     ]);
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 37);
-    assert.equal(new Set(tools.map((x) => x.name)).size, 37);
+    assert.equal(tools.length, 38);
+    assert.equal(new Set(tools.map((x) => x.name)).size, 38);
     assert.deepEqual(tools.map((x) => x.name).sort(), [...EXPECTED_TOOLS].sort());
     const DISCARD_TOOLS = new Set([
       'scopegrain_task_disposition', 'scopegrain_goal_transition',
