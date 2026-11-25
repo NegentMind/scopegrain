@@ -89,6 +89,7 @@ const BOOL_FLAGS = new Set([
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
   '--record', '--keep-files', '--no-resume', '--lazy', '--no-structure',
   '--all', '--allow-write', '--compact', '--skip-chain-scan', '--explain',
+  '--gate', '--partial', '--report',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -614,6 +615,9 @@ const COMMANDS = {
   },
   'plan status': {
     flags: ['--project', '--config'], pos: 1, usage: 'plan status KEY',
+  },
+  'plan preview': {
+    flags: ['--project', '--config'], pos: 1, usage: 'plan preview KEY',
   },
   'plan conclude': {
     flags: ['--project', '--config', '--partial', '--report', '--apply'],
@@ -1948,6 +1952,7 @@ async function cmdPlan(sub, positional, flags) {
   const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
   const {
     concludePlan, getPlan, listPlans, nextPlanTasks, planStatus,
+    previewPlan,
     preparePlan, recordPlanRun,
   } = await import('./core/plans.mjs');
   const ctx = resolveContext({
@@ -1971,6 +1976,7 @@ async function cmdPlan(sub, positional, flags) {
   if (sub === 'show') return getPlan(ctx, positional[0]);
   if (sub === 'next') return { tasks: nextPlanTasks(ctx, positional[0]) };
   if (sub === 'status') return planStatus(ctx, positional[0]);
+  if (sub === 'preview') return previewPlan(ctx, positional[0]);
   if (sub === 'conclude') {
     return concludePlan(ctx, positional[0], {
       apply: !!flags['--apply'],
