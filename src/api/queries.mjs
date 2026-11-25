@@ -235,6 +235,8 @@ function taskSummary(task) {
     requiredCapabilities: Array.isArray(task.requiredCapabilities)
       ? task.requiredCapabilities : null,
     agentRole: task.agentRole ?? null,
+    expectedOutputs: Array.isArray(task.expectedOutputs)
+      ? task.expectedOutputs : null,
   };
 }
 

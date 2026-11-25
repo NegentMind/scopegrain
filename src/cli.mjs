@@ -82,7 +82,7 @@ const VALUE_FLAGS = new Set([
   '--text', '--outcome', '--cursor', '--arguments', '--script',
   '--assessment', '--source', '--out', '--registry', '--op', '--id',
   '--token-limit', '--hosts', '--structure-debounce', '--fields',
-  '--actor', '--reference', '--expect-digest',
+  '--actor', '--reference', '--expect-digest', '--kind',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -1376,8 +1376,9 @@ async function cmdTask(sub, positional, flags, io) {
     let set;
     if (kind === undefined) {
       // dependsOn names task records, not external refs — resolve the
-      // target so typos do not write dead edges into the graph.
-      getTask(ctx, target);
+      // target on link so typos do not write dead edges. unlink skips it:
+      // removing a dead reference must stay possible.
+      if (!remove) getTask(ctx, target);
       const cur = task.dependsOn ?? [];
       const next = remove
         ? cur.filter((x) => x !== target) : [...new Set([...cur, target])];

@@ -175,6 +175,59 @@ test('agentRole: non-empty string or null; unresolved reference allowed', () => 
   } finally { cleanup(dir); }
 });
 
+test('expectedOutputs: canonical paths, closed item keys, bool flags', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, {
+      ...BASE,
+      expectedOutputs: [
+        { path: 'docs/report.md' },
+        { path: 'src/out.json', mustExist: true, mustBeNonEmpty: true },
+      ],
+    });
+    assert.equal(task.schemaVersion, 3);
+    assert.deepEqual(task.expectedOutputs[0], { path: 'docs/report.md' });
+    assert.deepEqual(task.expectedOutputs[1], {
+      path: 'src/out.json', mustExist: true, mustBeNonEmpty: true,
+    });
+    const badPath = (code) => (e) => e.code === code;
+    for (const p of ['../x', '/abs/x', 'a//b', './x']) {
+      assert.throws(() => prepareTask(ctx, {
+        ...BASE, expectedOutputs: [{ path: p }],
+      }), (e) => ['INVALID_PATH', 'RESERVED_PATH', 'INVALID_VALUE']
+        .includes(e.code), `path ${p} must be rejected`);
+    }
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, expectedOutputs: [{ path: 'a/b', extra: 1 }],
+    }), (e) => e.code === 'UNKNOWN_KEY');
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, expectedOutputs: [{ path: 'a/b', mustExist: 'yes' }],
+    }), (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, expectedOutputs: 'docs/report.md',
+    }), (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, expectedOutputs: null });
+    assert.equal(applied.expectedOutputs, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { expectedOutputs: [{ path: 'docs/done.md', mustExist: true }] },
+    });
+    assert.deepEqual(next.expectedOutputs, [
+      { path: 'docs/done.md', mustExist: true },
+    ]);
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.expectedOutputs = [{ path: 'a/../b' }];
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => ['TASK_MALFORMED', 'INVALID_PATH', 'RESERVED_PATH']
+        .includes(e.code));
+    delete data.expectedOutputs;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).expectedOutputs, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

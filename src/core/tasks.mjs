@@ -33,7 +33,7 @@ const TASK_KEYS = new Set([
   'estimate', 'source', 'relations', 'dependsOn', 'goalIds', 'analysis',
   'steps', 'notes', 'skills', 'uncertainty',
   // V3 extension fields (optional on read, emitted on write)
-  'allowedTools', 'requiredCapabilities', 'agentRole',
+  'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
 ]);
 const V3_KEYS = new Set([
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
@@ -44,7 +44,7 @@ const V3_KEYS = new Set([
 // them entirely (same rule as slug): validated when present, never
 // required on read, and always emitted by new writes via V3_DEFAULTS.
 const V3_EXT_KEYS = new Set([
-  'allowedTools', 'requiredCapabilities', 'agentRole',
+  'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
 ]);
 const TASK_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3', 'backlog']);
 const TASK_SEVERITIES = new Set(['critical', 'high', 'medium', 'low', 'info']);
@@ -62,7 +62,7 @@ const BACKLOG_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const META_KEYS = new Set([
   'priority', 'severity', 'type', 'effort', 'estimate', 'source',
   'relations', 'dependsOn', 'goalIds', 'analysis', 'skills', 'backlog',
-  'allowedTools', 'requiredCapabilities', 'agentRole',
+  'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
@@ -70,7 +70,7 @@ const CREATE_KEYS = new Set([
   'backlog', 'priority', 'severity', 'type', 'effort', 'estimate',
   'source', 'relations', 'dependsOn', 'goalIds', 'analysis', 'steps',
   'notes', 'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
-  'agentRole',
+  'agentRole', 'expectedOutputs',
 ]);
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
@@ -221,6 +221,28 @@ function validateV3Fields(task, label) {
       && (typeof task.agentRole !== 'string' || task.agentRole.trim() === '')) {
     throw err('TASK_MALFORMED',
       `${label}.agentRole must be a non-empty string or null`);
+  }
+  if (task.expectedOutputs !== undefined && task.expectedOutputs !== null) {
+    const shapeOk = Array.isArray(task.expectedOutputs)
+      && task.expectedOutputs.every((o) => o !== null
+        && typeof o === 'object' && !Array.isArray(o)
+        && typeof o.path === 'string'
+        && (o.mustExist === undefined || typeof o.mustExist === 'boolean')
+        && (o.mustBeNonEmpty === undefined
+          || typeof o.mustBeNonEmpty === 'boolean')
+        && Object.keys(o).every(
+          (k) => ['path', 'mustExist', 'mustBeNonEmpty'].includes(k)));
+    if (!shapeOk) {
+      throw err('TASK_MALFORMED',
+        `${label}.expectedOutputs must be [{path,mustExist?,mustBeNonEmpty?}] or null`);
+    }
+    for (const o of task.expectedOutputs) {
+      // Stored paths must already be canonical (like stored scope).
+      if (assertDestination(o.path, `${label}.expectedOutputs`) !== o.path) {
+        throw err('TASK_MALFORMED',
+          `${label}.expectedOutputs entry is not canonical: ${o.path}`);
+      }
+    }
   }
   if (task.uncertainty !== null) {
     const u = task.uncertainty;
@@ -705,6 +727,41 @@ export function normalizeV3Input(input) {
     }
     v3.agentRole = input.agentRole;
   }
+  if (has('expectedOutputs')) {
+    v3.expectedOutputs = input.expectedOutputs === null ? null : (() => {
+      const arr = input.expectedOutputs;
+      if (!Array.isArray(arr)) {
+        throw err('INVALID_VALUE',
+          'expectedOutputs must be an array of output entries or null');
+      }
+      return arr.map((o, i) => {
+        if (o === null || typeof o !== 'object' || Array.isArray(o)) {
+          throw err('INVALID_VALUE',
+            `expectedOutputs[${i}] must be an object`);
+        }
+        for (const k of Object.keys(o)) {
+          if (!['path', 'mustExist', 'mustBeNonEmpty'].includes(k)) {
+            throw err('UNKNOWN_KEY',
+              `expectedOutputs[${i}] received unknown key '${k}'`);
+          }
+        }
+        if (typeof o.path !== 'string' || o.path.trim() === '') {
+          throw err('INVALID_VALUE',
+            `expectedOutputs[${i}].path must be a non-empty string`);
+        }
+        for (const k of ['mustExist', 'mustBeNonEmpty']) {
+          if (o[k] !== undefined && typeof o[k] !== 'boolean') {
+            throw err('INVALID_VALUE',
+              `expectedOutputs[${i}].${k} must be a boolean`);
+          }
+        }
+        const item = { path: assertDestination(o.path, `expectedOutputs[${i}].path`) };
+        if (o.mustExist !== undefined) item.mustExist = o.mustExist;
+        if (o.mustBeNonEmpty !== undefined) item.mustBeNonEmpty = o.mustBeNonEmpty;
+        return item;
+      });
+    })();
+  }
   if (has('relations')) {
     v3.relations = input.relations === null ? null : (() => {
       const r = input.relations;
@@ -803,6 +860,7 @@ export const V3_DEFAULTS = {
   dependsOn: null, goalIds: null, analysis: null, steps: null, notes: null,
   skills: null, uncertainty: null,
   allowedTools: null, requiredCapabilities: null, agentRole: null,
+  expectedOutputs: null,
 };
 
 // Pure task record factory: no I/O, no side effects. V2 records carry the
