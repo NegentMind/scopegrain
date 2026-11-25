@@ -385,6 +385,10 @@ const COMMANDS = {
     flags: ['--project', '--config'], pos: 0,
     usage: 'goal list --project PATH',
   },
+  'goal show': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'goal show --project PATH ID',
+  },
   'goal transition': {
     flags: ['--project', '--config', '--to', '--apply'], pos: 1,
     usage: 'goal transition --project PATH ID --to STATUS [--apply]',
@@ -2274,6 +2278,10 @@ async function cmdGoal(sub, positional, flags) {
     return createGoal(ctx, input);
   }
   if (sub === 'list') return listGoals(ctx);
+  if (sub === 'show') {
+    const { goalRollup } = await import('./core/plans.mjs');
+    return goalRollup(ctx, positional[0]);
+  }
   if (sub === 'transition') {
     const to = requireFlag(flags, '--to');
     if (!flags['--apply']) {

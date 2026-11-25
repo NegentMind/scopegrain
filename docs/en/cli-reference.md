@@ -418,11 +418,12 @@ cap rotates whole into `paths.memory/archive/` — immutable and never
 deleted — so a single log file does not grow without bound. Rotation is
 best-effort: a busy file defers it and the append still succeeds.
 
-### goal create / goal list / goal transition
+### goal create / goal list / goal show / goal transition
 
 ```text
 goal create --project PATH --input FILE
 goal list --project PATH
+goal show --project PATH ID
 goal transition --project PATH ID --to STATUS
 ```
 
@@ -442,6 +443,15 @@ UUID of an existing goal (hierarchy), `linkedPlanKeys` `[slug]`
 `open|proposed|active|at-risk|verifying|achieved|stalled|abandoned|dropped`
 — legacy values stay valid with no migration. `transition` preserves all
 V2 fields on re-append.
+
+`goal show ID` derives the progress rollup (read-only, nothing
+persists): tasks linked via `task.goalIds`, plans linked (the members'
+`planKey` plus `linkedPlanKeys` — each reports its `derivedStatus` and
+percent, or `{error}` when missing), a per-state `counts` histogram,
+`percent` progress, evaluated `successMetrics` (`met: true|false|null`
+— absent `current` or mixed types do not evaluate) and `health`
+`on-track|at-risk|null` when a `deadline` exists (past and incomplete ->
+`at-risk`; 100% or still open -> `on-track`).
 
 ### metrics
 

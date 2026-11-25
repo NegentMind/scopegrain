@@ -15,12 +15,13 @@ import {
 } from './paths.mjs';
 import { loadPolicy, loadLimits } from './policy.mjs';
 import {
-  buildTaskRecord, DATA_CLASSIFICATIONS, getTask, nextTaskSlug,
-  normalizeTaskInput, validateSharedContext, validateTaskShape,
+  buildTaskRecord, DATA_CLASSIFICATIONS, getTask, listTasks,
+  nextTaskSlug, normalizeTaskInput, validateSharedContext,
+  validateTaskShape,
 } from './tasks.mjs';
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
 import { getArtifact, prepareArtifact } from './artifacts.mjs';
-import { appendWorklog } from './worklog.mjs';
+import { appendWorklog, listGoals } from './worklog.mjs';
 import { getSpecification } from './specifications.mjs';
 import { allScenarioRefs, planCarriesFormalPair }
   from './methodology-data.mjs';
@@ -1559,6 +1560,83 @@ export function planStatus(ctx, key) {
     status: derivePlanStatus(members),
     percent: total === 0 ? null : Math.round((done / total) * 100),
     done, total, counts, activeTasks, members,
+  };
+}
+
+// `goal show ID` rollup: derives task linkage (task.goalIds), plan
+// linkage (member planKey ∪ goal.linkedPlanKeys), per-state counts,
+// percent, evaluated successMetrics and a coarse deadline health.
+// Read-only — nothing persists. Lives here rather than worklog.mjs
+// because it joins plans (planStatus) — worklog cannot import this
+// module without a cycle.
+function evaluateGoalMetric(m) {
+  const out = { ...m, met: null };
+  if (m.current === null || m.current === undefined) return out;
+  const num = typeof m.target === 'number' && typeof m.current === 'number';
+  const cmp = num ? (a, b) => a - b
+    : typeof m.target === 'string' && typeof m.current === 'string'
+      ? (a, b) => (a < b ? -1 : a > b ? 1 : 0) : null;
+  if (cmp === null) return out; // mixed types: unevaluable, not failed
+  const d = cmp(m.current, m.target);
+  out.met = m.operator === 'eq' ? d === 0
+    : m.operator === 'lt' ? d < 0
+    : m.operator === 'lte' ? d <= 0
+    : m.operator === 'gte' ? d >= 0
+    : d > 0;
+  return out;
+}
+
+export function goalRollup(ctx, goalId) {
+  if (!isUUID(goalId)) {
+    throw err('INVALID_ID', 'goal id must be a UUID');
+  }
+  const goal = listGoals(ctx).goals.find(
+    (g) => g.id.toLowerCase() === goalId.toLowerCase());
+  if (!goal) {
+    throw err('INVALID_ID', `goal ${goalId} not found`);
+  }
+  const gid = goal.id.toLowerCase();
+  const linked = listTasks(ctx).tasks.filter(
+    (t) => (t.goalIds ?? []).some((id) =>
+      typeof id === 'string' && id.toLowerCase() === gid));
+  const counts = {};
+  let done = 0;
+  for (const t of linked) {
+    const dropped = PLAN_STATUS_DROPPED.has(t.disposition?.kind);
+    counts[dropped ? 'dropped' : t.state] =
+      (counts[dropped ? 'dropped' : t.state] ?? 0) + 1;
+    if (t.state === 'CLOSE' || dropped) done += 1;
+  }
+  const percent = linked.length === 0 ? null
+    : Math.round((done / linked.length) * 100);
+  const planKeys = new Set(
+    linked.map((t) => t.planKey).filter((k) => typeof k === 'string'));
+  for (const k of goal.linkedPlanKeys ?? []) planKeys.add(k);
+  const plans = [...planKeys].sort().map((k) => {
+    try {
+      const st = planStatus(ctx, k);
+      return { key: k, status: st.status, percent: st.percent };
+    } catch (e) {
+      return { key: k, status: null, error: e.code ?? 'ERROR' };
+    }
+  });
+  const deadline = typeof goal.deadline === 'string'
+    ? Date.parse(goal.deadline) : NaN;
+  const health = !Number.isFinite(deadline) ? null
+    : percent === 100 ? 'on-track'
+    : Date.now() > deadline ? 'at-risk' : 'on-track';
+  return {
+    goal,
+    tasks: linked.map((t) => ({
+      id: t.id, title: t.title ?? null, state: t.state,
+      disposition: t.disposition ?? null, planKey: t.planKey ?? null,
+    })),
+    taskCount: linked.length,
+    counts,
+    percent,
+    plans,
+    successMetrics: (goal.successMetrics ?? []).map(evaluateGoalMetric),
+    health,
   };
 }
 

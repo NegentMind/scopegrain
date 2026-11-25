@@ -419,11 +419,12 @@ inmutable y nunca borrado — para que un fichero de log no crezca sin
 limite. La rotacion es best-effort: un fichero ocupado la difiere y el
 append se completa igualmente.
 
-### goal create / goal list / goal transition
+### goal create / goal list / goal show / goal transition
 
 ```text
 goal create --project PATH --input FILE
 goal list --project PATH
+goal show --project PATH ID
 goal transition --project PATH ID --to STATUS
 ```
 
@@ -442,6 +443,15 @@ plan se verifica donde hay ctx), `notes` string. `status` amplia a
 `open|proposed|active|at-risk|verifying|achieved|stalled|abandoned|dropped`
 — los valores heredados siguen validos sin migracion. `transition`
 preserva todos los campos V2 al re-anexar.
+
+`goal show ID` deriva el rollup de progreso (read-only, nada persiste):
+tareas vinculadas via `task.goalIds`, planes vinculados (`planKey` de
+esas tareas mas `linkedPlanKeys` — cada plan devuelve su `derivedStatus`
+y percent, o `{error}` si no existe), histograma `counts` por estado,
+`percent` de avance, `successMetrics` evaluadas (`met: true|false|null`
+— `current` ausente o tipos mixtos no evaluan) y `health`
+`on-track|at-risk|null` cuando hay `deadline` (vencida e incompleta ->
+`at-risk`; completa al 100% o aun vigente -> `on-track`).
 
 ### metrics
 

@@ -144,6 +144,8 @@ export const ROUTES = [
     handler: (q) => q.activeTask() },
   { pattern: ['api', 'goals'], query: [],
     handler: (q) => q.goals() },
+  { pattern: ['api', 'goals', ':id'], query: [],
+    handler: (q, _url, p) => q.goal(p.id) },
   { pattern: ['api', 'metrics'], query: [],
     handler: (q) => q.metrics() },
   { pattern: ['api', 'reports'], query: ['limit', 'offset'],

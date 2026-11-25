@@ -21,8 +21,8 @@ import { getChecklist } from '../core/checklists.mjs';
 import { getConstitution } from '../core/constitution.mjs';
 import { getActiveTask } from '../core/active.mjs';
 import {
-  derivePlanStatus, getPlan, listPlans, nextPlanTasks, planRunState,
-  planStatus, planWaves,
+  derivePlanStatus, getPlan, goalRollup, listPlans, nextPlanTasks,
+  planRunState, planStatus, planWaves,
 } from '../core/plans.mjs';
 import { artifactDirRel, getArtifact, listArtifacts } from '../core/artifacts.mjs';
 import { getJournalOperation } from '../core/journal.mjs';
@@ -1366,7 +1366,8 @@ export function createApiQueries(ctx, options = {}) {
     planStatus: planStatusDetail,
     planDocs, planDoc, artifactDocs, artifactDoc,
     artifacts, artifact, journalOperations, journalOperation, captures,
-    memory, goals, metrics, reports, report,
+    memory, goals, goal: (id) => goalRollup(ctx, id), metrics, reports,
+    report,
     sessions, session, approvals, approval, catalog, catalogDoc,
     catalogDocWrite, verifyCommands,
     vantadb, workflow, checklists, constitution, activeTask,
