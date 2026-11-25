@@ -209,8 +209,8 @@ importar ni nombrar nada declarado en círculos externos.
 
 ### Screaming architecture
 
-Organiza las carpetas por **dominio funcional**, no por capa técnica. Forma
-idiomática por lenguaje:
+Organiza las carpetas por **dominio funcional**, no por capa técnica — la
+forma es la misma en todo lenguaje:
 
 ```
 src/<domain>/            # e.g. identity/, ordering/, billing/
@@ -233,89 +233,75 @@ fronteras solo vía DTOs planos o primitivas. **Las entidades ORM, los
 modelos de estado de DB y los decoradores de framework nunca entran en
 Application ni en Domain.**
 
-## 6. Forma desarrollada (código bueno)
+## 6. Ejemplo trabajado (malo → bueno, neutro al lenguaje)
 
-El patrón, condensado — entidad de dominio que aplica invariantes,
-abstracción de puerto, caso de uso orquestando:
+Las violaciones y la corrección son idénticas en todo lenguaje — solo
+cambia la sintaxis. Pseudocódigo neutro; el mini-mapa de abajo vincula
+cada constructo con el idioma concreto de los stacks soportados.
 
-```rust
-// domain/: entity + typed errors + validated value object
-#[derive(Error, Debug)]
-pub enum DomainError { InsufficientFunds { avail: f64, req: f64 }, InvalidAmount }
+### Antipatrón — todo fundido en la frontera de entrega
 
-pub struct Money(f64);
-impl Money {
-    pub fn new(v: f64) -> Result<Self, DomainError> {
-        if v <= 0.0 { Err(DomainError::InvalidAmount) } else { Ok(Self(v)) }
-    }
-}
-pub struct Account { id: u64, balance: Money }
-impl Account {
-    pub fn withdraw(&mut self, amt: &Money) -> Result<(), DomainError> { /* invariant check, mutate, Ok */ }
-}
-
-// application/: port + use case (no sqlx, no HTTP)
-pub trait AccountRepository: Send + Sync {
-    fn find_by_id(&self, id: u64) -> Result<Option<Account>, RepoError>;
-    fn save(&self, a: &Account) -> Result<(), RepoError>;
-}
-// AppError: From<DomainError> + From<RepoError> — errors translate at the boundary
-pub struct ProcessPayment { repo: Box<dyn AccountRepository> }
-impl ProcessPayment {
-    pub fn execute(&self, id: u64, raw: f64) -> Result<(), AppError> {
-        let amt = Money::new(raw)?;               // boundary validation
-        let mut acct = self.repo.find_by_id(id)?.ok_or(AppError::NotFound)?;
-        acct.withdraw(&amt)?;                      // domain rule
-        Ok(self.repo.save(&acct)?)
-    }
-}
+```text
+function postCharge(request):                      # MAL
+    body = request.body                            # entrada sin tipo confiada en crudo
+    if body["amount"] <= 0: return http(400)
+    acct = db.query("SELECT * FROM accounts WHERE id=" + body["id"])
+                                                   # SQL por strings: inyección + fila ORM se filtra hacia arriba
+    if acct.balance - body["amount"] < 0:          # la regla de negocio vive en el controller
+        return http(409, "insufficient funds")
+    db.execute("UPDATE accounts SET balance = " + acct.balance - body["amount"])
+    return json(acct)                              # entidad de almacenamiento devuelta al wire
 ```
 
-```python
-# domain: frozen dataclasses + DomainException hierarchy
-@dataclass(frozen=True)
-class Email:
-    value: str
-    def __post_init__(self): ...  # raise InvalidEmailException on bad format
+Smells visibles: reglas de negocio en la capa de entrega · entrada no
+confiable usada sin DTO ni schema · SQL concatenado por strings · tipos
+de infraestructura cruzando hacia la respuesta · sin taxonomía de
+errores — un `return` por modo de fallo.
 
-# application: Protocol port + use case
-class UserRepository(Protocol):
-    def find_by_email(self, email: Email) -> Optional[User]: ...
-    def save(self, user: User) -> User: ...
+### Corregido — capas, puertos y frontera humble
 
-class RegisterUser:
-    def __init__(self, repo: UserRepository): self._repo = repo
-    def execute(self, cmd: RegisterUserCommand) -> User:
-        email = Email(cmd.email)                    # raises on invalid
-        if self._repo.find_by_email(email): raise UserAlreadyExistsException(...)
-        return self._repo.save(User(user_id=None, email=email))
+```text
+# domain/ — puro: sin HTTP, sin SQL, sin imports de framework
+type Money(value)                                  # value object: el constructor valida > 0
+entity Account:
+    can_charge(m: Money) -> bool                   # la regla vive junto al dato que protege
+    charge(m: Money) -> Result<Account, InsufficientFunds>
+                                                   # error de dominio tipado, nunca panic/throw-string
+
+# application/ — orquestación; es dueña de sus puertos
+port AccountRepo:                                  # interfaz declarada por el consumidor
+    find(id) -> Account | NotFound
+    save(account) -> void
+
+use_case ChargeAccount(repo: AccountRepo):
+    execute(cmd: ChargeCmd) -> Result<Receipt, AppError>:
+        amount = Money.new(cmd.raw_amount)?        # validación de frontera, lo antes posible
+        acct  = repo.find(cmd.account_id) ?? return Err(NotFound)
+        acct' = acct.charge(amount)?               # regla de dominio, propagación tipada
+        repo.save(acct')
+        return Ok(Receipt.of(acct', amount))       # sale un DTO — nunca la entidad
+
+# infrastructure/ — adaptadores humble: reciben, traducen, delegan
+handler postCharge(request):
+    cmd    = ChargeCmd.parse(request.body)         # no confiable -> DTO validado por schema en el borde
+    result = chargeAccount.execute(cmd)            # una delegación, cero ramificación sobre reglas
+    return http(result.code, result.dto)           # traduce el Result; sin lógica de negocio
+
+class SqlAccountRepo implements AccountRepo:       # el SQL existe SOLO aquí, tras el puerto
+    find(id) = db.query("SELECT ... WHERE id = ?", id)
+    save(a)  = db.execute("UPDATE ...", a.id, a.balance)
 ```
 
-```typescript
-// domain: readonly entity + Money value object
-class Money { private constructor(readonly amount: number) {}
-  static create(v: number): Money { if (v <= 0) throw new Error("positive only"); return new Money(v); } }
+### Mini-mapa constructo → idioma
 
-// application: small port + Result-returning use case
-interface ProductRepo { save(p: Product): Promise<void>; }
-type Result<T, E> = { isOk: true; value: T } | { isOk: false; error: E };
-
-class CreateProduct {
-  constructor(private repo: ProductRepo) {}
-  async execute(dto: CreateProductDTO): Promise<Result<Product, string>> {
-    try {
-      const p = new Product(dto.id, dto.name, Money.create(dto.price));
-      await this.repo.save(p);
-      return { isOk: true, value: p };
-    } catch (e) { return { isOk: false, error: String(e) }; }
-  }
-}
-```
-
-Contraste de anti-patrón (lo que estos reemplazan): tipos ORM/HTTP dentro
-de route handlers, cuerpos de petición tipados `any`,
-`unwrap()`/`panic!` en rutas de producción, SQL concatenado por strings,
-argumentos flag, reglas de negocio viviendo en controllers.
+| Constructo genérico | Rust | Python | TypeScript |
+|---|---|---|---|
+| Puerto (interfaz del consumidor) | `trait` + `Box<dyn>` | `typing.Protocol` | `interface` (pequeña, enfocada) |
+| Value object | newtype + ctor `Result` | `@dataclass(frozen=True)` | clase `readonly` + factory |
+| Error de dominio tipado | enum `thiserror` | jerarquía de excepciones | `Result<T,E>` / unión discriminada |
+| DTO en el borde | `serde::Deserialize` | pydantic / dataclass plano | tipo validado por schema (`unknown` in) |
+| Adaptador concreto | `impl Trait for X` | clase conformando Protocol | `class X implements I` |
+| Test double para un puerto | generado por mockall | pytest-mock / fake en memoria | fake en memoria (preferido) |
 
 ## 7. Testing y TDD
 
@@ -335,13 +321,24 @@ argumentos flag, reglas de negocio viviendo en controllers.
 - **Self-validating** — pass/fail booleano, sin inspección manual de logs.
 - **Timely** — escritas justo antes del código de producción.
 
-### Arrange-Act-Assert + test doubles por lenguaje
+### Arrange-Act-Assert + test doubles (taxonomía genérica)
 
-| Lenguaje | Estructura | Doubles |
+Todo test unitario: **Arrange** el fixture y los doubles, **Act** sobre
+una operación, **Assert** sobre resultados y nada más. Los doubles
+sustituyen colaboradores en los puertos — elige el más simple que
+satisfaga el contrato:
+
+| Double | Qué es | Cuándo usarlo |
 |---|---|---|
-| Rust | Módulo `#[cfg(test)]` dentro del archivo | doubles generados estilo mockall desde traits |
-| Python | pytest + fixtures inmutables | pytest-mock para aislamiento |
-| TypeScript | Vitest/Jest | fakes en memoria de puertos de repositorio sobre mocks dinámicos |
+| Dummy | Rellena un slot de argumento; nunca se usa | Parámetro requerido irrelevante para este test |
+| Fake | Implementación funcional simplificada (repo en memoria) | **Por defecto en puertos** — contrato real, sin I/O |
+| Stub | Respuestas prefijadas | Controlar las entradas indirectas del SUT |
+| Spy | Registra las llamadas recibidas | Verificar salidas indirectas (p.ej. "se llamó a save una vez") |
+| Mock | Expectativas pre-programadas verificadas al final | Contratos de interacción solamente — fakes primero; el abuso acopla los tests a la implementación |
+
+Regla práctica: un puerto ejercido con un fake prueba comportamiento; el
+mismo puerto mockeado prueba el protocolo — y se rompe en cada refactor
+que conserva el comportamiento pero cambia la forma de las llamadas.
 
 ## 8. Matriz de gobernanza
 
@@ -404,5 +401,30 @@ archivo).
 - [ ] Existen excepciones idiomáticas (convenciones de framework, alias de
       compatibilidad) — revisa la lista de excepciones del proyecto antes
       de señalar nombres.
+
+## 12. Fuentes
+
+Textos canónicos detrás de este compendio (títulos para localizar; sin
+enlaces):
+
+- Robert C. Martin — *Clean Code* (naming, funciones, comentarios, smells)
+- Robert C. Martin — *Clean Architecture* (capas, regla de dependencias,
+  humble object, principios de componentes REP/CCP/CRP, ADP/SDP/SAP)
+- Robert C. Martin — *Agile Software Development: PPP* (SOLID, métricas
+  Ca/Ce/I/A/D, secuencia principal)
+- Martin Fowler — *Refactoring* (envidia de características, choque de
+  trenes, obsesión por primitivos)
+- Martin Fowler — *Patterns of Enterprise Application Architecture*
+  (DTO, repository, mapper)
+- Eric Evans — *Domain-Driven Design* (entidades, value objects,
+  lenguaje ubicuo)
+- Freeman & Pryce — *Growing Object-Oriented Software, Guided by Tests*
+  (taxonomía de test doubles)
+- Kent Beck — *Test-Driven Development: By Example* (ciclo TDD)
+- Michael Feathers — *Working Effectively with Legacy Code* (seams,
+  characterization tests)
+- David Parnas — *On the Criteria To Be Used in Decomposing Systems
+  into Modules* (ocultación de información)
+- Ley de Demeter — habla solo con colaboradores directos
 
 <!-- Cross-references: → see architecture.md, definition-of-done.md, quality-floor.md, testing-patterns.md -->

@@ -199,8 +199,8 @@ circles.
 
 ### Screaming architecture
 
-Organize folders by **functional domain**, not technical layer. Idiomatic
-shape per language:
+Organize folders by **functional domain**, not technical layer — the
+shape is the same in every language:
 
 ```
 src/<domain>/            # e.g. identity/, ordering/, billing/
@@ -221,89 +221,75 @@ logic. Data crosses boundaries only via flat DTOs or primitives. **ORM
 entities, DB-state models and framework decorators never enter Application
 or Domain.**
 
-## 6. Worked shape (good code)
+## 6. Worked example (bad → good, language-neutral)
 
-The pattern, condensed — domain entity enforcing invariants, port
-abstraction, use case orchestrating:
+The violations and the fix are identical in every language — only the
+syntax changes. Neutral pseudocode; the mini-map below binds each
+construct to the concrete idiom of the supported stacks.
 
-```rust
-// domain/: entity + typed errors + validated value object
-#[derive(Error, Debug)]
-pub enum DomainError { InsufficientFunds { avail: f64, req: f64 }, InvalidAmount }
+### Antipattern — everything fused in the delivery boundary
 
-pub struct Money(f64);
-impl Money {
-    pub fn new(v: f64) -> Result<Self, DomainError> {
-        if v <= 0.0 { Err(DomainError::InvalidAmount) } else { Ok(Self(v)) }
-    }
-}
-pub struct Account { id: u64, balance: Money }
-impl Account {
-    pub fn withdraw(&mut self, amt: &Money) -> Result<(), DomainError> { /* invariant check, mutate, Ok */ }
-}
-
-// application/: port + use case (no sqlx, no HTTP)
-pub trait AccountRepository: Send + Sync {
-    fn find_by_id(&self, id: u64) -> Result<Option<Account>, RepoError>;
-    fn save(&self, a: &Account) -> Result<(), RepoError>;
-}
-// AppError: From<DomainError> + From<RepoError> — errors translate at the boundary
-pub struct ProcessPayment { repo: Box<dyn AccountRepository> }
-impl ProcessPayment {
-    pub fn execute(&self, id: u64, raw: f64) -> Result<(), AppError> {
-        let amt = Money::new(raw)?;               // boundary validation
-        let mut acct = self.repo.find_by_id(id)?.ok_or(AppError::NotFound)?;
-        acct.withdraw(&amt)?;                      // domain rule
-        Ok(self.repo.save(&acct)?)
-    }
-}
+```text
+function postCharge(request):                      # BAD
+    body = request.body                            # untyped input trusted raw
+    if body["amount"] <= 0: return http(400)
+    acct = db.query("SELECT * FROM accounts WHERE id=" + body["id"])
+                                                   # string SQL: injection + ORM row leaks upward
+    if acct.balance - body["amount"] < 0:          # the business rule lives in the controller
+        return http(409, "insufficient funds")
+    db.execute("UPDATE accounts SET balance = " + acct.balance - body["amount"])
+    return json(acct)                              # storage entity returned to the wire
 ```
 
-```python
-# domain: frozen dataclasses + DomainException hierarchy
-@dataclass(frozen=True)
-class Email:
-    value: str
-    def __post_init__(self): ...  # raise InvalidEmailException on bad format
+Smells visible: business rules in delivery layer · untrusted input used
+without a DTO or schema · string-concatenated SQL · infrastructure types
+crossing into the response · no error taxonomy — one `return` per
+failure mode.
 
-# application: Protocol port + use case
-class UserRepository(Protocol):
-    def find_by_email(self, email: Email) -> Optional[User]: ...
-    def save(self, user: User) -> User: ...
+### Corrected — layers, ports and humble boundary
 
-class RegisterUser:
-    def __init__(self, repo: UserRepository): self._repo = repo
-    def execute(self, cmd: RegisterUserCommand) -> User:
-        email = Email(cmd.email)                    # raises on invalid
-        if self._repo.find_by_email(email): raise UserAlreadyExistsException(...)
-        return self._repo.save(User(user_id=None, email=email))
+```text
+# domain/ — pure: no HTTP, no SQL, no framework imports
+type Money(value)                                  # value object: constructor validates > 0
+entity Account:
+    can_charge(m: Money) -> bool                   # the rule lives next to the data it guards
+    charge(m: Money) -> Result<Account, InsufficientFunds>
+                                                   # typed domain error, never panic/throw-string
+
+# application/ — orchestration; owns its ports
+port AccountRepo:                                  # interface declared by the consumer
+    find(id) -> Account | NotFound
+    save(account) -> void
+
+use_case ChargeAccount(repo: AccountRepo):
+    execute(cmd: ChargeCmd) -> Result<Receipt, AppError>:
+        amount = Money.new(cmd.raw_amount)?        # boundary validation, earliest possible
+        acct  = repo.find(cmd.account_id) ?? return Err(NotFound)
+        acct' = acct.charge(amount)?               # domain rule, typed propagation
+        repo.save(acct')
+        return Ok(Receipt.of(acct', amount))       # DTO out — never the entity
+
+# infrastructure/ — humble adapters: receive, translate, delegate
+handler postCharge(request):
+    cmd    = ChargeCmd.parse(request.body)         # untrusted -> schema-validated DTO at the edge
+    result = chargeAccount.execute(cmd)            # one delegation, zero branching on rules
+    return http(result.code, result.dto)           # translate the Result; no business logic
+
+class SqlAccountRepo implements AccountRepo:       # SQL exists ONLY here, behind the port
+    find(id) = db.query("SELECT ... WHERE id = ?", id)
+    save(a)  = db.execute("UPDATE ...", a.id, a.balance)
 ```
 
-```typescript
-// domain: readonly entity + Money value object
-class Money { private constructor(readonly amount: number) {}
-  static create(v: number): Money { if (v <= 0) throw new Error("positive only"); return new Money(v); } }
+### Construct → idiom mini-map
 
-// application: small port + Result-returning use case
-interface ProductRepo { save(p: Product): Promise<void>; }
-type Result<T, E> = { isOk: true; value: T } | { isOk: false; error: E };
-
-class CreateProduct {
-  constructor(private repo: ProductRepo) {}
-  async execute(dto: CreateProductDTO): Promise<Result<Product, string>> {
-    try {
-      const p = new Product(dto.id, dto.name, Money.create(dto.price));
-      await this.repo.save(p);
-      return { isOk: true, value: p };
-    } catch (e) { return { isOk: false, error: String(e) }; }
-  }
-}
-```
-
-Anti-pattern contrast (what these replace): ORM/HTTP types inside route
-handlers, `any`-typed request bodies, `unwrap()`/`panic!` in production
-paths, string-concatenated SQL, flag arguments, business rules living in
-controllers.
+| Generic construct | Rust | Python | TypeScript |
+|---|---|---|---|
+| Port (consumer-owned interface) | `trait` + `Box<dyn>` | `typing.Protocol` | `interface` (small, focused) |
+| Value object | newtype + `Result` ctor | `@dataclass(frozen=True)` | `readonly` class + factory |
+| Typed domain error | `thiserror` enum | exception hierarchy | `Result<T,E>` / discriminated union |
+| DTO at the edge | `serde::Deserialize` | pydantic / plain dataclass | schema-validated type (`unknown` in) |
+| Concrete adapter | `impl Trait for X` | class conforming to Protocol | `class X implements I` |
+| Test double for a port | mockall-generated | pytest-mock / in-memory fake | in-memory fake (preferred) |
 
 ## 7. Testing and TDD
 
@@ -321,13 +307,23 @@ controllers.
 - **Self-validating** — boolean pass/fail, no manual log inspection.
 - **Timely** — written just before the production code.
 
-### Arrange-Act-Assert + test doubles per language
+### Arrange-Act-Assert + test doubles (generic taxonomy)
 
-| Language | Structure | Doubles |
+Every unit test: **Arrange** the fixture and doubles, **Act** on one
+operation, **Assert** on results and nothing else. Doubles substitute
+collaborators at ports — pick the simplest that satisfies the contract:
+
+| Double | What it is | When to use |
 |---|---|---|
-| Rust | `#[cfg(test)]` module in-file | mockall-style generated doubles from traits |
-| Python | pytest + immutable fixtures | pytest-mock for isolation |
-| TypeScript | Vitest/Jest | in-memory fakes of repository ports over dynamic mocks |
+| Dummy | Fills an argument slot; never actually used | Required parameter irrelevant to this test |
+| Fake | Working implementation, simplified (in-memory repo) | **Default for ports** — real contract, no I/O |
+| Stub | Canned answers to calls | Control the SUT's indirect inputs |
+| Spy | Records calls it received | Verify indirect outputs (e.g. "was save called once") |
+| Mock | Pre-programmed expectations verified on teardown | Interaction contracts only — prefer fakes first; overuse couples tests to implementation |
+
+Rule of thumb: a port exercised through a fake tests behavior; the same
+port mocked tests the protocol — and breaks on every refactor that
+keeps behavior but changes call shape.
 
 ## 8. Governance matrix
 
@@ -384,5 +380,29 @@ net debt per change ≤ 0 (Boy Scout applied to the PR, not just the file).
       impact analysis before flagging).
 - [ ] Idiomatic exceptions exist (framework conventions, compat aliases) —
       check the project's exceptions list before flagging names.
+
+## 12. Sources
+
+Canonical texts behind this compendium (titles for lookup; no links):
+
+- Robert C. Martin — *Clean Code* (naming, functions, comments, smells)
+- Robert C. Martin — *Clean Architecture* (layers, dependency rule,
+  humble object, component principles REP/CCP/CRP, ADP/SDP/SAP)
+- Robert C. Martin — *Agile Software Development: PPP* (SOLID,
+  Ca/Ce/I/A/D metrics, main sequence)
+- Martin Fowler — *Refactoring* (feature envy, train wrecks, primitive
+  obsession)
+- Martin Fowler — *Patterns of Enterprise Application Architecture*
+  (DTO, repository, mapper)
+- Eric Evans — *Domain-Driven Design* (entities, value objects,
+  ubiquitous language)
+- Freeman & Pryce — *Growing Object-Oriented Software, Guided by Tests*
+  (test-double taxonomy)
+- Kent Beck — *Test-Driven Development: By Example* (TDD cycle)
+- Michael Feathers — *Working Effectively with Legacy Code* (seams,
+  characterization tests)
+- David Parnas — *On the Criteria To Be Used in Decomposing Systems
+  into Modules* (information hiding)
+- Law of Demeter — talk to direct collaborators only
 
 <!-- Cross-references: → see architecture.md, definition-of-done.md, quality-floor.md, testing-patterns.md -->
