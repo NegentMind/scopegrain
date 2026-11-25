@@ -241,6 +241,7 @@ function taskSummary(task) {
     executionType: task.executionType ?? null,
     outputContract: task.outputContract ?? null,
     reviewRubric: task.reviewRubric ?? null,
+    fallback: task.fallback ?? null,
   };
 }
 

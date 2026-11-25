@@ -345,6 +345,45 @@ test('reviewRubric: non-empty string or null', () => {
   } finally { cleanup(dir); }
 });
 
+test('fallback: closed {onFail: stall|abandon|needs-human, note?} or null', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, {
+      ...BASE, fallback: { onFail: 'needs-human', note: 'ask owner' },
+    });
+    assert.deepEqual(task.fallback, { onFail: 'needs-human', note: 'ask owner' });
+    const minimal = prepareTask(ctx, { ...BASE, fallback: { onFail: 'stall' } });
+    assert.deepEqual(minimal.task.fallback, { onFail: 'stall' });
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, fallback: { onFail: 'retry-forever' },
+    }), (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, fallback: { onFail: 'stall', extra: 1 },
+    }), (e) => e.code === 'UNKNOWN_KEY');
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, fallback: { onFail: 'stall', note: 5 },
+    }), (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, { ...BASE, fallback: 'stall' }),
+      (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, fallback: null });
+    assert.equal(applied.fallback, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { fallback: { onFail: 'abandon' } },
+    });
+    assert.deepEqual(next.fallback, { onFail: 'abandon' });
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.fallback = { onFail: 'explode' };
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.fallback;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).fallback, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

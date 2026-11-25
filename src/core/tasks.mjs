@@ -35,6 +35,7 @@ const TASK_KEYS = new Set([
   // V3 extension fields (optional on read, emitted on write)
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
+  'fallback',
 ]);
 const V3_KEYS = new Set([
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
@@ -47,6 +48,7 @@ const V3_KEYS = new Set([
 const V3_EXT_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
+  'fallback',
 ]);
 const TASK_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3', 'backlog']);
 const TASK_SEVERITIES = new Set(['critical', 'high', 'medium', 'low', 'info']);
@@ -61,6 +63,7 @@ const TASK_SIDE_EFFECTS = new Set(['none', 'reversible', 'irreversible']);
 // 'consensus' (multi-agent debate) is deliberately absent: personas do
 // not invoke personas per resources/references/orchestration-patterns.md.
 const TASK_EXECUTION_TYPES = new Set(['atomic', 'delegated', 'hitl']);
+const TASK_FALLBACK_ON_FAIL = new Set(['stall', 'abandon', 'needs-human']);
 export const RELATION_KINDS = new Set(
   ['see', 'supersedes', 'duplicateOf', 'blocks']);
 const STEP_STATUSES = new Set(['pending', 'done', 'skipped']);
@@ -70,6 +73,7 @@ const META_KEYS = new Set([
   'relations', 'dependsOn', 'goalIds', 'analysis', 'skills', 'backlog',
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
+  'fallback',
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
@@ -78,7 +82,7 @@ const CREATE_KEYS = new Set([
   'source', 'relations', 'dependsOn', 'goalIds', 'analysis', 'steps',
   'notes', 'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
   'agentRole', 'expectedOutputs', 'sideEffects', 'executionType',
-  'outputContract', 'reviewRubric',
+  'outputContract', 'reviewRubric', 'fallback',
 ]);
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
@@ -273,6 +277,16 @@ function validateV3Fields(task, label) {
         || task.reviewRubric.trim() === '')) {
     throw err('TASK_MALFORMED',
       `${label}.reviewRubric must be a non-empty string or null`);
+  }
+  if (task.fallback !== undefined && task.fallback !== null) {
+    const f = task.fallback;
+    if (typeof f !== 'object' || Array.isArray(f)
+        || !TASK_FALLBACK_ON_FAIL.has(f.onFail)
+        || (f.note !== undefined && typeof f.note !== 'string')
+        || Object.keys(f).some((k) => !['onFail', 'note'].includes(k))) {
+      throw err('TASK_MALFORMED',
+        `${label}.fallback must be null or {onFail: stall|abandon|needs-human, note?}`);
+    }
   }
   if (task.uncertainty !== null) {
     const u = task.uncertainty;
@@ -762,6 +776,25 @@ export function normalizeV3Input(input) {
   nonEmptyStr('agentRole');
   nonEmptyStr('outputContract');
   nonEmptyStr('reviewRubric');
+  if (has('fallback')) {
+    v3.fallback = input.fallback === null ? null : (() => {
+      const f = input.fallback;
+      if (typeof f !== 'object' || Array.isArray(f)
+          || !TASK_FALLBACK_ON_FAIL.has(f.onFail)
+          || (f.note !== undefined && typeof f.note !== 'string')) {
+        throw err('INVALID_VALUE',
+          'fallback must be {onFail: stall|abandon|needs-human, note?} or null');
+      }
+      for (const k of Object.keys(f)) {
+        if (!['onFail', 'note'].includes(k)) {
+          throw err('UNKNOWN_KEY', `fallback received unknown key '${k}'`);
+        }
+      }
+      const clean = { onFail: f.onFail };
+      if (f.note !== undefined) clean.note = f.note;
+      return clean;
+    })();
+  }
   if (has('expectedOutputs')) {
     v3.expectedOutputs = input.expectedOutputs === null ? null : (() => {
       const arr = input.expectedOutputs;
@@ -896,7 +929,7 @@ export const V3_DEFAULTS = {
   skills: null, uncertainty: null,
   allowedTools: null, requiredCapabilities: null, agentRole: null,
   expectedOutputs: null, sideEffects: null, executionType: null,
-  outputContract: null, reviewRubric: null,
+  outputContract: null, reviewRubric: null, fallback: null,
 };
 
 // Pure task record factory: no I/O, no side effects. V2 records carry the
