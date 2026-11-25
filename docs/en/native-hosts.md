@@ -284,7 +284,7 @@ in the child context (they do not ask for approval, they are unavailable)
 and the loader denies `fs`, `node:fs`, `node:child_process`, `path` and
 `os`. Neither `todowrite` nor the subagent tool appeared. What does remain
 available is `read`, `glob`, `grep`, `webfetch`, `websearch`, `skill`,
-`question` and the whole MCP catalog: the 6 Scopegrain local-write tools
+`question` and the whole MCP catalog: the six Scopegrain local-write tools
 plus the notion, todoist, tui, chrome-devtools, playwright, argus and
 opencode writers. The read-only posture holds for disk and shell; it is not
 a read-only sandbox over MCP or network.

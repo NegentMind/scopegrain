@@ -343,6 +343,8 @@ function flagNameOf(token) {
   return m ? m[0] : null;
 }
 
+const DATE_RE = /\b\d{4}-\d{2}-\d{2}\b/;
+
 export function scanDocSurface(text) {
   const flags = new Map();
   const counts = [];
@@ -352,8 +354,34 @@ export function scanDocSurface(text) {
     if (!flags.has(flag)) flags.set(flag, new Set());
     flags.get(flag).add(via);
   };
+  // A paragraph (maximal run of non-blank lines) containing an ISO date is
+  // a point-in-time record — pilot logs, session evidence, dated audit
+  // findings. Its numeric claims describe what was true on that date, not
+  // the current surface, so they are exempt from code-count comparison.
+  // Flags and verb claims stay checked: stale names mislead readers even
+  // inside dated prose.
+  const lines = text.split('\n');
+  const datedLines = new Array(lines.length).fill(false);
+  let paraStart = -1;
+  const closeParagraph = (end) => {
+    if (paraStart < 0) return;
+    for (let i = paraStart; i < end; i += 1) {
+      if (DATE_RE.test(lines[i])) {
+        for (let j = paraStart; j < end; j += 1) datedLines[j] = true;
+        break;
+      }
+    }
+    paraStart = -1;
+  };
+  lines.forEach((line, i) => {
+    if (line.trim() === '') { closeParagraph(i); return; }
+    if (paraStart < 0) paraStart = i;
+  });
+  closeParagraph(lines.length);
   let inFence = false;
-  for (const line of text.split('\n')) {
+  let lineIndex = -1;
+  for (const line of lines) {
+    lineIndex += 1;
     const trimmed = line.trim();
     if (trimmed.startsWith('```')) { inFence = !inFence; continue; }
     for (const m of line.matchAll(NODE_BIN_RE)) invocations.push(m[1]);
@@ -375,6 +403,7 @@ export function scanDocSurface(text) {
     for (const m of line.matchAll(COUNT_RE)) {
       counts.push({
         n: Number(m[1]), unit: m[2].toLowerCase(), line: trimmed,
+        dated: datedLines[lineIndex],
       });
     }
   }
@@ -550,6 +579,7 @@ export function checkDocsCliDrift({ projectRoot, installRoot, catalog = null }) 
       for (const v of via) badFlags.get(flag).add(v);
     }
     for (const claim of s.counts) {
+      if (claim.dated) continue;
       const expected = expectedFor(claim, surfaces);
       if (expected !== null && expected !== claim.n) {
         countFindings.push(

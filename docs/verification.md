@@ -38,12 +38,12 @@ de test.
 | 2. Descubrimiento (skills y subagentes) | 15/15 subagentes `scopegrain-*` resueltos por `opencode debug agents`; 74 IDs de skill `scopegrain-*` visibles: 44 desde `.opencode/skills` y 30 que solo existen como puentes de comando proyectados por Antigravity bajo `.agents/skills` |
 | 2. Descubrimiento (comandos) | `/scopegrain-status` ejecutado en el composer TUI: expandio limpio el puente de alias (`status` → `report-status`, snapshot `69e32254…33e2` verificado contra `catalog.json`, loader `scopegrain context` disponible). El autocompletado de `/` quedo topado por la TUI (lista de ~10), asi que el conteo de los 30 archivos de comando no se enumero en pantalla: lo verificado es el despacho real |
 | 3. Invocacion | skill `scopegrain-unified-review` cargada en vivo — el `skill` tool reporto el base dir `.../.opencode/skills/scopegrain-unified-review`, probando precedencia; `scopegrain_status`, `scopegrain_catalog_list` y `scopegrain_list_tasks` invocados por MCP |
-| 4. Denegaciones | en `scopegrain-reviewer` los tools `edit` y `shell` no existen en el contexto del hijo (no piden aprobacion: no estan) y las importaciones `fs`/`child_process` fueron denegadas por el loader; las 6 tools de escritura local de Scopegrain y los escritores MCP de notion/todoist/tui/chrome-devtools/playwright/argus siguen alcanzables |
+| 4. Denegaciones | en `scopegrain-reviewer` los tools `edit` y `shell` no existen en el contexto del hijo (no piden aprobacion: no estan) y las importaciones `fs`/`child_process` fueron denegadas por el loader; las seis tools de escritura local de Scopegrain y los escritores MCP de notion/todoist/tui/chrome-devtools/playwright/argus siguen alcanzables |
 | 5. Interrupcion y reanudacion | en el fixture: tarea `6897a2f6…9e7d` (PLAN, revision 0) y sesion `adfc2adb…ff94` (limite 20). Se registro 1 operacion (`used=1`, `revision=1`). Un append con revision vieja fallo con `REVISION_MISMATCH` y una accion `edit` en PLAN con `SESSION_ACTION_DENIED`; en ambos casos el archivo de sesion quedo **byte-identico** (sha256 `91743f93…45a6`). Dos `session resume` seguidos devolvieron `used=1`, `remaining=19`, sin volver a escribir el archivo; `task show` mantuvo PLAN/revision 0 con historial de un solo evento `created` |
 | 6. Limpieza | `uninstall --project <fixture> --apply`: 235 archivos borrados, 103 directorios retirados, 0 issues, 2 `leftBehind` divergentes. El sha256 de `~/.config/opencode/opencode.json` quedo **identico antes y despues** (`E8C00D62…428A`) y no aparecio ningun artefacto `scopegrain`/`sg-oc-cert` en el arbol de configuracion global; el fixture se borro completo (0 archivos restantes) |
 | 7. Evidencia | este registro mas las tablas de esta seccion |
 
-Conteos literales observados: `scopegrain_status` → `ok=30, warnings=4,
+Conteos literales observados (2026-11-23): `scopegrain_status` → `ok=30, warnings=4,
 failures=438`; catalogo → 132 entradas y 32 alias; tareas → 76 registros y
 0 malformadas; `scopegrain_mcp_inventory` → 33 tools, 27 `read-only` y 6
 `local-write` (`next_task`, `task_meta`, `task_disposition`, `memory_add`,
@@ -437,7 +437,7 @@ E/S y archivos de prueba abortados. El diagnostico registro un evento System
 concreta de cada error ni una fuga de memoria. Se acoto el runner a un
 archivo de test a la vez, sin omitir casos ni relajar controles. La
 [documentacion de Node](https://raw.githubusercontent.com/nodejs/node/v26.8.1/doc/api/cli.md)
-describe `--test-concurrency`, y la
+describe `--test-concurrency` (de `node --test`), y la
 [documentacion de Microsoft](https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/troubleshoot-application-service-memory-leaks)
 describe el evento 2004 y sus limites de diagnostico.
 
@@ -492,7 +492,7 @@ Ejecucion registrada el 2026-11-07 (UTC). Evidencia local:
 | Siete tipos de artefactos | Bajo `.scopegrain/`, reviews en reports/reviews; no se crea docs/ |
 | Catalogo y proyecciones | 111 recursos y fuentes de propuestas existentes en disco |
 | Preferencias Git del fixture | Ignore anidado segun seleccion; `.gitignore` de raiz intacto |
-| MCP con transporte real stdio | 13 herramientas read-only; consultas de catalogo, workflow, plan, artefacto y sesion |
+| MCP con transporte real stdio | 23 de 37 herramientas read-only; consultas de catalogo, workflow, plan, artefacto y sesion |
 
 Archivos de evidencia:
 

@@ -299,7 +299,7 @@ contexto del hijo (no piden aprobacion, no estan disponibles) y el loader
 deniega `fs`, `node:fs`, `node:child_process`, `path` y `os`. Tampoco
 aparecio `todowrite` ni el tool de subagentes. En cambio siguen disponibles
 `read`, `glob`, `grep`, `webfetch`, `websearch`, `skill`, `question` y todo
-el catalogo MCP: las 6 tools de escritura local de Scopegrain mas los
+el catalogo MCP: las seis tools de escritura local de Scopegrain mas los
 escritores de notion, todoist, tui, chrome-devtools, playwright, argus y
 opencode. La postura de solo lectura es efectiva para disco y shell, y no
 es un sandbox de solo lectura sobre MCP ni sobre red.

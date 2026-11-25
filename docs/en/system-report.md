@@ -370,7 +370,7 @@ manifest-version guard on PRs touching `resources/` and a 180-minute
 limit. A second `viewer` job (ubuntu, 30 minutes) runs lint, typecheck,
 tests and build of the viewer.
 
-Only on runners does it install dependencies with `--ignore-scripts`,
+Only on runners does it install dependencies with `npm ci --ignore-scripts`,
 `--no-package-lock`, `--no-audit` and `--no-fund`, and run `npm test`.
 There is no deployment or release in that workflow. There is no
 lockfile guaranteeing exact reproducibility of transitive dependencies.

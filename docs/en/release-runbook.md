@@ -110,7 +110,7 @@ jobs:
       - run: npm publish --provenance --access public
 ```
 
-- `--provenance` generates Sigstore/Rekor attestations **only** in CI
+- `--provenance` (`npm publish` flag) generates Sigstore/Rekor attestations **only** in CI
   with OIDC (`id-token: write`). Outside CI npm cannot sign the
   attestation — option B publishes without provenance.
 - With Trusted Publishing configured no `NODE_AUTH_TOKEN` is needed;

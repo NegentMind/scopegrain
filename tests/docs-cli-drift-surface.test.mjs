@@ -170,6 +170,33 @@ test('drift flags count claims that diverge from code, ignores unguarded', () =>
   }
 });
 
+test('drift skips count claims inside dated paragraphs', () => {
+  const inst = install();
+  const proj = project({
+    'README.md': [
+      '# fixture',
+      'Pilot session 2026-11-23: the MCP had 33 tools and the CLI 3 verbos.',
+      '',
+      'El servidor MCP ofrece 33 herramientas.',
+      '`scopegrain init --project PATH`',
+      '`scopegrain doctor --project PATH`',
+      '`scopegrain verify run ID --project PATH`',
+    ].join('\n'),
+  });
+  try {
+    const r = checkDocsCliDrift(
+      { projectRoot: proj, installRoot: inst, catalog: null });
+    // The dated pilot line is a point-in-time record (skipped); the
+    // undated current-state claim still diverges and is reported.
+    assert.deepEqual(r.counts, [
+      'README.md: claimed 33 herramientas, code has 3',
+    ]);
+  } finally {
+    cleanup(inst);
+    cleanup(proj);
+  }
+});
+
 test('drift compares catalog-anchored counts against the catalog', () => {
   const inst = install();
   const proj = project({

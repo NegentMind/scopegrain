@@ -41,7 +41,7 @@ Components on top of the existing seam:
 | Host/Origin guard | ~40 | Copy `requestOriginAllowed`/`TRUSTED_HOSTNAMES` almost verbatim; the spec mandates it |
 | Bearer auth | ~30-60 | Timing-safe `Authorization: Bearer <token>` comparison; token generated at startup or in config, never in visible argv |
 | Sessions | ~50-120 | Two options: **stateless** (new transport per request — viable because tools hold no MCP session state) or **stateful** (`sessionId → transport` map, TTL, DELETE cleanup) |
-| CLI verb + wiring | ~30 | `scopegrain mcp --transport http [--host 127.0.0.1 --port N]` |
+| CLI verb + wiring | ~30 | `mcp --transport http [--host 127.0.0.1 --port N]` (proposed) |
 
 **Realistic total: ~200-350 LOC** in a new `src/mcp/http.mjs` plus
 touches in `cli.mjs`. The brief's estimate (150-300) is right in

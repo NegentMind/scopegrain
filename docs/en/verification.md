@@ -40,12 +40,12 @@ fixtures.
 | 2. Discovery (skills and subagents) | 15/15 `scopegrain-*` subagents resolved by `opencode debug agents`; 74 visible `scopegrain-*` skill IDs — 44 from `.opencode/skills` and 30 that only exist as Antigravity command bridges under `.agents/skills` |
 | 2. Discovery (commands) | `/scopegrain-status` run from the TUI composer expanded the alias bridge cleanly (`status` → `report-status`, snapshot `69e32254…33e2` verified against `catalog.json`, loader `scopegrain context` available). The `/` autocomplete is capped by the TUI (a list of ~10), so the 30 command files were not enumerated on screen: what is verified is real dispatch |
 | 3. Invocation | the `scopegrain-unified-review` skill loaded live — the `skill` tool reported the base directory `.../.opencode/skills/scopegrain-unified-review`, proving precedence; `scopegrain_status`, `scopegrain_catalog_list` and `scopegrain_list_tasks` invoked over MCP |
-| 4. Denials | in `scopegrain-reviewer` the `edit` and `shell` tools do not exist in the child context (they do not ask for approval: they are absent) and `fs`/`child_process` imports were denied by the loader; all 6 Scopegrain local-write tools and the notion/todoist/tui/chrome-devtools/playwright/argus MCP writers stay reachable |
+| 4. Denials | in `scopegrain-reviewer` the `edit` and `shell` tools do not exist in the child context (they do not ask for approval: they are absent) and `fs`/`child_process` imports were denied by the loader; all six Scopegrain local-write tools and the notion/todoist/tui/chrome-devtools/playwright/argus MCP writers stay reachable |
 | 5. Interruption and resumption | in the fixture: task `6897a2f6…9e7d` (PLAN, revision 0) and session `adfc2adb…ff94` (limit 20). One operation was recorded (`used=1`, `revision=1`). A stale-revision append failed with `REVISION_MISMATCH` and an `edit` action in PLAN with `SESSION_ACTION_DENIED`; in both cases the session file stayed **byte-identical** (sha256 `91743f93…45a6`). Two consecutive `session resume` calls returned `used=1`, `remaining=19` without rewriting the file; `task show` kept PLAN/revision 0 with a single `created` history event |
 | 6. Cleanup | `uninstall --project <fixture> --apply`: 235 files deleted, 103 directories removed, 0 issues, 2 divergent `leftBehind`. The sha256 of `~/.config/opencode/opencode.json` was **identical before and after** (`E8C00D62…428A`) and no `scopegrain`/`sg-oc-cert` artifact appeared in the global configuration tree; the fixture was deleted entirely (0 files left) |
 | 7. Evidence | this record plus the tables in this section |
 
-Literal counts observed: `scopegrain_status` → `ok=30, warnings=4,
+Literal counts observed (2026-11-23): `scopegrain_status` → `ok=30, warnings=4,
 failures=438`; catalog → 132 entries and 32 aliases; tasks → 76 records and
 0 malformed; `scopegrain_mcp_inventory` → 33 tools, 27 `read-only` and 6
 `local-write` (`next_task`, `task_meta`, `task_disposition`, `memory_add`,
@@ -426,7 +426,7 @@ memory event during that attempt; it does not prove the concrete cause
 of each error or a memory leak. The runner was bounded to one test file
 at a time, without skipping cases or relaxing controls. The
 [Node documentation](https://raw.githubusercontent.com/nodejs/node/v26.8.1/doc/api/cli.md)
-describes `--test-concurrency`, and the
+describes `node --test`'s `--test-concurrency`, and the
 [Microsoft documentation](https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/troubleshoot-application-service-memory-leaks)
 describes event 2004 and its diagnostic limits.
 
@@ -481,7 +481,7 @@ Execution recorded on 2026-11-07 (UTC). Local evidence:
 | Seven artifact types | Under `.scopegrain/`, reviews in reports/reviews; no docs/ created |
 | Catalog and projections | 111 resources and proposal sources existing on disk |
 | Fixture Git preferences | Nested ignore per selection; root `.gitignore` intact |
-| MCP with real stdio transport | 13 read-only tools; catalog, workflow, plan, artifact and session queries |
+| MCP with real stdio transport | 23 of 37 read-only tools; catalog, workflow, plan, artifact and session queries |
 
 Evidence files:
 

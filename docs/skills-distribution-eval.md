@@ -23,7 +23,7 @@
   `license`/`compatibility`/`metadata`/`allowed-tools` opcionales.
 - `npx skills add` (vercel-labs/skills, lanzado 2026-01-20) instala
   desde shorthand GitHub `owner/repo`, URLs GitHub/GitLab/Azure/git y
-  rutas locales; `--skill <id>` selecciona una; se admiten rutas
+  rutas locales; `--skill <id>` (de `npx skills add`) selecciona una; se admiten rutas
   directas a un skill dentro del repo
   (`.../tree/main/<ruta>/<id>`). Instala a los directorios de skills de
   ~75 agentes. Telemetría anónima por defecto
@@ -36,7 +36,7 @@
 | Layout `dir/SKILL.md` | ✅ Cumple al 100% | El árbol ya ES el formato estándar |
 | Frontmatter mínimo | ✅ Cumple (name==dir, description ≤1024) | Verificado en los 44 |
 | Raíz estándar `skills/` | ⚠️ Parcial | Las skills viven en `resources/skills/`, no `skills/`. El CLI acepta rutas directas `tree/main/resources/skills/<id>`, pero el auto-descubrimiento de `npx skills add owner/repo` en raíces no convencionales **no está verificado empíricamente** — hay que probarlo antes de prometerlo |
-| Nombres duplicados (i18n) | ⚠️ Riesgo | `resources/i18n/es/skills/` duplica los 44 `name`. Si el discovery escanea recursivo, encontrará 88 SKILL.md con 44 nombres duplicados → ambigüedad previsible o picks arbitrarios. Confirmación pendiente |
+| Nombres duplicados (i18n) | ⚠️ Riesgo | `resources/i18n/es/skills/` duplica los 44 `name`. Si el discovery escanea recursivo, encontrará 88 ficheros SKILL.md con 44 nombres duplicados → ambigüedad previsible o picks arbitrarios. Confirmación pendiente |
 | Aliases del manifest | n/a | Los alias `kind:"skill"` son concepto del harness; el ecosistema no los entiende (irrelevante, no bloqueo) |
 | Independencia funcional | ⚠️ Parcial | 14/44 citan recursos del harness que no viajarían (references/rules) — el skill funcionaría pero con referencias colgadas. El resto es portable |
 

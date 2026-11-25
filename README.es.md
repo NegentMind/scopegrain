@@ -27,7 +27,7 @@ los hechos y riesgos declarados.
   `--apply`, los comandos descubiertos nunca se autoejecutan, locks/CAS y el
   journal local evitan corrupcion silenciosa y toda mutacion deja traza.
 - **Visibilidad inmediata:** un visor web local de solo lectura
-  (`scopegrain view`, 15 vistas, ES/EN) y un servidor MCP de 35 tools
+  (`scopegrain view`, 15 vistas, ES/EN) y un servidor MCP de 37 tools
   mantienen alineados a operadores y agentes sin salir del repositorio.
 
 El producto se llama Scopegrain. `scopegrain` es la entrada CLI y el
@@ -314,7 +314,7 @@ fresca real el 2026-11-23 contra `opencode v2.3.2`: 15/15 subagentes
 `.opencode/skills` ganando precedencia sobre `.agents/skills`,
 `/scopegrain-status` expandiendo en el composer TUI, el MCP `scopegrain`
 exponiendo las 34 tools registradas en ese momento (28 read-only,
-6 local-write; la superficie actual es de 35 en cuatro clases de
+6 local-write; la superficie actual es de 37 en cuatro clases de
 anotacion) con
 `scopegrain_status`/`catalog_list`/`list_tasks` invocados en vivo, el rol
 read-only bloqueando `edit`/`shell` por ausencia de tool, la

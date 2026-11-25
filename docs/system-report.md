@@ -360,7 +360,7 @@ guarda de version de manifest en PRs que tocan `resources/` y limite de
 180 minutos. Un segundo job `viewer` (ubuntu, 30 minutos) ejecuta
 lint, typecheck, tests y build del visor.
 
-Solo en runners, instala dependencias con `--ignore-scripts`,
+Solo en runners, instala dependencias con `npm ci --ignore-scripts`,
 `--no-package-lock`, `--no-audit` y `--no-fund`, y ejecuta `npm test`.
 No hay despliegue o release en ese
 workflow. No hay lockfile que garantice reproducibilidad exacta de las
