@@ -528,7 +528,8 @@ export function normalizeTaskInput(ctx, input) {
   if (!Array.isArray(scope)) {
     throw err('INVALID_VALUE', 'scope must be an array of relative paths');
   }
-  const cleanScope = scope.map((s, i) => assertDestination(s, `scope[${i}]`));
+  const cleanScope = [...new Set(
+    scope.map((s, i) => assertDestination(s, `scope[${i}]`)))];
   for (const s of cleanScope) {
     resolveInside(ctx.projectRoot, s, 'scope');
   }

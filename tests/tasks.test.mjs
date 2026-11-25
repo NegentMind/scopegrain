@@ -62,6 +62,24 @@ test('create writes JSON with PLAN state and revision 0', () => {
   } finally { cleanup(dir); }
 });
 
+test('duplicate scope entries are deduplicated at create', () => {
+  const { dir, ctx } = setup();
+  try {
+    const dup = createTask(ctx, {
+      title: 'T2', contract: 'C', authorContext: 'a',
+      scope: ['src/a', 'src/b', 'src/a'],
+    });
+    assert.deepEqual(dup.scope, ['src/a', 'src/b']);
+    // A stored record that already carries duplicates stays readable —
+    // canonicalization happens at create, not as a read-time migration.
+    const file = taskFilePath(ctx, dup.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.scope = ['src/a', 'src/a'];
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.deepEqual(getTask(ctx, dup.id).scope, ['src/a', 'src/a']);
+  } finally { cleanup(dir); }
+});
+
 test('valid/invalid transitions, UUID traversal, stale revision', () => {
   const { dir, ctx, task } = setup();
   try {
