@@ -28,7 +28,7 @@
     },
     {
       "cmd": ["init", "--project", "@root", "--yes"],
-      "expectExit": 1,
+      "expectExit": 2,
       "expectError": { "error": { "code": "INVALID_ARGS" } },
       "expectState": { "notExists": [".scopegrain/config.json"] }
     },
@@ -46,17 +46,17 @@
     },
     {
       "cmd": ["frobnicate"],
-      "expectExit": 1,
+      "expectExit": 2,
       "expectError": { "error": { "code": "INVALID_ARGS" } }
     },
     {
       "cmd": ["inspect", "--project", "@root", "--apply"],
-      "expectExit": 1,
+      "expectExit": 2,
       "expectError": { "error": { "code": "INVALID_ARGS" } }
     },
     {
       "cmd": ["task", "create", "--project", "@root", "--title", "Gate task"],
-      "expectExit": 1,
+      "expectExit": 2,
       "expectError": { "error": { "code": "INVALID_ARGS" } }
     },
     {

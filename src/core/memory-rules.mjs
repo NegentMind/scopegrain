@@ -96,7 +96,15 @@ export function proposeMemoryRules(ctx, options = {}) {
   }
   const { entries, malformed, truncated } =
     readWorklog(ctx, 'lessons', { tail });
-  const { rules } = listRules(ctx);
+  // A workspace without a projected catalog has no canonical rules to
+  // suppress already-promoted lessons — degrade to an empty rule set
+  // instead of failing the whole surface (the rest is lessons-only).
+  let rules = [];
+  try {
+    ({ rules } = listRules(ctx));
+  } catch (e) {
+    if (e.code !== 'WORKSPACE_CATALOG_MISSING') throw e;
+  }
   const rulesById = new Map(rules.map((r) => [r.id, r]));
   const promotable = (r) => r.status === 'active' || r.status === 'proposed';
 

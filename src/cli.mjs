@@ -83,6 +83,7 @@ const VALUE_FLAGS = new Set([
   '--assessment', '--source', '--out', '--registry', '--op', '--id',
   '--token-limit', '--hosts', '--structure-debounce', '--fields',
   '--actor', '--reference', '--expect-digest', '--kind', '--baseline',
+  '--min',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',

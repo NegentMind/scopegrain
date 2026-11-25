@@ -50,7 +50,7 @@ test('MCP stdio e2e: handshake, tools/list, real calls, clean close', async (t) 
 
       const listed = await client.listTools();
       assert.ok(Array.isArray(listed.tools));
-      assert.equal(listed.tools.length, 37);
+      assert.equal(listed.tools.length, 39);
       assert.ok(listed.tools.every((tool) =>
         typeof tool.name === 'string' && tool.name.startsWith('scopegrain_')));
 
@@ -70,7 +70,7 @@ test('MCP stdio e2e: handshake, tools/list, real calls, clean close', async (t) 
         name: 'scopegrain_mcp_inventory', arguments: {} });
       const inv = JSON.parse(inventory.content[0].text);
       assert.ok(Array.isArray(inv));
-      assert.equal(inv.length, 37,
+      assert.equal(inv.length, 39,
         `inventory drifted: ${JSON.stringify(inv).slice(0, 300)}`);
       assert.deepEqual(inv.map((entry) => entry.name).sort(),
         listed.tools.map((tool) => tool.name).sort());
