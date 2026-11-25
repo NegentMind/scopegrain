@@ -69,6 +69,48 @@ function bad(label, msg) {
   throw err(CODE, `${label}: ${msg}`);
 }
 
+// --- Minimal glob matcher (no dependencies) ---
+// Deliberately small grammar: `*` = any chars within a segment,
+// `?` = one char within a segment, `**` = zero or more segments
+// (trailing `**` or `**/` collapse correctly). No character classes,
+// negations or braces — anything else is literal. Matching is
+// case-insensitive, consistent with the catalog's portable keys.
+
+const GLOB_ESCAPE = /[.+^${}()|[\]\\]/g;
+
+export function globToRegExp(pattern) {
+  let re = '';
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === '*') {
+      if (pattern[i + 1] === '*') {
+        if (pattern[i + 2] === '/') {
+          re += '(?:[^/]+/)*'; // '**/' → zero or more full segments
+          i += 2;
+        } else { re += '.*'; i += 1; } // trailing/mid '**' → anything
+      } else { re += '[^/]*'; }
+    } else if (c === '?') { re += '[^/]'; }
+    else { re += c.replace(GLOB_ESCAPE, '\\$&'); }
+  }
+  return new RegExp(`^${re}$`, 'i');
+}
+
+export function matchGlob(pattern, relPath) {
+  return globToRegExp(String(pattern)).test(String(relPath));
+}
+
+// ruleMatchesScope(meta, scopePaths): a rule is in scope when it has no
+// activation.globs (transversal) or at least one glob matches at least
+// one scope path. An empty scope list excludes every glob-scoped rule —
+// fail closed: file-scoped rules never fire on unknown file scope.
+export function ruleMatchesScope(meta, scopePaths) {
+  const globs = meta?.activation?.globs;
+  if (!Array.isArray(globs) || globs.length === 0) return true;
+  if (!Array.isArray(scopePaths) || scopePaths.length === 0) return false;
+  const res = globs.map((g) => globToRegExp(g));
+  return scopePaths.some((p) => res.some((re) => re.test(p)));
+}
+
 function list(raw, label, key, itemRe, itemMax) {
   const items = raw.split(',').map((s) => s.trim()).filter((s) => s !== '');
   if (items.length === 0) {

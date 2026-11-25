@@ -13,10 +13,10 @@ import { checkAction, transitionTask } from '../src/core/transition.mjs';
 import { checkMethodology } from '../src/core/methodology.mjs';
 import { loadLimits } from '../src/core/policy.mjs';
 import {
-  formalFixture, lightFixture, reanswer, snapshot,
+  assessment, formalFixture, lightFixture, reanswer, snapshot,
 } from './methodology-fixtures.mjs';
 import {
-  bootstrappedCtx, cleanup, writeJson,
+  bootstrappedCtx, cleanup, writeFile, writeJson,
 } from './helpers.mjs';
 
 function ctxFixture() {
@@ -316,5 +316,85 @@ test('mounted bundle resources mark packet.deep and entry.bundle', () => {
     const other = buildWorkflowPacket(ctx, { command: 'status' });
     assert.equal(other.deep.available, true);
     assert.deepEqual(other.deep.bundles, ['deeppkg']);
+  } finally { cleanup(dir); }
+});
+
+// Seeds a rule file plus its catalog.json entry into the workspace
+// snapshot and wires it into a command's rules deps (rehash declared).
+function seedRuleInSnapshot(ctx, { id, fm, depOf = 'implement-task' }) {
+  const dir = ctx.configDir === '.' ? ctx.projectRoot
+    : path.join(ctx.projectRoot, ctx.configDir);
+  const body = `${fm}# ${id}\n`;
+  writeFile(dir, `rules/${id}.md`, body);
+  const catPath = path.join(dir, 'catalog.json');
+  const cat = JSON.parse(fs.readFileSync(catPath, 'utf8'));
+  cat.entries.push({ kind: 'rule', id, path: `rules/${id}.md`,
+    description: 'seeded', sha256: crypto.createHash('sha256')
+      .update(body).digest('hex') });
+  cat.entries.find((e) => e.kind === 'command' && e.id === depOf)
+    .rules.push(id);
+  fs.writeFileSync(catPath, JSON.stringify(cat, null, 2));
+}
+
+test('task packet filters rules by activation.globs vs task.scope', () => {
+  const f = lightFixture({ scope: ['src/feature/app.ts'], full: true });
+  try {
+    seedRuleInSnapshot(f.ctx, { id: 'scoped-ts',
+      fm: '---\nactivation.globs: src/**/*.ts\n---\n' });
+    // Matching scope keeps the rule; trace records no drop.
+    const p = buildWorkflowPacket(f.ctx,
+      { command: 'pipeline', mode: 'task', taskId: f.task.id });
+    assert.ok(p.resources.rules.some((r) => r.id === 'scoped-ts'));
+    assert.ok(!p.rulesFiltered.some((r) => r.id === 'scoped-ts'));
+    // Non-matching scope drops it — declared, never silent.
+    const docs = createTask(f.ctx, { title: 'Docs', contract: 'C',
+      authorContext: 'fixture-author', scope: ['docs/guide.md'],
+      methodology: assessment() });
+    const p2 = buildWorkflowPacket(f.ctx,
+      { command: 'pipeline', mode: 'task', taskId: docs.id });
+    assert.ok(!p2.resources.rules.some((r) => r.id === 'scoped-ts'));
+    const drop = p2.rulesFiltered.find((r) => r.id === 'scoped-ts');
+    assert.equal(drop.reason,
+      'activation.globs does not match task.scope');
+    // Transversal (no-activation) canonical rules are never dropped.
+    assert.ok(p2.resources.rules.length > 0);
+    // Empty scope fails closed for glob-scoped rules.
+    const empty = createTask(f.ctx, { title: 'NoScope', contract: 'C',
+      authorContext: 'fixture-author', scope: [],
+      methodology: assessment() });
+    const p3 = buildWorkflowPacket(f.ctx,
+      { command: 'pipeline', mode: 'task', taskId: empty.id });
+    assert.ok(!p3.resources.rules.some((r) => r.id === 'scoped-ts'));
+    assert.ok(p3.rulesFiltered.some((r) => r.id === 'scoped-ts'));
+  } finally { cleanup(f.dir); }
+});
+
+test('without taskId: status filters always, globs never evaluate', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    seedRuleInSnapshot(ctx, { id: 'proposed-rule',
+      fm: '---\nstatus: proposed\nactivation.globs: never/**\n---\n' });
+    seedRuleInSnapshot(ctx, { id: 'archived-rule',
+      fm: '---\nstatus: archived\n---\n' });
+    const p = buildWorkflowPacket(ctx, { command: 'implement-task' });
+    for (const id of ['proposed-rule', 'archived-rule']) {
+      assert.ok(!p.resources.rules.some((r) => r.id === id), id);
+    }
+    const drop = p.rulesFiltered.find((r) => r.id === 'proposed-rule');
+    assert.equal(drop.reason, "status 'proposed'");
+    const dropA = p.rulesFiltered.find((r) => r.id === 'archived-rule');
+    assert.equal(dropA.reason, "status 'archived'");
+    // An ACTIVE glob-scoped rule is included: no task bound means no
+    // scope to filter against — every declared rule ships.
+    seedRuleInSnapshot(ctx, { id: 'active-glob',
+      fm: '---\nactivation.globs: nothing-matches/**\n---\n' });
+    const p2 = buildWorkflowPacket(ctx, { command: 'implement-task' });
+    assert.ok(p2.resources.rules.some((r) => r.id === 'active-glob'));
+    assert.ok(!p2.rulesFiltered.some((r) => r.id === 'active-glob'));
+    // Lazy packets go through the same gate.
+    const lz = buildWorkflowPacket(ctx,
+      { command: 'implement-task', lazy: true });
+    assert.ok(lz.resources.rules.some((r) => r.id === 'active-glob'));
+    assert.ok(lz.rulesFiltered.some((r) => r.id === 'proposed-rule'));
   } finally { cleanup(dir); }
 });

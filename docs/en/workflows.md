@@ -39,6 +39,19 @@ breakdown (`command`, `profile`, `agents`, `skills`, `rules`,
 extensions add into their bucket. Advisory metadata counted inside the
 packet document limit.
 
+Rules carry a declared activation filter, traced in `rulesFiltered`:
+a rule whose `meta.status` is not `active` never enters the packet
+(`proposed` is not approved policy; `archived` is dead) and, when the
+packet is built with `--task`, `activation.globs` is evaluated against
+`task.scope` with a built-in matcher (`*`, `?`, `**`; case-insensitive).
+Globs match literal scope entries — a directory entry does not expand
+to its descendants. A rule without `activation.globs` is transversal
+and always applies; an empty scope excludes every glob-scoped rule
+(fail closed). `activation.stacks`/`languages` are data for hosts and
+do not gate packaging. Without `--task` every declared active rule is
+included. The gate covers extension-contributed rules too, and each
+exclusion lands in `rulesFiltered` with its reason — never silent.
+
 Compatible aliases use the same `workflow` interface, not divergent
 implementations. Declared modes are validated; unknown names or modes
 are rejected. The web/rust/python/database profiles are optional and do

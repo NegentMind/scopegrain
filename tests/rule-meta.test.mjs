@@ -6,7 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {
-  defaultRuleMeta, parseRuleMeta, RULE_META_KEYS,
+  defaultRuleMeta, matchGlob, parseRuleMeta, RULE_META_KEYS,
+  ruleMatchesScope,
 } from '../src/core/rule-meta.mjs';
 import { getResource, loadCatalog } from '../src/core/catalog.mjs';
 import {
@@ -182,6 +183,29 @@ test('list keys carry their own bounds, exempt from the scalar cap', () => {
   assert.ok(refs.length > 300);
   const meta = parseRuleMeta(FM(`origin.evidenceRefs: ${refs}`), 'r');
   assert.equal(meta.origin.evidenceRefs.length, 5);
+});
+
+test('matchGlob: ** spans segments, * stays inside one', () => {
+  assert.ok(matchGlob('**/*.ts', 'a.ts'));           // zero dirs
+  assert.ok(matchGlob('**/*.ts', 'src/deep/a.ts'));
+  assert.ok(matchGlob('src/**', 'src/x/y.md'));
+  assert.ok(matchGlob('src/**/*.ts', 'src/a.ts'));   // '**/' zero segments
+  assert.ok(matchGlob('docs/a?.md', 'docs/ab.md'));
+  assert.ok(matchGlob('SRC/**', 'src/a.md'));        // case-insensitive
+  assert.ok(matchGlob('**', 'any/thing'));
+  assert.ok(!matchGlob('*.ts', 'src/a.ts'));         // '*' not recursive
+  assert.ok(!matchGlob('src/**', 'docs/a.md'));
+  assert.ok(!matchGlob('src/**/*.ts', 'src/a.tsx'));
+});
+
+test('ruleMatchesScope: transversal vs glob-scoped, empty fails closed', () => {
+  assert.equal(ruleMatchesScope(defaultRuleMeta(), ['x.ts']), true);
+  const meta = parseRuleMeta(FM('activation.globs: src/**/*.ts'), 'r');
+  assert.equal(ruleMatchesScope(meta, ['src/a.ts']), true);
+  assert.equal(ruleMatchesScope(meta, ['src/deep/b.ts']), true);
+  assert.equal(ruleMatchesScope(meta, ['docs/a.md']), false);
+  assert.equal(ruleMatchesScope(meta, []), false);
+  assert.equal(ruleMatchesScope(meta, null), false);
 });
 
 test('snapshot path: integrity failure precedes meta parse', () => {

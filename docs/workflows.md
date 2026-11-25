@@ -35,6 +35,20 @@ Reporta `total` y un desglose `byBucket` (`command`, `profile`, `agents`,
 aportados por extensiones activas se suman a su bucket. Es metadato
 consultivo incluido dentro del limite de documento del paquete.
 
+Las reglas llevan un filtro de activacion declarado en `rulesFiltered`:
+una regla cuyo `meta.status` no es `active` nunca entra en el paquete
+(`proposed` no es politica aprobada; `archived` esta muerta) y, cuando el
+paquete se construye con `--task`, `activation.globs` se evalua contra
+`task.scope` con un matcher propio (`*`, `?`, `**`; insensible a
+mayusculas). Los globs casan entradas literales de scope — una entrada
+de directorio no se expande a sus descendientes. Una regla sin
+`activation.globs` es transversal y siempre aplica; un scope vacio
+excluye todas las reglas con globs (falla cerrada).
+`activation.stacks`/`languages` son datos para hosts y no condicionan el
+empaquetado. Sin `--task` se incluye toda regla declarada activa. La
+compuerta tambien cubre reglas aportadas por extensiones y cada
+exclusion se mueve a `rulesFiltered` con su razon — nunca silenciosa.
+
 Los aliases compatibles usan la misma interfaz `workflow`, no implementaciones
 divergentes. Los modos declarados se validan; nombres o modos desconocidos
 se rechazan. Los perfiles web/rust/python/database son optativos y no

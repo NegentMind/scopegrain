@@ -21,6 +21,7 @@ import { estimateJson, estimateTokens, TOKEN_ESTIMATOR }
 import {
   presetLayers, listRegistry, composeResource,
 } from './distribution.mjs';
+import { ruleMatchesScope } from './rule-meta.mjs';
 
 const ALLOWED = new Set([
   'command', 'mode', 'taskId', 'host', 'profile', 'interaction',
@@ -228,12 +229,57 @@ export function buildWorkflowPacket(ctx, opts = {}) {
         ...(lazy
           ? { sha256: r.sha256 ?? null }
           : { content: composeResource(base, layers) }),
+        ...(r.meta ? { meta: r.meta } : {}),
         extension: ext.id });
       extensionApplied.push({ extension: ext.id, resource: key });
     }
   }
   for (const list of Object.values(contributedResources)) {
     for (const x of list) delete x._key;
+  }
+  // Rule activation filtering — declared, never silent:
+  //  - a rule with status != 'active' never enters a packet (proposed is
+  //    not approved policy; archived is dead), whatever the task;
+  //  - with taskId, activation.globs is matched against task.scope; a
+  //    rule whose globs match nothing is excluded (no globs = the rule
+  //    is transversal and always applies);
+  //  - without taskId every declared active rule is included.
+  // The gate covers both the declared rule bucket and rules contributed
+  // by active extensions. Excluded rules are moved to
+  // packet.rulesFiltered with their reason so reviewers can see exactly
+  // what was dropped and why; their preset hits are withdrawn too —
+  // an applied layer on an absent resource would be misleading.
+  const rulesFiltered = [];
+  const rulesKept = [];
+  const ruleVerdict = (r) => {
+    const status = r.meta?.status ?? 'active';
+    if (status !== 'active') return `status '${status}'`;
+    if (task !== null && !ruleMatchesScope(r.meta, task.scope)) {
+      return 'activation.globs does not match task.scope';
+    }
+    return null;
+  };
+  for (const r of resolveResources('rule',
+    [...new Set([...commandDeps.rules, ...merged.rules])], catalog,
+    presets, hitsTarget, lazy)) {
+    const reason = ruleVerdict(r);
+    if (reason) rulesFiltered.push({ kind: 'rule', id: r.id, reason });
+    else rulesKept.push(r);
+  }
+  contributedResources.rules = contributedResources.rules.filter((r) => {
+    const reason = ruleVerdict(r);
+    if (reason) {
+      rulesFiltered.push({ kind: 'rule', id: r.id, reason,
+        extension: r.extension });
+    }
+    return reason === null;
+  });
+  if (rulesFiltered.length > 0) {
+    const dropped = new Set(rulesFiltered
+      .map((x) => `rule/${x.id}`.toLowerCase()));
+    for (let i = hitsTarget.length - 1; i >= 0; i -= 1) {
+      if (dropped.has(hitsTarget[i].resource)) hitsTarget.splice(i, 1);
+    }
   }
   const packet = {
     schemaVersion: 1,
@@ -302,6 +348,10 @@ export function buildWorkflowPacket(ctx, opts = {}) {
       path: 'bundles/',
     },
     taskRouting: taskRouting ?? undefined,
+    // Activation-filter trace for rules: every rule excluded from
+    // resources.rules with its reason (inactive status or globs that
+    // do not match task.scope). Empty when nothing was dropped.
+    rulesFiltered,
     // Active extensions contribute their declared resources to this
     // packet — same rule: declared, never silent.
     extensions: { applied: extensionApplied },
@@ -320,9 +370,7 @@ export function buildWorkflowPacket(ctx, opts = {}) {
         [...new Set([...commandDeps.skills, ...merged.skills,
           ...(taskRouting?.included ?? [])])], catalog,
         presets, hitsTarget, lazy),
-      rules: resolveResources('rule',
-        [...new Set([...commandDeps.rules, ...merged.rules])], catalog,
-        presets, hitsTarget, lazy),
+      rules: rulesKept,
       references: resolveResources('reference',
         [...new Set([...commandDeps.references, ...merged.references])],
         catalog, presets, hitsTarget, lazy),
