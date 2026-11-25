@@ -42,6 +42,7 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `reviewRubric` | string or null | Scorable criteria the fresh reviewer applies. Guides the attestation without becoming an automatic LLM judge — the review stays a declared attestation (non-executing posture). Additive extension, same read/write rule as `allowedTools`. |
 | `fallback` | `{onFail: stall|abandon|needs-human, note?}` or null | Preferred destination if the task fails; the task-level complement of plan `stopConditions`. The runtime does not force the transition — the policy guides the operator/host. Additive extension, same read/write rule as `allowedTools`. |
 | `contextInheritance` | `isolated\|summary\|full` or null | How much prior context the executor receives when the task (or session) resumes. Declarative guidance for the host that assembles the packet — the harness does not pack context. Additive extension, same read/write rule as `allowedTools`. |
+| `modelTier` | `fast\|standard\|reasoning` or null | Declared model profile the host should route to. The host owns routing and cost; the field only records intent. Additive extension, same read/write rule as `allowedTools`. |
 
 ## Plan semantic layer (schemaVersion 3)
 

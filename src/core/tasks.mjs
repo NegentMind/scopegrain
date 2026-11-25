@@ -35,7 +35,7 @@ const TASK_KEYS = new Set([
   // V3 extension fields (optional on read, emitted on write)
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
-  'fallback', 'contextInheritance',
+  'fallback', 'contextInheritance', 'modelTier',
 ]);
 const V3_KEYS = new Set([
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
@@ -48,7 +48,7 @@ const V3_KEYS = new Set([
 const V3_EXT_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
-  'fallback', 'contextInheritance',
+  'fallback', 'contextInheritance', 'modelTier',
 ]);
 const TASK_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3', 'backlog']);
 const TASK_SEVERITIES = new Set(['critical', 'high', 'medium', 'low', 'info']);
@@ -65,6 +65,7 @@ const TASK_SIDE_EFFECTS = new Set(['none', 'reversible', 'irreversible']);
 const TASK_EXECUTION_TYPES = new Set(['atomic', 'delegated', 'hitl']);
 const TASK_FALLBACK_ON_FAIL = new Set(['stall', 'abandon', 'needs-human']);
 const TASK_CONTEXT_INHERITANCE = new Set(['isolated', 'summary', 'full']);
+const TASK_MODEL_TIERS = new Set(['fast', 'standard', 'reasoning']);
 export const RELATION_KINDS = new Set(
   ['see', 'supersedes', 'duplicateOf', 'blocks']);
 const STEP_STATUSES = new Set(['pending', 'done', 'skipped']);
@@ -74,7 +75,7 @@ const META_KEYS = new Set([
   'relations', 'dependsOn', 'goalIds', 'analysis', 'skills', 'backlog',
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
-  'fallback', 'contextInheritance',
+  'fallback', 'contextInheritance', 'modelTier',
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
@@ -84,6 +85,7 @@ const CREATE_KEYS = new Set([
   'notes', 'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
   'agentRole', 'expectedOutputs', 'sideEffects', 'executionType',
   'outputContract', 'reviewRubric', 'fallback', 'contextInheritance',
+  'modelTier',
 ]);
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
@@ -293,6 +295,11 @@ function validateV3Fields(task, label) {
       && !TASK_CONTEXT_INHERITANCE.has(task.contextInheritance)) {
     throw err('TASK_MALFORMED',
       `${label}.contextInheritance must be one of ${[...TASK_CONTEXT_INHERITANCE].join(', ')} or null`);
+  }
+  if (task.modelTier !== undefined && task.modelTier !== null
+      && !TASK_MODEL_TIERS.has(task.modelTier)) {
+    throw err('TASK_MALFORMED',
+      `${label}.modelTier must be one of ${[...TASK_MODEL_TIERS].join(', ')} or null`);
   }
   if (task.uncertainty !== null) {
     const u = task.uncertainty;
@@ -803,6 +810,7 @@ export function normalizeV3Input(input) {
   }
   enumField('contextInheritance', TASK_CONTEXT_INHERITANCE,
     'contextInheritance');
+  enumField('modelTier', TASK_MODEL_TIERS, 'modelTier');
   if (has('expectedOutputs')) {
     v3.expectedOutputs = input.expectedOutputs === null ? null : (() => {
       const arr = input.expectedOutputs;
@@ -938,7 +946,7 @@ export const V3_DEFAULTS = {
   allowedTools: null, requiredCapabilities: null, agentRole: null,
   expectedOutputs: null, sideEffects: null, executionType: null,
   outputContract: null, reviewRubric: null, fallback: null,
-  contextInheritance: null,
+  contextInheritance: null, modelTier: null,
 };
 
 // Pure task record factory: no I/O, no side effects. V2 records carry the

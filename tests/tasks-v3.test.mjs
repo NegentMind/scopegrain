@@ -411,6 +411,31 @@ test('contextInheritance: enum isolated|summary|full or null', () => {
   } finally { cleanup(dir); }
 });
 
+test('modelTier: enum fast|standard|reasoning or null', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, { ...BASE, modelTier: 'reasoning' });
+    assert.equal(task.modelTier, 'reasoning');
+    assert.throws(() => prepareTask(ctx, { ...BASE, modelTier: 'gpt-5' }),
+      (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, modelTier: null });
+    assert.equal(applied.modelTier, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0, set: { modelTier: 'fast' },
+    });
+    assert.equal(next.modelTier, 'fast');
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.modelTier = 'expensive';
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.modelTier;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).modelTier, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

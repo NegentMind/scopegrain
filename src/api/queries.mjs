@@ -243,6 +243,7 @@ function taskSummary(task) {
     reviewRubric: task.reviewRubric ?? null,
     fallback: task.fallback ?? null,
     contextInheritance: task.contextInheritance ?? null,
+    modelTier: task.modelTier ?? null,
   };
 }
 
