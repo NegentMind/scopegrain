@@ -424,13 +424,24 @@ append se completa igualmente.
 ```text
 goal create --project PATH --input FILE
 goal list --project PATH
-goal transition --project PATH ID --to open|achieved|dropped
+goal transition --project PATH ID --to STATUS
 ```
 
 Metas/objetivos generales: registros `{id,title,description?,status,
 horizon?,metrics?}` en `goals.jsonl`; el ultimo registro por `id` gana.
 Las tareas enlazan via `task.goalIds`. `create` exige `title` y genera el
 UUID; `transition` re-anexa la entrada actual con el nuevo estado.
+
+Campos V2 opcionales (forma cerrada, cada uno validado solo si viene):
+`successMetrics` `[{name,operator:lt|lte|eq|gte|gt,target,current?,
+source?}]`, `guardrails` (cada elemento string no vacio o el mismo shape
+de metrica), `priority` `p0|p1|p2|p3`, `deadline` ISO `YYYY-MM-DD[THH:mm]`,
+`modality` `milestone|continuous`, `parentGoalId` UUID de meta existente
+(jerarquia), `linkedPlanKeys` `[slug]` (solo formato — la existencia del
+plan se verifica donde hay ctx), `notes` string. `status` amplia a
+`open|proposed|active|at-risk|verifying|achieved|stalled|abandoned|dropped`
+— los valores heredados siguen validos sin migracion. `transition`
+preserva todos los campos V2 al re-anexar.
 
 ### metrics
 

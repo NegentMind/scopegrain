@@ -25,7 +25,151 @@ const LOG_NAMES = new Set(['lessons', 'outcomes', 'progress', 'goals',
   'activity']);
 const MAX_LINE_BYTES = 16 * 1024;
 const MAX_TAIL = 1000;
-const GOAL_STATUSES = new Set(['open', 'achieved', 'dropped']);
+// Goals V2: the lifecycle widened to proposed|active|at-risk|verifying|
+// stalled|abandoned while legacy open|achieved|dropped stay valid — no
+// migration, both spellings coexist in the log.
+const GOAL_STATUSES = new Set([
+  'open', 'achieved', 'dropped',
+  'proposed', 'active', 'at-risk', 'verifying', 'stalled', 'abandoned',
+]);
+const GOAL_V2_KEYS = new Set([
+  'successMetrics', 'guardrails', 'priority', 'deadline', 'modality',
+  'parentGoalId', 'linkedPlanKeys', 'notes',
+]);
+const GOAL_METRIC_KEYS = new Set(
+  ['name', 'operator', 'target', 'current', 'source']);
+const GOAL_OPERATORS = new Set(['lt', 'lte', 'eq', 'gte', 'gt']);
+const GOAL_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3']);
+const GOAL_MODALITIES = new Set(['milestone', 'continuous']);
+const GOAL_PLAN_KEY_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+function validateGoalMetric(m, label) {
+  if (m === null || typeof m !== 'object' || Array.isArray(m)) {
+    throw err('INVALID_VALUE', `${label} must be an object`);
+  }
+  for (const k of Object.keys(m)) {
+    if (!GOAL_METRIC_KEYS.has(k)) {
+      throw err('UNKNOWN_KEY', `${label} received unknown key '${k}'`);
+    }
+  }
+  if (typeof m.name !== 'string' || m.name.trim() === '') {
+    throw err('INVALID_VALUE', `${label}.name must be a non-empty string`);
+  }
+  if (!GOAL_OPERATORS.has(m.operator)) {
+    throw err('INVALID_VALUE',
+      `${label}.operator must be lt|lte|eq|gte|gt`);
+  }
+  const okScalar = (v) => (typeof v === 'number' && Number.isFinite(v))
+    || (typeof v === 'string' && v.trim() !== '');
+  if (!okScalar(m.target)) {
+    throw err('INVALID_VALUE',
+      `${label}.target must be a number or non-empty string`);
+  }
+  if (m.current !== undefined && !okScalar(m.current)) {
+    throw err('INVALID_VALUE',
+      `${label}.current must be a number or non-empty string`);
+  }
+  if (m.source !== undefined
+      && (typeof m.source !== 'string' || m.source.trim() === '')) {
+    throw err('INVALID_VALUE', `${label}.source must be a non-empty string`);
+  }
+  return {
+    name: m.name,
+    operator: m.operator,
+    target: m.target,
+    current: m.current ?? null,
+    source: m.source ?? null,
+  };
+}
+
+function validateGoalMetrics(v, label) {
+  if (!Array.isArray(v)) {
+    throw err('INVALID_VALUE', `${label} must be an array`);
+  }
+  return v.map((m, i) => validateGoalMetric(m, `${label}[${i}]`));
+}
+
+function validateGuardrails(v, label) {
+  if (!Array.isArray(v)) {
+    throw err('INVALID_VALUE', `${label} must be an array`);
+  }
+  return v.map((g, i) => {
+    if (typeof g === 'string') {
+      if (g.trim() === '') {
+        throw err('INVALID_VALUE',
+          `${label}[${i}] must be a non-empty string`);
+      }
+      return g;
+    }
+    return validateGoalMetric(g, `${label}[${i}]`);
+  });
+}
+
+// V2 optional fields, closed-form: each validated only when present,
+// emitted as null when absent (same convention as horizon/metrics).
+// linkedPlanKeys are format-checked only — worklog cannot import
+// plans.mjs (circular), so linkage existence is verified where the
+// caller has ctx, not here.
+function validateGoalV2Fields(fields, label) {
+  const out = {};
+  // null is treated as absent everywhere: transitions re-append stored
+  // entries whose unset V2 fields are null.
+  if (fields.successMetrics !== undefined && fields.successMetrics !== null) {
+    out.successMetrics = validateGoalMetrics(
+      fields.successMetrics, `${label}.successMetrics`);
+  }
+  if (fields.guardrails !== undefined && fields.guardrails !== null) {
+    out.guardrails = validateGuardrails(
+      fields.guardrails, `${label}.guardrails`);
+  }
+  if (fields.priority !== undefined && fields.priority !== null) {
+    if (!GOAL_PRIORITIES.has(fields.priority)) {
+      throw err('INVALID_VALUE',
+        `${label}.priority must be p0|p1|p2|p3`);
+    }
+    out.priority = fields.priority;
+  }
+  if (fields.deadline !== undefined && fields.deadline !== null) {
+    const d = fields.deadline;
+    if (typeof d !== 'string'
+        || !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?)?$/.test(d)
+        || !Number.isFinite(Date.parse(d))) {
+      throw err('INVALID_VALUE',
+        `${label}.deadline must be an ISO date (YYYY-MM-DD[THH:mm])`);
+    }
+    out.deadline = d;
+  }
+  if (fields.modality !== undefined && fields.modality !== null) {
+    if (!GOAL_MODALITIES.has(fields.modality)) {
+      throw err('INVALID_VALUE',
+        `${label}.modality must be milestone|continuous`);
+    }
+    out.modality = fields.modality;
+  }
+  if (fields.parentGoalId !== undefined) {
+    if (fields.parentGoalId !== null && !isUUID(fields.parentGoalId)) {
+      throw err('INVALID_ID',
+        `${label}.parentGoalId must be a goal UUID or null`);
+    }
+    out.parentGoalId = fields.parentGoalId;
+  }
+  if (fields.linkedPlanKeys !== undefined && fields.linkedPlanKeys !== null) {
+    if (!Array.isArray(fields.linkedPlanKeys)
+        || !fields.linkedPlanKeys.every(
+          (k) => typeof k === 'string' && GOAL_PLAN_KEY_RE.test(k))) {
+      throw err('INVALID_VALUE',
+        `${label}.linkedPlanKeys must be an array of plan slugs`);
+    }
+    out.linkedPlanKeys = [...new Set(fields.linkedPlanKeys)];
+  }
+  if (fields.notes !== undefined) {
+    if (fields.notes !== null && typeof fields.notes !== 'string') {
+      throw err('INVALID_VALUE', `${label}.notes must be a string or null`);
+    }
+    out.notes = fields.notes;
+  }
+  return out;
+}
 
 function memoryDirAbs(ctx) {
   return resolveInside(ctx.projectRoot, ctx.config.paths.memory, 'paths.memory');
@@ -140,7 +284,8 @@ export function appendWorklog(ctx, name, fields) {
     };
   } else if (name === 'goals') {
     validateEntryFields(fields,
-      new Set(['id', 'title', 'description', 'status', 'horizon', 'metrics']),
+      new Set(['id', 'title', 'description', 'status', 'horizon', 'metrics',
+        ...GOAL_V2_KEYS]),
       'goal');
     if (!isUUID(fields.id)) {
       throw err('INVALID_ID', 'goal.id must be a UUID');
@@ -149,8 +294,10 @@ export function appendWorklog(ctx, name, fields) {
       throw err('INVALID_VALUE', 'goal.title must be a non-empty string');
     }
     if (fields.status !== undefined && !GOAL_STATUSES.has(fields.status)) {
-      throw err('INVALID_VALUE', 'goal.status must be open|achieved|dropped');
+      throw err('INVALID_VALUE',
+        'goal.status must be open|proposed|active|at-risk|verifying|achieved|stalled|abandoned|dropped');
     }
+    const v2 = validateGoalV2Fields(fields, 'goal');
     entry = {
       id: fields.id,
       title: fields.title,
@@ -158,6 +305,14 @@ export function appendWorklog(ctx, name, fields) {
       status: fields.status ?? 'open',
       horizon: fields.horizon ?? null,
       metrics: fields.metrics ?? null,
+      successMetrics: v2.successMetrics ?? null,
+      guardrails: v2.guardrails ?? null,
+      priority: v2.priority ?? null,
+      deadline: v2.deadline ?? null,
+      modality: v2.modality ?? null,
+      parentGoalId: v2.parentGoalId ?? null,
+      linkedPlanKeys: v2.linkedPlanKeys ?? null,
+      notes: v2.notes ?? null,
     };
   }
   const record = { at: new Date().toISOString(), ...entry };
@@ -277,9 +432,21 @@ export function listGoals(ctx) {
 
 export function createGoal(ctx, input) {
   validateEntryFields(input,
-    new Set(['title', 'description', 'horizon', 'metrics']), 'goal input');
+    new Set(['title', 'description', 'horizon', 'metrics', 'status',
+      ...GOAL_V2_KEYS]),
+    'goal input');
   if (typeof input.title !== 'string' || input.title.trim() === '') {
     throw err('INVALID_VALUE', 'goal.title must be a non-empty string');
+  }
+  // A declared parent must exist — a dangling hierarchy is broken data,
+  // not a forward reference (the log is append-only, order matters).
+  if (input.parentGoalId !== undefined && input.parentGoalId !== null) {
+    const parent = listGoals(ctx).goals.find(
+      (g) => g.id.toLowerCase() === String(input.parentGoalId).toLowerCase());
+    if (!parent) {
+      throw err('INVALID_ID',
+        `goal.parentGoalId '${input.parentGoalId}' not found`);
+    }
   }
   const record = appendWorklog(ctx, 'goals', {
     id: crypto.randomUUID(),
@@ -287,6 +454,10 @@ export function createGoal(ctx, input) {
     description: input.description ?? null,
     horizon: input.horizon ?? null,
     metrics: input.metrics ?? null,
+    ...(input.status !== undefined ? { status: input.status } : {}),
+    ...Object.fromEntries(
+      [...GOAL_V2_KEYS].filter((k) => input[k] !== undefined)
+        .map((k) => [k, input[k]])),
   });
   return record;
 }
@@ -302,7 +473,8 @@ export function transitionGoal(ctx, id, status) {
     throw err('INVALID_ID', 'goal id must be a UUID');
   }
   if (!GOAL_STATUSES.has(status)) {
-    throw err('INVALID_VALUE', 'goal status must be open|achieved|dropped');
+    throw err('INVALID_VALUE',
+      'goal status must be open|proposed|active|at-risk|verifying|achieved|stalled|abandoned|dropped');
   }
   const file = logPath(ctx, 'goals');
   mkdirpSync(path.dirname(file));
@@ -324,6 +496,14 @@ export function transitionGoal(ctx, id, status) {
       status,
       horizon: current.horizon,
       metrics: current.metrics,
+      successMetrics: current.successMetrics,
+      guardrails: current.guardrails,
+      priority: current.priority,
+      deadline: current.deadline,
+      modality: current.modality,
+      parentGoalId: current.parentGoalId,
+      linkedPlanKeys: current.linkedPlanKeys,
+      notes: current.notes,
     });
   } catch (e) {
     failure = e;

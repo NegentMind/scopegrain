@@ -423,13 +423,25 @@ best-effort: a busy file defers it and the append still succeeds.
 ```text
 goal create --project PATH --input FILE
 goal list --project PATH
-goal transition --project PATH ID --to open|achieved|dropped
+goal transition --project PATH ID --to STATUS
 ```
 
 Meta-level objectives: `{id,title,description?,status,horizon?,metrics?}`
 records in `goals.jsonl`; latest entry per `id` wins. Tasks link via
 `task.goalIds`. `create` requires `title` and generates the UUID;
 `transition` re-appends the current entry with the new status.
+
+Optional V2 fields (closed shape, each validated only when present):
+`successMetrics` `[{name,operator:lt|lte|eq|gte|gt,target,current?,
+source?}]`, `guardrails` (each element a non-empty string or the same
+metric shape), `priority` `p0|p1|p2|p3`, `deadline` ISO
+`YYYY-MM-DD[THH:mm]`, `modality` `milestone|continuous`, `parentGoalId`
+UUID of an existing goal (hierarchy), `linkedPlanKeys` `[slug]`
+(format-only — plan existence is verified where ctx is available),
+`notes` string. `status` widens to
+`open|proposed|active|at-risk|verifying|achieved|stalled|abandoned|dropped`
+— legacy values stay valid with no migration. `transition` preserves all
+V2 fields on re-append.
 
 ### metrics
 

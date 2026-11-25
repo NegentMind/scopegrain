@@ -387,7 +387,7 @@ const COMMANDS = {
   },
   'goal transition': {
     flags: ['--project', '--config', '--to', '--apply'], pos: 1,
-    usage: 'goal transition --project PATH ID --to open|achieved|dropped [--apply]',
+    usage: 'goal transition --project PATH ID --to STATUS [--apply]',
   },
   metrics: {
     flags: ['--project', '--config'], pos: 0,
