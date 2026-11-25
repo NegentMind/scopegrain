@@ -47,6 +47,7 @@ function resolveResources(kind, ids, catalog, presets, hits, lazy) {
         kind, id: canon,
         description: r.description, path: catalogDestRel(r),
         sha256: r.sha256 ?? null,
+        ...(r.meta ? { meta: r.meta } : {}),
         ...(r.bundle ? { bundle: r.bundle } : {}),
       });
       continue;
@@ -59,6 +60,7 @@ function resolveResources(kind, ids, catalog, presets, hits, lazy) {
       kind, id: canon,
       description: r.description, path: catalogDestRel(r),
       content: composeResource(base, layers),
+      ...(r.meta ? { meta: r.meta } : {}),
       ...(r.bundle ? { bundle: r.bundle } : {}),
     });
   }

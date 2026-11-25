@@ -9,6 +9,7 @@ import { err } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, readFileLimited } from './fsx.mjs';
 import { configRel, isInside, portableKey, resolveInside, toCanonicalRelative } from './paths.mjs';
 import { loadLimits } from './policy.mjs';
+import { parseRuleMeta } from './rule-meta.mjs';
 
 export const INSTALL_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -495,8 +496,14 @@ export function getResource(kind, id, opts = {}) {
         `${kind}/${id} content diverges from snapshot hash`);
     }
   }
+  // Rule resources hydrate their declared metadata from the file's own
+  // frontmatter: single source of truth, parsed post-integrity-check so
+  // only verified bytes produce meta. Malformed blocks fail closed.
+  const meta = e.kind === 'rule'
+    ? parseRuleMeta(content, `${kind}/${e.id}`) : undefined;
   return {
     ...e, content,
+    ...(meta !== undefined ? { meta } : {}),
     requestedId: id, canonicalId: e.id, resolvedVia: a ? 'alias' : 'canonical',
   };
 }

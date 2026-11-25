@@ -1683,6 +1683,7 @@ async function cmdCatalog(sub, positional, flags) {
       requestedId: r.requestedId, canonicalId: r.canonicalId,
       resolvedVia: r.resolvedVia,
       description: r.description,
+      ...(r.meta ? { meta: r.meta } : {}),
       content: decodeUtf8Strict(r.content,
         'CATALOG_MALFORMED', `catalog resource ${r.kind}/${r.id}`),
     };

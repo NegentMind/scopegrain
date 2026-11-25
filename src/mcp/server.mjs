@@ -401,6 +401,7 @@ export function createMCPTools(ctx, z) {
           path: catalogDestRel(r), sourcePath: r.path,
           resourceRoot: ctx.configDir,
           description: r.description,
+          ...(r.meta ? { meta: r.meta } : {}),
           content: decodeUtf8Strict(r.content,
             'CATALOG_MALFORMED', `catalog resource ${r.kind}/${r.id}`),
         };
