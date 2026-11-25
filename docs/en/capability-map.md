@@ -20,9 +20,9 @@ recorded in [verification](verification.md) (it changes with every run).
 
 | Surface | Inventory | Access |
 |---|---|---|
-| CLI `bin/scopegrain.mjs` | 147 registered subcommands, lazy per-command imports | Human and agent |
-| MCP `src/mcp/server.mjs` | 39 `scopegrain_*` tools: 25 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 8 writers (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
-| Local API `src/api/server.mjs` | 30 GET routes `/api/*` | Loopback-only, GET-only |
+| CLI `bin/scopegrain.mjs` | 148 registered subcommands, lazy per-command imports | Human and agent |
+| MCP `src/mcp/server.mjs` | 40 `scopegrain_*` tools: 26 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 8 writers (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
+| Local API `src/api/server.mjs` | 38 GET routes `/api/*` | Loopback-only, GET-only |
 | Viewer `viewer/` (`scopegrain view`) | 15 views, React 19 + TS + Vite + Tailwind | Read-only, human |
 | Catalog `resources/manifest.json` | 142 entries + 32 aliases | Projectable into the project |
 
@@ -214,15 +214,17 @@ untranslated.
 
 ---
 
-## 4. Local API — 30 GET routes
+## 4. Local API — 38 GET routes
 
-`/api/health` · `workspace` · `tasks` · `tasks/:id` · `tasks/:id/doc` ·
-`plans` · `plan-docs` · `plan-docs/:name` · `plans/:key` · `artifact-docs` ·
-`artifact-docs/:kind/:name` · `artifacts` · `artifacts/:kind/:id` ·
-`journal/operations` · `journal/operations/:id` · `captures` · `memory` ·
-`goals` · `metrics` · `reports` · `reports/:name` · `sessions` · `sessions/:id` ·
-`approvals` · `approvals/:id` · `catalog` · `catalog/:kind/:id` · `verify` ·
-`vantadb` · `workflow`
+`/api/health` · `workspace` · `tasks` · `tasks/link-suggest` · `tasks/:id` ·
+`tasks/:id/doc` · `plans` · `plan-docs` · `plan-docs/:name` · `plans/:key` ·
+`plans/:key/status` · `artifact-docs` · `artifact-docs/:kind/:name` ·
+`artifacts` · `artifacts/:kind/:id` · `journal/operations` ·
+`journal/operations/:id` · `captures` · `memory` · `checklists` ·
+`constitution` · `active-task` · `goals` · `goals/:id` · `metrics` ·
+`reports` · `reports/:name` · `sessions` · `sessions/:id` · `approvals` ·
+`approvals/:id` · `catalog` · `catalog/:kind/:id` · `verify` · `vantadb` ·
+`workflow` · `graph/files` · `rules`
 
 Security: loopback only, GET only, anti-DNS-rebinding (Host/Origin),
 `Cache-Control: no-store`, `nosniff`, `no-referrer`.

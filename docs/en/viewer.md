@@ -108,6 +108,7 @@ unknown paths 404; unknown query parameters 400.
 | `GET /api/workspace` | project summary, workspace descriptor (or `null` when not enrolled), store counts, areas |
 | `GET /api/tasks?limit=&offset=` | task summaries + `malformed[]` + `truncated` |
 | `GET /api/tasks/:id` | full task record (`contract`/`authorContext` capped) |
+| `GET /api/tasks/link-suggest` | candidate edges the registry lacks (plan-DAG gaps, similar titles): `{sourceId, targetId, kind, reason, evidence, sourceRevision, sourceTitle, targetTitle}` — read-only, applied via `task link --apply`; the Graph view lists them |
 | `GET /api/tasks/:id/doc` | rendered task document (`<paths.tasks>/<uuid>.md` via `task doc`) or `doc: null` |
 | `GET /api/plans` | plans + per-task readiness (or `readinessError`) + `malformed[]` |
 | `GET /api/plan-docs` | plan file listing (`<paths.plans>/*.md`: name, bytes, updatedAt) |

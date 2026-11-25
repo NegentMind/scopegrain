@@ -110,6 +110,7 @@ sin `--allow-write` devuelve 403 `WRITE_DISABLED`); rutas desconocidas
 | `GET /api/workspace` | resumen del proyecto, descriptor de workspace (o `null` cuando no esta enrolado), conteos de stores, areas |
 | `GET /api/tasks?limit=&offset=` | resumenes de tareas + `malformed[]` + `truncated` |
 | `GET /api/tasks/:id` | registro de tarea completo (`contract`/`authorContext` truncados) |
+| `GET /api/tasks/link-suggest` | aristas candidatas no registradas (huecos del DAG de plan, títulos similares): `{sourceId, targetId, kind, reason, evidence, sourceRevision, sourceTitle, targetTitle}` — solo lectura, se aplican con `task link --apply`; la vista Grafos las lista |
 | `GET /api/tasks/:id/doc` | documento de tarea renderizado (`<paths.tasks>/<uuid>.md` via `task doc`) o `doc: null` |
 | `GET /api/plans` | planes + readiness por tarea (o `readinessError`) + `malformed[]` |
 | `GET /api/plan-docs` | listado de archivos de plan (`<paths.plans>/*.md`: nombre, bytes, updatedAt) |

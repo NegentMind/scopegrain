@@ -30,8 +30,9 @@ import { catalogDestRel, getResource, loadCatalog, loadWorkspaceCatalog } from '
 import { diagnoseResource, findResources } from '../core/resource-recovery.mjs';
 import { err } from '../core/errors.mjs';
 import { buildWorkflowPacket } from '../core/workflows.mjs';
-import { getPlan, nextPlanTasks, previewPlan }
+import { getPlan, listPlans, nextPlanTasks, previewPlan }
   from '../core/plans.mjs';
+import { suggestTaskLinks } from '../core/link-suggest.mjs';
 import { proposeMemoryRules } from '../core/memory-rules.mjs';
 import { getArtifact } from '../core/artifacts.mjs';
 import { getSpecification } from '../core/specifications.mjs';
@@ -211,6 +212,9 @@ export function createMCPTools(ctx, z) {
     scopegrain_task_suggest: z.object({
       taskId: z.string(), suggestions: z.array(z.record(z.unknown())),
     }).passthrough(),
+    scopegrain_task_link_suggest: z.object({
+      suggestions: z.array(z.record(z.unknown())),
+    }).passthrough(),
     scopegrain_catalog_list: z.object({
       resourceRoot: z.string().nullable(),
       entries: z.array(z.record(z.unknown())),
@@ -357,6 +361,22 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async ({ taskId, limit }) =>
         suggestCapabilities(ctx, resolveTaskRef(ctx, taskId),
           { limit: limit ?? 5 })),
+    },
+    {
+      name: 'scopegrain_task_link_suggest',
+      config: {
+        title: 'Suggest Task Links',
+        description:
+          'Read-only candidate edges between task records (plan-DAG gaps, similar titles). Suggestive only — applying a hint stays an explicit `task link` write.',
+        inputSchema: {},
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async () => ({
+        suggestions: suggestTaskLinks({
+          tasks: listTasks(ctx).tasks,
+          plans: listPlans(ctx).plans,
+        }),
+      })),
     },
     {
       name: 'scopegrain_catalog_list',

@@ -380,6 +380,22 @@ export interface GraphFiles {
   truncated: boolean;
 }
 
+export interface LinkSuggestion {
+  sourceId: string;
+  targetId: string;
+  kind: 'dependsOn' | 'see' | 'supersedes' | 'duplicateOf' | 'blocks';
+  reason: 'plan-dag' | 'title-sim';
+  evidence: Record<string, unknown>;
+  sourceRevision: number | null;
+  sourceTitle: string | null;
+  targetTitle: string | null;
+}
+
+export interface LinkSuggestions {
+  suggestions: LinkSuggestion[];
+  tasksTotal: number;
+}
+
 export interface PlanDetail extends PlanBreakdown {
   plan: {
     schemaVersion: number;
@@ -691,6 +707,8 @@ export const api = {
     request<{ task: TaskDetail }>(`/api/tasks/${encodeURIComponent(id)}`),
   taskDoc: (id: string) =>
     request<TaskDoc>(`/api/tasks/${encodeURIComponent(id)}/doc`),
+  taskLinkSuggestions: () =>
+    request<LinkSuggestions>('/api/tasks/link-suggest'),
   plans: () => request<PlanList>('/api/plans'),
   graphFiles: (limit = 500, offset = 0) =>
     request<GraphFiles>(

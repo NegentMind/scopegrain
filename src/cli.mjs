@@ -251,6 +251,10 @@ const COMMANDS = {
     pos: 1,
     usage: 'task reassess --project PATH ID --revision N --input FILE [--apply]',
   },
+  'task link-suggest': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'task link-suggest --project PATH',
+  },
   'task link': {
     flags: ['--project', '--config', '--revision', '--kind', '--apply'],
     pos: 2,
@@ -1420,6 +1424,18 @@ async function cmdTask(sub, positional, flags, io) {
       return { mode: 'dry-run', applied: false, task: evaluated.next };
     }
     return reassessTask(ctx, reassessInput);
+  }
+  if (sub === 'link-suggest') {
+    // Read-only: suggestions are hints for `task link --apply`, never
+    // writes. `--apply` is deliberately unsupported — there is nothing
+    // idempotent or reviewable in bulk-inferring relations.
+    const { suggestTaskLinks } = await import('./core/link-suggest.mjs');
+    const { listPlans } = await import('./core/plans.mjs');
+    const suggestions = suggestTaskLinks({
+      tasks: listTasks(ctx).tasks,
+      plans: listPlans(ctx).plans,
+    });
+    return { suggestions, count: suggestions.length };
   }
   if (sub === 'link' || sub === 'unlink') {
     if (flags['--revision'] === undefined) {

@@ -1,8 +1,14 @@
 import { useMemo, type ReactNode } from 'react';
-import { api, type GraphFiles, type GraphTaskNode } from '@/lib/api';
+import {
+  api,
+  type GraphFiles,
+  type GraphTaskNode,
+  type LinkSuggestions,
+} from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useT } from '@/lib/i18n';
 import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
+import { Badge } from '@/components/ui/badge';
 import { ViewSection } from '@/components/ViewSection';
 import { TaskDag, usePoll } from '@/components/viz';
 
@@ -20,12 +26,15 @@ export function GraphView() {
   //  - task links: id-based dependsOn/relations on the record itself
   //    (declared, informational). Shown only when not already drawn by
   //    a plan DAG.
-  const tasksApi = useApi(() => api.tasks(500));
-  const plansApi = useApi(() => api.plans());
-  const impactApi = useApi(() => api.graphFiles(500));
+  const tasksApi = useApi(() => api.tasks(500), [], 'tasks:500');
+  const plansApi = useApi(() => api.plans(), [], 'plans');
+  const impactApi = useApi(() => api.graphFiles(500), [], 'graph-files:500');
+  const suggestApi = useApi(
+    () => api.taskLinkSuggestions(), [], 'link-suggest');
   usePoll(tasksApi.reload);
   usePoll(plansApi.reload);
   usePoll(impactApi.reload);
+  usePoll(suggestApi.reload);
 
   const planDags = useMemo(() => {
     const out: ({ key: string; title: string; done: number; total: number }
@@ -97,7 +106,8 @@ export function GraphView() {
     return { nodes, edges };
   }, [tasksApi.data, planDags]);
 
-  if (tasksApi.loading || plansApi.loading || impactApi.loading) {
+  if (tasksApi.loading || plansApi.loading || impactApi.loading
+    || suggestApi.loading) {
     return <ListSkeleton label={t('common.loading')} />;
   }
   if (tasksApi.error) {
@@ -108,6 +118,11 @@ export function GraphView() {
   }
   if (impactApi.error) {
     return <ErrorBox error={impactApi.error} onRetry={impactApi.reload} />;
+  }
+  if (suggestApi.error) {
+    return (
+      <ErrorBox error={suggestApi.error} onRetry={suggestApi.reload} />
+    );
   }
 
   const totalTasks = tasksApi.data?.tasks.length ?? 0;
@@ -174,7 +189,78 @@ export function GraphView() {
         data={impactApi.data ?? undefined}
         refreshing={impactApi.refreshing}
       />
+      <LinkSuggestSection
+        data={suggestApi.data ?? undefined}
+        refreshing={suggestApi.refreshing}
+      />
     </div>
+  );
+}
+
+// Candidate edges the registry does not record yet (plan DAG gaps,
+// similar titles against ABANDONED tasks). The API only suggests —
+// nothing here writes; each row renders the exact `task link` command
+// so applying is a paste away, revision included.
+function LinkSuggestSection({
+  data, refreshing,
+}: {
+  data: LinkSuggestions | undefined;
+  refreshing: boolean;
+}) {
+  const t = useT();
+  const items = data?.suggestions ?? [];
+  const href = (id: string) => `#/tasks/${encodeURIComponent(id)}`;
+  const cmd = (s: LinkSuggestions['suggestions'][number]) =>
+    `scopegrain task link ${s.sourceId} ${s.targetId}` +
+    ` --revision ${s.sourceRevision ?? 'N'}` +
+    (s.kind === 'dependsOn' ? '' : ` --kind ${s.kind}`) + ' --apply';
+
+  return (
+    <ViewSection
+      title={t('graph.suggest.title')}
+      description={t('graph.suggest.desc')}
+      refreshing={refreshing}
+    >
+      {items.length === 0 ? (
+        <EmptyBox>{t('graph.suggest.empty')}</EmptyBox>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((s) => (
+            <li
+              key={`${s.sourceId}${s.targetId}${s.kind}`}
+              className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm"
+            >
+              <a
+                href={href(s.sourceId)}
+                className="max-w-48 truncate font-medium hover:text-primary hover:underline"
+                title={s.sourceTitle ?? s.sourceId}
+              >
+                {s.sourceTitle ?? s.sourceId.slice(0, 8)}
+              </a>
+              <Badge variant="outline" className="font-mono text-2xs">
+                {s.kind}
+              </Badge>
+              <a
+                href={href(s.targetId)}
+                className="max-w-48 truncate font-medium hover:text-primary hover:underline"
+                title={s.targetTitle ?? s.targetId}
+              >
+                {s.targetTitle ?? s.targetId.slice(0, 8)}
+              </a>
+              <span className="font-mono text-2xs text-muted-foreground">
+                {t(`graph.suggest.reason.${s.reason}`)}
+                {typeof s.evidence.similarity === 'number'
+                  ? ` · ${s.evidence.similarity}`
+                  : ''}
+              </span>
+              <code className="ml-auto select-all rounded bg-muted px-1.5 py-0.5 font-mono text-2xs text-muted-foreground">
+                {cmd(s)}
+              </code>
+            </li>
+          ))}
+        </ul>
+      )}
+    </ViewSection>
   );
 }
 

@@ -17,6 +17,7 @@ import {
 } from '../core/worklog.mjs';
 import { configRel, resolveInside } from '../core/paths.mjs';
 import { getTask, listTasks } from '../core/tasks.mjs';
+import { suggestTaskLinks } from '../core/link-suggest.mjs';
 import { readStructureIndex } from '../discovery/structure.mjs';
 import { srcStamp } from './stamp.mjs';
 import { getChecklist } from '../core/checklists.mjs';
@@ -449,6 +450,28 @@ export function createApiQueries(ctx, options = {}) {
     const { items, malformed, truncated } = listStoreDir(
       dir, (id) => taskSummary(getTask(ctx, id)), limit, offset);
     return { tasks: items, malformed, truncated };
+  }
+
+  // `GET /api/tasks/link-suggest`: candidate edges the registry does not
+  // record — read-only hints for `task link --apply` (see
+  // src/core/link-suggest.mjs for the heuristic contract).
+  function linkSuggestions() {
+    const { tasks: all } = listTasks(ctx);
+    const { plans } = listPlans(ctx);
+    const suggestions = suggestTaskLinks({ tasks: all, plans });
+    const meta = new Map(
+      all.map((t) => [t.id, { title: t.title, revision: t.revision }]));
+    return {
+      suggestions: suggestions.map((s) => ({
+        ...s,
+        // sourceRevision lets a UI render the exact `task link` command —
+        // suggestions stay read-only but applying one is one paste away.
+        sourceRevision: meta.get(s.sourceId)?.revision ?? null,
+        sourceTitle: meta.get(s.sourceId)?.title ?? null,
+        targetTitle: meta.get(s.targetId)?.title ?? null,
+      })),
+      tasksTotal: all.length,
+    };
   }
 
   function task(id) {
@@ -1551,6 +1574,6 @@ export function createApiQueries(ctx, options = {}) {
     sessions, session, approvals, approval, catalog, catalogDoc,
     catalogDocWrite, verifyCommands,
     vantadb, workflow, checklists, constitution, activeTask,
-    graphFiles, rulesIndex,
+    graphFiles, rulesIndex, linkSuggestions,
   });
 }

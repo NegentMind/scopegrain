@@ -143,7 +143,7 @@ test('wire: both new tools round-trip with structuredContent and advertised outp
   try {
     await withWire(dir, async (client) => {
       const { tools } = await client.listTools();
-      assert.equal(tools.length, 39);
+      assert.equal(tools.length, 40);
       for (const t of tools) {
         assert.equal(t.outputSchema?.type, 'object', t.name);
       }
@@ -200,7 +200,7 @@ test('structuredContent mirrors text on success, including untrusted payloads', 
     // object (the inventory returns a bare array).
     const inv = await tools.get('scopegrain_mcp_inventory').handler({});
     assert.equal(Array.isArray(inv.structuredContent.result), true);
-    assert.equal(inv.structuredContent.result.length, 39);
+    assert.equal(inv.structuredContent.result.length, 40);
     // Untrusted payloads keep the mark at the structured level too.
     const { z } = await import('zod');
     const { createMCPTools } = await import('../src/mcp/server.mjs');

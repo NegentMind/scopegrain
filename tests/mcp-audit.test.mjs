@@ -58,7 +58,7 @@ test('every registered tool advertises a non-empty human title, on the wire too'
   let client;
   try {
     const tools = await toolsIn(ctx);
-    assert.equal(tools.length, 39);
+    assert.equal(tools.length, 40);
     for (const tool of tools) {
       assert.ok(typeof tool.config.title === 'string'
         && tool.config.title.trim() !== '', tool.name);

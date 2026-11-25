@@ -143,6 +143,12 @@ node .\bin\scopegrain.mjs task link --project P <UUID> <TARGET> --revision 1 --a
 node .\bin\scopegrain.mjs task link --project P <UUID> ext:doc-42 --kind see --revision 2 --apply
 node .\bin\scopegrain.mjs task unlink --project P <UUID> <TARGET> --revision 3 --apply
 
+# Sugerir enlaces candidatos (solo lectura; nunca escribe). Detecta
+# aristas del DAG del plan ausentes del registro y titulos similares
+# entre una tarea abierta y una ABANDON (supersedes) o entre dos
+# abiertas (see). Aplicar cada una con task link --apply
+node .\bin\scopegrain.mjs task link-suggest --project P
+
 # Autorizacion post-creacion (unica via legal para methodology
 # authorization 'missing'; CAS con --revision N)
 node .\bin\scopegrain.mjs task authorize --project P <UUID> --revision 1 --actor owner --reference "decision D-7" --apply

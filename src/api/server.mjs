@@ -106,6 +106,8 @@ export const ROUTES = [
     handler: (q) => q.workspace() },
   { pattern: ['api', 'tasks'], query: ['limit', 'offset'],
     handler: (q, url) => q.tasks(parseListOptions(url)) },
+  { pattern: ['api', 'tasks', 'link-suggest'], query: [],
+    handler: (q) => q.linkSuggestions() },
   { pattern: ['api', 'tasks', ':id'], query: [],
     handler: (q, _url, p) => q.task(p.id) },
   { pattern: ['api', 'tasks', ':id', 'doc'], query: [],

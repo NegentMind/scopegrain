@@ -38,6 +38,7 @@ const W2_NAMES = [
   'scopegrain_metrics', 'scopegrain_mcp_inventory',
   'scopegrain_context', 'scopegrain_task_suggest',
   'scopegrain_plan_preview', 'scopegrain_memory_proposals',
+  'scopegrain_task_link_suggest',
 ];
 const WRITE_TOOLS = new Set([
   'scopegrain_next_task', 'scopegrain_task_meta',
@@ -103,8 +104,8 @@ async function withWire(f, body) {
 }
 function namesContract(tools) {
   const ALL = [...OLD_NAMES, ...NEW_NAMES, ...W2_NAMES];
-  assert.equal(tools.length, 39);
-  assert.equal(new Set(tools.map((t) => t.name)).size, 39);
+  assert.equal(tools.length, 40);
+  assert.equal(new Set(tools.map((t) => t.name)).size, 40);
   assert.deepEqual(tools.map((t) => t.name).sort(), [...ALL].sort());
   assert.deepEqual(tools.filter((t) => !OLD_NAMES.includes(t.name)).map((t) => t.name).sort(),
     [...NEW_NAMES, ...W2_NAMES].sort());
@@ -145,7 +146,7 @@ test('server import remains lazy and cannot implicitly start stdio', async () =>
   assert.equal(typeof mod.startMCPServer, 'function');
 });
 
-test('descriptors are exact39, additions carry lead-authored literal metadata', async () => {
+test('descriptors are exact40, additions carry lead-authored literal metadata', async () => {
   const f = formalFixture();
   try {
     const tools = await descriptors(f);
@@ -276,7 +277,7 @@ test('blocked methodology is an ordinary allowed:false response, direct and wire
   } finally { cleanup(f.dir); }
 });
 
-test('wire registers exact39 strict tools, reads bound records and ACCEPT locator without any writes', async () => {
+test('wire registers exact40 strict tools, reads bound records and ACCEPT locator without any writes', async () => {
   const f = formalFixture();
   try {
     f.task = seedState(f, f.task); // SYNTHETIC declared REVIEW fixture only
