@@ -228,6 +228,9 @@ export interface PlanMemberTask {
 }
 
 export type PlanStatus = 'empty' | 'pending' | 'in_progress' | 'completed';
+export type PlanDerivedStatus =
+  'empty' | 'draft' | 'active' | 'blocked' | 'partial' | 'completed'
+  | 'failed';
 
 export interface PlanBreakdown {
   tasks: PlanMemberTask[];
@@ -236,6 +239,7 @@ export interface PlanBreakdown {
   active: number;
   progress: number | null;
   status: PlanStatus;
+  derivedStatus?: PlanDerivedStatus;
 }
 
 export interface PlanWaveTask {

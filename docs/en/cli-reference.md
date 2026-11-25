@@ -821,6 +821,26 @@ preview and `resume` summary. With `--apply` atomically persists a bounded
 checkpoint (max 50) at `<paths.state>/plan-runs/<KEY>.json` under a verified
 lock so interrupted multi-task runs can resume accurately.
 
+### plan status (derived status)
+
+```text
+scopegrain plan status --project PATH KEY
+```
+
+Plan status derived from member task states — read-only, nothing is
+persisted. Returns `{status, percent, done, total, counts, activeTasks,
+members}`. Taxonomy by precedence: `empty` (no members), `failed` (any
+ABANDON — terminal failure of the plan as declared), `completed` (all
+CLOSE or terminally disposed `discarded|cancelled|icebox|future|deferred`),
+`blocked` (any STALL), `active` (any in
+RESEARCH/ACT/VERIFY/COLLATERAL/EVALUATE/REVIEW/ACCEPT), `partial` (done
+mixed with pending and nothing in flight), `draft` (all PLAN). `counts` is
+a per-state histogram with `dropped` (disposition) and `unreadable`
+buckets; `activeTasks` lists in-flight members.
+`GET /api/plans/:key/status` exposes the same plus `runState`, and the
+`plans`/`plan` projections now include `derivedStatus` next to the prior
+coarse `status` (unchanged for compatibility).
+
 ### structure refresh
 
 ```text

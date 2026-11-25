@@ -118,6 +118,8 @@ export const ROUTES = [
     handler: (q, _url, p) => q.planDoc(p.name) },
   { pattern: ['api', 'plans', ':key'], query: [],
     handler: (q, _url, p) => q.plan(p.key) },
+  { pattern: ['api', 'plans', ':key', 'status'], query: [],
+    handler: (q, _url, p) => q.planStatus(p.key) },
   { pattern: ['api', 'artifact-docs'], query: ['kind'],
     handler: (q, url) => q.artifactDocs(url.searchParams.get('kind')) },
   { pattern: ['api', 'artifact-docs', ':kind', ':name'], query: [],

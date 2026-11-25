@@ -824,6 +824,26 @@ atomicamente un checkpoint acotado (max 50) en
 `<paths.state>/plan-runs/<KEY>.json` bajo lock verificado para reanudar
 corridas multi-tarea interrumpidas.
 
+### plan status (estado derivado)
+
+```text
+scopegrain plan status --project PATH KEY
+```
+
+Estado del plan derivado de los estados de sus tareas miembro — read-only,
+nada se persiste. Devuelve `{status, percent, done, total, counts,
+activeTasks, members}`. La taxonomia, por precedencia: `empty` (sin
+miembros), `failed` (algun ABANDON — fallo terminal del plan tal como fue
+declarado), `completed` (todos CLOSE o con disposicion terminal
+`discarded|cancelled|icebox|future|deferred`), `blocked` (algun STALL),
+`active` (alguno en RESEARCH/ACT/VERIFY/COLLATERAL/EVALUATE/REVIEW/ACCEPT),
+`partial` (terminados mezclados con pendientes sin nada en curso), `draft`
+(todo PLAN). `counts` es un histograma por estado con cubos `dropped`
+(disposicion) y `unreadable`; `activeTasks` lista los miembros en curso.
+`GET /api/plans/:key/status` expone lo mismo mas `runState`, y la
+proyeccion `plans`/`plan` incluye `derivedStatus` junto al `status`
+grueso previo (sin cambios para compatibilidad).
+
 ### structure refresh
 
 ```text

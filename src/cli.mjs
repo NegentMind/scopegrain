@@ -88,7 +88,7 @@ const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
   '--reconcile', '--defaults', '--probe', '--diff', '--no-vantadb',
   '--record', '--keep-files', '--no-resume', '--lazy', '--no-structure',
-  '--all', '--allow-write', '--compact', '--skip-chain-scan',
+  '--all', '--allow-write', '--compact', '--skip-chain-scan', '--explain',
 ]);
 const REJECTED_FLAGS = new Set(['--yes', '--force']);
 
@@ -350,11 +350,12 @@ const COMMANDS = {
   },
   'context': {
     flags: ['--project', '--config', '--tail', '--no-vantadb', '--timeout',
-      '--no-structure', '--structure-debounce', '--fields', '--compact'],
+      '--no-structure', '--structure-debounce', '--fields', '--compact',
+      '--explain'],
     pos: 0,
     usage: 'context --project PATH [--tail N] '
       + '[--no-vantadb] [--no-structure] [--structure-debounce MS] '
-      + '[--timeout MS] [--fields CSV] [--compact]',
+      + '[--timeout MS] [--fields CSV] [--compact] [--explain]',
   },
   'task check-action': {
     flags: ['--project', '--config'], pos: 2,
@@ -597,6 +598,9 @@ const COMMANDS = {
   },
   'plan next': {
     flags: ['--project', '--config'], pos: 1, usage: 'plan next KEY',
+  },
+  'plan status': {
+    flags: ['--project', '--config'], pos: 1, usage: 'plan status KEY',
   },
   'artifact add': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 1,
@@ -1904,7 +1908,8 @@ async function cmdWorkflow(command, flags) {
 async function cmdPlan(sub, positional, flags) {
   const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
   const {
-    getPlan, listPlans, nextPlanTasks, preparePlan, recordPlanRun,
+    getPlan, listPlans, nextPlanTasks, planStatus, preparePlan,
+    recordPlanRun,
   } = await import('./core/plans.mjs');
   const ctx = resolveContext({
     project: projectFlag(flags),
@@ -1926,6 +1931,7 @@ async function cmdPlan(sub, positional, flags) {
   if (sub === 'list') return listPlans(ctx);
   if (sub === 'show') return getPlan(ctx, positional[0]);
   if (sub === 'next') return { tasks: nextPlanTasks(ctx, positional[0]) };
+  if (sub === 'status') return planStatus(ctx, positional[0]);
   if (sub === 'run') {
     return recordPlanRun(ctx, positional[0], { apply: !!flags['--apply'] });
   }
@@ -1999,6 +2005,9 @@ async function cmdContext(flags) {
     structureDebounceMs: flags['--structure-debounce'] !== undefined
       ? decimalInt(flags['--structure-debounce'], '--structure-debounce')
       : undefined,
+    explain: flags['--explain'] === true,
+    fields: flags['--fields'],
+    compact: flags['--compact'] === true,
   });
 }
 

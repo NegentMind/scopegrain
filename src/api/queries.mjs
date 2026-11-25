@@ -21,7 +21,8 @@ import { getChecklist } from '../core/checklists.mjs';
 import { getConstitution } from '../core/constitution.mjs';
 import { getActiveTask } from '../core/active.mjs';
 import {
-  getPlan, listPlans, nextPlanTasks, planRunState, planWaves,
+  derivePlanStatus, getPlan, listPlans, nextPlanTasks, planRunState,
+  planStatus, planWaves,
 } from '../core/plans.mjs';
 import { artifactDirRel, getArtifact, listArtifacts } from '../core/artifacts.mjs';
 import { getJournalOperation } from '../core/journal.mjs';
@@ -663,6 +664,9 @@ export function createApiQueries(ctx, options = {}) {
       progress: tasks.length === 0 ? null
         : Math.round((done / tasks.length) * 100),
       status,
+      // Richer taxonomy (plan status verb): failed/blocked/active/
+      // partial/draft on top of the coarse `status` kept for compat.
+      derivedStatus: derivePlanStatus(tasks),
     };
   }
 
@@ -1347,8 +1351,19 @@ export function createApiQueries(ctx, options = {}) {
     return { workflow: loadPolicy() };
   }
 
+  // `GET /api/plans/:key/status`: the derived lifecycle view — richer
+  // taxonomy than the coarse `status` field, plus per-state counts,
+  // in-flight members and the bounded run-state checkpoints.
+  function planStatusDetail(key) {
+    const st = planStatus(ctx, key);
+    let runState = null;
+    try { runState = planRunState(ctx, key); } catch { runState = null; }
+    return { ...st, runState };
+  }
+
   return Object.freeze({
     health, workspace, tasks, task, taskDoc, plans, plan,
+    planStatus: planStatusDetail,
     planDocs, planDoc, artifactDocs, artifactDoc,
     artifacts, artifact, journalOperations, journalOperation, captures,
     memory, goals, metrics, reports, report,

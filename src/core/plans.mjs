@@ -1499,6 +1499,67 @@ export function planWaves(ctx, key) {
   };
 }
 
+// Derived plan status — computed from member task states, never
+// persisted. A member counts as done on CLOSE or on a terminal
+// disposition (dropped work the plan intentionally gave up).
+const PLAN_STATUS_ACTIVE = new Set(
+  ['RESEARCH', 'ACT', 'VERIFY', 'COLLATERAL', 'EVALUATE', 'REVIEW',
+    'ACCEPT']);
+const PLAN_STATUS_DROPPED = new Set(
+  ['discarded', 'cancelled', 'icebox', 'future', 'deferred']);
+
+export function derivePlanStatus(members) {
+  if (members.length === 0) return 'empty';
+  const isDone = (m) => m.state === 'CLOSE'
+    || PLAN_STATUS_DROPPED.has(m.disposition?.kind);
+  // An ABANDONed member is a terminal failure of the plan as declared:
+  // nothing models a replacement member, so it fails loudly regardless
+  // of remaining work.
+  if (members.some((m) => m.state === 'ABANDON')) return 'failed';
+  if (members.every(isDone)) return 'completed';
+  if (members.some((m) => m.state === 'STALL')) return 'blocked';
+  if (members.some((m) => PLAN_STATUS_ACTIVE.has(m.state))) return 'active';
+  if (members.some(isDone)) return 'partial';
+  return 'draft';
+}
+
+// `plan status KEY`: the derived view — status plus a per-state count
+// histogram, the in-flight members and a percent over done work.
+// Disposition-dropped members fold into `dropped`; unreadable members
+// fold into `unreadable` (they count as neither done nor active).
+export function planStatus(ctx, key) {
+  const plan = getPlan(ctx, key);
+  const counts = {};
+  const activeTasks = [];
+  let done = 0;
+  const members = plan.tasks.map((t) => {
+    let state = null;
+    let disposition = null;
+    let error = null;
+    try {
+      const rec = getTask(ctx, t.id);
+      state = rec.state;
+      disposition = rec.disposition ?? null;
+    } catch (e) { error = e.code ?? 'ERROR'; }
+    const dropped = PLAN_STATUS_DROPPED.has(disposition?.kind);
+    const bucket = error !== null ? 'unreadable'
+      : dropped ? 'dropped' : state;
+    counts[bucket] = (counts[bucket] ?? 0) + 1;
+    if (state === 'CLOSE' || dropped) done += 1;
+    if (PLAN_STATUS_ACTIVE.has(state)) {
+      activeTasks.push({ key: t.key, id: t.id, state });
+    }
+    return { key: t.key, id: t.id, state, disposition, error };
+  });
+  const total = members.length;
+  return {
+    plan: key,
+    status: derivePlanStatus(members),
+    percent: total === 0 ? null : Math.round((done / total) * 100),
+    done, total, counts, activeTasks, members,
+  };
+}
+
 const MAX_PLAN_RUN_CHECKPOINTS = 50;
 
 export function planRunRel(ctx, key) {
