@@ -8,7 +8,7 @@ import path from 'node:path';
 import { createConfig } from '../src/core/config.mjs';
 import { resolveContext } from '../src/core/context.mjs';
 import {
-  createTask, getTask, listTasks, prepareTask,
+  createTask, getTask, listTasks, prepareTask, taskFilePath,
 } from '../src/core/tasks.mjs';
 import { transitionTask, updateTaskMeta } from '../src/core/transition.mjs';
 import {
@@ -61,6 +61,44 @@ test('V1 manual create + V3 fields upgrades to schemaVersion 3', () => {
     const stored = getTask(ctx, applied.id);
     assert.equal(stored.schemaVersion, 3);
     assert.equal(stored.backlog, 'core');
+  } finally { cleanup(dir); }
+});
+
+test('allowedTools: accept null/string-array, reject non-string items', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, {
+      ...BASE, allowedTools: ['shell.exec', 'web.fetch'],
+    });
+    assert.equal(task.schemaVersion, 3);
+    assert.deepEqual(task.allowedTools, ['shell.exec', 'web.fetch']);
+    assert.throws(() => prepareTask(ctx, { ...BASE, allowedTools: 'shell' }),
+      (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, { ...BASE, allowedTools: ['ok', 7] }),
+      (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, { ...BASE, allowedTools: [''] }),
+      (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, allowedTools: null });
+    assert.equal(applied.schemaVersion, 3);
+    assert.equal(applied.allowedTools, null);
+    // Metadata patch: set allowedTools through the CAS meta path.
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { allowedTools: ['task.doc'] },
+    });
+    assert.deepEqual(next.allowedTools, ['task.doc']);
+    // Stored-shape: a malformed value on disk is rejected on read.
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.allowedTools = ['ok', 1];
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    // A stored V3 record that predates the key stays readable (the field
+    // is an additive extension, never required on read).
+    delete data.allowedTools;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).allowedTools, undefined);
   } finally { cleanup(dir); }
 });
 

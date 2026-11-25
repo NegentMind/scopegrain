@@ -61,7 +61,8 @@ export function renderTaskDoc(task, locale = 'en') {
   for (const [k, v] of [['backlog', task.backlog], ['type', task.type],
       ['priority', task.priority], ['severity', task.severity],
       ['effort', task.effort], ['disposition', task.disposition],
-      ['source', task.source], ['planKey', task.planKey]]) {
+      ['source', task.source], ['planKey', task.planKey],
+      ['allowedTools', task.allowedTools]]) {
     if (v !== undefined && v !== null) L.push(`${k}: ${JSON.stringify(v)}`);
   }
   L.push(`createdAt: "${task.createdAt}"`);

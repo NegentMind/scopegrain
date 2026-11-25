@@ -32,6 +32,7 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `notes` | `[string]` or null | Append-only narrative (`task note`). |
 | `skills` | `[string]` or null | Capability names exercised. |
 | `uncertainty` | `{uphill: int, downhill: int}` or null | Known-unknown vs settled work split. |
+| `allowedTools` | `[string]` or null | Per-task least-privilege tool list. Declarative only: the record carries the intent, hosts and `preAction` hooks enforce it — the harness never executes or intercepts tools itself. Optional on stored V3 records (additive extension); always emitted on new writes. |
 
 ## Plan semantic layer (schemaVersion 3)
 

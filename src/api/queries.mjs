@@ -231,6 +231,7 @@ function taskSummary(task) {
     stepsDone: Array.isArray(task.steps)
       ? task.steps.filter((s) => s.status === 'done').length : 0,
     uncertainty: task.uncertainty ?? null,
+    allowedTools: Array.isArray(task.allowedTools) ? task.allowedTools : null,
   };
 }
 

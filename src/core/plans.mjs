@@ -47,7 +47,7 @@ const APPETITES = new Set(['hours', 'day', 'days', 'weeks']);
 const TASK_V3_FORWARD = [
   'backlog', 'priority', 'severity', 'type', 'effort', 'estimate',
   'source', 'relations', 'goalIds', 'analysis', 'steps', 'notes',
-  'skills', 'uncertainty',
+  'skills', 'uncertainty', 'allowedTools',
 ];
 const PLAN_V3_KEYS = new Set([
   'triage', 'appetite', 'cynefin', 'riskRegister', 'premortem',
@@ -392,26 +392,39 @@ export function preparePlan(ctx, input) {
     return content;
   };
   const plannedSlugs = [];
+  const prepared = [];
   for (const t of clean.tasks) {
     const id = crypto.randomUUID();
     const slug = nextTaskSlug(ctx, t.title, plannedSlugs);
     const record = buildTaskRecord(t, {
       id, at, initial: policy.initial, slug });
-    validateTaskShape(record, `plan task '${t.key}'`);
     // nextTaskSlug scans stored tasks only; in-plan records reserve their
     // slug so two plan tasks with equal titles never share one.
     plannedSlugs.push(slug);
+    prepared.push({ key: t.key, id, record, deps: t.dependsOn, t });
+  }
+  // Propagate the plan DAG into the record layer: plan dependsOn names
+  // plan keys, but once every member id is known the record can store the
+  // resolved UUIDs. Records without V3 fields (V1/V2 plan tasks) cannot
+  // hold dependsOn and are left untouched.
+  const idByKey = new Map(prepared.map((p) => [p.key, p.id]));
+  for (const p of prepared) {
+    if (p.record.dependsOn !== undefined && p.deps.length > 0) {
+      p.record.dependsOn = p.deps.map((k) => idByKey.get(k));
+    }
+    validateTaskShape(p.record, `plan task '${p.key}'`);
     tasks.push({
-      key: t.key, id, dependsOn: t.dependsOn,
+      key: p.key, id: p.id, dependsOn: p.deps,
       ...(clean.v3
-        ? { triage: t.triage ?? null, triageReason: t.triageReason ?? null }
+        ? { triage: p.t.triage ?? null,
+          triageReason: p.t.triageReason ?? null }
         : {}),
     });
-    const rel = `${ctx.config.paths.tasks}/${id}.json`;
+    const rel = `${ctx.config.paths.tasks}/${p.id}.json`;
     files.push({
       rel,
       abs: resolveInside(ctx.projectRoot, rel, 'task file'),
-      content: assertDoc(JSON.stringify(record, null, 2) + '\n', 'task'),
+      content: assertDoc(JSON.stringify(p.record, null, 2) + '\n', 'task'),
     });
   }
   const plan = {
