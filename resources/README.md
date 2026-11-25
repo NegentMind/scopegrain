@@ -55,4 +55,6 @@ close within the file's first 8 KiB. The block carries
 machine-consumable metadata only:
 no `name`, no `description` (that stays in `manifest.json`) and never
 executable commands — `enforcement.verificationRef` is an id
-reference into `verification.commands`, nothing more.
+reference into `verification.commands`, nothing more. The full
+contract (activation, lifecycle, provenance, non-goals) lives in
+`references/rules-format.md`.

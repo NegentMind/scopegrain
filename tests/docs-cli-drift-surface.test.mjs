@@ -77,7 +77,7 @@ test('extractMcpToolNames counts unique scopegrain_ tool literals', () => {
   assert.ok(!names.has('other_tool'));
   const real = extractMcpToolNames(fs.readFileSync(
     path.join(INSTALL_ROOT, 'src', 'mcp', 'server.mjs'), 'utf8'));
-  assert.equal(real.size, 37);
+  assert.equal(real.size, 39);
 });
 
 test('scanDocSurface collects flags from spans and invocation examples', () => {

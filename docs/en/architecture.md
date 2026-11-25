@@ -399,7 +399,8 @@ the subset fails loudly.
   entry — or shadowing an alias — is `CATALOG_DUPLICATE`, never
   silent shadowing. `doctor` reports the count as `rule-overlay`;
   the verified-cache fingerprint covers the files, so any edit
-  invalidates the cache.
+  invalidates the cache. The full rule format contract lives in
+  `resources/references/rules-format.md`.
 - Distribution mutations (extension/preset registries,
   `mounted-catalog.json`, bundle install/uninstall) leave a trail in
   `<configDir>/dist-journal.jsonl` under `dist.lock`: each entry carries

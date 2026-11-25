@@ -1,8 +1,8 @@
 # Scopegrain — Mapa completo de capacidades
 
 Catálogo detallado de superficies, subsistemas, comandos y garantías del harness.
-Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `140` entradas
-(`manifest.json` v`0.1.2`); la cifra vigente de la suite de tests se registra en
+Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `142` entradas
+(`manifest.json` v`0.1.4`); la cifra vigente de la suite de tests se registra en
 [verification](verification.md) (cambia con cada ejecución).
 
 > Convenciones: *(write)* = muta estado; *(preview/apply)* = dry-run por defecto,
@@ -19,7 +19,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `140` entrad
 | MCP `src/mcp/server.mjs` | 39 tools `scopegrain_*`: 25 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawn del binario VantaDB enrolado) + 8 de escritura (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | Hosts MCP (stdio) |
 | API local `src/api/server.mjs` | 30 rutas GET `/api/*` | Loopback-only, GET-only |
 | Visor `viewer/` (`scopegrain view`) | 15 vistas React 19 + TS + Vite + Tailwind | Read-only, humano |
-| Catálogo `resources/manifest.json` | 140 entradas + 32 aliases | Proyectable al proyecto |
+| Catálogo `resources/manifest.json` | 142 entradas + 32 aliases | Proyectable al proyecto |
 
 ---
 
@@ -283,8 +283,8 @@ más `RESEARCH`, `STALL`, `ABANDON` (terminal). Reglas:
 
 ## 9. Recursos canónicos (proyectables)
 
-`resources/` — 44 skills · 23 rules · 18 commands · 15 agents · 24 references ·
-11 prompts · 5 profiles · 1 mcp = **140 entradas** + 32 aliases. `manifest.json`
+`resources/` — 44 skills · 23 rules · 18 commands · 15 agents · 25 references ·
+11 prompts · 5 profiles · 1 mcp = **142 entradas** + 32 aliases. `manifest.json`
 es el catálogo con snapshots SHA (`catalog check` verifica drift; byte-determinista,
 sin `generatedAt`); instalación via `init`/`update`, versionado
 opt-in por categoría. Las claves de perfil requeridas son `skills`/`rules`/

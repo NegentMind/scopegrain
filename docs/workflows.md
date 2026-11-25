@@ -75,6 +75,10 @@ origen. El harness nunca ejecuta comandos descubiertos
 en reglas — la referencia solo apunta a un store que el owner ya
 reviso, nada mas.
 
+El contrato completo del formato de reglas (frontmatter acotado,
+activation, ciclo de vida, no-comandos-inline) esta en
+`resources/references/rules-format.md`.
+
 Los aliases compatibles usan la misma interfaz `workflow`, no implementaciones
 divergentes. Los modos declarados se validan; nombres o modos desconocidos
 se rechazan. Los perfiles web/rust/python/database son optativos y no

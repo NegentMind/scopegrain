@@ -75,6 +75,10 @@ headings and each section lands as a `Status: Proposed` draft with
 `origin.source: imported` — one-way, hash-deduped, never executing or
 rewriting the source.
 
+The full rule file contract (bounded frontmatter, activation,
+lifecycle, no-inline-commands) lives in
+`resources/references/rules-format.md`.
+
 Compatible aliases use the same `workflow` interface, not divergent
 implementations. Declared modes are validated; unknown names or modes
 are rejected. The web/rust/python/database profiles are optional and do

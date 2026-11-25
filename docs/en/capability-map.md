@@ -3,7 +3,7 @@
 
 Detailed catalog of surfaces, subsystems, commands and guarantees of the
 harness. Reference state: `develop` branch, `scopegrain@0.1.1`, catalog
-`140` entries (`manifest.json` v`0.1.2`); the current test-suite figure is
+`142` entries (`manifest.json` v`0.1.4`); the current test-suite figure is
 recorded in [verification](verification.md) (it changes with every run).
 
 > English translation of the canonical Spanish document
@@ -24,7 +24,7 @@ recorded in [verification](verification.md) (it changes with every run).
 | MCP `src/mcp/server.mjs` | 39 `scopegrain_*` tools: 25 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawns the enrolled VantaDB binary) + 8 writers (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | MCP hosts (stdio) |
 | Local API `src/api/server.mjs` | 30 GET routes `/api/*` | Loopback-only, GET-only |
 | Viewer `viewer/` (`scopegrain view`) | 15 views, React 19 + TS + Vite + Tailwind | Read-only, human |
-| Catalog `resources/manifest.json` | 140 entries + 32 aliases | Projectable into the project |
+| Catalog `resources/manifest.json` | 142 entries + 32 aliases | Projectable into the project |
 
 ---
 
@@ -288,8 +288,8 @@ plus `RESEARCH`, `STALL`, `ABANDON` (terminal). Rules:
 
 ## 9. Canonical resources (projectable)
 
-`resources/` — 44 skills · 23 rules · 18 commands · 15 agents · 24 references ·
-11 prompts · 5 profiles · 1 mcp = **140 entries** + 32 aliases. `manifest.json`
+`resources/` — 44 skills · 23 rules · 18 commands · 15 agents · 25 references ·
+11 prompts · 5 profiles · 1 mcp = **142 entries** + 32 aliases. `manifest.json`
 is the catalog with SHA snapshots (`catalog check` verifies drift;
 byte-deterministic, no `generatedAt`); installation via
 `init`/`update`, opt-in versioning per category. Required profile keys

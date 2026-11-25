@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "entries": [
     {
       "kind": "command",
@@ -1412,6 +1412,12 @@
       "id": "reference-maintenance",
       "path": "resources/references/reference-maintenance.md",
       "description": "How to maintain evidence-backed reference material."
+    },
+    {
+      "kind": "reference",
+      "id": "rules-format",
+      "path": "resources/references/rules-format.md",
+      "description": "Rule file contract: bounded frontmatter, activation, lifecycle and no-inline-commands."
     },
     {
       "kind": "profile",

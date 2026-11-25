@@ -57,4 +57,6 @@ cerrar dentro de los primeros 8 KiB del archivo. El bloque porta solo
 metadatos consumibles por máquina:
 sin `name`, sin `description` (esa vive en `manifest.json`) y nunca
 comandos ejecutables — `enforcement.verificationRef` es una referencia
-por id a `verification.commands`, nada más.
+por id a `verification.commands`, nada más. El contrato completo
+(activation, ciclo de vida, procedencia, no-objetivos) está en
+`references/rules-format.md` (canónico, en inglés).

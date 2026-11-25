@@ -381,7 +381,8 @@ un esquema editado con keywords fuera del subconjunto falla en voz alta.
   con una entrada canonica o mounted — o que sombrea un alias — es
   `CATALOG_DUPLICATE`, nunca shadowing silencioso. `doctor` reporta el
   conteo bajo `rule-overlay`; el fingerprint de la cache verificada las
-  cubre, asi que cualquier edicion invalida la caché.
+  cubre, asi que cualquier edicion invalida la caché. El formato
+  completo de reglas esta en `resources/references/rules-format.md`.
 - Las mutaciones de distribucion (registros de extensiones/presets,
   `mounted-catalog.json`, install/uninstall de bundles) dejan rastro en
   `<configDir>/dist-journal.jsonl` bajo `dist.lock`: cada entrada lleva
