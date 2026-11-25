@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Scopegrain journal checkpoint line",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["checkpoint", "signature"],
+  "properties": {
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "checkpointSeq", "createdAt", "headSequence",
+        "headSha256", "chainHead", "prevCheckpointDigest"
+      ],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "checkpointSeq": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "createdAt": {"$ref": "#/$defs/timestamp"},
+        "headSequence": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "headSha256": {"$ref": "#/$defs/hash"},
+        "chainHead": {
+          "anyOf": [{"type": "null"}, {"$ref": "#/$defs/hash"}]
+        },
+        "prevCheckpointDigest": {
+          "anyOf": [{"type": "null"}, {"$ref": "#/$defs/hash"}]
+        },
+        "supersedesKeyId": {
+          "anyOf": [{"type": "null"}, {"$ref": "#/$defs/keyId"}],
+          "description": "Reserved for key rotation: the previous key id sealed by the first checkpoint signed under a new key. Never emitted by this version."
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alg", "keyId", "sig"],
+      "properties": {
+        "alg": {"const": "ed25519"},
+        "keyId": {"$ref": "#/$defs/keyId"},
+        "sig": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{86}==$",
+          "description": "Ed25519 signature (64 bytes) over the UTF-8 bytes of JCS(checkpoint), base64-encoded."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "keyId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "sha256(publicKey SPKI DER) truncated to 16 hex chars; a convenience label, not authentication."
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "Canonical Date.toISOString value, validated at runtime."
+    }
+  },
+  "description": "One canonical-JSON line of <paths.state>/journal/checkpoints.jsonl. Runtime validates strict monotonic checkpointSeq, the prevCheckpointDigest link (canonicalDigest of the previous checkpoint object), non-decreasing headSequence, the Ed25519 signature against <paths.state>/integrity/journal-ed25519.pub, and that the sealed headSequence/chainHead prefix is re-derivable from persisted intents. headSha256 anchors the exact head.json bytes at seal time, including transitory activeOperation/pendingOperations fields."
+}

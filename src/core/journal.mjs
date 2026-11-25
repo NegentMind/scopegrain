@@ -7,6 +7,8 @@ import { canonicalDigest } from './digests.mjs';
 import { err, toErrorPayload } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, readDirBounded, readFileLimited,
   removeIfExists } from './fsx.mjs';
+import { journalChainFold, maybeEmitCheckpoint, recomputeChainHead }
+  from './integrity/checkpoints.mjs';
 import { acquireVerifiedLock, releaseVerifiedLock } from './locks.mjs';
 import { assertDestination, isSameOrAncestor, resolveInside } from './paths.mjs';
 import { loadJournalPolicy, loadLimits } from './policy.mjs';
@@ -193,6 +195,15 @@ function writeNew(loc, rel, content) {
   }
 }
 
+// chainHead accumulator (records-integrity design §3.4): every head
+// write carries the fold of all persisted intent events ordered by
+// journalSequence. A head still lacking the field is migrated by
+// recomputing the full chain over on-disk intents — an O(history) scan
+// that runs once per journal, never per write.
+function chainBase(loc, head) {
+  return head.chainHead ?? recomputeChainHead(absolute(loc, loc.base));
+}
+
 function atomicHead(loc, head) {
   const tempRel = sub(loc, `.head-${crypto.randomUUID()}.tmp`);
   const targetRel = sub(loc, 'head.json');
@@ -238,13 +249,20 @@ function directory(loc, rel, limit, { failAtCapacity = true } = {}) {
 
 function validateHead(value) {
   const code = 'JOURNAL_MALFORMED';
-  plain(value, ['schemaVersion', 'lastSequence', 'activeOperation', 'pendingOperations'],
+  plain(value, ['schemaVersion', 'lastSequence', 'activeOperation',
+    'pendingOperations', 'chainHead'],
     ['schemaVersion', 'lastSequence', 'activeOperation'], code, 'journal head');
   if (value.schemaVersion !== 1 || !Number.isSafeInteger(value.lastSequence)
       || value.lastSequence < 0) throw err(code, 'journal head has invalid fields');
   if (value.pendingOperations !== undefined
       && (!Number.isSafeInteger(value.pendingOperations) || value.pendingOperations < 0)) {
     throw err(code, 'journal head has invalid pending count');
+  }
+  // Forward migration (records-integrity design): heads written before
+  // the accumulator existed carry no chainHead; the next head write
+  // initializes it, and reads must keep accepting its absence.
+  if (value.chainHead !== undefined && !hash(value.chainHead)) {
+    throw err(code, 'journal head has invalid chainHead');
   }
   if (value.activeOperation !== null) {
     plain(value.activeOperation, ['operationId', 'intentDigest'],
@@ -691,7 +709,8 @@ export function compactJournal(bound) {
     const current = readHead(loc);
     atomicHead(loc, { schemaVersion: 1, lastSequence: current.lastSequence,
       activeOperation: current.activeOperation,
-      pendingOperations: outbox(loc, policy, { failAtCapacity: false }).length });
+      pendingOperations: outbox(loc, policy, { failAtCapacity: false }).length,
+      chainHead: chainBase(loc, current) });
     return { archived, kept, archivedCount: archived.length };
   } finally {
     release(loc, lock);
@@ -736,7 +755,8 @@ export function ackJournalEvent(bound, operationId, eventId, evidence) {
         atomicHead(loc, { schemaVersion: 1, lastSequence: current.lastSequence,
           activeOperation: current.activeOperation,
           pendingOperations: outbox(loc, policy,
-            { failAtCapacity: false }).length });
+            { failAtCapacity: false }).length,
+          chainHead: chainBase(loc, current) });
       }
     }
   } finally {
@@ -875,11 +895,21 @@ function persistIntent(loc, intent, candidates, head, pendingBase, extraBlobs = 
   const intentBytes = jsonBytes(intent);
   const intentDigest = canonicalDigest(intent);
   const activeOperation = { operationId: intent.operationId, intentDigest };
+  // The chain moves in the same atomic write that reserves the sequence
+  // range: the reserved head seals this intent's events. If the process
+  // dies before intent.json lands, the abandon-prepared recovery
+  // recomputes the chain over persisted intents and drops the phantom
+  // events — a signed checkpoint can never seal them because emission
+  // requires a quiescent head.
+  let chainHead = chainBase(loc, head);
+  for (const event of intent.events) {
+    chainHead = journalChainFold(chainHead, event);
+  }
   const reserved = { schemaVersion: 1,
     lastSequence: head.lastSequence + candidates.length, activeOperation,
     // The outbox index for this operation is written below; the counter
     // anticipates it so a crash mid-window only ever overcounts.
-    pendingOperations: pendingBase + 1 };
+    pendingOperations: pendingBase + 1, chainHead };
   atomicHead(loc, reserved);
   for (let i = 0; i < candidates.length; i += 1) {
     saveSnapshot(loc, intent.events[i], candidates[i].file.content);
@@ -894,8 +924,12 @@ function persistIntent(loc, intent, candidates, head, pendingBase, extraBlobs = 
 }
 
 // Commit marker, confirmation state and head-pointer cleanup shared by
-// create and update application tails.
-function finalizeOperation(loc, intent, intentDigest, reserved, result) {
+// create and update application tails. When the journal is armed (a
+// signing key exists under <paths.state>/integrity) each committed head
+// is also sealed into checkpoints.jsonl — the design's per-commit
+// checkpoint cadence. A failed seal never fails the commit: it lands in
+// warnings like any other post-commit degradation.
+function finalizeOperation(bound, loc, intent, intentDigest, reserved, result) {
   try {
     writeNew(loc, sub(loc, `operations/${intent.operationId}/commit.json`),
       jsonBytes({ schemaVersion: 1, operationId: intent.operationId, intentDigest,
@@ -905,6 +939,7 @@ function finalizeOperation(loc, intent, intentDigest, reserved, result) {
     return result;
   }
   result.journalState = 'confirmed';
+  let cleared = false;
   try {
     const current = readHead(loc);
     if (current.lastSequence !== reserved.lastSequence
@@ -915,10 +950,19 @@ function finalizeOperation(loc, intent, intentDigest, reserved, result) {
     atomicHead(loc, { schemaVersion: 1, lastSequence: current.lastSequence,
       activeOperation: null,
       pendingOperations: outbox(loc, loadJournalPolicy(),
-        { failAtCapacity: false }).length });
+        { failAtCapacity: false }).length,
+      chainHead: chainBase(loc, current) });
+    cleared = true;
   } catch {
     result.warnings.push(toErrorPayload(err('JOURNAL_RECOVERY_REQUIRED',
       'committed operation requires journal head recovery')));
+  }
+  if (cleared) {
+    try {
+      maybeEmitCheckpoint(bound);
+    } catch (e) {
+      result.warnings.push(toErrorPayload(e));
+    }
   }
   return result;
 }
@@ -953,7 +997,7 @@ function lockedCreation(bound, changes, loc, policy, identity = null) {
     return pendingResult(intent,
       err('JOURNAL_SOURCE_UNCONFIRMED', 'not every prepared source was created'));
   }
-  return finalizeOperation(loc, intent, intentDigest, reserved, {
+  return finalizeOperation(bound, loc, intent, intentDigest, reserved, {
     status: 'committed', operationId: intent.operationId,
     eventIds: intent.events.map((event) => event.eventId),
     journalState: 'pending-finalization', pendingMemory: true,
@@ -1165,7 +1209,7 @@ function lockedUpdate(bound, changes, loc, policy, identity) {
     return pendingResult(intent,
       err('JOURNAL_SOURCE_UNCONFIRMED', 'not every prepared update was applied'));
   }
-  return finalizeOperation(loc, intent, intentDigest, reserved, {
+  return finalizeOperation(bound, loc, intent, intentDigest, reserved, {
     status: 'committed', operationId: intent.operationId,
     eventIds: intent.events.map((event) => event.eventId),
     journalState: 'pending-finalization', pendingMemory: true,
@@ -1221,6 +1265,18 @@ export function applyJournaledRecordUpdate(bound, updateChanges) {
     !current[index].equals(validated[index].file.content));
   if (!candidates.length) return unchangedUpdate(validated);
   return applyUpdate(bound, candidates, loc, policy, identity);
+}
+
+// chainHead on recovery head writes. A missing intent means the head
+// reserved (and folded) events that never reached the disk; the chain
+// must be recomputed over persisted intents so the abandoned phantom
+// events leave the accumulator. Persisted intents — prepared or
+// committed — are still on disk and stay folded.
+function recoveryChain(data) {
+  if (data.loaded.intent === null) {
+    return recomputeChainHead(absolute(data.loc, data.loc.base));
+  }
+  return chainBase(data.loc, data.head);
 }
 
 function recoveryInput(operationId, options) {
@@ -1403,7 +1459,8 @@ export function recoverJournalOperation(bound, operationId, options) {
       atomicHead(data.loc, { schemaVersion: 1, lastSequence: data.head.lastSequence,
         activeOperation: null,
         pendingOperations: outbox(data.loc, data.policy,
-          { failAtCapacity: false }).length });
+          { failAtCapacity: false }).length,
+        chainHead: recoveryChain(data) });
     }
     if (data.hasIndex && (input.action === 'abandon-prepared' || !data.pendingEventIds.length)) {
       resolveWorkspaceState(bound);
@@ -1414,7 +1471,8 @@ export function recoverJournalOperation(bound, operationId, options) {
       atomicHead(data.loc, { schemaVersion: 1, lastSequence: data.head.lastSequence,
         activeOperation: null,
         pendingOperations: outbox(data.loc, data.policy,
-          { failAtCapacity: false }).length });
+          { failAtCapacity: false }).length,
+        chainHead: recoveryChain(data) });
     }
     result = recoveryResult(operationId, input, data, 'applied', receipt);
   } catch (e) {

@@ -131,3 +131,29 @@ cannot detect a missing historic index: an empty page does not prove
 global synchronization. Explicit recovery of the known operation can
 rebuild its index; a separate full audit is needed to detect unknown
 absences.
+
+## Signed checkpoints (Ed25519)
+
+The journal can seal its state with Ed25519-signed checkpoints in
+`checkpoints.jsonl` (append-only, inside the journal directory; keys
+live under `<paths.state>/integrity/`, outside the journal tree). Each
+checkpoint records `headSequence`, `headSha256`, the accumulated event
+`chainHead` and the previous checkpoint digest, signed with the local
+private key. `head.json` folds `chainHead` per event, so truncations,
+rollbacks and fabricated events are detectable.
+
+```text
+scopegrain journal checkpoint --project PATH [--config REL]
+scopegrain journal verify --project PATH [--config REL] [--expect-digest HEX] [--skip-chain-scan] [--fail-on-error]
+```
+
+`journal checkpoint` generates the keypair on first use and requires a
+quiescent journal (no active operation). From then on, every
+`finalizeOperation` auto-seals a checkpoint. `journal verify` recomputes
+the checkpoint chain, signatures, head sequence and — unless
+`--skip-chain-scan` — the full `chainHead`; `--expect-digest` requires a
+concrete digest of the last checkpoint (external anchoring) and
+`--fail-on-error` propagates exit 1 when verification is not `ok`.
+Verification is recomputable by third parties: the full design is in
+[records-integrity-design](../records-integrity-design.md).
+

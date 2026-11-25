@@ -127,3 +127,29 @@ activo es nulo, el listado acotado no puede detectar un indice historico
 ausente: una pagina vacia no demuestra sincronizacion global. La recuperacion
 explicita de la operacion conocida puede reconstruir su indice; una auditoria
 integral separada es necesaria para detectar ausencias desconocidas.
+
+## Checkpoints firmados (Ed25519)
+
+El journal puede sellar su estado con checkpoints firmados Ed25519 en
+`checkpoints.jsonl` (append-only, dentro del directorio del journal; las
+claves viven en `<paths.state>/integrity/`, fuera del arbol del journal).
+Cada checkpoint registra `headSequence`, `headSha256`, el `chainHead`
+acumulado de eventos y el digest del checkpoint previo, firmados con la
+clave privada local. `head.json` acumula `chainHead` por evento, asi que
+truncaciones, rollbacks y fabricaciones de eventos son detectables.
+
+```text
+scopegrain journal checkpoint --project PATH [--config REL]
+scopegrain journal verify --project PATH [--config REL] [--expect-digest HEX] [--skip-chain-scan] [--fail-on-error]
+```
+
+`journal checkpoint` genera el par de claves en el primer uso y exige el
+journal sin operacion activa. A partir de ahi, cada `finalizeOperation`
+auto-sella un checkpoint. `journal verify` recomputa la cadena de
+checkpoints, las firmas, la secuencia del head y — salvo
+`--skip-chain-scan` — el `chainHead` completo; `--expect-digest` exige un
+digest concreto del ultimo checkpoint (anclaje externo) y
+`--fail-on-error` propaga exit 1 cuando la verificacion no es `ok`.
+La verificacion es recomputable por terceros: el diseno completo esta en
+[records-integrity-design](records-integrity-design.md).
+
