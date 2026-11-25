@@ -117,6 +117,17 @@ to `schemaVersion: 3` (V2 records keep their methodology bundle; V1
 records null it out). Full field table:
 `resources/references/backlog-format.md`.
 
+Two deliberately distinct dependency layers: a plan's DAG
+(`tasks[].dependsOn` by keys) is the hard constraint — the ACT gate
+enforces it transitively and `plan next` turns it into readiness
+(ready/blocked). At materialization that DAG also propagates into each
+V3 task record as UUID `dependsOn`, so task-level consumers (MCP
+ordering, the viewer) see the same structure. Record-level
+`dependsOn`/`relations` on tasks outside a plan is declarative and
+informational — it orders suggestions and documents the graph but does
+not gate. Declare it when sequencing work (`see`, `supersedes`,
+`duplicateOf`, `blocks` under `relations`).
+
 ```powershell
 # Metadata patch (CAS with --revision N): {set:{...}, disposition?,
 # addNote?, stepStatus?} in the --input file
@@ -129,6 +140,14 @@ node .\bin\scopegrain.mjs task disposition --project P <UUID> deferred --revisio
 # Note and step status
 node .\bin\scopegrain.mjs task note --project P <UUID> --revision 3 --text "root cause confirmed"
 node .\bin\scopegrain.mjs task step --project P <UUID> --revision 4 --index 0 --status done
+
+# Task links (meta shortcut): union/diff of dependsOn and typed
+# relations without a JSON file. Without --kind edits dependsOn (the
+# target must be a real task); with --kind edits relations[REL]
+# (external refs allowed). CAS with --revision N
+node .\bin\scopegrain.mjs task link --project P <UUID> <TARGET> --revision 1 --apply
+node .\bin\scopegrain.mjs task link --project P <UUID> ext:doc-42 --kind see --revision 2 --apply
+node .\bin\scopegrain.mjs task unlink --project P <UUID> <TARGET> --revision 3 --apply
 
 # Post-creation authorization (the only legal path for a methodology
 # 'missing' authorization; CAS with --revision N)

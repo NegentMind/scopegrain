@@ -111,6 +111,17 @@ semantico en la creacion, o cualquier escritura `meta`, sube el registro a
 `schemaVersion: 3` (los V2 conservan su bundle de metodologia; los V1 lo
 nulan). Tabla completa de campos: `resources/references/backlog-format.md`.
 
+Dos capas de dependencias, deliberadamente distintas: el DAG de un plan
+(`tasks[].dependsOn` por claves) es la restriccion fuerte — el gate ACT la
+exige de forma transitiva y `plan next` la convierte en readiness
+(ready/blocked). Al materializar, ese DAG tambien se propaga al registro
+de cada tarea V3 como `dependsOn` de UUIDs, de modo que consumidores a
+nivel tarea (ordenacion MCP, el visor) ven la misma estructura. El
+`dependsOn`/`relations` de registro en tareas fuera de plan es declarativo
+e informativo — ordena sugerencias y documenta el grafo, pero no gatea.
+Declaralos al encadenar trabajo (`see`, `supersedes`, `duplicateOf`,
+`blocks` en `relations`).
+
 ```powershell
 # Parche de metadata (CAS con --revision N): {set:{...}, disposition?,
 # addNote?, stepStatus?} en el fichero --input
@@ -123,6 +134,14 @@ node .\bin\scopegrain.mjs task disposition --project P <UUID> deferred --revisio
 # Nota y estado de paso
 node .\bin\scopegrain.mjs task note --project P <UUID> --revision 3 --text "root cause confirmed"
 node .\bin\scopegrain.mjs task step --project P <UUID> --revision 4 --index 0 --status done
+
+# Enlaces entre tareas (atalajo sobre meta): union/diff de dependsOn y
+# relaciones tipadas sin fichero JSON. Sin --kind edita dependsOn (el
+# destino debe ser una tarea real); con --kind edita relations[REL]
+# (admite refs externas). CAS con --revision N
+node .\bin\scopegrain.mjs task link --project P <UUID> <TARGET> --revision 1 --apply
+node .\bin\scopegrain.mjs task link --project P <UUID> ext:doc-42 --kind see --revision 2 --apply
+node .\bin\scopegrain.mjs task unlink --project P <UUID> <TARGET> --revision 3 --apply
 
 # Autorizacion post-creacion (unica via legal para methodology
 # authorization 'missing'; CAS con --revision N)
