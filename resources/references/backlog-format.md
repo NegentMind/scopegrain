@@ -83,6 +83,17 @@ viewers) see the same structure the ACT gate enforces.
 | `stopConditions` | `[string]` or null | Conditions that halt execution. |
 | `budget` | `{turns?: int>=0, notes?: string}` or null | Turn ceiling + notes. |
 
+The V3 layer also tolerates additive extension fields on stored plans:
+older V3 records missing them remain valid; whenever a plan is written
+as V3 all extension keys are emitted (defaulting to null). Using any
+semantic or extension key still requires the full required V3 set above.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `request` | non-empty string or null | The user's verbatim intent for the plan — the shared "north" every member task should remember. Declarative; hosts may inject it into member packets. |
+| `planType` | `static|dynamic|hybrid` or null | How the plan was assembled: from a fixed template, generated at runtime, or template plus injected items. Declarative. |
+| `trigger` | `{kind: manual|scheduled|event|derived, ref?: string}` or null | What originated the plan. The harness records provenance only — it never executes schedules or consumes webhooks. |
+
 `plan next` is triage-aware: entries triaged `defer|skip|blocked` report
 status `triaged` instead of `ready`/`blocked`.
 

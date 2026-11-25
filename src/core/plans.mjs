@@ -56,15 +56,25 @@ const PLAN_V3_KEYS = new Set([
   'triage', 'appetite', 'cynefin', 'riskRegister', 'premortem',
   'stopConditions', 'budget',
 ]);
+// Additive V3 extension keys: tolerated on stored V3 records that predate
+// them, validated when present, emitted with defaults whenever a plan is
+// written as V3. Never required by the stored shape — the required set is
+// PLAN_V3_KEYS and stays frozen.
+const PLAN_V3_EXT_KEYS = new Set([
+  'request', 'planType', 'trigger',
+]);
+const PLAN_TYPES = new Set(['static', 'dynamic', 'hybrid']);
+const TRIGGER_KINDS = new Set(['manual', 'scheduled', 'event', 'derived']);
 const PLAN_INPUT_KEYS = new Set(
   ['key', 'title', 'authorContext', 'tasks', 'specId', 'designId',
-    ...PLAN_V3_KEYS]);
+    ...PLAN_V3_KEYS, ...PLAN_V3_EXT_KEYS]);
 const PLAN_TASK_KEYS = new Set(
   ['key', 'title', 'contract', 'scope', 'dependsOn', 'scenarioRefs',
     'triage', 'triageReason', 'methodology', ...TASK_V3_FORWARD]);
 const PLAN_KEYS = new Set([
   'schemaVersion', 'key', 'title', 'authorContext', 'inputDigest',
   'tasks', 'createdAt', 'specId', 'designId', ...PLAN_V3_KEYS,
+  ...PLAN_V3_EXT_KEYS,
 ]);
 
 function validateTriageEntry(value, label) {
@@ -198,7 +208,50 @@ function normalizePlanV3(input, taskKeys, errorFn) {
     v3.budget = input.budget === null ? null
       : validateBudget(input.budget, 'budget');
   }
+  if (has('request')) {
+    if (input.request !== null
+        && (typeof input.request !== 'string'
+          || input.request.trim() === '')) {
+      throw errorFn('request must be a non-empty string or null');
+    }
+    v3.request = input.request;
+  }
+  if (has('planType')) {
+    if (input.planType !== null && !PLAN_TYPES.has(input.planType)) {
+      throw errorFn('planType must be static|dynamic|hybrid or null');
+    }
+    v3.planType = input.planType;
+  }
+  if (has('trigger')) {
+    v3.trigger = input.trigger === null ? null
+      : validatePlanTrigger(input.trigger, 'trigger');
+  }
+  if (Object.keys(v3).length) {
+    for (const k of PLAN_V3_EXT_KEYS) {
+      if (v3[k] === undefined) v3[k] = null;
+    }
+  }
   return Object.keys(v3).length ? v3 : null;
+}
+
+function validatePlanTrigger(value, label) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw err('INVALID_PLAN', `${label} must be an object or null`);
+  }
+  for (const k of Object.keys(value)) {
+    if (!['kind', 'ref'].includes(k)) {
+      throw err('UNKNOWN_KEY', `${label} received unknown key '${k}'`);
+    }
+  }
+  if (!TRIGGER_KINDS.has(value.kind)) {
+    throw err('INVALID_PLAN',
+      `${label}.kind must be manual|scheduled|event|derived`);
+  }
+  if (value.ref !== undefined && value.ref !== null
+      && typeof value.ref !== 'string') {
+    throw err('INVALID_PLAN', `${label}.ref must be a string or null`);
+  }
+  return { kind: value.kind, ref: value.ref ?? null };
 }
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -553,7 +606,7 @@ export function validatePlanShape(plan, label = 'plan') {
       throw err('PLAN_MALFORMED', `${label}: ${e.message}`);
     }
   } else {
-    for (const k of PLAN_V3_KEYS) {
+    for (const k of [...PLAN_V3_KEYS, ...PLAN_V3_EXT_KEYS]) {
       if (plan[k] !== undefined) {
         throw err('PLAN_MALFORMED',
           `${label} V${plan.schemaVersion} may not carry '${k}'`);

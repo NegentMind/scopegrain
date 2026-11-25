@@ -154,3 +154,60 @@ test('stored shape: V1 may not carry v3 keys; v3 requires all keys', () => {
       (e) => e.code === 'PLAN_MALFORMED');
   } finally { cleanup(dir); }
 });
+
+test('V3 ext: request, planType and trigger persist with defaults', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    const p = JSON.parse(JSON.stringify(V3_PLAN));
+    p.request = 'Ship the release with zero known P0s';
+    p.planType = 'hybrid';
+    p.trigger = { kind: 'scheduled', ref: 'weekly-release' };
+    const prepared = preparePlan(ctx, p);
+    assert.equal(prepared.plan.schemaVersion, 3);
+    assert.equal(prepared.plan.request, 'Ship the release with zero known P0s');
+    assert.equal(prepared.plan.planType, 'hybrid');
+    assert.deepEqual(prepared.plan.trigger,
+      { kind: 'scheduled', ref: 'weekly-release' });
+    applyPlan(dir, preflightPlan(dir, prepared.files));
+    const stored = getPlan(ctx, 'rel-3');
+    assert.equal(stored.request, 'Ship the release with zero known P0s');
+    // absent ext keys are emitted with null defaults on write
+    const p2 = JSON.parse(JSON.stringify(V3_PLAN));
+    p2.key = 'rel-4';
+    const prepared2 = preparePlan(ctx, p2);
+    assert.equal(prepared2.plan.request, null);
+    assert.equal(prepared2.plan.planType, null);
+    assert.equal(prepared2.plan.trigger, null);
+    // stored V3 records predating the ext keys stay readable
+    const prepared3 = preparePlan(ctx, p2);
+    applyPlan(dir, preflightPlan(dir, prepared3.files));
+    const f = path.join(dir, 'docs/agent/plans/rel-4.json');
+    const d = JSON.parse(fs.readFileSync(f, 'utf8'));
+    delete d.request; delete d.planType; delete d.trigger;
+    fs.writeFileSync(f, JSON.stringify(d));
+    assert.equal(getPlan(ctx, 'rel-4').key, 'rel-4');
+    // validation: bad enum/kind/shape rejected at input
+    const bad = (mut, code) => {
+      const bp = JSON.parse(JSON.stringify(V3_PLAN));
+      mut(bp);
+      assert.throws(() => preparePlan(ctx, bp), (e) => e.code === code);
+    };
+    bad((b) => { b.request = ''; }, 'INVALID_PLAN');
+    bad((b) => { b.planType = 'spiral'; }, 'INVALID_PLAN');
+    bad((b) => { b.trigger = { kind: 'psychic' }; }, 'INVALID_PLAN');
+    bad((b) => { b.trigger = { kind: 'manual', extra: 1 }; },
+      'UNKNOWN_KEY');
+    // ext keys are V3-layer: a V1 record may not carry them
+    const f1 = path.join(dir, 'docs/agent/plans/rel-4.json');
+    const d1 = JSON.parse(fs.readFileSync(f1, 'utf8'));
+    d1.schemaVersion = 1;
+    delete d1.triage; delete d1.appetite; delete d1.cynefin;
+    delete d1.riskRegister; delete d1.premortem; delete d1.stopConditions;
+    delete d1.budget; delete d1.specId; delete d1.designId;
+    for (const t of d1.tasks) { delete t.triage; delete t.triageReason; }
+    d1.request = 'V1 may not carry ext keys';
+    fs.writeFileSync(f1, JSON.stringify(d1));
+    assert.throws(() => getPlan(ctx, 'rel-4'),
+      (e) => e.code === 'PLAN_MALFORMED');
+  } finally { cleanup(dir); }
+});
