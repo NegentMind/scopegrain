@@ -1,11 +1,16 @@
 # Compatibilidad y fuentes oficiales
 
 Alcance: puntos de entrada, catalogo portable, CLI/MCP de consulta y
-propuestas de puentes nativos para cinco anfitriones documentados mas uno
+propuestas de puentes nativos para doce anfitriones documentados mas uno
 provisional (Hermes). La compatibilidad documental no
 certifica comportamiento equivalente entre productos.
 
 ## Matriz por anfitrion
+
+La matriz siguiente cubre los anfitriones con piloto o notas detalladas;
+la superficie completa de los doce hosts —incluidos Copilot, Cursor y la
+tier 2b (Cline, Roo Code, Kilo Code, Gemini CLI, Windsurf)— esta en
+[proyecciones de hosts nativos](native-hosts.md).
 
 | Anfitrion | Punto de entrada | Propuesta MCP generada | Estado |
 | --- | --- | --- | --- |

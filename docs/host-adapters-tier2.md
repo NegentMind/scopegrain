@@ -67,3 +67,42 @@ los adaptadores existentes.
 
 Todo candidato entra como `compatibility: documented-only` y exige piloto
 nativo antes de cualquier afirmacion de soporte.
+
+## Estado de implementacion (2026-11-24)
+
+Los cinco candidatos se implementaron tras verificar las convenciones
+reales contra documentacion oficial vigente (fuentes en los bloques de
+`policy/native-adapters.json`). Divergencias respecto a la evaluacion:
+
+- **kilo**: el producto actual (kilo.ai, derivado de OpenCode) usa raices
+  `.kilo/` y `kilo.jsonc` con clave `mcp` (`type: "local"`), no
+  `.kilocode/mcp.json`. El adaptador apunta a `.kilo/`; el puente de reglas
+  usa `.kilocode/rules/` porque es el directorio legacy que la doc declara
+  auto-incluido (`.kilo/rules/` solo carga via globs `instructions`).
+- **cline**: los subagentes son archivos `.yaml` bajo `.cline/agents`
+  (solo CLI/Desktop, segun el cargador del repo) — no se emiten puentes
+  de agente. Su MCP es solo global
+  (`~/.cline/data/settings/cline_mcp_settings.json`; la extension VS Code
+  usa globalStorage).
+- **roo**: sin superficie de agentes markdown (los modes son YAML);
+  skills `.roo/skills/` verificados desde v3.38.0; comandos
+  `.roo/commands/`, AGENTS.md con `useAgentRules` activado por defecto.
+- **gemini-cli**: implementado — la extension `commandFormat: 'toml'`
+  resulto acotada (enum + validador + una rama de render). Skills
+  `.gemini/skills/` verificadas en doc y fuente; entrypoint `GEMINI.md`
+  (AGENTS.md es opt-in via `context.fileName`); sin agentes.
+- **windsurf**: implementado como variante de la superficie legacy
+  Cascade (`.windsurf/skills|workflows|rules`, `AGENTS.md`). Su producto
+  renombrado Devin Desktop lee las raices `.devin/` del adaptador devin
+  existente; el MCP es solo global
+  (`~/.codeium/windsurf/mcp_config.json`).
+
+Cambio de contrato asociado: `agentRoot`/`agentFormat` son ahora
+opcionales en la policy — los hosts sin superficie de agente markdown
+documentada simplemente no la declaran, y la ausencia de puentes
+`agent/*` queda clasificada estructural en paridad. Los destinos MCP
+globales usan `kind: 'mcp-global'` para que la clasificacion
+GLOBAL_DEST los excluya de los merge targets de `doctor`.
+
+Ninguno tiene piloto nativo: `compatibility: documented-only` para los
+cinco.

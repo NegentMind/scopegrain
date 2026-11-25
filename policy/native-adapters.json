@@ -128,6 +128,88 @@
         "https://cursor.com/docs/mcp"
       ]
     },
+    "cline": {
+      "skillRoot": ".cline/skills",
+      "commandFormat": "skill",
+      "commandFrontmatter": "",
+      "agentFrontmatter": "",
+      "readOnlyAgentFrontmatter": "",
+      "invocation": "/scopegrain-NAME",
+      "permissionScope": "No agent bridges emitted: Cline subagent definitions are .yaml files under .cline/agents (CLI/Desktop only, not the VS Code extension) and the format is not projected. No tool restriction is requested anywhere else.",
+      "sources": [
+        "https://docs.cline.bot/customization/skills",
+        "https://docs.cline.bot/getting-started/config",
+        "https://github.com/cline/cline/blob/main/docs/customization/cline-rules.mdx",
+        "https://github.com/cline/cline/blob/main/docs/mcp/mcp-overview.mdx"
+      ]
+    },
+    "roo": {
+      "skillRoot": ".roo/skills",
+      "commandRoot": ".roo/commands",
+      "commandFormat": "markdown",
+      "commandFrontmatter": "",
+      "agentFrontmatter": "",
+      "readOnlyAgentFrontmatter": "",
+      "invocation": "/scopegrain-NAME",
+      "permissionScope": "No agent bridges emitted: Roo custom modes are YAML settings, not per-agent markdown files — no documented .md agent root exists. No tool restriction is requested.",
+      "sources": [
+        "https://github.com/RooCodeInc/Roo-Code/blob/main/apps/docs/docs/features/skills.mdx",
+        "https://roocodeinc.github.io/Roo-Code/features/mcp/using-mcp-in-roo/",
+        "https://github.com/RooCodeInc/Roo-Code/blob/main/apps/docs/docs/features/custom-instructions.md",
+        "https://github.com/RooCodeInc/Roo-Code/pull/6263"
+      ]
+    },
+    "kilo": {
+      "skillRoot": ".kilo/skills",
+      "commandRoot": ".kilo/commands",
+      "commandFormat": "markdown",
+      "agentRoot": ".kilo/agents",
+      "agentFormat": "markdown",
+      "commandFrontmatter": "",
+      "agentFrontmatter": "",
+      "readOnlyAgentFrontmatter": "",
+      "invocation": "/scopegrain-NAME",
+      "permissionScope": "Agent 'mode'/'permission' fields are documented but no restriction proposal is certified; none is emitted. Legacy .kilocode/ roots are backward-compat surfaces, not the primary adapter target.",
+      "sources": [
+        "https://kilo.ai/docs/customize/skills",
+        "https://kilo.ai/docs/customize/workflows",
+        "https://kilo.ai/docs/customize/custom-modes",
+        "https://kilo.ai/docs/customize/custom-subagents",
+        "https://kilo.ai/docs/customize/custom-rules",
+        "https://kilo.ai/docs/automate/mcp/using-in-kilo-code"
+      ]
+    },
+    "gemini-cli": {
+      "skillRoot": ".gemini/skills",
+      "commandRoot": ".gemini/commands",
+      "commandFormat": "toml",
+      "commandFrontmatter": "",
+      "agentFrontmatter": "",
+      "readOnlyAgentFrontmatter": "",
+      "invocation": "/scopegrain-NAME",
+      "permissionScope": "No agent bridges emitted: Gemini CLI has no documented project-level custom-agent markdown root. Workspace skills require a trusted folder. MCP 'trust' is never set — server approval stays interactive.",
+      "sources": [
+        "https://geminicli.com/docs/cli/using-agent-skills/",
+        "https://geminicli.com/docs/cli/custom-commands/",
+        "https://geminicli.com/docs/cli/gemini-md/",
+        "https://geminicli.com/docs/tools/mcp-server/"
+      ]
+    },
+    "windsurf": {
+      "skillRoot": ".windsurf/skills",
+      "commandRoot": ".windsurf/workflows",
+      "commandFormat": "markdown",
+      "commandFrontmatter": "",
+      "agentFrontmatter": "",
+      "readOnlyAgentFrontmatter": "",
+      "invocation": "/scopegrain-NAME",
+      "permissionScope": "Legacy Cascade surface (.windsurf/); Devin Desktop's Devin Local harness reads .devin/ roots already covered by the devin adapter. No .windsurf/agents root is documented — no agent bridges emitted. No tool restriction is requested.",
+      "sources": [
+        "https://docs.windsurf.com/windsurf/cascade/skills.md",
+        "https://docs.devin.ai/cli/reference/configuration/read-config-from",
+        "https://docs.windsurf.com/llms.txt"
+      ]
+    },
     "generic": {
       "skillRoot": ".agent/skills",
       "commandFormat": "skill",

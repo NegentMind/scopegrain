@@ -5,11 +5,16 @@
 > (`../compatibility.md`). The Spanish version prevails.
 
 Scope: entry points, portable catalog, consultative CLI/MCP and
-native bridge proposals for five documented hosts plus one
+native bridge proposals for twelve documented hosts plus one
 provisional (Hermes). Documented compatibility does not
 certify equivalent behavior across products.
 
 ## Host matrix
+
+The matrix below covers the hosts with a pilot or detailed notes; the
+full twelve-host surface — including Copilot, Cursor and the tier-2b set
+(Cline, Roo Code, Kilo Code, Gemini CLI, Windsurf) — is in
+[native host projections](native-hosts.md).
 
 | Host | Entry point | Generated MCP proposal | Status |
 | --- | --- | --- | --- |

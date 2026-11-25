@@ -60,7 +60,7 @@ src/core/lifecycle.mjs    adopt/update/backup/restore/uninstall: previews y appl
 src/discovery/inspect.mjs Escaneo acotado de manifiestos
 src/discovery/semantic.mjs Investigacion semantica acotada de solo lectura
 src/hosts/render.mjs      Fragmentos de integracion por anfitrion
-src/hosts/native.mjs      Propuestas nativas versionadas para siete hosts (generic = scaffold)
+src/hosts/native.mjs      Propuestas nativas versionadas para doce hosts (generic = scaffold)
 src/hosts/activation.mjs  Activacion opt-in create-only de propuestas locales al proyecto
 src/hosts/host-manifest.mjs Manifesto por host: sha256 + ownership (whole/partial/shared)
 src/adapters/            Entradas compatibles hacia src/hosts
@@ -338,6 +338,7 @@ la realidad, nunca al reves. Los limites que JSON Schema no puede expresar
 | `journal-intent.schema.json` | Intent de journal (eventos create/update homogeneos) |
 | `journal-commit.schema.json` | Marcador de commit de operacion |
 | `journal-recovery.schema.json` | Recibo de recuperacion (`finalize-committed`/`abandon-prepared`) |
+| `journal-checkpoint.schema.json` | Checkpoint firmado Ed25519 de la cadena de heads (`checkpoints.jsonl`) |
 | `approval.schema.json` | Registro de aprobacion por contenido con historial |
 | `organic-assessment.schema.json` | Assessment metodologico persistido en tareas V2 |
 

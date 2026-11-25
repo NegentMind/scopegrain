@@ -140,6 +140,84 @@ function renderCursor(serverPath, projectRoot, configRel) {
   }, null, 2) + '\n';
 }
 
+// Cline (docs.cline.bot/mcp): the mcpServers shape lives in the GLOBAL
+// settings file (~/.cline/data/settings/cline_mcp_settings.json for the
+// CLI; the VS Code extension keeps its own cline_mcp_settings.json under
+// globalStorage). There is no project-level MCP config — the fragment is
+// a manual-merge proposal into a global file the harness never writes;
+// disabled:true keeps the merge opt-in after review.
+function renderCline(serverPath, projectRoot, configRel) {
+  return JSON.stringify({
+    mcpServers: {
+      scopegrain: {
+        command: 'node',
+        args: stdioArgs(serverPath, projectRoot, configRel),
+        disabled: true,
+      },
+    },
+  }, null, 2) + '\n';
+}
+
+// Roo Code (.roo/mcp.json): project-level MCP config, mcpServers object
+// with command/args/disabled per the documented example.
+function renderRoo(serverPath, projectRoot, configRel) {
+  return JSON.stringify({
+    mcpServers: {
+      scopegrain: {
+        command: 'node',
+        args: stdioArgs(serverPath, projectRoot, configRel),
+        disabled: true,
+      },
+    },
+  }, null, 2) + '\n';
+}
+
+// Kilo Code (kilo.ai/docs/automate/mcp): servers live under the top-level
+// `mcp` key of kilo.jsonc (project root or .kilo/kilo.jsonc) as
+// {type:'local', command:[tokens], enabled} — enabled:false until the
+// owner reviews the merge.
+function renderKilo(serverPath, projectRoot, configRel) {
+  return JSON.stringify({
+    mcp: {
+      scopegrain: {
+        type: 'local',
+        command: ['node', ...stdioArgs(serverPath, projectRoot, configRel)],
+        enabled: false,
+      },
+    },
+  }, null, 2) + '\n';
+}
+
+// Gemini CLI (.gemini/settings.json): mcpServers entries take
+// command/args/cwd/timeout/trust — stdio is implied by `command` (no
+// `type` field). `trust` is never emitted: server approval stays
+// interactive.
+function renderGemini(serverPath, projectRoot, configRel) {
+  return JSON.stringify({
+    mcpServers: {
+      scopegrain: {
+        command: 'node',
+        args: stdioArgs(serverPath, projectRoot, configRel),
+      },
+    },
+  }, null, 2) + '\n';
+}
+
+// Windsurf / Devin Desktop (~/.codeium/windsurf/mcp_config.json): the
+// documented Cascade MCP file is GLOBAL — never written. The fragment is
+// a manual-merge proposal; disabled:true keeps it opt-in.
+function renderWindsurf(serverPath, projectRoot, configRel) {
+  return JSON.stringify({
+    mcpServers: {
+      scopegrain: {
+        command: 'node',
+        args: stdioArgs(serverPath, projectRoot, configRel),
+        disabled: true,
+      },
+    },
+  }, null, 2) + '\n';
+}
+
 // Generic host: the most common JSON stdio MCP shape plus a note that the
 // descriptor is a scaffold, not a certified format (generic adapter).
 function renderGeneric(serverPath, projectRoot, configRel) {
@@ -171,6 +249,13 @@ const RENDERERS = {
     render: renderCopilot },
   cursor: { file: 'cursor-mcp.json', format: 'json',
     render: renderCursor },
+  cline: { file: 'cline-mcp.json', format: 'json', render: renderCline },
+  roo: { file: 'roo-mcp.json', format: 'json', render: renderRoo },
+  kilo: { file: 'kilo-mcp.json', format: 'json', render: renderKilo },
+  'gemini-cli': { file: 'gemini-cli-mcp.json', format: 'json',
+    render: renderGemini },
+  windsurf: { file: 'windsurf-mcp.json', format: 'json',
+    render: renderWindsurf },
 };
 
 // renderAdapters(config, {projectRoot, configPath, instructionsPath,

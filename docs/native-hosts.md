@@ -5,7 +5,7 @@ kind: guide
 # Proyecciones de hosts nativos
 
 Scopegrain comparte procedimientos canonicos y snapshots de proyecto entre
-siete hosts documentados, mas un host provisional admitido (Hermes) y un
+doce hosts documentados, mas un host provisional admitido (Hermes) y un
 adaptador de reserva `generic` no certificado (scaffold para hosts MCP
 stdio sin adaptador dedicado). Los
 archivos nativos son puentes delgados, no implementaciones mantenidas de
@@ -27,7 +27,8 @@ las 72 skills `scopegrain-*` y 15 subagentes bajo `.agents/`, activo el
 MCP `scopegrain` desde `.agents/mcp_config.json` (22 herramientas de solo
 lectura) e invoco `scopegrain_status` y `scopegrain_catalog_list` en
 vivo. Los demas hosts y superficies — Claude, Codex, la
-superficie IDE de Antigravity y el provisional Hermes — aun carecen de
+superficie IDE de Antigravity, el provisional Hermes y la tier 2b
+(Cline, Roo Code, Kilo Code, Gemini CLI, Windsurf) — aun carecen de
 piloto nativo. La suite de fundacion completo localmente con un archivo
 de test a la vez; ver
 [verificacion](verification.md) para su alcance y ejecuciones anteriores
@@ -57,6 +58,11 @@ escriben automaticamente.
 | Antigravity IDE | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | Ninguna asumida; propuesta solo de skills |
 | GitHub Copilot | `/scopegrain-NAME` | `.agents/skills/<name>/SKILL.md` | `.github/agents/<name>.md` |
 | Cursor | `/scopegrain-NAME` | `.cursor/skills/<name>/SKILL.md` | `.cursor/agents/<name>.md` |
+| Cline | `/scopegrain-NAME` | `.cline/skills/<name>/SKILL.md` | Ninguna: los subagentes son `.yaml` bajo `.cline/agents` (solo CLI/Desktop) y no se proyectan |
+| Roo Code | `/scopegrain-NAME` | `.roo/skills/<name>/SKILL.md` | Ninguna: los modes son YAML, no archivos de agente markdown |
+| Kilo Code | `/scopegrain-NAME` | `.kilo/skills/<name>/SKILL.md` | `.kilo/agents/<name>.md` |
+| Gemini CLI | `/scopegrain-NAME` | `.gemini/skills/<name>/SKILL.md` | Ninguna documentada a nivel proyecto |
+| Windsurf (legacy Cascade) | `/scopegrain-NAME` | `.windsurf/skills/<name>/SKILL.md` | Ninguna documentada bajo `.windsurf/` |
 | Hermes Agent (provisional) | Ninguna verificada | `~/.hermes/skills/` (global; nunca escrita) | Ninguna asumida |
 
 Los puentes de comandos nativos de OpenCode apuntan adicionalmente a
@@ -65,6 +71,51 @@ interactivo; un `opencode run` no interactivo no los expande. Comandos,
 skills y roles siguen refiriendose a los mismos recursos canonicos
 configurados y al mismo runtime. Copiar un puente sin su configuracion de
 proyecto y snapshot es insuficiente.
+
+## Superficies de la tier 2b
+
+Los cinco adaptadores siguen el patron declarativo de tier 2 con estas
+diferencias verificadas contra documentacion oficial vigente:
+
+- **Cline**: comandos proyectados como skills (los workflows estan en ruta
+  de deprecacion hacia skills). Puente de reglas `.cline/rules/scopegrain.md`
+  y `AGENTS.md` auto-detectado. Los subagentes de Cline son archivos `.yaml`
+  bajo `.cline/agents` y solo aplican a CLI/Desktop — no se emiten puentes
+  de agente markdown. No existe config MCP de proyecto: el fragmento
+  `cline-mcp.json` declara como destino global
+  `~/.cline/data/settings/cline_mcp_settings.json` (la extension VS Code
+  usa su propio archivo bajo globalStorage) — nunca se escribe.
+- **Roo Code**: comandos markdown en `.roo/commands/` (slash commands),
+  skills en `.roo/skills/` (v3.38+), reglas `.roo/rules/scopegrain.md`,
+  `AGENTS.md` (`roo-cline.useAgentRules`, activado por defecto). Sin
+  puentes de agente: los modes son definiciones YAML, no `.md`. MCP: merge
+  manual de `mcpServers.scopegrain` en `.roo/mcp.json`.
+- **Kilo Code**: raices `.kilo/` del producto actual (la extension legacy
+  `.kilocode/` sigue leyendo reglas por compatibilidad, por eso el puente
+  de reglas va a `.kilocode/rules/scopegrain.md`, que se auto-incluye).
+  Comandos `.kilo/commands/<n>.md`, agentes `.kilo/agents/<n>.md`
+  (frontmatter `mode`/`permission` documentado pero sin propuesta de
+  restriccion emitida), `AGENTS.md` siempre cargado. MCP: merge manual de
+  `mcp.scopegrain` (`type: "local"`, `enabled: false`) en `kilo.jsonc`
+  (o `.kilo/kilo.jsonc`, que tiene precedencia).
+- **Gemini CLI**: skills `.gemini/skills/` (requiere carpeta trusted),
+  comandos TOML `.gemini/commands/<n>.toml` (`prompt` + `description`) —
+  nuevo dialecto `commandFormat: 'toml'` del modelo declarativo. El
+  contexto por defecto es `GEMINI.md` (puente gestionado en la raiz);
+  `AGENTS.md` solo carga via opt-in `context.fileName` que el harness
+  nunca escribe. Sin puentes de agente. MCP: merge manual de
+  `mcpServers.scopegrain` en `.gemini/settings.json`; `trust` nunca se
+  emite.
+- **Windsurf**: superficie legacy Cascade (`.windsurf/`). Devin Desktop/
+  Devin Local lee las raices `.devin/` ya cubiertas por el adaptador
+  `devin`; el adaptador windsurf cubre las raices legacy documentadas:
+  `.windsurf/skills/`, workflows `.windsurf/workflows/`, reglas
+  `.windsurf/rules/scopegrain.md`, `AGENTS.md`. MCP solo existe global en
+  `~/.codeium/windsurf/mcp_config.json` — nunca se escribe.
+
+Los hosts sin superficie de agente markdown documentada omiten `agentRoot`
+en la policy: la ausencia de puentes `agent/*` es estructural (limitacion
+documentada del host), nunca una raiz fabricada.
 
 ## Variantes explicitas
 
@@ -289,7 +340,10 @@ del proyecto:
   `apply` (archivo completo que `host activate --apply` puede crear),
   `merge` (fragmento que se fusiona a mano en configuracion compartida —
   `.mcp.json` de Claude, `.codex/config.toml` de Codex, `opencode.jsonc`
-  de OpenCode — y que la activacion lista en `skipped`) o `manual`
+  de OpenCode, `.vscode/mcp.json` de Copilot, `.cursor/mcp.json` de
+  Cursor, `.roo/mcp.json` de Roo, `kilo.jsonc` de Kilo y
+  `.gemini/settings.json` de Gemini CLI — y que la activacion lista en
+  `skipped`) o `manual`
   (divulgacion/revision solamente). La clave legacy `manualMerge` se
   conserva solo para consumidores del esquema anterior y esta
   deprecada en favor de `activationMode`.
@@ -352,7 +406,9 @@ del proyecto:
   re-renderizar.
 
 Aplicar la activacion crea raices de host dentro del proyecto solamente
-(`.claude/`, `.codex/`, `.opencode/`, `.devin/`, `.agents/`). Nunca
+(`.claude/`, `.codex/`, `.opencode/`, `.devin/`, `.agents/`, `.cursor/`,
+`.github/`, `.cline/`, `.roo/`, `.kilo/`, `.kilocode/`, `.gemini/` y
+`.windsurf/`, mas el `GEMINI.md` de raiz para Gemini CLI). Nunca
 escribe configuracion global de host, nunca instala hooks o plugins, y
 no otorga autoaprobacion.
 
@@ -377,7 +433,9 @@ La configuracion MCP es machine-local. Una reubicacion puede dejar rutas
 absolutas apuntando al proyecto o instalacion anterior; `doctor` reporta
 esa condicion. El check `host-merge-targets` inspecciona ademas cada
 destino `merge`/`manual` declarado (`.mcp.json`,
-`.codex/config.toml`, `.devin/config.json`, `opencode.jsonc`, ...) y
+`.codex/config.toml`, `.devin/config.json`, `opencode.jsonc`,
+`.vscode/mcp.json`, `.cursor/mcp.json`, `.roo/mcp.json`, `kilo.jsonc`,
+`.gemini/settings.json`, ...) y
 verifica que el bloque `scopegrain` fusionado siga presente e integro —
 un destino ausente o con la fusion perdida falla el check. El rebinding
 requiere revision del nuevo destino, no un reemplazo silencioso. La
@@ -407,8 +465,8 @@ Devin Local completo su piloto en una sesion fresca real el 2026-11-17 y
 Antigravity App/CLI completo el suyo el 2026-11-19 (ver Estado arriba);
 OpenCode V2 completo el suyo el 2026-11-23. Devin Cloud permanece fuera
 del alcance del piloto de Devin. Para cada otra version/superficie
-seleccionada — Claude, Codex, la superficie IDE de Antigravity y el
-provisional Hermes — aprobar separadamente un piloto
+seleccionada — Claude, Codex, la superficie IDE de Antigravity, el
+provisional Hermes y los cinco de la tier 2b — aprobar separadamente un piloto
 aislado: verificar descubrimiento e invocacion, herramientas reales de
 roles y denegaciones de escritura, efectos MCP/red no aprobados,
 delegacion, interrupcion/reanudacion, recuperacion sin repetir efectos y
@@ -473,6 +531,27 @@ Fuentes oficiales consultadas durante la migracion:
   [subagents](https://antigravity.google/docs/subagents),
   [MCP](https://antigravity.google/docs/mcp) y
   [workflows de IDE](https://antigravity.google/docs/ide/workflows).
+- Cline [skills](https://docs.cline.bot/customization/skills),
+  [layout de configuracion](https://docs.cline.bot/getting-started/config),
+  [reglas](https://github.com/cline/cline/blob/main/docs/customization/cline-rules.mdx)
+  y [MCP](https://github.com/cline/cline/blob/main/docs/mcp/mcp-overview.mdx).
+- Roo Code [skills](https://github.com/RooCodeInc/Roo-Code/blob/main/apps/docs/docs/features/skills.mdx),
+  [instrucciones/AGENTS.md y reglas](https://github.com/RooCodeInc/Roo-Code/blob/main/apps/docs/docs/features/custom-instructions.md),
+  [slash commands](https://github.com/RooCodeInc/Roo-Code/pull/6263) y
+  [MCP de proyecto](https://roocodeinc.github.io/Roo-Code/features/mcp/using-mcp-in-roo/).
+- Kilo Code [skills](https://kilo.ai/docs/customize/skills),
+  [workflows/slash commands](https://kilo.ai/docs/customize/workflows),
+  [custom modes/agentes](https://kilo.ai/docs/customize/custom-modes),
+  [subagentes](https://kilo.ai/docs/customize/custom-subagents),
+  [reglas](https://kilo.ai/docs/customize/custom-rules),
+  [AGENTS.md](https://kilo.ai/docs/customize/agents-md) y
+  [MCP](https://kilo.ai/docs/automate/mcp/using-in-kilo-code).
+- Gemini CLI [skills](https://geminicli.com/docs/cli/using-agent-skills/),
+  [comandos TOML](https://geminicli.com/docs/cli/custom-commands/),
+  [GEMINI.md/contexto](https://geminicli.com/docs/cli/gemini-md/) y
+  [MCP](https://geminicli.com/docs/tools/mcp-server/).
+- Windsurf [skills y superficie de customizacion](https://docs.windsurf.com/windsurf/cascade/skills.md)
+  y [importacion de configuracion en Devin CLI](https://docs.devin.ai/cli/reference/configuration/read-config-from).
 - Hermes Agent [configuracion](https://hermes-agent.nousresearch.com/docs/user-guide/configuration),
   [MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp),
   [skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)

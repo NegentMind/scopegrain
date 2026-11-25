@@ -132,7 +132,7 @@ const HOST_KEYS = new Set([
   'commandFrontmatter', 'agentFrontmatter', 'readOnlyAgentFrontmatter',
   'invocation', 'permissionScope', 'sources',
 ]);
-const CMD_FORMATS = new Set(['skill', 'markdown']);
+const CMD_FORMATS = new Set(['skill', 'markdown', 'toml']);
 const AGENT_FORMATS = new Set(['markdown', 'toml-with-declarations']);
 const FORBIDDEN_SEGMENT = new Set(['.git', 'node_modules', 'legacy']);
 const HTTPS_URL = /^https:\/\/[^\s]+$/;
@@ -206,18 +206,27 @@ function validateNativePolicy(p) {
       if (!HOST_KEYS.has(k)) throw bad(`hosts.${name} unknown key '${k}'`);
     }
     if (!CMD_FORMATS.has(h.commandFormat)) {
-      throw bad(`hosts.${name}.commandFormat must be skill|markdown`);
+      throw bad(`hosts.${name}.commandFormat must be skill|markdown|toml`);
     }
-    if (!AGENT_FORMATS.has(h.agentFormat)) {
-      throw bad(`hosts.${name}.agentFormat must be markdown|toml-with-declarations`);
+    if (h.commandFormat !== 'skill' && typeof h.commandRoot !== 'string') {
+      throw bad(`hosts.${name}.commandRoot required for `
+        + `${h.commandFormat} commands`);
     }
-    if (h.commandFormat === 'markdown' && typeof h.commandRoot !== 'string') {
-      throw bad(`hosts.${name}.commandRoot required for markdown commands`);
+    assertCanonicalRoot(h.skillRoot, `hosts.${name}.skillRoot`);
+    // agentRoot is OPTIONAL: hosts without a documented markdown agent
+    // surface omit it and emit no agent bridges (the alternative — a
+    // fabricated root — is worse than structural absence, which parity
+    // already classifies as a documented host limitation).
+    if (h.agentRoot !== undefined) {
+      assertCanonicalRoot(h.agentRoot, `hosts.${name}.agentRoot`);
+      if (!AGENT_FORMATS.has(h.agentFormat)) {
+        throw bad(`hosts.${name}.agentFormat must be markdown`
+          + '|toml-with-declarations');
+      }
+    } else if (h.agentFormat !== undefined) {
+      throw bad(`hosts.${name}.agentFormat requires agentRoot`);
     }
-    for (const rk of ['skillRoot', 'agentRoot']) {
-      assertCanonicalRoot(h[rk], `hosts.${name}.${rk}`);
-    }
-    if (h.commandFormat === 'markdown') {
+    if (h.commandFormat !== 'skill') {
       assertCanonicalRoot(h.commandRoot, `hosts.${name}.commandRoot`);
     }
     for (const tk of ['invocation', 'permissionScope']) {
@@ -650,13 +659,24 @@ export function renderNativeAdapters(config, {
             `${hp.skillRoot}/${name}/SKILL.md`,
             frontmatter([['name', name], ['description', descFor(e)]],
               (hp.commandFrontmatter || '') + provFm('command', e.id)) + body);
+        } else if (hp.commandFormat === 'toml') {
+          // Gemini CLI custom command (.gemini/commands/<name>.toml):
+          // `prompt` is required, `description` optional. The bridge body
+          // becomes the prompt text; JSON.stringify is TOML-basic-string
+          // compatible (same escaping as codex developer_instructions).
+          emitV('command', e.id,
+            `${hp.commandRoot}/${name}.toml`,
+            `${provComment}# source: ${JSON.stringify(`command/${e.id}`)}\n`
+              + `description = ${JSON.stringify(descFor(e))}\n`
+              + `prompt = ${JSON.stringify(body)}\n`);
         } else {
           emitV('command', e.id,
             `${hp.commandRoot}/${name}.md`,
             frontmatter([['description', descFor(e)]],
               (hp.commandFrontmatter || '') + provFm('command', e.id)) + body);
         }
-      } else if (e.kind === 'agent' && va.emitAgents !== false) {
+      } else if (e.kind === 'agent' && va.emitAgents !== false
+        && hp.agentRoot !== undefined) {
         const extras = agentFm + (readOnly.has(e.id) ? roFm : '');
         const body = renderTemplate(tplText(tplAgent), v);
         if (hp.agentFormat === 'toml-with-declarations') {
@@ -688,6 +708,15 @@ export function renderNativeAdapters(config, {
         const an = nativeName(policy, a.id);
         const av = vars('command', a.id, `catalog.json`);
         const body = renderTemplate(tplText(tplResource), av);
+        if (hp.commandFormat === 'toml') {
+          emitV('command-alias', a.id,
+            `${hp.commandRoot}/${an}.toml`,
+            `${provComment}# source: ${JSON.stringify(`command/${a.id}`)}\n`
+              + `description = ${JSON.stringify(
+                  `Compatibility alias: ${a.id}`)}\n`
+              + `prompt = ${JSON.stringify(body)}\n`);
+          continue;
+        }
         emitV('command-alias', a.id,
           hp.commandFormat === 'skill'
             ? `${hp.skillRoot}/${an}/SKILL.md`
@@ -760,6 +789,53 @@ export function renderNativeAdapters(config, {
         compatibility: 'documented-only', modelSelection: 'host-policy',
         permissionScope: hp.permissionScope,
         source: rel, destination: '.cursor/rules/scopegrain.mdc',
+        manualMerge: true, activationMode: 'apply',
+      });
+    }
+    // Plain-markdown rule bridges (no documented frontmatter): one
+    // managed-block file per host rules directory, mirroring the cursor
+    // .mdc mechanism. Kilo uses the documented backward-compat auto-load
+    // directory (.kilocode/rules/) because .kilo/rules files only load
+    // through an `instructions` glob in kilo.jsonc — a shared-config merge
+    // the harness never writes.
+    const RULES_BRIDGE = {
+      cline: '.cline/rules/scopegrain.md',
+      roo: '.roo/rules/scopegrain.md',
+      kilo: '.kilocode/rules/scopegrain.md',
+      windsurf: '.windsurf/rules/scopegrain.md',
+    };
+    const rulesDest = RULES_BRIDGE[host];
+    if (rulesDest !== undefined) {
+      const v = vars('rules', 'scopegrain', 'catalog.json');
+      const body = renderTemplate(decodeUtf8Strict(
+        readTemplate(installRoot, 'templates/entrypoint.md'),
+        'TEMPLATE_MALFORMED', 'entrypoint template'), v);
+      const rel = `${cfgPrefix}integrations/native/${host}/${rulesDest}`;
+      files.push({ rel, content: wrapManaged(body) });
+      entries.push({
+        host, kind: 'rules', id: 'scopegrain',
+        compatibility: 'documented-only', modelSelection: 'host-policy',
+        permissionScope: hp.permissionScope,
+        source: rel, destination: rulesDest,
+        manualMerge: true, activationMode: 'apply',
+      });
+    }
+    // Gemini CLI context file: the documented default is GEMINI.md at the
+    // project root (AGENTS.md only loads through a context.fileName opt-in
+    // the harness never writes). Managed-block markdown, same contract as
+    // the copilot entrypoint.
+    if (host === 'gemini-cli') {
+      const v = vars('instructions', 'entrypoint', 'catalog.json');
+      const body = renderTemplate(decodeUtf8Strict(
+        readTemplate(installRoot, 'templates/entrypoint.md'),
+        'TEMPLATE_MALFORMED', 'entrypoint template'), v);
+      const rel = `${cfgPrefix}integrations/native/gemini-cli/GEMINI.md`;
+      files.push({ rel, content: wrapManaged(body) });
+      entries.push({
+        host, kind: 'instructions', id: 'entrypoint',
+        compatibility: 'documented-only', modelSelection: 'host-policy',
+        permissionScope: hp.permissionScope,
+        source: rel, destination: 'GEMINI.md',
         manualMerge: true, activationMode: 'apply',
       });
     }
@@ -846,6 +922,93 @@ export function renderNativeAdapters(config, {
         + 'into the project Cursor MCP config (.cursor/mcp.json) and keep '
         + 'that file unversioned; regenerate per machine after relocating '
         + 'the project or installation',
+    });
+  }
+  // Tier-2b MCP merge targets. Project-level destinations (roo, kilo,
+  // gemini-cli) use kind 'mcp' — disclosed merge fragments like every
+  // other shared host config. Cline and Windsurf have NO project-level
+  // MCP config: their settings files are global (~), so their entries
+  // use kind 'mcp-global' — it is NOT in activation's MERGE_KINDS, so the
+  // GLOBAL_DEST skip classifies it manual-only and doctor never tries to
+  // resolve a `~` destination as a project merge target (mirroring the
+  // hermes global-root contract).
+  if (config.hosts.includes('cline')) {
+    const rel = `${cfgPrefix}integrations/cline-mcp.json`;
+    entries.push({
+      host: 'cline', kind: 'mcp-global', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.cline.permissionScope,
+      source: rel,
+      destination: '~/.cline/data/settings/cline_mcp_settings.json',
+      manualMerge: true, activationMode: 'merge',
+      note: 'GLOBAL file, never written: Cline has no project-level MCP '
+        + 'config. CLI users merge mcpServers.scopegrain into '
+        + '~/.cline/data/settings/cline_mcp_settings.json (or the file '
+        + 'named by CLINE_MCP_SETTINGS_PATH); the VS Code extension edits '
+        + 'its own cline_mcp_settings.json under globalStorage via the '
+        + 'MCP Servers panel. Fragment embeds machine-local absolute '
+        + 'paths — regenerate per machine after relocating the project '
+        + 'or installation',
+    });
+  }
+  if (config.hosts.includes('roo')) {
+    const rel = `${cfgPrefix}integrations/roo-mcp.json`;
+    entries.push({
+      host: 'roo', kind: 'mcp', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.roo.permissionScope,
+      source: rel, destination: '.roo/mcp.json',
+      manualMerge: true, activationMode: 'merge', machineLocal: true,
+      note: 'machine-local absolute paths; merge mcpServers.scopegrain '
+        + 'into the project Roo MCP config (.roo/mcp.json) and keep that '
+        + 'file unversioned; regenerate per machine after relocating the '
+        + 'project or installation',
+    });
+  }
+  if (config.hosts.includes('kilo')) {
+    const rel = `${cfgPrefix}integrations/kilo-mcp.json`;
+    entries.push({
+      host: 'kilo', kind: 'mcp', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.kilo.permissionScope,
+      source: rel, destination: 'kilo.jsonc',
+      manualMerge: true, activationMode: 'merge', machineLocal: true,
+      note: 'machine-local absolute paths; merge mcp.scopegrain into the '
+        + 'project Kilo config (kilo.jsonc at the project root, or '
+        + '.kilo/kilo.jsonc which takes precedence) and keep that file '
+        + 'unversioned; regenerate per machine after relocating the '
+        + 'project or installation',
+    });
+  }
+  if (config.hosts.includes('gemini-cli')) {
+    const rel = `${cfgPrefix}integrations/gemini-cli-mcp.json`;
+    entries.push({
+      host: 'gemini-cli', kind: 'mcp', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts['gemini-cli'].permissionScope,
+      source: rel, destination: '.gemini/settings.json',
+      manualMerge: true, activationMode: 'merge', machineLocal: true,
+      note: 'machine-local absolute paths; merge mcpServers.scopegrain '
+        + 'into the project Gemini CLI settings (.gemini/settings.json) '
+        + 'and keep that file unversioned; regenerate per machine after '
+        + 'relocating the project or installation',
+    });
+  }
+  if (config.hosts.includes('windsurf')) {
+    const rel = `${cfgPrefix}integrations/windsurf-mcp.json`;
+    entries.push({
+      host: 'windsurf', kind: 'mcp-global', id: 'scopegrain',
+      compatibility: 'documented-only', modelSelection: 'host-policy',
+      permissionScope: policy.hosts.windsurf.permissionScope,
+      source: rel,
+      destination: '~/.codeium/windsurf/mcp_config.json',
+      manualMerge: true, activationMode: 'merge',
+      note: 'GLOBAL file, never written: Windsurf (legacy Cascade / '
+        + 'Devin Desktop) keeps MCP servers in the per-user '
+        + '~/.codeium/windsurf/mcp_config.json — merge '
+        + 'mcpServers.scopegrain manually or use the MCP panel. Fragment '
+        + 'embeds machine-local absolute paths — regenerate per machine '
+        + 'after relocating the project or installation',
     });
   }
 

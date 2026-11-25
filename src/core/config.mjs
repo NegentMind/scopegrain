@@ -17,12 +17,20 @@ import { loadLimits, loadMethodologyPolicy, loadOnboardingDefaults }
 export const KNOWN_HOSTS = [
   'claude', 'codex', 'opencode', 'devin', 'antigravity', 'copilot',
   'cursor', 'hermes', 'generic',
+  'cline', 'roo', 'kilo', 'gemini-cli', 'windsurf',
 ];
 // Hosts that read the root AGENTS.md rules entrypoint. Antigravity's
 // documented rules surfaces include AGENTS.md; generic is the scaffold
 // for MCP-stdio hosts and follows the same universal convention.
+// Cline auto-detects AGENTS.md (cline-rules doc), Roo loads it when
+// `roo-cline.useAgentRules` is on (default true), Kilo's opencode-derived
+// harness and Windsurf (Devin Desktop/Devin Local) read it natively.
+// Gemini CLI is NOT here: its default context file is GEMINI.md only —
+// AGENTS.md requires an explicit context.fileName opt-in the harness
+// never writes, so gemini-cli emits a GEMINI.md bridge instead.
 export const AGENTS_MD_HOSTS = new Set(
-  ['codex', 'opencode', 'devin', 'antigravity', 'cursor', 'generic']);
+  ['codex', 'opencode', 'devin', 'antigravity', 'cursor', 'generic',
+    'cline', 'roo', 'kilo', 'windsurf']);
 export const LOCALES = ['es', 'en'];
 export const PATH_KEYS = [
   'plans', 'tasks', 'reports', 'research', 'decisions', 'memory', 'state',

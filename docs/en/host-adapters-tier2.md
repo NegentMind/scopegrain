@@ -70,3 +70,40 @@ existing adapters.
 
 Every candidate lands as `compatibility: documented-only` and requires a
 native pilot before any support claim.
+
+## Implementation status (2026-11-24)
+
+All five candidates were implemented after verifying the actual
+conventions against current official documentation (sources in the
+`policy/native-adapters.json` blocks). Divergences from this evaluation:
+
+- **kilo**: the current product (kilo.ai, derived from OpenCode) uses
+  `.kilo/` roots and `kilo.jsonc` with the `mcp` key
+  (`type: "local"`), not `.kilocode/mcp.json`. The adapter targets
+  `.kilo/`; the rules bridge uses `.kilocode/rules/` because it is the
+  legacy directory the docs declare auto-included (`.kilo/rules/` only
+  loads via `instructions` globs).
+- **cline**: subagents are `.yaml` files under `.cline/agents` (CLI/
+  Desktop only, per the repo loader) — no agent bridges are emitted. Its
+  MCP is global-only (`~/.cline/data/settings/cline_mcp_settings.json`;
+  the VS Code extension uses globalStorage).
+- **roo**: no markdown agent surface (modes are YAML); skills
+  `.roo/skills/` verified since v3.38.0; commands `.roo/commands/`;
+  AGENTS.md with `useAgentRules` on by default.
+- **gemini-cli**: implemented — the `commandFormat: 'toml'` extension
+  turned out bounded (enum + validator + one render branch). Skills
+  `.gemini/skills/` verified in docs and source; `GEMINI.md` entrypoint
+  (AGENTS.md is opt-in via `context.fileName`); no agents.
+- **windsurf**: implemented as a variant of the legacy Cascade surface
+  (`.windsurf/skills|workflows|rules`, `AGENTS.md`). Its renamed product,
+  Devin Desktop, reads the `.devin/` roots of the existing devin
+  adapter; MCP is global-only (`~/.codeium/windsurf/mcp_config.json`).
+
+Associated contract change: `agentRoot`/`agentFormat` are now optional in
+policy — hosts without a documented markdown agent surface simply do not
+declare it, and the absence of `agent/*` bridges is classified
+structural in parity. Global MCP destinations use `kind: 'mcp-global'`
+so the GLOBAL_DEST classification excludes them from `doctor`'s merge
+targets.
+
+None has a native pilot: `compatibility: documented-only` for all five.

@@ -1,4 +1,4 @@
-<!-- translated-from: docs/architecture.md @ 2026-11-23 -->
+<!-- translated-from: docs/architecture.md @ 2026-11-24 -->
 # Architecture
 
 > English translation of the canonical Spanish document
@@ -65,7 +65,7 @@ src/core/lifecycle.mjs    adopt/update/backup/restore/uninstall: create-only pre
 src/discovery/inspect.mjs Bounded manifest scan
 src/discovery/semantic.mjs Bounded read-only semantic investigation
 src/hosts/render.mjs      Per-host integration fragments
-src/hosts/native.mjs      Versioned native proposals for seven hosts (generic = scaffold)
+src/hosts/native.mjs      Versioned native proposals for twelve hosts (generic = scaffold)
 src/hosts/activation.mjs  Opt-in create-only activation of project-local proposals
 src/hosts/host-manifest.mjs Per-host manifest: sha256 + ownership (whole/partial/shared)
 src/core/managed-section.mjs SCOPEGRAIN:BEGIN/END sections in AGENTS.md/CLAUDE.md
@@ -356,6 +356,7 @@ cross-field coherence, CAS) are noted in each schema's `description`.
 | `journal-intent.schema.json` | Journal intent (homogeneous create/update events) |
 | `journal-commit.schema.json` | Operation commit marker |
 | `journal-recovery.schema.json` | Recovery receipt (`finalize-committed`/`abandon-prepared`) |
+| `journal-checkpoint.schema.json` | Ed25519-signed head-chain checkpoint (`checkpoints.jsonl`) |
 | `approval.schema.json` | Content-bound approval record with history |
 | `organic-assessment.schema.json` | Methodology assessment persisted in V2 tasks |
 
