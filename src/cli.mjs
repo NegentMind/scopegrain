@@ -82,7 +82,7 @@ const VALUE_FLAGS = new Set([
   '--text', '--outcome', '--cursor', '--arguments', '--script',
   '--assessment', '--source', '--out', '--registry', '--op', '--id',
   '--token-limit', '--hosts', '--structure-debounce', '--fields',
-  '--actor', '--reference', '--expect-digest', '--kind',
+  '--actor', '--reference', '--expect-digest', '--kind', '--baseline',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -741,6 +741,10 @@ const COMMANDS = {
     flags: ['--project', '--config', '--timeout', '--fail-on-error'], pos: 1,
     usage: 'verify run ID --project PATH [--timeout MS] [--fail-on-error]',
   },
+  'eval replay': {
+    flags: ['--project', '--config', '--input', '--baseline'], pos: 0,
+    usage: 'eval replay --project PATH --input FILE [--baseline FILE]',
+  },
   'rule list': {
     flags: ['--project', '--config'], pos: 0,
     usage: 'rule list --project PATH [--config REL]',
@@ -826,6 +830,7 @@ const FAMILY_DESCRIPTIONS = {
   helper: 'project-local helper script installation',
   verify: 'supervised verification commands (approve, run)',
   rule: 'local overlay rule lifecycle (propose, approve, archive, import)',
+  eval: 'deterministic eval replay floor (fixture-driven packet regression)',
 };
 
 function describeCommand(name) {
@@ -862,7 +867,7 @@ function helpResult() {
       'verify add/approve/discover preview first; discover --approve bulk-approves the literal candidates just shown; approve-discovered without candidates approves all stored inferred and needs --all; verify run executes only an explicitly approved command as literal argv (bounded, never a shell)',
       'verify run prints the result JSON and exits 0 by default; --fail-on-error propagates the command exit code (or 1 on timeout/signal)',
       'view serves a loopback API and keeps running; press Ctrl+C to stop; an occupied default port walks to the next free one (an explicit --port fails fast); --allow-write opts in to the bounded catalog-doc edit endpoint (CAS-checked PUT) — the API stays read-only without it',
-      'an --input file resolving outside --project emits an INPUT_OUTSIDE_PROJECT warning on stderr — advisory defense-in-depth, never a block',
+      'an --input/--baseline file resolving outside --project emits an INPUT_OUTSIDE_PROJECT warning on stderr — advisory defense-in-depth, never a block',
     ],
   };
 }
@@ -3311,7 +3316,7 @@ export async function run(argv, io) {
       'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb', 'rule',
       'helper', 'dist',
       'memory', 'goal', 'report', 'activity', 'hooks', 'structure',
-      'constitution', 'config']);
+      'constitution', 'config', 'eval']);
     let cmdKey;
     let spec;
     let aliasCommand = null;
@@ -3466,6 +3471,17 @@ export async function run(argv, io) {
       result = await cmdVerify(cmdKey.slice(7), rest, flags, io);
     } else if (cmdKey.startsWith('rule ')) {
       result = await cmdRule(cmdKey.slice(5), rest, flags, io);
+    } else if (cmdKey === 'eval replay') {
+      const { replayEval } = await import('./core/eval-replay.mjs');
+      const ctx = resolveContext({
+        project: projectFlag(flags), config: flags['--config'],
+      });
+      const fixture = readInputFile(
+        requireFlag(flags, '--input'), 'eval fixture');
+      const baseline = flags['--baseline'] !== undefined
+        ? readInputFile(flags['--baseline'], 'eval baseline')
+        : undefined;
+      result = await replayEval(ctx, fixture, { baseline });
     } else if (cmdKey.startsWith('memory ')) {
       result = await cmdMemory(cmdKey.slice(7), flags);
     } else if (cmdKey.startsWith('goal ')) {
@@ -3492,16 +3508,18 @@ export async function run(argv, io) {
     }
     const boundProject = flags['--project']
       ?? detectProjectRoot(process.cwd());
-    if (flags['--input'] !== undefined && boundProject !== null
-        && boundProject !== undefined) {
-      const inputAbs = path.resolve(flags['--input']);
-      const rel = path.relative(path.resolve(boundProject), inputAbs);
-      if (rel === '..' || rel.startsWith(`..${path.sep}`)
-          || path.isAbsolute(rel)) {
-        io.stderr(JSON.stringify({ warning: {
-          code: 'INPUT_OUTSIDE_PROJECT',
-          message: `--input resolves outside the project root: ${inputAbs}`,
-        } }));
+    for (const inputFlag of ['--input', '--baseline']) {
+      if (flags[inputFlag] !== undefined && boundProject !== null
+          && boundProject !== undefined) {
+        const inputAbs = path.resolve(flags[inputFlag]);
+        const rel = path.relative(path.resolve(boundProject), inputAbs);
+        if (rel === '..' || rel.startsWith(`..${path.sep}`)
+            || path.isAbsolute(rel)) {
+          io.stderr(JSON.stringify({ warning: {
+            code: 'INPUT_OUTSIDE_PROJECT',
+            message: `${inputFlag} resolves outside the project root: ${inputAbs}`,
+          } }));
+        }
       }
     }
     // --fields CSV: top-level key projection for large packets

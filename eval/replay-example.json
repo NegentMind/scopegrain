@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "packet-floor",
+  "cases": [
+    {
+      "id": "ctx-default",
+      "compile": { "kind": "context" },
+      "expect": [
+        { "path": "tokenEstimate", "op": "exists" },
+        { "path": "tasks", "op": "exists" },
+        { "path": "goals", "op": "exists" },
+        { "path": "tokenEstimate.total", "op": "gte", "value": 1 }
+      ]
+    },
+    {
+      "id": "ctx-explain",
+      "compile": {
+        "kind": "context",
+        "opts": { "explain": true }
+      },
+      "expect": [
+        { "path": "explain.sections", "op": "exists" },
+        { "path": "explain.flags.noVantadb", "op": "eq", "value": true },
+        { "path": "explain.flags.noStructure", "op": "eq", "value": true }
+      ]
+    }
+  ]
+}

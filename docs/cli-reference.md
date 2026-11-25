@@ -38,8 +38,8 @@ Convenciones comunes (fuente: `src/cli.mjs`):
 - `<verbo> --help` (o `-h`) imprime la entrada de ese comando (usage,
   flags, descripcion); un comando desconocido con `--help` cae a la
   tabla global.
-- Un `--input` que resuelve fuera de `--project` emite un aviso
-  `INPUT_OUTSIDE_PROJECT` en stderr — defensa en profundidad
+- Un `--input`/`--baseline` que resuelve fuera de `--project` emite un
+  aviso `INPUT_OUTSIDE_PROJECT` en stderr — defensa en profundidad
   declarativa, nunca un bloqueo.
 - Los enteros de flags (`--limit`, `--tail`, `--timeout`, `--top-k`,
   `--cursor`, `--revision`, `--index`, `--since-sequence`,
@@ -863,6 +863,42 @@ con `VERIFY_EXEC_REJECTED` — Node >= 18.20.2 rechaza spawn de ficheros
 batch sin shell (CVE-2024-27980). Vuelve a declarar el comando con un
 ejecutable real: `node <script>` (p.ej. `node node_modules/npm/bin/npm-cli.js test`)
 o el `.exe` de la herramienta.
+
+### eval replay — suelo de regresion determinista
+
+```text
+scopegrain eval replay --project PATH --input FILE [--baseline FILE]
+```
+
+Re-ejecuta los casos declarados en un fixture cerrado
+`{schemaVersion:1, id, cases:[{id, compile:{kind,opts?}, expect:[..]}]}`
+compilando el artefacto real (`kind: 'context'` llama a
+`assembleContextPacket` con opts `{tail?, explain?}` — el suelo es
+deliberadamente estrecho: nada que llame fuera, escriba caches o
+dependa del reloj es declaranle, y el replay fuerza siempre
+`noVantadb` + `noStructure` y suprime `SCOPEGRAIN_TASK` ambiental;
+`kind: 'workflow'` llama a `buildWorkflowPacket` con
+`{command, mode?, taskId?, host?, profile?, interaction?, arguments?,
+script?, lazy?}` — `command` requerido) y evaluando expectativas
+`{path, op, value?}` por caso (`op` en `exists|eq|contains|regex|
+gte|lte`; `path` es un path punteado con segmentos numericos para
+arrays, resuelto solo sobre propiedades propias). `gte`/`lte`
+exigen `value` numerico finito; `regex` exige un patron valido de
+hasta 200 caracteres compilado en validacion; `contains` sobre un
+string exige `value` string (sin coercion); `eq`/`contains` sobre
+arrays compara por serializacion JSON (sensible al orden de claves
+en objetos). Cada caso reporta `satisfied/total` + `failures[]` con
+`expected`/`actual`/`found`; un error de compilacion o de
+evaluacion reporta `error` (0 satisfechas) sin abortar el replay.
+
+Con `--baseline FILE` (una salida de replay previa — se valida el
+envelope `kind:'eval-replay'` y cada entrada `{id, satisfied}`) anade
+`comparison`: por caso `better|worse|same|new|dropped` comparando
+`satisfied`, `summary` con cada veredicto contado por separado, y
+`overall` = `worse` si hay peores/dropeados, `better` si solo
+mejoras, `same` en otro caso. Todo es determinista y de solo
+lectura — el juez LLM estocastico sigue externo en `eval/llm-judge`.
+Ejemplo canonico: `eval/replay-example.json`.
 
 ### rule * — ciclo de vida de reglas del overlay local
 

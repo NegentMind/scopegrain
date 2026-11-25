@@ -40,7 +40,7 @@ Common conventions (source: `src/cli.mjs`):
 - `<verb> --help` (or `-h`) prints that command's entry (usage,
   flags, description); an unknown command with `--help` falls back to
   the global table.
-- An `--input` resolving outside `--project` emits an
+- An `--input`/`--baseline` resolving outside `--project` emits an
   `INPUT_OUTSIDE_PROJECT` warning on stderr — advisory
   defense-in-depth, never a block.
 - Integer flags (`--limit`, `--tail`, `--timeout`, `--top-k`,
@@ -861,6 +861,43 @@ PATH shim (typically `npm`, `yarn`, `pnpm`) fails `run` with
 without a shell (CVE-2024-27980). Re-declare the command with a real
 executable: `node <script>` (e.g.
 `node node_modules/npm/bin/npm-cli.js test`) or the tool's `.exe`.
+
+### eval replay — deterministic regression floor
+
+```text
+scopegrain eval replay --project PATH --input FILE [--baseline FILE]
+```
+
+Re-runs the cases declared in a closed fixture
+`{schemaVersion:1, id, cases:[{id, compile:{kind,opts?}, expect:[..]}]}`
+by compiling the real artifact (`kind: 'context'` calls
+`assembleContextPacket` with opts `{tail?, explain?}` — the floor is
+deliberately narrow: nothing that calls out, writes caches or
+depends on wall time is declarable, and replay always forces
+`noVantadb` + `noStructure` and drops ambient `SCOPEGRAIN_TASK`;
+`kind: 'workflow'` calls `buildWorkflowPacket` with
+`{command, mode?, taskId?, host?, profile?, interaction?, arguments?,
+script?, lazy?}` — `command` required) and evaluating per-case
+expectations `{path, op, value?}` (`op` in `exists|eq|contains|regex|
+gte|lte`; `path` is a dot path with numeric segments for arrays,
+resolved over own properties only). `gte`/`lte` require a finite
+numeric `value`; `regex` requires a valid pattern of up to 200
+characters compiled at validation; `contains` over a string
+requires a string `value` (no coercion); `eq`/`contains` over
+arrays compare by JSON serialization (key-order sensitive on
+objects). Each case reports `satisfied/total` + `failures[]` with
+`expected`/`actual`/`found`; a compile or evaluation error reports
+`error` (0 satisfied) without aborting the replay.
+
+With `--baseline FILE` (a previous replay output — the
+`kind:'eval-replay'` envelope and each `{id, satisfied}` entry are
+validated) it adds `comparison`: per-case
+`better|worse|same|new|dropped` from the `satisfied` counts, a
+`summary` counting every verdict separately, and `overall` =
+`worse` on any worse/dropped, `better` on improvements only, else
+`same`. Fully deterministic and read-only — the stochastic LLM
+judge stays external in `eval/llm-judge`. Canonical example:
+`eval/replay-example.json`.
 
 ### rule * — local overlay rule lifecycle
 
