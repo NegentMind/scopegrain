@@ -45,6 +45,7 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `modelTier` | `fast\|standard\|reasoning` or null | Declared model profile the host should route to. The host owns routing and cost; the field only records intent. Additive extension, same read/write rule as `allowedTools`. |
 | `directives` | `[non-empty string]` or null | Custom instructions the host should inject when executing this task (e.g. "always strict TS, answer in Spanish"). Declarative — the harness carries them, hosts apply them. Additive extension, same read/write rule as `allowedTools`. |
 | `sharedContext` | `{string: string}` or null | Shared key-value variables visible to the task (`repo_url`, `brand_tone`…). Max 32 keys, values ≤1KiB. Declarative; hosts inject them. Additive extension, same read/write rule as `allowedTools`. |
+| `dataClassification` | `public\|internal\|confidential\|pii` or null | Sensitivity level of the data the task handles. Consumable by `preAction` hooks via `when.dataClassificationIn` (e.g. `require-gate` on `pii`). Additive extension, same read/write rule as `allowedTools`. |
 
 `history[]` events carry an optional `runId` (UUID) correlating the
 mutation with the operation that wrote it: for journaled (owned) writes
@@ -123,6 +124,7 @@ Declarative data-flow wiring also lives on the V3 plan record:
 | `ioBindings` | `[{to, input, from, output}]` or null | `from.output` of one member feeds `input` of member `to`. `to`/`from` must be plan member keys, self-bindings and duplicate `(to,input)` pairs are rejected. The harness validates shape and references only — hosts resolve bindings at run time. |
 | `directives` | `[non-empty string]` or null | Plan-wide custom instructions. Forwarded into every member task record that doesn't declare its own (members may override whole-field). Same semantics as the task field. |
 | `sharedContext` | `{string: string}` or null | Plan-wide shared variables (≤32 keys, ≤1KiB values). On materialization the plan map merges under each member's own map (member keys win; an explicit member `null` clears the map for that member). |
+| `dataClassification` | `public\|internal\|confidential\|pii` or null | Plan-wide sensitivity level; inherited by members that don't declare their own. Feeds `when.dataClassificationIn` in `preAction` hooks as the effective classification fallback. |
 
 `plan next` is triage-aware: entries triaged `defer|skip|blocked` report
 status `triaged` instead of `ready`/`blocked`.

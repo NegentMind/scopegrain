@@ -354,7 +354,7 @@ When a VantaDB backend is enrolled, the projected project history is
 injected automatically at both resume points — no manual CLI queries:
 
 ```
-context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS] [--fields CSV] [--compact]
+context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS] [--fields CSV] [--compact] [--explain]
 session resume UUID [--no-vantadb] [--timeout MS]
 ```
 
@@ -375,6 +375,11 @@ session resume UUID [--no-vantadb] [--timeout MS]
   meant for large packets where only a few sections are needed.
 - `--compact` emits the JSON document on a single line (no indent),
   same as on `workflow`.
+- `--explain` adds `explain`: per-section provenance (source,
+  selection rule, `estimatedTokens`), the applied flags and, with
+  `--fields`, the requested/matched/unknown projection report. Opt-in
+  debug layer — `tokenEstimate` figures do not cover it (equivalent to
+  the MCP `explain` argument).
 - `--no-structure` serves the persisted structural index without
   rescanning the tree (equivalent to the MCP `noStructure` argument).
 - `--structure-debounce MS` is opt-in: within the `MS` window the
@@ -716,6 +721,10 @@ when another task in one of those states declares a scope entry that
 overlaps this task's (equal or directory containment). The task itself is
 excluded; an empty scope declares no write region and never overlaps.
 Matched peer ids are traced as `with` on the applied entry.
+`when.dataClassificationIn` a level list
+(`public|internal|confidential|pii`) — matches when the task's effective
+classification (its own, or the parent plan's when the task declares
+none) is in the list; an unclassified task never matches.
 Matching entries are traced on `packet.actionHooks.applied` and
 `task check-action`/`scopegrain_check_action` expose `actionHooks` + `gate`.
 

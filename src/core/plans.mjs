@@ -14,8 +14,8 @@ import {
 } from './paths.mjs';
 import { loadPolicy, loadLimits } from './policy.mjs';
 import {
-  buildTaskRecord, getTask, nextTaskSlug, normalizeTaskInput,
-  validateSharedContext, validateTaskShape,
+  buildTaskRecord, DATA_CLASSIFICATIONS, getTask, nextTaskSlug,
+  normalizeTaskInput, validateSharedContext, validateTaskShape,
 } from './tasks.mjs';
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
 import { getArtifact } from './artifacts.mjs';
@@ -50,7 +50,7 @@ const TASK_V3_FORWARD = [
   'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
   'agentRole', 'expectedOutputs', 'sideEffects', 'executionType',
   'outputContract', 'reviewRubric', 'fallback', 'contextInheritance',
-  'modelTier', 'directives', 'sharedContext',
+  'modelTier', 'directives', 'sharedContext', 'dataClassification',
 ];
 const PLAN_V3_KEYS = new Set([
   'triage', 'appetite', 'cynefin', 'riskRegister', 'premortem',
@@ -65,6 +65,7 @@ const PLAN_V3_EXT_KEYS = new Set([
   'synthesisStrategy', 'replanPolicy', 'executiveSummary',
   'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes',
   'version', 'createKey', 'ioBindings', 'directives', 'sharedContext',
+  'dataClassification',
 ]);
 // Non-null defaults emitted on write; every other ext key defaults to null.
 const PLAN_V3_EXT_DEFAULTS = { version: 1 };
@@ -347,6 +348,14 @@ function normalizePlanV3(input, taskKeys, errorFn) {
       : validateSharedContext(input.sharedContext, 'sharedContext',
         'INVALID_PLAN');
   }
+  if (has('dataClassification')) {
+    if (input.dataClassification !== null
+        && !DATA_CLASSIFICATIONS.has(input.dataClassification)) {
+      throw errorFn(
+        'dataClassification must be public|internal|confidential|pii or null');
+    }
+    v3.dataClassification = input.dataClassification;
+  }
   if (Object.keys(v3).length) {
     for (const k of PLAN_V3_EXT_KEYS) {
       if (v3[k] === undefined) v3[k] = PLAN_V3_EXT_DEFAULTS[k] ?? null;
@@ -543,6 +552,12 @@ export function validatePlanInput(ctx, input) {
     validateSharedContext(input.sharedContext,
       'plan input sharedContext', 'INVALID_PLAN');
   }
+  if (input.dataClassification !== undefined
+      && input.dataClassification !== null
+      && !DATA_CLASSIFICATIONS.has(input.dataClassification)) {
+    throw err('INVALID_PLAN',
+      'plan input dataClassification must be public|internal|confidential|pii or null');
+  }
   // Optional formal pair: both UUIDs together, design bound to the spec at
   // its current digest — resolved at prepare, stored at V2.
   const hasPair = input.specId !== undefined || input.designId !== undefined;
@@ -618,6 +633,10 @@ export function validatePlanInput(ctx, input) {
       v3Forward.sharedContext = {
         ...(input.sharedContext ?? {}), ...(t.sharedContext ?? {}),
       };
+    }
+    if (v3Forward.dataClassification === undefined
+        && input.dataClassification !== undefined) {
+      v3Forward.dataClassification = input.dataClassification;
     }
     const clean = normalizeTaskInput(ctx, {
       title: t.title, contract: t.contract,

@@ -328,3 +328,45 @@ test('preAction.scopeOverlapIn schema is closed like stateIn', () => {
     } finally { cleanup(root); }
   }
 });
+
+test('preAction.dataClassificationIn matches the effective classification only', () => {
+  const root = installWithPreAction([
+    { id: 'pii-gate',
+      when: { action: 'edit', dataClassificationIn: ['pii', 'confidential'] },
+      then: 'require-gate', reason: 'sensitive data region' },
+    { id: 'pii-block',
+      when: { action: 'verify', dataClassificationIn: ['pii'] },
+      then: 'block', reason: 'no verify over pii' },
+  ]);
+  try {
+    const hit = applyPreActionHooks(TASK, ['edit', 'verify'],
+      { installRoot: root, classification: 'pii' });
+    assert.deepEqual(hit.permitted, ['edit']);
+    assert.deepEqual(hit.gated, [{ action: 'edit', hook: 'pii-gate',
+      reason: 'sensitive data region' }]);
+    // 'internal' is not in either list.
+    const miss = applyPreActionHooks(TASK, ['edit', 'verify'],
+      { installRoot: root, classification: 'internal' });
+    assert.deepEqual(miss.permitted, ['edit', 'verify']);
+    assert.deepEqual(miss.gated, []);
+    // No classification supplied → the condition cannot match.
+    const none = applyPreActionHooks(TASK, ['edit', 'verify'],
+      { installRoot: root });
+    assert.deepEqual(none.permitted, ['edit', 'verify']);
+  } finally { cleanup(root); }
+});
+
+test('preAction.dataClassificationIn schema is closed to the enum', () => {
+  for (const w of [
+    { action: 'edit', dataClassificationIn: 'pii' },
+    { action: 'edit', dataClassificationIn: [] },
+    { action: 'edit', dataClassificationIn: ['top-secret'] },
+    { action: 'edit', dataClassificationIn: [42] },
+  ]) {
+    const root = installWithPreAction([{ id: 'x', when: w, then: 'block' }]);
+    try {
+      assert.throws(() => loadHooksPolicy({ installRoot: root }),
+        (e) => e.code === 'POLICY_MALFORMED', JSON.stringify(w));
+    } finally { cleanup(root); }
+  }
+});

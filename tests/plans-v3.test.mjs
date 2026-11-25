@@ -183,6 +183,8 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     ];
     p.directives = ['strict TS', 'answer in Spanish'];
     p.sharedContext = { repo_url: 'https://x', brand_tone: 'warm' };
+    p.dataClassification = 'confidential';
+    p.tasks[1].dataClassification = 'pii';
     p.tasks[1].sharedContext = { brand_tone: 'cool', extra: 'y' };
     p.tasks[2].directives = ['only mine'];
     const prepared = preparePlan(ctx, p);
@@ -223,6 +225,7 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
       ['strict TS', 'answer in Spanish']);
     assert.deepEqual(prepared.plan.sharedContext,
       { repo_url: 'https://x', brand_tone: 'warm' });
+    assert.equal(prepared.plan.dataClassification, 'confidential');
     // plan-level fields forward into member task records: directives
     // inherit whole-field; sharedContext merges with member winning per key
     const files = JSON.parse(prepared.files[0].content);
@@ -236,6 +239,10 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     assert.deepEqual(docsFile.directives, ['only mine']);
     assert.deepEqual(docsFile.sharedContext,
       { repo_url: 'https://x', brand_tone: 'warm' });
+    // dataClassification inherits whole-field like directives
+    assert.equal(files.dataClassification, 'confidential');
+    assert.equal(apiFile.dataClassification, 'pii');
+    assert.equal(docsFile.dataClassification, 'confidential');
     applyPlan(dir, preflightPlan(dir, prepared.files));
     const stored = getPlan(ctx, 'rel-3');
     assert.equal(stored.request, 'Ship the release with zero known P0s');
@@ -247,7 +254,8 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     for (const k of ['request', 'planType', 'trigger', 'acceptanceCriteria',
       'deliverables', 'synthesisStrategy', 'replanPolicy', 'executiveSummary',
       'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes',
-      'createKey', 'ioBindings', 'directives', 'sharedContext']) {
+      'createKey', 'ioBindings', 'directives', 'sharedContext',
+      'dataClassification']) {
       assert.equal(prepared2.plan[k], null);
     }
     assert.equal(prepared2.plan.version, 1);
@@ -336,6 +344,9 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     }, 'UNKNOWN_KEY');
     bad((b) => { b.directives = ['']; }, 'INVALID_PLAN');
     bad((b) => { b.sharedContext = { k: 42 }; }, 'INVALID_PLAN');
+    bad((b) => { b.dataClassification = 'top-secret'; }, 'INVALID_PLAN');
+    bad((b) => { b.tasks[0].dataClassification = 'top-secret'; },
+      'INVALID_VALUE');
     bad((b) => { b.tasks[0].sharedContext = { k: 5 }; },
       'INVALID_VALUE');
     // ext keys are V3-layer: a V1 record may not carry them

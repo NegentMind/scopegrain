@@ -11,6 +11,7 @@ import { canonicalDigest, canonicalJSON } from './digests.mjs';
 import { getArtifact } from './artifacts.mjs';
 import { unresolvedQuestions } from './clarify.mjs';
 import { getTask, listTasks } from './tasks.mjs';
+import { getPlan, listPlans } from './plans.mjs';
 import { validateReview, validateVerification } from './evidence.mjs';
 import { resolveInside } from './paths.mjs';
 import { actionsFor, loadMethodologyPolicy } from './policy.mjs';
@@ -337,8 +338,27 @@ export function evaluateTaskActions(ctx, task, { installRoot } = {}) {
     ? listTasks(ctx).tasks.map((t) =>
         ({ id: t.id, state: t.state, scope: t.scope ?? [] }))
     : undefined;
+  // `when.dataClassificationIn` resolves the effective classification:
+  // the task's own value, else the one its parent plan declares (plan
+  // members already inherit it at materialization; the fallback covers
+  // members written before the plan declared one). Formal members carry
+  // `planKey`; informal membership lives only in plan.tasks[].id, so the
+  // plan scan is the reverse lookup — lazy like the peer scan.
+  let classification;
+  if (policy.preAction.some((h) => h.when.dataClassificationIn)) {
+    classification = task.dataClassification ?? undefined;
+    if (classification === undefined) {
+      try {
+        const plan = typeof task.planKey === 'string' && task.planKey !== ''
+          ? getPlan(ctx, task.planKey)
+          : listPlans(ctx).plans.find((p) =>
+              p.tasks.some((m) => m.id === task.id));
+        classification = plan?.dataClassification ?? undefined;
+      } catch { /* unreadable plan: no inherited classification */ }
+    }
+  }
   const hooks = applyPreActionHooks(task, statePermitted,
-    { ...(installRoot ? { installRoot } : {}), peers });
+    { ...(installRoot ? { installRoot } : {}), peers, classification });
   return { permitted: hooks.permitted, methodology,
     actionHooks: { applied: hooks.applied, gated: hooks.gated } };
 }

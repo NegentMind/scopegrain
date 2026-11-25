@@ -483,6 +483,36 @@ test('directives/sharedContext: bounded declarative fields or null', () => {
   } finally { cleanup(dir); }
 });
 
+test('dataClassification: bounded enum or null, meta-settable', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, {
+      ...BASE, dataClassification: 'confidential',
+    });
+    assert.equal(task.dataClassification, 'confidential');
+    for (const bad of ['top-secret', 'PII', 5]) {
+      assert.throws(() => prepareTask(ctx, {
+        ...BASE, dataClassification: bad,
+      }), (e) => e.code === 'INVALID_VALUE', JSON.stringify(bad));
+    }
+    const applied = createTask(ctx, { ...BASE, dataClassification: 'pii' });
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { dataClassification: 'internal' },
+    });
+    assert.equal(next.dataClassification, 'internal');
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.dataClassification = 'top-secret';
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.dataClassification;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).dataClassification, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { err } from './errors.mjs';
+import { DATA_CLASSIFICATIONS } from './tasks.mjs';
 import { decodeUtf8Strict, readFileLimited } from './fsx.mjs';
 
 const INSTALL_ROOT = path.resolve(
@@ -27,7 +28,8 @@ const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const PHASES = new Set(['before', 'after']);
 const PRE_ACTION_EFFECTS = new Set(['block', 'require-gate', 'record']);
 const PRE_ACTION_WHEN_KEYS = new Set(
-  ['action', 'stateIn', 'scopeOver', 'skillsMissing', 'scopeOverlapIn']);
+  ['action', 'stateIn', 'scopeOver', 'skillsMissing', 'scopeOverlapIn',
+    'dataClassificationIn']);
 const STATE_RE = /^[A-Z]+$/;
 
 let cached = null;
@@ -160,6 +162,14 @@ export function loadHooksPolicy({ installRoot = INSTALL_ROOT } = {}) {
         throw err('POLICY_MALFORMED',
           `${at}.when.scopeOverlapIn must be a non-empty task-state array`);
       }
+      if (w.dataClassificationIn !== undefined
+          && (!Array.isArray(w.dataClassificationIn)
+            || w.dataClassificationIn.length === 0
+            || !w.dataClassificationIn.every(
+              (s) => DATA_CLASSIFICATIONS.has(s)))) {
+        throw err('POLICY_MALFORMED',
+          `${at}.when.dataClassificationIn must be a non-empty array of public|internal|confidential|pii`);
+      }
       preAction.push({ id: h.id, when: w, then: h.then,
         reason: h.reason ?? null });
     }
@@ -191,7 +201,7 @@ function scopesOverlap(a, b) {
 // ctx exists (evaluateTaskActions); hooks-policy itself stays pure. A
 // task or peer with an empty scope declares no write region and never
 // overlaps; the task itself is excluded by id.
-function preActionMatches(w, task, action, peers) {
+function preActionMatches(w, task, action, peers, classification) {
   if (w.action !== '*' && w.action !== action) return null;
   if (w.stateIn !== undefined && !w.stateIn.includes(task.state)) {
     return null;
@@ -215,6 +225,10 @@ function preActionMatches(w, task, action, peers) {
       .map((p) => p.id);
     if (conflicts.length === 0) return null;
   }
+  if (w.dataClassificationIn !== undefined
+      && !w.dataClassificationIn.includes(classification)) {
+    return null;
+  }
   return { conflicts };
 }
 
@@ -225,7 +239,7 @@ function preActionMatches(w, task, action, peers) {
 // without a peer view (no ctx) may omit it — those conditions then never
 // match. Matched peer ids land on the applied entry as `with`.
 export function applyPreActionHooks(task, permitted,
-    { installRoot, peers } = {}) {
+    { installRoot, peers, classification } = {}) {
   const hooks = loadHooksPolicy({ installRoot }).preAction;
   if (hooks.length === 0) {
     return { permitted: [...permitted], applied: [], gated: [] };
@@ -236,7 +250,8 @@ export function applyPreActionHooks(task, permitted,
   for (const action of permitted) {
     let drop = false;
     for (const h of hooks) {
-      const match = preActionMatches(h.when, task, action, peers);
+      const match = preActionMatches(
+        h.when, task, action, peers, classification);
       if (!match) continue;
       applied.push({ id: h.id, action, effect: h.then, reason: h.reason,
         ...(match.conflicts ? { with: match.conflicts } : {}) });

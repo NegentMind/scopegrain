@@ -8,11 +8,13 @@ import { checkMethodology, evaluateMethodology, evaluateTaskActions }
   from '../src/core/methodology.mjs';
 import { transitionTask, updateTaskMeta } from '../src/core/transition.mjs';
 import { prepareOutcomeEvidence } from '../src/core/outcomes.mjs';
-import { createTask, getTask, taskFilePath } from '../src/core/tasks.mjs';
+import { createTask, getTask, listTasks, taskFilePath }
+  from '../src/core/tasks.mjs';
 import { collectFormalBindings } from '../src/core/formal-bindings.mjs';
 import { getPlan, preparePlan } from '../src/core/plans.mjs';
 import { applyPlan } from '../src/core/bootstrap.mjs';
 import fs from 'node:fs';
+import path from 'node:path';
 import {
   approve, assessment, formalFixture, seedState,
 } from './methodology-fixtures.mjs';
@@ -322,5 +324,55 @@ test('evaluateTaskActions feeds peers to when.scopeOverlapIn', () => {
     assert.deepEqual(after.actionHooks.gated, []);
     // Empty-scope policy dir (no overlap key) performs no peer scan —
     // implied by the evaluator being unchanged for the shipped policy.
+  } finally { cleanup(f.dir); cleanup(root); }
+});
+
+// when.dataClassificationIn: the evaluator resolves the effective level —
+// the task's own field, else the parent plan's (covers members written
+// before the plan declared one). An unclassified task never matches.
+test('evaluateTaskActions resolves effective dataClassification', () => {
+  const f = bootstrappedMiniCtx();
+  const root = makeTempDir('hooks-class');
+  try {
+    writeJson(root, 'policy/hooks.json', { schemaVersion: 1, hooks: {},
+      preAction: [{ id: 'pii-gate',
+        when: { action: 'edit', dataClassificationIn: ['pii'] },
+        then: 'require-gate', reason: 'sensitive data region' }] });
+    f.ctx.config.methodology = 'manual';
+    // Task's own classification wins.
+    const own = createTask(f.ctx, { title: 'PII task', contract: 'C',
+      authorContext: 'fixture-author', scope: ['src/pii'],
+      dataClassification: 'pii', type: 'ops' });
+    transitionTask(f.ctx, { id: own.id, to: 'ACT', expectedRevision: 0 });
+    const r = evaluateTaskActions(f.ctx, getTask(f.ctx, own.id),
+      { installRoot: root });
+    const gate = r.actionHooks.gated.find((g) => g.action === 'edit');
+    assert.equal(gate.hook, 'pii-gate');
+    // Plan fallback: member record has none; the plan declares one after
+    // the fact (a plan update would leave member records untouched).
+    const plan = preparePlan(f.ctx, { key: 'class-plan', title: 'P',
+      authorContext: 'fixture-author', ...PLAN_V3,
+      tasks: [{ key: 'm', title: 'M', contract: 'C',
+        scope: ['src/m'], dependsOn: [] }] });
+    applyPlan(f.dir, plan.files);
+    const memberId = getPlan(f.ctx, 'class-plan').tasks[0].id;
+    const member0 = getTask(f.ctx, memberId);
+    assert.equal(member0.dataClassification, undefined);
+    transitionTask(f.ctx, { id: memberId, to: 'ACT',
+      expectedRevision: member0.revision });
+    const member = getTask(f.ctx, memberId);
+    const planFile = path.join(f.dir, '.scopegrain/plans/class-plan.json');
+    const planData = JSON.parse(fs.readFileSync(planFile, 'utf8'));
+    planData.dataClassification = 'pii';
+    fs.writeFileSync(planFile, JSON.stringify(planData));
+    const inherited = evaluateTaskActions(f.ctx, member,
+      { installRoot: root });
+    assert.equal(inherited.actionHooks.gated.length, 1);
+    // Unclassified task: no own value, no plan → never matches.
+    const plain = createTask(f.ctx, { title: 'Plain', contract: 'C',
+      authorContext: 'fixture-author', scope: ['src/plain'], type: 'ops' });
+    const ungated = evaluateTaskActions(f.ctx, plain,
+      { installRoot: root });
+    assert.deepEqual(ungated.actionHooks.gated, []);
   } finally { cleanup(f.dir); cleanup(root); }
 });

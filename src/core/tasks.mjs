@@ -36,7 +36,7 @@ const TASK_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
   'fallback', 'contextInheritance', 'modelTier', 'directives',
-  'sharedContext',
+  'sharedContext', 'dataClassification',
 ]);
 const V3_KEYS = new Set([
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
@@ -50,7 +50,7 @@ const V3_EXT_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
   'fallback', 'contextInheritance', 'modelTier', 'directives',
-  'sharedContext',
+  'sharedContext', 'dataClassification',
 ]);
 const TASK_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3', 'backlog']);
 const TASK_SEVERITIES = new Set(['critical', 'high', 'medium', 'low', 'info']);
@@ -68,6 +68,8 @@ const TASK_EXECUTION_TYPES = new Set(['atomic', 'delegated', 'hitl']);
 const TASK_FALLBACK_ON_FAIL = new Set(['stall', 'abandon', 'needs-human']);
 const TASK_CONTEXT_INHERITANCE = new Set(['isolated', 'summary', 'full']);
 const TASK_MODEL_TIERS = new Set(['fast', 'standard', 'reasoning']);
+export const DATA_CLASSIFICATIONS = new Set(
+  ['public', 'internal', 'confidential', 'pii']);
 const SHARED_CONTEXT_MAX_KEYS = 32;
 const SHARED_CONTEXT_MAX_VALUE_BYTES = 1024;
 // Closed string->string dict shared between plan and task records. Used
@@ -107,7 +109,7 @@ const META_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
   'fallback', 'contextInheritance', 'modelTier', 'directives',
-  'sharedContext',
+  'sharedContext', 'dataClassification',
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
@@ -117,7 +119,7 @@ const CREATE_KEYS = new Set([
   'notes', 'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
   'agentRole', 'expectedOutputs', 'sideEffects', 'executionType',
   'outputContract', 'reviewRubric', 'fallback', 'contextInheritance',
-  'modelTier', 'directives', 'sharedContext',
+  'modelTier', 'directives', 'sharedContext', 'dataClassification',
 ]);
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
@@ -301,6 +303,12 @@ function validateV3Fields(task, label) {
   if (task.sharedContext !== undefined && task.sharedContext !== null) {
     validateSharedContext(task.sharedContext,
       `${label}.sharedContext`, 'TASK_MALFORMED');
+  }
+  if (task.dataClassification !== undefined
+      && task.dataClassification !== null
+      && !DATA_CLASSIFICATIONS.has(task.dataClassification)) {
+    throw err('TASK_MALFORMED',
+      `${label}.dataClassification must be public|internal|confidential|pii or null`);
   }
   if (task.sideEffects !== undefined && task.sideEffects !== null
       && !TASK_SIDE_EFFECTS.has(task.sideEffects)) {
@@ -1005,6 +1013,14 @@ export function normalizeV3Input(input) {
     v3.sharedContext = input.sharedContext === null ? null
       : validateSharedContext(input.sharedContext, 'sharedContext');
   }
+  if (has('dataClassification')) {
+    if (input.dataClassification !== null
+        && !DATA_CLASSIFICATIONS.has(input.dataClassification)) {
+      throw err('INVALID_VALUE',
+        'dataClassification must be public|internal|confidential|pii or null');
+    }
+    v3.dataClassification = input.dataClassification;
+  }
   return Object.keys(v3).length ? v3 : null;
 }
 
@@ -1017,7 +1033,7 @@ export const V3_DEFAULTS = {
   expectedOutputs: null, sideEffects: null, executionType: null,
   outputContract: null, reviewRubric: null, fallback: null,
   contextInheritance: null, modelTier: null, directives: null,
-  sharedContext: null,
+  sharedContext: null, dataClassification: null,
 };
 
 // Pure task record factory: no I/O, no side effects. V2 records carry the

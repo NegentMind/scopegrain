@@ -246,6 +246,7 @@ function taskSummary(task) {
     modelTier: task.modelTier ?? null,
     directives: task.directives ?? null,
     sharedContext: task.sharedContext ?? null,
+    dataClassification: task.dataClassification ?? null,
   };
 }
 
@@ -702,6 +703,7 @@ export function createApiQueries(ctx, options = {}) {
           ioBindings: p.ioBindings ?? null,
           directives: p.directives ?? null,
           sharedContext: p.sharedContext ?? null,
+          dataClassification: p.dataClassification ?? null,
           taskCount: p.tasks.length,
           readiness,
           readinessError,

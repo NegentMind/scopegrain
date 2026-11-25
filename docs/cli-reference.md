@@ -354,7 +354,7 @@ proyecto se inyecta sola en los dos puntos de reanudacion — sin
 consultas manuales al CLI:
 
 ```
-context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS] [--fields CSV] [--compact]
+context --project PATH [--tail N] [--no-vantadb] [--no-structure] [--structure-debounce MS] [--timeout MS] [--fields CSV] [--compact] [--explain]
 session resume UUID [--no-vantadb] [--timeout MS]
 ```
 
@@ -375,6 +375,11 @@ session resume UUID [--no-vantadb] [--timeout MS]
   pensado para packets grandes del que solo interesan unas secciones.
 - `--compact` emite el documento JSON en una sola linea (sin indentar),
   igual que en `workflow`.
+- `--explain` anade `explain`: procedencia por seccion (origen, regla
+  de seleccion, `estimatedTokens`), flags aplicadas y, con `--fields`,
+  la proyeccion pedida/matched/unknown. Capa de depuracion opt-in —
+  las cifras de `tokenEstimate` no la cubren (equivale al argumento
+  MCP `explain`).
 - `--no-structure` sirve el indice estructural persistido sin
   re-escanear el arbol (equivale al argumento MCP `noStructure`).
 - `--structure-debounce MS` opt-in: dentro de la ventana `MS` la
@@ -716,6 +721,11 @@ coincide cuando otra tarea en uno de esos estados declara un scope que
 solapa con el de esta (igualdad o contencion de directorio). La propia
 tarea se excluye; un scope vacio no declara region de escritura y nunca
 solapa. Los ids de los pares que coinciden quedan trazados como `with`
+en la entrada applied. `when.dataClassificationIn` lista de niveles
+(`public|internal|confidential|pii`) — coincide cuando la clasificacion
+efectiva de la tarea (la suya propia, o la heredada de su plan padre si
+no declara una) esta en la lista; una tarea sin clasificacion nunca
+coincide. Las entradas que coinciden quedan trazadas en
 en la entrada applied. Las entradas que coinciden quedan trazadas en
 `packet.actionHooks.applied` y `task check-action`/`scopegrain_check_action`
 exponen `actionHooks` + `gate`.
