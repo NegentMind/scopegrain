@@ -174,6 +174,7 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     p.concurrencyPolicy = 'queue';
     p.ttlSeconds = 86400;
     p.version = 1;
+    p.createKey = 'client-req-8842';
     const prepared = preparePlan(ctx, p);
     assert.equal(prepared.plan.schemaVersion, 3);
     assert.equal(prepared.plan.request, 'Ship the release with zero known P0s');
@@ -194,6 +195,7 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     assert.equal(prepared.plan.ttlSeconds, 86400);
     assert.equal(prepared.plan.version, 1);
     assert.equal(prepared.plan.supersedes, null);
+    assert.equal(prepared.plan.createKey, 'client-req-8842');
     applyPlan(dir, preflightPlan(dir, prepared.files));
     const stored = getPlan(ctx, 'rel-3');
     assert.equal(stored.request, 'Ship the release with zero known P0s');
@@ -204,10 +206,21 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     const prepared2 = preparePlan(ctx, p2);
     for (const k of ['request', 'planType', 'trigger', 'acceptanceCriteria',
       'deliverables', 'synthesisStrategy', 'replanPolicy', 'executiveSummary',
-      'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes']) {
+      'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes',
+      'createKey']) {
       assert.equal(prepared2.plan[k], null);
     }
     assert.equal(prepared2.plan.version, 1);
+    // createKey held by an existing plan conflicts — never a silent dup
+    const p7 = JSON.parse(JSON.stringify(V3_PLAN));
+    p7.key = 'rel-7';
+    p7.createKey = 'client-req-8842'; // held by rel-3, applied above
+    assert.throws(() => preparePlan(ctx, p7),
+      (e) => e.code === 'PLAN_CONFLICT');
+    const p8 = JSON.parse(JSON.stringify(V3_PLAN));
+    p8.key = 'rel-8';
+    p8.createKey = 'client-req-9999';
+    assert.equal(preparePlan(ctx, p8).plan.createKey, 'client-req-9999');
     // supersedes chains to an existing plan; unknown targets are rejected
     const p5 = JSON.parse(JSON.stringify(V3_PLAN));
     p5.key = 'rel-5';
@@ -255,6 +268,7 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     bad((b) => { b.supersedes = 'NOT A KEY'; }, 'INVALID_PLAN');
     bad((b) => { b.version = 0; }, 'INVALID_PLAN');
     bad((b) => { b.version = 'two'; }, 'INVALID_PLAN');
+    bad((b) => { b.createKey = '  '; }, 'INVALID_PLAN');
     // ext keys are V3-layer: a V1 record may not carry them
     const f1 = path.join(dir, 'docs/agent/plans/rel-4.json');
     const d1 = JSON.parse(fs.readFileSync(f1, 'utf8'));

@@ -103,6 +103,7 @@ semantic or extension key still requires the full required V3 set above.
 | `ttlSeconds` | int >= 0 or null | Declared time-to-live; expiry itself is host-side. |
 | `supersedes` | plan key or null | Points to the plan this one replaces — replanning creates `v+1` with `supersedes` naming the prior plan, preserving the chain. The referenced plan must exist (`PLAN_NOT_FOUND`). |
 | `version` | int >= 1 (default `1`) | Human-meaningful revision of the planning chain, independent of the storage-layer `revision`. |
+| `createKey` | non-empty string or null | Idempotent-creation key: a second `plan create` carrying a key already held by an existing plan fails with `PLAN_CONFLICT`. Plans have no terminal state, so the key stays reserved while the plan exists. |
 
 `plan next` is triage-aware: entries triaged `defer|skip|blocked` report
 status `triaged` instead of `ready`/`blocked`.

@@ -64,7 +64,7 @@ const PLAN_V3_EXT_KEYS = new Set([
   'request', 'planType', 'trigger', 'acceptanceCriteria', 'deliverables',
   'synthesisStrategy', 'replanPolicy', 'executiveSummary',
   'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds', 'supersedes',
-  'version',
+  'version', 'createKey',
 ]);
 // Non-null defaults emitted on write; every other ext key defaults to null.
 const PLAN_V3_EXT_DEFAULTS = { version: 1 };
@@ -316,6 +316,14 @@ function normalizePlanV3(input, taskKeys, errorFn) {
     }
     v3.version = input.version ?? null;
   }
+  if (has('createKey')) {
+    if (input.createKey !== null
+        && (typeof input.createKey !== 'string'
+          || input.createKey.trim() === '')) {
+      throw errorFn('createKey must be a non-empty string or null');
+    }
+    v3.createKey = input.createKey;
+  }
   if (Object.keys(v3).length) {
     for (const k of PLAN_V3_EXT_KEYS) {
       if (v3[k] === undefined) v3[k] = PLAN_V3_EXT_DEFAULTS[k] ?? null;
@@ -503,6 +511,17 @@ export function validatePlanInput(ctx, input) {
       && !lstatOrNull(planFileAbs(ctx, v3.supersedes))) {
     throw err('PLAN_NOT_FOUND',
       `supersedes references unknown plan '${v3.supersedes}'`);
+  }
+  // Idempotent creation: plans have no terminal state, so a createKey is
+  // held for as long as the plan exists — always a hard conflict, never a
+  // silent return of the original (same contract as task createKey).
+  if (v3?.createKey != null) {
+    const dup = listPlans(ctx).plans.find(
+      (p) => p.createKey === v3.createKey);
+    if (dup) {
+      throw err('PLAN_CONFLICT',
+        `createKey '${v3.createKey}' already held by plan '${dup.key}'`);
+    }
   }
   validateDag(tasks.map((t) => ({ key: t.key, dependsOn: t.dependsOn })),
     'plan input', seen);
