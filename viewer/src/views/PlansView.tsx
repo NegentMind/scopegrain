@@ -1,12 +1,5 @@
 import { useState } from 'react';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
   Table,
   TableBody,
   TableCell,
@@ -18,40 +11,42 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   api,
+  type PlanDocSummary,
   type PlanStatus,
   type PlanSummary,
 } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
+import { fmtDateTime } from '@/lib/format';
 import {
   EmptyBox,
   ErrorBox,
   ListSkeleton,
   StateBadge,
 } from '@/components/StatusBits';
+import { DocPanel } from '@/components/DocPanel';
+import { ProgressBar } from '@/components/ProgressBar';
+import { ViewSection } from '@/components/ViewSection';
 import { cn } from '@/lib/utils';
-import { useT, useTEnum } from '@/lib/i18n';
+import { toneClasses, type Tone } from '@/lib/tones';
+import { useLocale, useT, useTEnum } from '@/lib/i18n';
 import { usePoll } from '@/components/viz';
 import { openTask } from '@/lib/nav';
 import { Markdown } from '@/components/Markdown';
 
-const READINESS_TONE: Record<string, string> = {
-  ready:
-    'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-  blocked:
-    'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
-  active:
-    'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30',
-  closed: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
+// Semantic triad via lib/tones (audit E1): readiness/status are outcomes,
+// not categories — ok / warn / info / neutral only.
+const READINESS_TONE: Record<string, Tone> = {
+  ready: 'ok',
+  blocked: 'warn',
+  active: 'info',
+  closed: 'neutral',
 };
 
-const STATUS_TONE: Record<PlanStatus, string> = {
-  completed:
-    'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-  in_progress:
-    'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30',
-  pending:
-    'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
-  empty: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
+const STATUS_TONE: Record<PlanStatus, Tone> = {
+  completed: 'ok',
+  in_progress: 'info',
+  pending: 'warn',
+  empty: 'neutral',
 };
 
 type Selection =
@@ -59,23 +54,8 @@ type Selection =
   | { kind: 'doc'; name: string }
   | null;
 
-function ProgressBar({ pct, done }: { pct: number | null; done?: boolean }) {
-  return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-      <div
-        className={cn(
-          'h-full rounded-full transition-all',
-          done || pct === 100 ? 'bg-emerald-500' : 'bg-primary',
-        )}
-        style={{ width: `${pct ?? 0}%` }}
-      />
-    </div>
-  );
-}
-
 export function PlansView() {
   const t = useT();
-  const te = useTEnum();
   const [sel, setSel] = useState<Selection>(null);
   const plans = useApi(() => api.plans());
   const docs = useApi(() => api.planDocs());
@@ -84,7 +64,9 @@ export function PlansView() {
     docs.reload();
   });
 
-  if (plans.loading || docs.loading) return <ListSkeleton />;
+  if (plans.loading || docs.loading) {
+    return <ListSkeleton label={t('common.loading')} />;
+  }
   if (plans.error) return <ErrorBox error={plans.error} onRetry={plans.reload} />;
   if (docs.error) return <ErrorBox error={docs.error} onRetry={docs.reload} />;
 
@@ -94,101 +76,116 @@ export function PlansView() {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
       <div className="min-w-0 space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('plans.semantic')}</CardTitle>
-            <CardDescription>{t('plans.description')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {semantic.length === 0 ? (
-              <EmptyBox>{t('plans.empty')}</EmptyBox>
-            ) : (
+        <ViewSection
+          title={t('plans.semantic')}
+          description={t('plans.description')}
+          refreshing={plans.refreshing}
+        >
+          {semantic.length === 0 ? (
+            <EmptyBox>{t('plans.empty')}</EmptyBox>
+          ) : (
+            <ul className="space-y-1.5">
+              {semantic.map((p) => (
+                <PlanRow
+                  key={p.key}
+                  plan={p}
+                  active={sel?.kind === 'plan' && sel.key === p.key}
+                  onSelect={() => setSel({ kind: 'plan', key: p.key })}
+                />
+              ))}
+            </ul>
+          )}
+        </ViewSection>
+
+        <ViewSection
+          title={t('plans.docs')}
+          description={t('nav.plans.desc')}
+          refreshing={docs.refreshing}
+          truncated={docs.data?.truncated === true}
+        >
+          {docList.length === 0 ? (
+            <EmptyBox>{t('plans.docEmpty')}</EmptyBox>
+          ) : (
+            <ScrollArea className="max-h-96">
               <ul className="space-y-1.5">
-                {semantic.map((p) => (
-                  <PlanRow
-                    key={p.key}
-                    plan={p}
-                    active={sel?.kind === 'plan' && sel.key === p.key}
-                    onSelect={() => setSel({ kind: 'plan', key: p.key })}
+                {docList.map((d) => (
+                  <DocRow
+                    key={d.name}
+                    doc={d}
+                    active={sel?.kind === 'doc' && sel.name === d.name}
+                    onSelect={() => setSel({ kind: 'doc', name: d.name })}
                   />
                 ))}
               </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('plans.docs')}</CardTitle>
-            <CardDescription>
-              {t('nav.plans.desc')}
-              {docs.data?.truncated ? t('common.truncatedByApi') : ''}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {docList.length === 0 ? (
-              <EmptyBox>{t('plans.docEmpty')}</EmptyBox>
-            ) : (
-              <ScrollArea className="max-h-96">
-                <ul className="space-y-1.5">
-                  {docList.map((d) => (
-                    <li key={d.name}>
-                      <button
-                        type="button"
-                        onClick={() => setSel({ kind: 'doc', name: d.name })}
-                        className={cn(
-                          'flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-ring',
-                          sel?.kind === 'doc' && sel.name === d.name && 'bg-accent',
-                        )}
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">
-                            {d.title ?? d.name}
-                          </span>
-                          <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                            {d.name}
-                          </span>
-                        </span>
-                        {d.status ? (
-                          <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
-                            {te('pdep', d.status)}
-                          </Badge>
-                        ) : null}
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {d.date ?? d.updatedAt.slice(0, 10)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
+            </ScrollArea>
+          )}
+        </ViewSection>
       </div>
 
-      <Card className="min-w-0 self-start">
-        <CardHeader>
-          <CardTitle>{t('plans.title')}</CardTitle>
-          <CardDescription>
-            {sel === null
-              ? `${t('plans.selectPlan')} · ${t('plans.selectDoc')}`
-              : sel.kind === 'plan'
-                ? sel.key
-                : sel.name}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {sel === null ? (
-            <EmptyBox>{t('plans.selectPlan')}</EmptyBox>
-          ) : sel.kind === 'plan' ? (
-            <PlanDetail planKey={sel.key} />
-          ) : (
-            <PlanDocDetail name={sel.name} />
-          )}
-        </CardContent>
-      </Card>
+      <DocPanel
+        className="min-w-0 self-start max-h-[36rem]"
+        title={t('plans.title')}
+        description={
+          sel === null
+            ? `${t('plans.selectPlan')} · ${t('plans.selectDoc')}`
+            : sel.kind === 'plan'
+              ? sel.key
+              : sel.name
+        }
+        onClose={sel !== null ? () => setSel(null) : undefined}
+        closeLabel={t('common.close')}
+      >
+        {sel === null ? (
+          <EmptyBox>{t('plans.selectPlan')}</EmptyBox>
+        ) : sel.kind === 'plan' ? (
+          <PlanDetail planKey={sel.key} />
+        ) : (
+          <PlanDocDetail name={sel.name} />
+        )}
+      </DocPanel>
     </div>
+  );
+}
+
+function DocRow({
+  doc: d,
+  active,
+  onSelect,
+}: {
+  doc: PlanDocSummary;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const te = useTEnum();
+  const locale = useLocale();
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onSelect}
+        className={cn(
+          'flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-ring',
+          active && 'bg-accent',
+        )}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium" title={d.title ?? d.name}>
+            {d.title ?? d.name}
+          </span>
+          <span className="block truncate font-mono text-xs text-muted-foreground" title={d.name}>
+            {d.name}
+          </span>
+        </span>
+        {d.status ? (
+          <Badge variant="outline" className="shrink-0 font-mono text-xs">
+            {te('pdep', d.status)}
+          </Badge>
+        ) : null}
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {d.date ?? fmtDateTime(d.updatedAt, locale)}
+        </span>
+      </button>
+    </li>
   );
 }
 
@@ -202,6 +199,7 @@ function PlanRow({
   onSelect: () => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   return (
     <li>
       <button
@@ -214,17 +212,22 @@ function PlanRow({
       >
         <div className="flex items-center gap-2">
           <span className="font-mono font-medium">{p.key}</span>
-          <Badge variant="outline" className={STATUS_TONE[p.status]}>
+          <Badge variant="outline" className={toneClasses(STATUS_TONE[p.status]).badge}>
             {t(`plans.statuses.${p.status}`)}
           </Badge>
-          <span className="ml-auto text-xs text-muted-foreground">
-            {p.createdAt.slice(0, 16).replace('T', ' ')}
+          <span
+            className="ml-auto text-xs text-muted-foreground"
+            title={p.createdAt}
+          >
+            {fmtDateTime(p.createdAt, locale)}
           </span>
         </div>
-        <p className="truncate text-muted-foreground">{p.title}</p>
+        <p className="truncate text-muted-foreground" title={p.title}>
+          {p.title}
+        </p>
         <div className="flex items-center gap-3">
-          <ProgressBar pct={p.progress} />
-          <span className="shrink-0 font-mono text-xs text-muted-foreground">
+          <ProgressBar pct={p.progress} label={p.title} />
+          <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
             {p.done}/{p.total}
             {p.progress !== null ? ` · ${p.progress}%` : ''}
           </span>
@@ -236,8 +239,9 @@ function PlanRow({
 
 function PlanDetail({ planKey }: { planKey: string }) {
   const t = useT();
+  const locale = useLocale();
   const detail = useApi(() => api.plan(planKey), [planKey]);
-  if (detail.loading) return <ListSkeleton rows={3} />;
+  if (detail.loading) return <ListSkeleton rows={3} label={t('common.loading')} />;
   if (detail.error) {
     return <ErrorBox error={detail.error} onRetry={detail.reload} />;
   }
@@ -248,7 +252,7 @@ function PlanDetail({ planKey }: { planKey: string }) {
   return (
     <div className="space-y-4 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className={STATUS_TONE[detail.data.status]}>
+        <Badge variant="outline" className={toneClasses(STATUS_TONE[detail.data.status]).badge}>
           {t(`plans.statuses.${detail.data.status}`)}
         </Badge>
         <Badge variant="secondary">v{plan.schemaVersion}</Badge>
@@ -260,15 +264,27 @@ function PlanDetail({ planKey }: { planKey: string }) {
             {detail.data.progress}%
           </Badge>
         ) : null}
-        {plan.specId ? <Badge variant="outline">spec {plan.specId.slice(0, 8)}</Badge> : null}
-        {plan.designId ? <Badge variant="outline">design {plan.designId.slice(0, 8)}</Badge> : null}
-        {plan.appetite ? <Badge variant="outline">appetite: {plan.appetite}</Badge> : null}
-        {plan.cynefin ? <Badge variant="outline">cynefin: {plan.cynefin}</Badge> : null}
-        <span className="text-xs text-muted-foreground">
-          {plan.createdAt.slice(0, 16).replace('T', ' ')}
+        {plan.specId ? (
+          <Badge variant="outline" title={plan.specId}>
+            {t('tasks.spec')} {plan.specId.slice(0, 8)}
+          </Badge>
+        ) : null}
+        {plan.designId ? (
+          <Badge variant="outline" title={plan.designId}>
+            {t('tasks.design')} {plan.designId.slice(0, 8)}
+          </Badge>
+        ) : null}
+        {plan.appetite ? (
+          <Badge variant="outline">{t('tasks.appetite')}: {plan.appetite}</Badge>
+        ) : null}
+        {plan.cynefin ? (
+          <Badge variant="outline">{t('plans.cynefin')}: {plan.cynefin}</Badge>
+        ) : null}
+        <span className="text-xs text-muted-foreground" title={plan.createdAt}>
+          {fmtDateTime(plan.createdAt, locale)}
         </span>
       </div>
-      <ProgressBar pct={detail.data.progress} />
+      <ProgressBar pct={detail.data.progress} label={t('plans.title')} />
 
       <Table>
         <TableHeader>
@@ -291,6 +307,7 @@ function PlanDetail({ planKey }: { planKey: string }) {
                     <button
                       type="button"
                       onClick={() => openTask(task.id)}
+                      title={task.title ?? task.id}
                       className="max-w-64 truncate text-left font-medium text-primary underline-offset-4 hover:underline"
                     >
                       {task.title ?? task.id.slice(0, 8)}
@@ -306,7 +323,7 @@ function PlanDetail({ planKey }: { planKey: string }) {
                   {r ? (
                     <Badge
                       variant="outline"
-                      className={READINESS_TONE[r.status]}
+                      className={toneClasses(READINESS_TONE[r.status] ?? 'neutral').badge}
                     >
                       {t(`plans.${r.status}`)}
                     </Badge>
@@ -356,6 +373,7 @@ function PlanDetail({ planKey }: { planKey: string }) {
                       key={`${key}-${idx}`}
                       type="button"
                       onClick={() => openTask(id)}
+                      title={id}
                       className="inline-flex items-center gap-1 rounded border bg-muted/40 px-1.5 py-0.5 font-mono text-xs text-primary hover:bg-muted"
                     >
                       <span>{key}</span>
@@ -392,8 +410,8 @@ function PlanDetail({ planKey }: { planKey: string }) {
           </div>
           {runState.persisted && runState.run ? (
             <div className="space-y-1 text-muted-foreground">
-              <p className="font-mono">
-                {runState.run.updatedAt.slice(0, 19).replace('T', ' ')} · {runState.path}
+              <p className="font-mono" title={runState.run.updatedAt}>
+                {fmtDateTime(runState.run.updatedAt, locale)} · {runState.path}
               </p>
               {runState.resume.completedSinceLastCheckpoint.length > 0 ? (
                 <p>
@@ -420,21 +438,22 @@ function PlanDetail({ planKey }: { planKey: string }) {
 
 function PlanDocDetail({ name }: { name: string }) {
   const t = useT();
+  const locale = useLocale();
   const detail = useApi(() => api.planDoc(name), [name]);
-  if (detail.loading) return <ListSkeleton rows={3} />;
+  if (detail.loading) return <ListSkeleton rows={3} label={t('common.loading')} />;
   if (detail.error) {
     return <ErrorBox error={detail.error} onRetry={detail.reload} />;
   }
   if (!detail.data) return null;
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        {detail.data.bytes} B · {detail.data.updatedAt.slice(0, 10)}
+      <p className="text-xs text-muted-foreground" title={detail.data.updatedAt}>
+        {detail.data.bytes} B · {fmtDateTime(detail.data.updatedAt, locale)}
         {detail.data.docTruncated ? ` ${t('plans.docTruncated')}` : ''}
       </p>
-      <ScrollArea className="max-h-[36rem] rounded-md border bg-muted/40 p-4">
+      <div className="rounded-md border bg-muted/40 p-4">
         <Markdown>{detail.data.doc}</Markdown>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

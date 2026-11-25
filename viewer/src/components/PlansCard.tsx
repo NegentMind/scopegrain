@@ -15,15 +15,13 @@ import {
   ListSkeleton,
   StateBadge,
 } from '@/components/StatusBits';
+import { toneClasses, type Tone } from '@/lib/tones';
 
-const READINESS_TONE: Record<string, string> = {
-  ready:
-    'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-  blocked:
-    'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
-  active:
-    'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30',
-  closed: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
+const READINESS_TONE: Record<string, Tone> = {
+  ready: 'ok',
+  blocked: 'warn',
+  active: 'info',
+  closed: 'neutral',
 };
 
 export function PlansCard() {
@@ -62,7 +60,7 @@ export function PlansCard() {
                       <StateBadge state={r.state} />
                       <Badge
                         variant="outline"
-                        className={READINESS_TONE[r.status]}
+                        className={toneClasses(READINESS_TONE[r.status] ?? 'neutral').badge}
                       >
                         {r.status}
                       </Badge>

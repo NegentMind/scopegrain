@@ -1,7 +1,6 @@
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -15,11 +14,14 @@ import {
 } from '@/components/ui/table';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
+import { pct } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
 
-function pct(v: number | null): string {
-  return v === null ? '—' : `${(v * 100).toFixed(1)}%`;
+// pct() yields null for a 0 denominator — a 0/0 ratio renders '—', never
+// a fake 100.0% (audit P2-11).
+function fmtPct(v: number | null, none: string): string {
+  return v === null ? none : `${v.toFixed(1)}%`;
 }
 
 function ms(v: number | null): string {
@@ -45,7 +47,7 @@ function CountTable({
           {rows.map(([k, v]) => (
             <TableRow key={k}>
               <TableCell className="font-mono text-xs">{k}</TableCell>
-              <TableCell className="w-20 text-right font-mono">{v}</TableCell>
+              <TableCell className="w-20 text-right font-mono tabular-nums">{v}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -58,9 +60,17 @@ export function MetricsView() {
   const t = useT();
   const { data, loading, error, reload } = useApi(() => api.metrics());
 
-  if (loading) return <ListSkeleton />;
+  if (loading) return <ListSkeleton label={t('common.loading')} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const m = data;
+  const passPct = pct(
+    m?.verification.passed ?? 0,
+    m?.verification.checks ?? 0,
+  );
+  const firstTryPct = pct(
+    m?.verification.firstTryPass ?? 0,
+    m?.verification.firstTryTotal ?? 0,
+  );
 
   const sorted = (rec: Record<string, number> | undefined) =>
     Object.entries(rec ?? {}).sort((a, b) => b[1] - a[1]);
@@ -71,11 +81,10 @@ export function MetricsView() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
-        <CardHeader>
-          <CardTitle>{t('metrics.title')}</CardTitle>
-          <CardDescription>{t('metrics.derived')}</CardDescription>
-        </CardHeader>
+        {/* No duplicated CardHeader: the view header already titles this
+            card; only the derivation caveat stays, as a muted note. */}
         <CardContent className="space-y-6">
+          <p className="text-xs text-muted-foreground">{t('metrics.derived')}</p>
           <p className="text-sm">
             {t('metrics.tasksTotal')}:{' '}
             <span className="font-mono font-semibold">
@@ -108,8 +117,8 @@ export function MetricsView() {
             <TableBody>
               <TableRow>
                 <TableCell>{t('metrics.passRate')}</TableCell>
-                <TableCell className="text-right font-mono">
-                  {pct(m?.verification.passRate ?? null)}
+                <TableCell className="text-right font-mono tabular-nums">
+                  {fmtPct(passPct, t('common.none'))}
                   <span className="ml-2 text-xs text-muted-foreground">
                     {m?.verification.passed ?? 0}/{m?.verification.checks ?? 0}
                   </span>
@@ -117,8 +126,8 @@ export function MetricsView() {
               </TableRow>
               <TableRow>
                 <TableCell>{t('metrics.firstTry')}</TableCell>
-                <TableCell className="text-right font-mono">
-                  {pct(m?.verification.firstTryRate ?? null)}
+                <TableCell className="text-right font-mono tabular-nums">
+                  {fmtPct(firstTryPct, t('common.none'))}
                   <span className="ml-2 text-xs text-muted-foreground">
                     {m?.verification.firstTryPass ?? 0}/
                     {m?.verification.firstTryTotal ?? 0}
@@ -135,7 +144,7 @@ export function MetricsView() {
                 {(['p50', 'p95', 'p99'] as const).map((p) => (
                   <TableRow key={p}>
                     <TableCell className="font-mono">{p}</TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right font-mono tabular-nums">
                       {ms(m?.durationMs[p] ?? null)}
                     </TableCell>
                   </TableRow>
@@ -168,10 +177,10 @@ export function MetricsView() {
                       <TableCell className="font-mono text-xs">
                         {name}
                       </TableCell>
-                      <TableCell className="text-right font-mono">
+                      <TableCell className="text-right font-mono tabular-nums">
                         {s.ok}
                       </TableCell>
-                      <TableCell className="text-right font-mono">
+                      <TableCell className="text-right font-mono tabular-nums">
                         {s.fail}
                       </TableCell>
                     </TableRow>

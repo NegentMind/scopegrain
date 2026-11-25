@@ -9,35 +9,50 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { useT, useTEnum } from '@/lib/i18n';
-import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
+import { fmtRel } from '@/lib/format';
+import { useLocale, useT, useTEnum } from '@/lib/i18n';
+import { EmptyBox, ErrorBox, ListSkeleton, ShortId } from '@/components/StatusBits';
+import { RefreshDot } from '@/components/ViewSection';
 import { usePoll } from '@/components/viz';
+import { toneClasses, type Tone } from '@/lib/tones';
 import { cn } from '@/lib/utils';
 
-const TONE: Record<string, string> = {
-  pending: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
-  approve: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-  reject: 'bg-destructive/15 text-destructive border-destructive/30',
-  decline: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
-  revoke: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
+const TONE: Record<string, Tone> = {
+  pending: 'warn',
+  approve: 'ok',
+  reject: 'err',
+  decline: 'neutral',
+  revoke: 'neutral',
 };
 
-function ApprovalDetail({ id, onClose }: { id: string; onClose: () => void }) {
+function ApprovalDetail({
+  id,
+  regionId,
+  onClose,
+}: {
+  id: string;
+  /** DOM id wired to the row's aria-controls. */
+  regionId: string;
+  onClose: () => void;
+}) {
   const t = useT();
+  const locale = useLocale();
   const { data, loading, error, reload } = useApi(() => api.approval(id), [id]);
-  if (loading) return <ListSkeleton />;
+  if (loading) return <ListSkeleton label={t('common.loading')} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const a = data?.approval;
   if (!a) return null;
   const answers = Array.isArray(a.answers) ? a.answers : [];
   return (
-    <Card className="mt-4">
+    <Card id={regionId} className="mt-4">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div>
-          <CardTitle className="font-mono text-sm">{a.id.slice(0, 16)}…</CardTitle>
+          <CardTitle className="font-mono text-sm">
+            <ShortId id={a.id} />
+          </CardTitle>
           <CardDescription>
-            {t('approvals.target')}: {a.target?.kind ?? '-'}
-            {a.specId ? ` · spec ${a.specId.slice(0, 8)}` : ''}
+            {t('approvals.target')}: {a.target?.kind ?? t('common.none')}
+            {a.specId ? ` · ${t('tasks.spec')} ${a.specId.slice(0, 8)}` : ''}
           </CardDescription>
         </div>
         <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>
@@ -59,9 +74,11 @@ function ApprovalDetail({ id, onClose }: { id: string; onClose: () => void }) {
               {answers.map((an, i) => (
                 <TableRow key={i}>
                   <TableCell><Badge variant="outline">{an.answer}</Badge></TableCell>
-                  <TableCell className="text-xs">{an.actor ?? '-'}</TableCell>
-                  <TableCell className="font-mono text-xs">{an.at ?? '-'}</TableCell>
-                  <TableCell className="text-xs">{an.rationale ?? '-'}</TableCell>
+                  <TableCell className="text-xs">{an.actor ?? t('common.none')}</TableCell>
+                  <TableCell className="font-mono text-xs" title={an.at}>
+                    {an.at ? fmtRel(an.at, locale) : t('common.none')}
+                  </TableCell>
+                  <TableCell className="text-xs">{an.rationale ?? t('common.none')}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -80,25 +97,25 @@ function ApprovalDetail({ id, onClose }: { id: string; onClose: () => void }) {
 export function ApprovalsView() {
   const t = useT();
   const te = useTEnum();
-  const { data, loading, error, reload } = useApi(() => api.approvals());
+  const locale = useLocale();
+  const { data, loading, error, reload, refreshing } = useApi(() => api.approvals());
   const [openId, setOpenId] = useState<string | null>(null);
   usePoll(reload);
 
-  if (loading) return <ListSkeleton />;
+  if (loading) return <ListSkeleton label={t('common.loading')} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const approvals = data?.approvals ?? [];
 
   return (
     <div>
       <Card>
-        <CardHeader>
-          <CardTitle>{t('approvals.title')}</CardTitle>
-          <CardDescription>
-            {t('approvals.desc')}
-            {data?.truncated ? t('common.truncatedByApi') : ''}
-          </CardDescription>
-        </CardHeader>
+        {/* No duplicated CardHeader (audit P2-07): the view header above
+            already shows title + description. */}
         <CardContent>
+          <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+            <RefreshDot active={refreshing} />
+            {data?.truncated ? t('common.truncatedByApi').trim() : null}
+          </div>
           {approvals.length === 0 ? (
             <EmptyBox>{t('approvals.empty')}</EmptyBox>
           ) : (
@@ -114,9 +131,10 @@ export function ApprovalsView() {
               </TableHeader>
               <TableBody>
                 {approvals.map((a) => (
-                  <TableRow key={a.id} className="cursor-pointer focus-visible:outline-ring"
+                  <TableRow key={a.id} className="cursor-pointer focus-visible:outline-2 focus-visible:outline-ring"
                     tabIndex={0}
                     aria-expanded={openId === a.id}
+                    aria-controls={openId === a.id ? `approval-detail-${a.id}` : undefined}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault(); // Space must not scroll the page
@@ -125,14 +143,16 @@ export function ApprovalsView() {
                     }}
                     onClick={() => setOpenId(openId === a.id ? null : a.id)}>
                     <TableCell>
-                      <Badge variant="outline" className={cn(TONE[a.status] ?? '')}>
+                      <Badge variant="outline" className={cn(toneClasses(TONE[a.status] ?? 'neutral').badge)}>
                         {te('appr', a.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{a.id.slice(0, 12)}…</TableCell>
-                    <TableCell className="text-xs">{a.target?.kind ?? '-'}</TableCell>
-                    <TableCell>{a.answers}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{a.updatedAt}</TableCell>
+                    <TableCell><ShortId id={a.id} /></TableCell>
+                    <TableCell className="text-xs">{a.target?.kind ?? t('common.none')}</TableCell>
+                    <TableCell className="tabular-nums">{a.answers}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground" title={a.updatedAt}>
+                      {fmtRel(a.updatedAt, locale)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -140,7 +160,13 @@ export function ApprovalsView() {
           )}
         </CardContent>
       </Card>
-      {openId && <ApprovalDetail id={openId} onClose={() => setOpenId(null)} />}
+      {openId && (
+        <ApprovalDetail
+          id={openId}
+          regionId={`approval-detail-${openId}`}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </div>
   );
 }

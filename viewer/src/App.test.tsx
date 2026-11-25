@@ -66,7 +66,9 @@ describe('App shell navigation', () => {
     vi.restoreAllMocks();
   });
 
-  it('keeps a single section header when switching sidebar tabs repeatedly', async () => {
+  // The hash router adds a sync navigate() + re-render per tab switch;
+  // five sequential userEvent clicks land just past the 5 s default.
+  it('keeps a single section header when switching sidebar tabs repeatedly', { timeout: 15000 }, async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('api ok');

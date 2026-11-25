@@ -1,7 +1,12 @@
 // Shared read-only visualizations: C0 lifecycle funnel, task dependency
 // DAG and a polling hook. Pure SVG — no chart dependency.
+/* eslint-disable jsx-a11y/no-noninteractive-tabindex --
+   axe scrollable-region-focusable (WCAG 2.1.1) requires keyboard focus on
+   the funnel/DAG scroll regions; the lint rule cannot see the overflow. */
 import { useEffect, useRef } from 'react';
 import type { WorkflowPolicy } from '@/lib/api';
+import { useT } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 
 // Ordered pipeline for display; side states shown separately.
 export const PIPELINE_ORDER = [
@@ -45,6 +50,7 @@ export function LifecycleFunnel({
   counts: Record<string, number>;
   labels: { pipeline: string; side: string };
 }) {
+  const t = useT();
   const order = [
     ...PIPELINE_ORDER.filter((s) => workflow.transitions[s] !== undefined),
     ...Object.keys(workflow.transitions).filter(
@@ -54,12 +60,23 @@ export function LifecycleFunnel({
   const H = 44;
   const GAP = 34;
   const totalW = order.length * (W + GAP) - GAP;
+  // Data summary for screen readers (SC 1.1.1): state names + counts.
+  const summary = [...order, ...SIDE_STATES]
+    .map((s) => `${s} ${counts[s] ?? 0}`)
+    .join(', ');
   return (
     <div>
       <div className="mb-1 text-xs font-medium text-muted-foreground">{labels.pipeline}</div>
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-x-auto"
+        tabIndex={0}
+        role="region"
+        aria-label={t('viz.funnel')}
+      >
         <svg width={totalW + 8} height={H + 30} role="img"
           aria-label={labels.pipeline}>
+          <title>{t('viz.funnel')}</title>
+          <desc>{summary}</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
               markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -92,9 +109,19 @@ export function LifecycleFunnel({
       </div>
       <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
         <span>{labels.side}:</span>
-        {SIDE_STATES.map((s) => (
-          <span key={s}>{s}: <b className="text-foreground">{counts[s] ?? 0}</b></span>
-        ))}
+        {SIDE_STATES.map((s) => {
+          const c = counts[s] ?? 0;
+          // ABANDON is the pipeline health signal: only a nonzero count
+          // earns the error tone; zeros stay quiet.
+          return (
+            <span key={s}>{s}:{' '}
+              <b className={cn('font-semibold',
+                s === 'ABANDON' && c > 0 ? 'text-err' : 'text-foreground')}>
+                {c}
+              </b>
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -110,6 +137,7 @@ export function TaskDag({
   edges: { from: string; to: string; kind: string }[];
   labels: { empty: string; dag: string };
 }) {
+  const t = useT();
   if (nodes.length === 0) {
     return <div className="text-sm text-muted-foreground">{labels.empty}</div>;
   }
@@ -151,8 +179,19 @@ export function TaskDag({
   const svgH = Math.max(60, ...[...pos.values()].map((p) => p.y + H)) + 10;
   const svgW = (maxLayer + 1) * (W + GX) + 10;
   return (
-    <div className="overflow-x-auto">
+    <div
+      className="overflow-x-auto"
+      tabIndex={0}
+      role="region"
+      aria-label={t('viz.dag')}
+    >
       <svg width={svgW} height={svgH} role="img" aria-label={labels.dag}>
+        <title>{t('viz.dag')}</title>
+        <desc>
+          {t('viz.dagSummary')
+            .replace('{n}', String(nodes.length))
+            .replace('{m}', String(edges.length))}
+        </desc>
         <defs>
           <marker id="darrow" viewBox="0 0 10 10" refX="9" refY="5"
             markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -179,7 +218,7 @@ export function TaskDag({
               <text x={p.x + W / 2} y={p.y + 17} textAnchor="middle"
                 className="fill-foreground text-[10px] font-medium">{short}</text>
               <text x={p.x + W / 2} y={p.y + 32} textAnchor="middle"
-                className="fill-muted-foreground text-[9px]">{n.state ?? id.slice(0, 8)}</text>
+                className="fill-muted-foreground text-[10px]">{n.state ?? id.slice(0, 8)}</text>
             </g>
           );
         })}

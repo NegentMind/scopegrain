@@ -67,6 +67,10 @@ const DICT: Record<Locale, Record<string, string>> = {
     'app.api.aria.ok': 'API connected',
     'app.api.aria.down': 'API unreachable',
     'app.locale': 'Language',
+    'app.skip': 'Skip to content',
+    'nav.section.work': 'Work',
+    'nav.section.log': 'Log',
+    'nav.section.system': 'System',
     'nav.workspace': 'Workspace',
     'nav.tasks': 'Work items',
     'nav.journal': 'Journal',
@@ -193,6 +197,9 @@ const DICT: Record<Locale, Record<string, string>> = {
     'workspace.malformedTasks': 'malformed tasks',
     'workspace.enrolledDesc': 'Logical scopes; not OS ACLs or a sandbox.',
     'workspace.notEnrolled': 'Project is not enrolled: no workspace descriptor. Journal and capture endpoints report WORKSPACE_NOT_FOUND.',
+    'workspace.id': 'Workspace id',
+    'workspace.revision': 'Revision',
+    'workspace.config': 'config',
     'error.retryAria': 'Retry request',
     'error.title': 'Something went wrong',
     'error.viewDesc': 'This view failed to render. The rest of the viewer keeps working.',
@@ -322,17 +329,18 @@ const DICT: Record<Locale, Record<string, string>> = {
       'Nothing writes without --apply; discovered commands never run; '
       + 'network, git push and host activation require explicit consent; '
       + 'this dashboard never mutates state.',
-    'graph.lifecycle': 'Lifecycle funnel',
-    'graph.lifecycleDesc': 'Tasks per C0 state over the canonical transition graph.',
     'graph.dag': 'Dependency graph',
     'graph.dagDesc': 'dependsOn and typed relations between recorded tasks.',
     'graph.empty': 'No dependencies or relations recorded yet.',
+    'viz.funnel': 'Lifecycle funnel diagram (horizontally scrollable)',
+    'viz.dag': 'Task dependency diagram (horizontally scrollable)',
+    'viz.dagSummary': '{n} tasks, {m} dependencies',
     'nav.workspace.desc':
       'Enrolled project descriptor: identity, configured paths, areas and store counts.',
     'nav.tasks.desc':
       'Work contracts with C0 lifecycle, semantic metadata and history.',
     'nav.graph.desc':
-      'Lifecycle funnel and dependency graph between recorded tasks.',
+      'Dependency graph between recorded tasks.',
     'nav.journal.desc':
       'Hash-chained journal: prepared and committed operations with their events.',
     'nav.artifacts.desc':
@@ -381,6 +389,7 @@ const DICT: Record<Locale, Record<string, string>> = {
     'plans.remainingWaves': 'remaining waves',
     'plans.sinceCheckpoint': 'Closed since last checkpoint',
     'plans.allDone': 'All scheduled work completed',
+    'plans.cynefin': 'cynefin',
     'artifacts.docs': 'Documents',
     'artifacts.docCount': 'documents',
     'artifacts.docEmpty': 'No documents for this kind.',
@@ -540,6 +549,10 @@ const DICT: Record<Locale, Record<string, string>> = {
     'app.api.aria.ok': 'API conectada',
     'app.api.aria.down': 'API inalcanzable',
     'app.locale': 'Idioma',
+    'app.skip': 'Saltar al contenido',
+    'nav.section.work': 'Trabajo',
+    'nav.section.log': 'Registro',
+    'nav.section.system': 'Sistema',
     'nav.workspace': 'Espacio de trabajo',
     'nav.tasks': 'Tareas',
     'nav.journal': 'Diario',
@@ -666,6 +679,9 @@ const DICT: Record<Locale, Record<string, string>> = {
     'workspace.malformedTasks': 'tareas malformadas',
     'workspace.enrolledDesc': 'Ámbitos lógicos; no son ACLs del SO ni un sandbox.',
     'workspace.notEnrolled': 'Proyecto no inscrito: sin descriptor de espacio de trabajo. Los endpoints de diario y capturas responden WORKSPACE_NOT_FOUND.',
+    'workspace.id': 'Id de workspace',
+    'workspace.revision': 'Revisión',
+    'workspace.config': 'config',
     'error.retryAria': 'Reintentar la solicitud',
     'error.title': 'Algo salió mal',
     'error.viewDesc': 'Esta vista falló al renderizarse. El resto del visor sigue funcionando.',
@@ -795,17 +811,18 @@ const DICT: Record<Locale, Record<string, string>> = {
       'Nada escribe sin --apply; los comandos descubiertos nunca se '
       + 'ejecutan; la red, git push y la activación de hosts requieren '
       + 'consentimiento explícito; este panel nunca muta estado.',
-    'graph.lifecycle': 'Embudo del ciclo',
-    'graph.lifecycleDesc': 'Tareas por estado C0 sobre el grafo de transiciones canónico.',
     'graph.dag': 'Grafo de dependencias',
     'graph.dagDesc': 'dependsOn y relaciones tipadas entre tareas registradas.',
     'graph.empty': 'Sin dependencias ni relaciones registradas aún.',
+    'viz.funnel': 'Diagrama del embudo del ciclo de vida (desplazable horizontalmente)',
+    'viz.dag': 'Diagrama de dependencias de tareas (desplazable horizontalmente)',
+    'viz.dagSummary': '{n} tareas, {m} dependencias',
     'nav.workspace.desc':
       'Descriptor del proyecto inscrito: identidad, rutas configuradas, áreas y conteos de almacenes.',
     'nav.tasks.desc':
       'Contratos de trabajo con ciclo de vida C0, metadatos semánticos e historial.',
     'nav.graph.desc':
-      'Embudo del ciclo de vida y grafo de dependencias entre tareas registradas.',
+      'Grafo de dependencias entre tareas registradas.',
     'nav.journal.desc':
       'Diario con cadena hash: operaciones prepared y committed con sus eventos.',
     'nav.artifacts.desc':
@@ -854,6 +871,7 @@ const DICT: Record<Locale, Record<string, string>> = {
     'plans.remainingWaves': 'olas restantes',
     'plans.sinceCheckpoint': 'Cerradas desde el último checkpoint',
     'plans.allDone': 'Todo el trabajo planificado completado',
+    'plans.cynefin': 'cynefin',
     'artifacts.docs': 'Documentos',
     'artifacts.docCount': 'documentos',
     'artifacts.docEmpty': 'Sin documentos de este tipo.',

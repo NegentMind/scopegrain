@@ -1,21 +1,30 @@
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
+import {
+  Alert, AlertDescription, AlertTitle,
+} from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { AlertTriangle } from 'lucide-react';
 import { api, type ChecklistItemStatus } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useT, useTEnum } from '@/lib/i18n';
 import { openTask } from '@/lib/nav';
+import { toneClasses, type Tone } from '@/lib/tones';
 import { cn } from '@/lib/utils';
+import { TaskLinkRow } from '@/components/TaskLinkRow';
 import {
-  EmptyBox, ErrorBox, ListSkeleton, StateBadge,
+  EmptyBox, ErrorBox, ListSkeleton,
 } from '@/components/StatusBits';
 
-const ITEM_TONE: Record<ChecklistItemStatus, string> = {
-  pass: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-  fail: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
-  pending: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
-  na: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
+// Checklist outcomes map onto the semantic triad: pass/fail/pending are
+// results (color), n/a is inert (neutral). Shared via lib/tones, not a
+// per-view palette.
+const ITEM_TONE: Record<ChecklistItemStatus, Tone> = {
+  pass: 'ok',
+  fail: 'err',
+  pending: 'warn',
+  na: 'neutral',
 };
 
 export function StateView() {
@@ -25,18 +34,14 @@ export function StateView() {
   const cons = useApi(() => api.constitution());
   const chk = useApi(() => api.checklists());
 
-  if (active.loading || cons.loading || chk.loading) return <ListSkeleton />;
-  if (active.error) {
-    return <ErrorBox error={active.error} onRetry={active.reload} />;
-  }
-  if (cons.error) return <ErrorBox error={cons.error} onRetry={cons.reload} />;
-  if (chk.error) return <ErrorBox error={chk.error} onRetry={chk.reload} />;
-
   const activeData = active.data;
   const constitution = cons.data?.constitution ?? null;
   const checklists = chk.data?.checklists ?? [];
   const malformed = chk.data?.malformed ?? [];
 
+  // Partial degradation (audit P1-01): a failed endpoint must only blank
+  // its own card — a 404 on /api/active-task must not hide the
+  // constitution or the checklists.
   return (
     <div className="space-y-4">
       <Card>
@@ -45,30 +50,30 @@ export function StateView() {
           <CardDescription>{t('active.desc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          {activeData?.error ? (
+          {active.loading ? (
+            <ListSkeleton rows={1} label={t('common.loading')} />
+          ) : active.error ? (
+            <ErrorBox error={active.error} onRetry={active.reload} />
+          ) : activeData?.error ? (
             <div className="text-xs text-destructive">
               {activeData.error.code}: {activeData.error.message}
             </div>
           ) : !activeData?.task ? (
             <EmptyBox>{t('active.none')}</EmptyBox>
           ) : (
-            <button
-              onClick={() => openTask(activeData.task!.id)}
-              className="flex w-full flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/60"
-            >
-              <StateBadge state={activeData.task.state} />
-              <span className="min-w-0 flex-1 truncate font-medium">
-                {activeData.task.title}
-              </span>
-              {activeData.source ? (
-                <Badge variant="secondary" className="font-mono text-[10px]">
-                  {t('active.source')}: {activeData.source}
-                </Badge>
-              ) : null}
-              <span className="font-mono text-[10px] text-muted-foreground">
-                {activeData.task.id.slice(0, 8)}
-              </span>
-            </button>
+            <TaskLinkRow
+              id={activeData.task.id}
+              state={activeData.task.state}
+              title={activeData.task.title}
+              className="flex-wrap px-3 py-2"
+              meta={
+                activeData.source ? (
+                  <Badge variant="secondary" className="font-mono text-xs">
+                    {t('active.source')}: {activeData.source}
+                  </Badge>
+                ) : null
+              }
+            />
           )}
         </CardContent>
       </Card>
@@ -79,7 +84,11 @@ export function StateView() {
           <CardDescription>{t('const.desc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          {!constitution ? (
+          {cons.loading ? (
+            <ListSkeleton rows={2} label={t('common.loading')} />
+          ) : cons.error ? (
+            <ErrorBox error={cons.error} onRetry={cons.reload} />
+          ) : !constitution ? (
             <EmptyBox>{t('const.empty')}</EmptyBox>
           ) : (
             <div className="space-y-3">
@@ -87,10 +96,10 @@ export function StateView() {
                 <Badge variant="outline" className="font-mono">
                   v{constitution.version}
                 </Badge>
-                <Badge variant="secondary" className="font-mono text-[10px]">
+                <Badge variant="secondary" className="font-mono text-xs">
                   {constitution.complexity.principles} {t('const.principles')}
                 </Badge>
-                <Badge variant="secondary" className="font-mono text-[10px]">
+                <Badge variant="secondary" className="font-mono text-xs">
                   {constitution.complexity.historyEntries} {t('const.history')}
                 </Badge>
               </div>
@@ -112,7 +121,7 @@ export function StateView() {
                   {constitution.history.map((h, i) => (
                     <li key={i} className="flex flex-wrap gap-x-2">
                       <span className="font-mono">v{h.version}</span>
-                      <Badge variant="outline" className="font-mono text-[10px]">
+                      <Badge variant="outline" className="font-mono text-xs">
                         {h.bump}
                       </Badge>
                       <span>{h.at}</span>
@@ -135,68 +144,82 @@ export function StateView() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {checklists.length === 0 && malformed.length === 0 ? (
-            <EmptyBox>{t('checklists.empty')}</EmptyBox>
+          {chk.loading ? (
+            <ListSkeleton rows={2} label={t('common.loading')} />
+          ) : chk.error ? (
+            <ErrorBox error={chk.error} onRetry={chk.reload} />
           ) : (
-            checklists.map((c) => (
-              <div key={c.id} className="rounded-md border px-3 py-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className="font-medium">{c.title}</span>
-                    <button
-                      onClick={() => openTask(c.taskId)}
-                      className="ml-2 font-mono text-[10px] text-muted-foreground underline-offset-2 hover:underline"
-                    >
-                      {t('checklists.task')} {c.taskId.slice(0, 8)}
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {(['pass', 'fail', 'pending', 'na'] as const).map((s) =>
-                      c.counts[s] > 0 ? (
-                        <Badge
-                          key={s}
-                          variant="outline"
-                          className={cn('font-mono text-[10px]', ITEM_TONE[s])}
+            <>
+              {checklists.length === 0 && malformed.length === 0 ? (
+                <EmptyBox>{t('checklists.empty')}</EmptyBox>
+              ) : (
+                checklists.map((c) => (
+                  <div key={c.id} className="rounded-md border px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="font-medium">{c.title}</span>
+                        <button
+                          onClick={() => openTask(c.taskId)}
+                          title={c.taskId}
+                          className="ml-2 font-mono text-xs text-muted-foreground underline-offset-2 hover:underline"
                         >
-                          {c.counts[s]} {te('check', s)}
-                        </Badge>
-                      ) : null,
-                    )}
+                          {t('checklists.task')} {c.taskId.slice(0, 8)}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {(['pass', 'fail', 'pending', 'na'] as const).map((s) =>
+                          c.counts[s] > 0 ? (
+                            <Badge
+                              key={s}
+                              variant="outline"
+                              className={cn('font-mono text-xs', toneClasses(ITEM_TONE[s]).badge)}
+                            >
+                              {c.counts[s]} {te('check', s)}
+                            </Badge>
+                          ) : null,
+                        )}
+                      </div>
+                    </div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                      {c.items.map((it) => (
+                        <li key={it.id} className="flex items-baseline gap-2">
+                          <Badge
+                            variant="outline"
+                            className={cn('shrink-0 font-mono text-xs', toneClasses(ITEM_TONE[it.status]).badge)}
+                          >
+                            {it.id}
+                          </Badge>
+                          <span className="min-w-0 flex-1">
+                            {it.text}
+                            {it.note ? (
+                              <span className="text-muted-foreground"> — {it.note}</span>
+                            ) : null}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </div>
-                <ul className="mt-2 space-y-1 text-sm">
-                  {c.items.map((it) => (
-                    <li key={it.id} className="flex items-baseline gap-2">
-                      <Badge
-                        variant="outline"
-                        className={cn('shrink-0 font-mono text-[10px]', ITEM_TONE[it.status])}
-                      >
-                        {it.id}
-                      </Badge>
-                      <span className="min-w-0 flex-1">
-                        {it.text}
-                        {it.note ? (
-                          <span className="text-muted-foreground"> — {it.note}</span>
-                        ) : null}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
+                ))
+              )}
+              {malformed.length > 0 ? (
+                <Alert variant="destructive">
+                  <AlertTriangle />
+                  <AlertTitle>
+                    {malformed.length} {t('common.malformedEntries')}
+                  </AlertTitle>
+                  <AlertDescription>
+                    <ul className="space-y-0.5">
+                      {malformed.map((m, i) => (
+                        <li key={i} className="font-mono">
+                          {m.file}: {m.error.code}
+                        </li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+            </>
           )}
-          {malformed.length > 0 ? (
-            <div className="space-y-1 text-xs">
-              <p className="font-medium text-destructive">
-                {malformed.length} {t('common.malformedEntries')}
-              </p>
-              {malformed.map((m, i) => (
-                <p key={i} className="font-mono text-muted-foreground">
-                  {m.file}: {m.error.code}
-                </p>
-              ))}
-            </div>
-          ) : null}
         </CardContent>
       </Card>
     </div>

@@ -1,7 +1,4 @@
 import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from '@/components/ui/card';
-import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +6,9 @@ import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useT } from '@/lib/i18n';
 import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
+import { ViewSection } from '@/components/ViewSection';
 import { LifecycleFunnel, usePoll } from '@/components/viz';
+import { toneClasses } from '@/lib/tones';
 import { cn } from '@/lib/utils';
 
 export function SystemView() {
@@ -20,7 +19,9 @@ export function SystemView() {
   const ws = useApi(() => api.workspace());
   usePoll(() => { vdb.reload(); vc.reload(); ws.reload(); });
 
-  if (vdb.loading || wf.loading || vc.loading || ws.loading) return <ListSkeleton />;
+  if (vdb.loading || wf.loading || vc.loading || ws.loading) {
+    return <ListSkeleton label={t('common.loading')} />;
+  }
   if (vdb.error) return <ErrorBox error={vdb.error} onRetry={vdb.reload} />;
   if (wf.error) return <ErrorBox error={wf.error} onRetry={wf.reload} />;
   if (vc.error) return <ErrorBox error={vc.error} onRetry={vc.reload} />;
@@ -43,12 +44,11 @@ export function SystemView() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('system.owner')}</CardTitle>
-          <CardDescription>{t('system.ownerDesc')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <ViewSection
+        title={t('system.owner')}
+        description={t('system.ownerDesc')}
+      >
+        <div className="space-y-3">
           <ul className="space-y-1.5 text-sm">
             {ownerRows.map(([cmd, desc]) => (
               <li key={cmd} className="flex flex-wrap items-baseline gap-x-3">
@@ -62,107 +62,93 @@ export function SystemView() {
           <p className="border-t pt-3 text-xs text-muted-foreground">
             {t('system.ownerBounds')}
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </ViewSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('system.lifecycle')}</CardTitle>
-          <CardDescription>{t('system.lifecycleDesc')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {policy && (
-            <LifecycleFunnel workflow={policy} counts={counts}
-              labels={{ pipeline: t('system.pipeline'), side: t('system.side') }} />
-          )}
-        </CardContent>
-      </Card>
+      <ViewSection
+        title={t('system.lifecycle')}
+        description={t('system.lifecycleDesc')}
+        refreshing={ws.refreshing}
+      >
+        {policy && (
+          <LifecycleFunnel workflow={policy} counts={counts}
+            labels={{ pipeline: t('system.pipeline'), side: t('system.side') }} />
+        )}
+      </ViewSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('system.vantadb')}</CardTitle>
-          <CardDescription>{t('system.vantadbDesc')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!v?.configured ? (
-            <EmptyBox>{t('system.vantadbOff')}</EmptyBox>
-          ) : (
-            <div className="space-y-2 text-sm">
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">v{v.config?.version}</Badge>
-                <Badge variant="outline" className={cn(v.binaryPresent
-                  ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                  : 'border-destructive/40 text-destructive')}>
-                  {v.binaryPresent ? t('system.binaryOk') : t('system.binaryMissing')}
-                </Badge>
-                <Badge variant="outline" className={cn(v.storagePresent
-                  ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                  : 'border-destructive/40 text-destructive')}>
-                  {v.storagePresent ? t('system.storageOk') : t('system.storageMissing')}
-                </Badge>
-                <Badge variant="outline">
-                  {t('system.pending')}: {v.pendingCommittedEvents ?? '-'}
-                </Badge>
-              </div>
-              <div className="font-mono text-xs text-muted-foreground">
-                {v.config?.binaryPath}
-              </div>
-              {(v.warnings ?? []).map((w, i) => (
-                <div key={i} className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
-                  {w.signal}: {w.detail}
-                </div>
-              ))}
-              {v.error && (
-                <div className="text-xs text-destructive">
-                  {v.error.code}: {v.error.message}
-                </div>
-              )}
+      <ViewSection
+        title={t('system.vantadb')}
+        description={t('system.vantadbDesc')}
+        refreshing={vdb.refreshing}
+      >
+        {!v?.configured ? (
+          <EmptyBox>{t('system.vantadbOff')}</EmptyBox>
+        ) : (
+          <div className="space-y-2 text-sm">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">v{v.config?.version}</Badge>
+              <Badge variant="outline" className={toneClasses(v.binaryPresent ? 'ok' : 'err').badge}>
+                {v.binaryPresent ? t('system.binaryOk') : t('system.binaryMissing')}
+              </Badge>
+              <Badge variant="outline" className={toneClasses(v.storagePresent ? 'ok' : 'err').badge}>
+                {v.storagePresent ? t('system.storageOk') : t('system.storageMissing')}
+              </Badge>
+              <Badge variant="outline">
+                {t('system.pending')}: {v.pendingCommittedEvents ?? t('common.none')}
+              </Badge>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <div className="font-mono text-xs text-muted-foreground">
+              {v.config?.binaryPath}
+            </div>
+            {(v.warnings ?? []).map((w, i) => (
+              <div key={i} className={cn('rounded-md border px-3 py-2 text-xs', toneClasses('warn').badge)}>
+                {w.signal}: {w.detail}
+              </div>
+            ))}
+            {v.error && (
+              <div className="text-xs text-destructive">
+                {v.error.code}: {v.error.message}
+              </div>
+            )}
+          </div>
+        )}
+      </ViewSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('system.verify')}</CardTitle>
-          <CardDescription>
-            {vc.data?.store}
-            {vc.data?.truncated ? t('common.truncatedByApi') : ''}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {commands.length === 0 ? (
-            <EmptyBox>{t('system.verifyEmpty')}</EmptyBox>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-24">{t('system.approved')}</TableHead>
-                  <TableHead>{t('system.command')}</TableHead>
-                  <TableHead className="w-24">{t('system.source')}</TableHead>
-                  <TableHead className="w-28">{t('system.cwd')}</TableHead>
+      <ViewSection
+        title={t('system.verify')}
+        description={vc.data?.store}
+        refreshing={vc.refreshing}
+        truncated={vc.data?.truncated === true}
+      >
+        {commands.length === 0 ? (
+          <EmptyBox>{t('system.verifyEmpty')}</EmptyBox>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-24">{t('system.approved')}</TableHead>
+                <TableHead>{t('system.command')}</TableHead>
+                <TableHead className="w-24">{t('system.source')}</TableHead>
+                <TableHead className="w-28">{t('system.cwd')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {commands.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell>
+                    <Badge variant="outline" className={toneClasses(c.approved ? 'ok' : 'warn').badge}>
+                      {c.approved ? t('common.yes') : t('common.no')}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{c.command}</TableCell>
+                  <TableCell className="text-xs">{c.source}</TableCell>
+                  <TableCell className="font-mono text-xs">{c.cwd}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {commands.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>
-                      <Badge variant="outline" className={cn(c.approved
-                        ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                        : 'border-amber-500/40 text-amber-600 dark:text-amber-400')}>
-                        {c.approved ? t('common.yes') : t('common.no')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{c.command}</TableCell>
-                    <TableCell className="text-xs">{c.source}</TableCell>
-                    <TableCell className="font-mono text-xs">{c.cwd}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ViewSection>
     </div>
   );
 }

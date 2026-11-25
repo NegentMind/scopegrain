@@ -7,7 +7,7 @@ import {
   AlertTitle,
 } from '@/components/ui/alert';
 import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
+  Card, CardContent,
 } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -54,30 +54,47 @@ function Bindings({
   if (groups.length === 0) {
     return <span className="text-muted-foreground">{t('common.none')}</span>;
   }
+  // Cap visible chips per dep group (audit P2-09): the full binding list
+  // was a wall of badges; the overflow collapses into a `+n` chip whose
+  // tooltip lists the remaining ids.
+  const CHIP_CAP = 3;
   return (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      {groups.map((dk) => (
-        <span key={dk} className="inline-flex flex-wrap items-center gap-1">
-          <span className="text-xs text-muted-foreground">
-            {t(`catalog.dep.${dk}`)}:
-          </span>
-          {entry[dk]!.map((id) => (
-            <button
-              key={id}
-              type="button"
-              title={t('catalog.viewDoc')}
-              onClick={() => onNavigate?.(dk.slice(0, -1), id)}
-            >
-              <Badge
-                variant="secondary"
-                className="font-mono text-xs hover:bg-accent"
+      {groups.map((dk) => {
+        const ids = entry[dk]!;
+        const rest = ids.slice(CHIP_CAP);
+        return (
+          <span key={dk} className="inline-flex flex-wrap items-center gap-1">
+            <span className="text-xs text-muted-foreground">
+              {t(`catalog.dep.${dk}`)}:
+            </span>
+            {ids.slice(0, CHIP_CAP).map((id) => (
+              <button
+                key={id}
+                type="button"
+                title={t('catalog.viewDoc')}
+                onClick={() => onNavigate?.(dk.slice(0, -1), id)}
               >
-                {id}
+                <Badge
+                  variant="secondary"
+                  className="font-mono text-xs hover:bg-accent"
+                >
+                  {id}
+                </Badge>
+              </button>
+            ))}
+            {rest.length > 0 ? (
+              <Badge
+                variant="outline"
+                className="font-mono text-xs"
+                title={rest.join(', ')}
+              >
+                +{rest.length}
               </Badge>
-            </button>
-          ))}
-        </span>
-      ))}
+            ) : null}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -117,7 +134,15 @@ function DocPanel({
     setSaved(false);
   }, [kind, id]);
 
-  if (loading) return <ListSkeleton />;
+  // The save confirmation is a transient status, not a persistent
+  // banner: auto-dismiss after ~3 s (audit H9).
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => setSaved(false), 3000);
+    return () => clearTimeout(timer);
+  }, [saved]);
+
+  if (loading) return <ListSkeleton label={t('common.loading')} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   if (!data?.doc) {
     return <EmptyBox>{t('catalog.docMissing')}</EmptyBox>;
@@ -183,7 +208,7 @@ function DocPanel({
           {d.truncated ? ` · ${t('catalog.docTruncated')}` : ''}
         </div>
         {locale === 'es' && d.locale === 'en' ? (
-          <div className="text-xs text-amber-600 dark:text-amber-400">
+          <div role="status" className="text-xs text-warn">
             {t('catalog.docCanonical')}
           </div>
         ) : null}
@@ -200,7 +225,7 @@ function DocPanel({
         ) : null}
       </div>
       {saved && !editing ? (
-        <div className="text-xs text-emerald-600 dark:text-emerald-400">
+        <div role="status" className="text-xs text-ok">
           {t('catalog.saved')}
         </div>
       ) : null}
@@ -288,9 +313,12 @@ export function CatalogView() {
     setQ('');
     setOpen(id);
     requestAnimationFrame(() => {
+      const reduced =
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       document
         .getElementById(`catalog-row-${id}`)
-        ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        ?.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' });
     });
   };
 
@@ -311,16 +339,14 @@ export function CatalogView() {
       || (e.path ?? '').toLowerCase().includes(needle));
   }, [data, kind, q, desc]);
 
-  if (loading) return <ListSkeleton />;
+  if (loading) return <ListSkeleton label={t('common.loading')} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const counts = data?.catalog?.counts ?? {};
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{t('catalog.title')}</CardTitle>
-        <CardDescription>{t('catalog.desc')}</CardDescription>
-      </CardHeader>
+      {/* No duplicated CardHeader (audit P2-07): the view header above
+          already shows title + description. */}
       <CardContent className="space-y-4">
         <ToggleGroup
           type="single"
@@ -370,6 +396,9 @@ export function CatalogView() {
                           onClick={() =>
                             setOpen(open === e.id ? null : e.id)}
                           aria-expanded={open === e.id}
+                          aria-controls={
+                            open === e.id ? `catalog-doc-${e.id}` : undefined
+                          }
                           title={t('catalog.viewDoc')}
                         >
                           <Badge variant="outline" className="font-mono">
@@ -390,7 +419,7 @@ export function CatalogView() {
                     <TableCell className="text-sm text-muted-foreground">
                       <div>{desc(e)}</div>
                       {e.path ? (
-                        <div className="mt-0.5 font-mono text-xs opacity-70">
+                        <div className="mt-0.5 font-mono text-xs text-muted-foreground">
                           {e.path}
                         </div>
                       ) : null}
@@ -401,7 +430,7 @@ export function CatalogView() {
                   </TableRow>
                   {open === e.id ? (
                     <TableRow>
-                      <TableCell colSpan={3}>
+                      <TableCell colSpan={3} id={`catalog-doc-${e.id}`}>
                         <DocPanel
                           kind={kind}
                           id={e.id}

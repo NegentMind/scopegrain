@@ -30,7 +30,9 @@ import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -60,29 +62,45 @@ import { StateView } from '@/views/StateView';
 import { SystemView } from '@/views/SystemView';
 import { TasksView } from '@/views/TasksView';
 import { WorkspaceView } from '@/views/WorkspaceView';
+import { toneClasses } from '@/lib/tones';
 import { cn } from '@/lib/utils';
-import { registerNavigate } from '@/lib/nav';
+import { clearRoute, navigate, useHashRoute } from '@/lib/hashRoute';
+
+// Pixel height of the sticky header below: py-3 (24) + logo h-8 (32) +
+// 1px border = 57. The sidebar's sticky offset and max-height are bound
+// to this constant; keep them in sync if the header layout changes.
+const HEADER_H_PX = 57;
+
+// Sidebar sections (ux-structure N2): 16 flat items exceed comfortable
+// scanning — group by concern. `section` keys resolve through
+// `nav.section.*` in the i18n dicts.
+const NAV_SECTIONS = ['work', 'log', 'system'] as const;
 
 const NAV = [
-  { value: 'workspace', labelKey: 'nav.workspace', descKey: 'nav.workspace.desc', icon: LayoutDashboard },
-  { value: 'tasks', labelKey: 'nav.tasks', descKey: 'nav.tasks.desc', icon: ListTodo },
-  { value: 'plans', labelKey: 'nav.plans', descKey: 'nav.plans.desc', icon: Workflow },
-  { value: 'graph', labelKey: 'nav.graph', descKey: 'nav.graph.desc', icon: Share2 },
-  { value: 'journal', labelKey: 'nav.journal', descKey: 'nav.journal.desc', icon: ScrollText },
-  { value: 'artifacts', labelKey: 'nav.artifacts', descKey: 'nav.artifacts.desc', icon: FileText },
-  { value: 'captures', labelKey: 'nav.captures', descKey: 'nav.captures.desc', icon: Camera },
-  { value: 'memory', labelKey: 'nav.memory', descKey: 'nav.memory.desc', icon: Brain },
-  { value: 'goals', labelKey: 'nav.goals', descKey: 'nav.goals.desc', icon: Flag },
-  { value: 'state', labelKey: 'nav.state', descKey: 'nav.state.desc', icon: ListChecks },
-  { value: 'sessions', labelKey: 'nav.sessions', descKey: 'nav.sessions.desc', icon: Timer },
-  { value: 'approvals', labelKey: 'nav.approvals', descKey: 'nav.approvals.desc', icon: Handshake },
-  { value: 'catalog', labelKey: 'nav.catalog', descKey: 'nav.catalog.desc', icon: BookMarked },
-  { value: 'metrics', labelKey: 'nav.metrics', descKey: 'nav.metrics.desc', icon: Gauge },
-  { value: 'reports', labelKey: 'nav.reports', descKey: 'nav.reports.desc', icon: Newspaper },
-  { value: 'system', labelKey: 'nav.system', descKey: 'nav.system.desc', icon: MonitorCog },
+  { value: 'workspace', section: 'work', labelKey: 'nav.workspace', descKey: 'nav.workspace.desc', icon: LayoutDashboard, component: WorkspaceView },
+  { value: 'tasks', section: 'work', labelKey: 'nav.tasks', descKey: 'nav.tasks.desc', icon: ListTodo, component: TasksView },
+  { value: 'plans', section: 'work', labelKey: 'nav.plans', descKey: 'nav.plans.desc', icon: Workflow, component: PlansView },
+  { value: 'goals', section: 'work', labelKey: 'nav.goals', descKey: 'nav.goals.desc', icon: Flag, component: GoalsView },
+  { value: 'state', section: 'work', labelKey: 'nav.state', descKey: 'nav.state.desc', icon: ListChecks, component: StateView },
+  { value: 'sessions', section: 'work', labelKey: 'nav.sessions', descKey: 'nav.sessions.desc', icon: Timer, component: SessionsView },
+  { value: 'approvals', section: 'work', labelKey: 'nav.approvals', descKey: 'nav.approvals.desc', icon: Handshake, component: ApprovalsView },
+  { value: 'journal', section: 'log', labelKey: 'nav.journal', descKey: 'nav.journal.desc', icon: ScrollText, component: JournalView },
+  { value: 'artifacts', section: 'log', labelKey: 'nav.artifacts', descKey: 'nav.artifacts.desc', icon: FileText, component: ArtifactsView },
+  { value: 'captures', section: 'log', labelKey: 'nav.captures', descKey: 'nav.captures.desc', icon: Camera, component: CapturesView },
+  { value: 'memory', section: 'log', labelKey: 'nav.memory', descKey: 'nav.memory.desc', icon: Brain, component: MemoryView },
+  { value: 'reports', section: 'log', labelKey: 'nav.reports', descKey: 'nav.reports.desc', icon: Newspaper, component: ReportsView },
+  { value: 'graph', section: 'system', labelKey: 'nav.graph', descKey: 'nav.graph.desc', icon: Share2, component: GraphView },
+  { value: 'metrics', section: 'system', labelKey: 'nav.metrics', descKey: 'nav.metrics.desc', icon: Gauge, component: MetricsView },
+  { value: 'catalog', section: 'system', labelKey: 'nav.catalog', descKey: 'nav.catalog.desc', icon: BookMarked, component: CatalogView },
+  { value: 'system', section: 'system', labelKey: 'nav.system', descKey: 'nav.system.desc', icon: MonitorCog, component: SystemView },
 ] as const;
 
 type NavValue = (typeof NAV)[number]['value'];
+type NavSection = (typeof NAV_SECTIONS)[number];
+
+function isNavValue(v: string): v is NavValue {
+  return (NAV as readonly { value: string }[]).some((n) => n.value === v);
+}
 
 function useHealthPoll() {
   const [ok, setOk] = useState<boolean | null>(null);
@@ -146,21 +164,20 @@ function HealthBadge({ healthy }: { healthy: boolean | null }) {
       className={cn(
         'gap-1.5 transition-colors',
         healthy === null && 'text-muted-foreground',
-        healthy === true &&
-          'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
-        healthy === false && 'border-destructive/50 text-destructive',
+        healthy === true && toneClasses('ok').badge,
+        healthy === false && toneClasses('err').badge,
       )}
     >
       <span className="relative flex h-1.5 w-1.5">
         {healthy === true && (
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-60" />
         )}
         <span
           className={cn(
             'relative inline-flex h-1.5 w-1.5 rounded-full',
             healthy === null && 'bg-muted-foreground',
-            healthy === true && 'bg-emerald-500',
-            healthy === false && 'bg-destructive',
+            healthy === true && 'bg-ok',
+            healthy === false && 'bg-err',
           )}
         />
       </span>
@@ -174,10 +191,14 @@ function HealthBadge({ healthy }: { healthy: boolean | null }) {
 }
 
 export default function App() {
-  const [view, setView] = useState<NavValue>('workspace');
+  const route = useHashRoute();
   const healthy = useHealthPoll();
   const locale = useLocale();
   const t = useT();
+  // Unknown or empty hashes resolve to the default view; the hash itself
+  // stays untouched so a typo does not silently rewrite the URL.
+  const view: NavValue = isNavValue(route.view) ? route.view : 'workspace';
+  const setView = (v: NavValue) => navigate(v);
 
   // Adopt the project-configured locale once, unless the user already chose.
   useEffect(() => {
@@ -192,17 +213,35 @@ export default function App() {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  // Cross-view navigation (goal/plan links open a task detail).
-  useEffect(() => {
-    registerNavigate((v) => setView(v as NavValue));
-  }, []);
+  // Test isolation only: jsdom shares window.location across renders in
+  // one file, so unmounting releases the route for the next mount.
+  // Guarded by MODE — in dev StrictMode the simulated unmount would
+  // otherwise clear a legitimate deep-link on first load.
+  useEffect(
+    () => () => {
+      if (import.meta.env.MODE === 'test') clearRoute();
+    },
+    [],
+  );
 
   const current = NAV.find((n) => n.value === view) ?? NAV[0];
   const CurrentIcon = current.icon;
 
   return (
     <TooltipProvider>
-      <div className="dark min-h-screen bg-background text-foreground">
+      <div className="min-h-screen bg-background text-foreground">
+        {/* href stays for semantics but never navigates: '#main' would
+            clobber the '#/view' route hash. Focus is moved explicitly. */}
+        <a
+          href="#main"
+          onClick={(e) => {
+            e.preventDefault();
+            document.getElementById('main')?.focus();
+          }}
+          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:ring-2 focus:ring-ring"
+        >
+          {t('app.skip')}
+        </a>
         <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
           <div className="mx-auto flex max-w-[88rem] items-center gap-3 px-4 py-3">
             <div className="flex items-center gap-2.5">
@@ -232,28 +271,46 @@ export default function App() {
         >
           <aside className="hidden w-52 shrink-0 border-r md:block">
             <nav
-              className="sticky top-[57px] max-h-[calc(100vh-57px)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="sticky overflow-y-auto"
+              style={{
+                top: HEADER_H_PX,
+                maxHeight: `calc(100vh - ${HEADER_H_PX}px)`,
+              }}
               aria-label={t('nav.views')}
             >
               <TabsList
                 variant="line"
                 className="h-auto w-full flex-col items-stretch gap-0.5 rounded-none p-2"
               >
-                {NAV.map(({ value, labelKey, icon: Icon }) => (
-                  <TabsTrigger
-                    key={value}
-                    value={value}
-                    className="justify-start gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors duration-200 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:bg-primary"
-                  >
-                    <Icon className="h-4 w-4" aria-hidden />
-                    {t(labelKey)}
-                  </TabsTrigger>
+                {NAV_SECTIONS.map((section: NavSection, i) => (
+                  <div key={section} className="flex flex-col gap-0.5">
+                    <div
+                      className={cn(
+                        'px-3 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground',
+                        i === 0 ? 'pt-1' : 'pt-3',
+                      )}
+                    >
+                      {t(`nav.section.${section}`)}
+                    </div>
+                    {NAV.filter((n) => n.section === section).map(
+                      ({ value, labelKey, icon: Icon }) => (
+                        <TabsTrigger
+                          key={value}
+                          value={value}
+                          className="justify-start gap-2.5 rounded-md px-3 py-2 text-sm transition-colors duration-200 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:bg-primary"
+                        >
+                          <Icon className="h-4 w-4" aria-hidden />
+                          {t(labelKey)}
+                        </TabsTrigger>
+                      ),
+                    )}
+                  </div>
                 ))}
               </TabsList>
             </nav>
           </aside>
 
-          <main className="min-w-0 flex-1 px-4 py-6">
+          <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6">
             <div className="mb-4 md:hidden">
               <Select
                 value={view}
@@ -266,10 +323,19 @@ export default function App() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {NAV.map(({ value, labelKey }) => (
-                    <SelectItem key={value} value={value}>
-                      {t(labelKey)}
-                    </SelectItem>
+                  {NAV_SECTIONS.map((section) => (
+                    <SelectGroup key={section}>
+                      <SelectLabel>
+                        {t(`nav.section.${section}`)}
+                      </SelectLabel>
+                      {NAV.filter((n) => n.section === section).map(
+                        ({ value, labelKey }) => (
+                          <SelectItem key={value} value={value}>
+                            {t(labelKey)}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>
@@ -277,7 +343,7 @@ export default function App() {
 
             <div
               key={`header-${view}`}
-              className="mb-5 flex items-start gap-3 animate-in fade-in-50 slide-in-from-top-1 duration-300"
+              className="mb-5 flex items-start gap-3 animate-in fade-in-50 slide-in-from-top-1 duration-200"
             >
               <div
                 className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary"
@@ -300,54 +366,11 @@ export default function App() {
               region={t(current.labelKey)}
               locale={locale}
             >
-            <TabsContent value="workspace">
-              <WorkspaceView />
-            </TabsContent>
-            <TabsContent value="tasks">
-              <TasksView />
-            </TabsContent>
-            <TabsContent value="plans">
-              <PlansView />
-            </TabsContent>
-            <TabsContent value="graph">
-              <GraphView />
-            </TabsContent>
-            <TabsContent value="journal">
-              <JournalView />
-            </TabsContent>
-            <TabsContent value="artifacts">
-              <ArtifactsView />
-            </TabsContent>
-            <TabsContent value="captures">
-              <CapturesView />
-            </TabsContent>
-            <TabsContent value="memory">
-              <MemoryView />
-            </TabsContent>
-            <TabsContent value="goals">
-              <GoalsView />
-            </TabsContent>
-            <TabsContent value="state">
-              <StateView />
-            </TabsContent>
-            <TabsContent value="sessions">
-              <SessionsView />
-            </TabsContent>
-            <TabsContent value="approvals">
-              <ApprovalsView />
-            </TabsContent>
-            <TabsContent value="catalog">
-              <CatalogView />
-            </TabsContent>
-            <TabsContent value="metrics">
-              <MetricsView />
-            </TabsContent>
-            <TabsContent value="reports">
-              <ReportsView />
-            </TabsContent>
-            <TabsContent value="system">
-              <SystemView />
-            </TabsContent>
+              {NAV.map(({ value, component: View }) => (
+                <TabsContent key={value} value={value}>
+                  <View />
+                </TabsContent>
+              ))}
             </ErrorBoundary>
           </main>
         </Tabs>

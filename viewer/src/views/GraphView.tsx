@@ -1,19 +1,18 @@
 import { useMemo } from 'react';
-import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from '@/components/ui/card';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useT } from '@/lib/i18n';
 import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
-import { LifecycleFunnel, TaskDag, usePoll } from '@/components/viz';
+import { ViewSection } from '@/components/ViewSection';
+import { TaskDag, usePoll } from '@/components/viz';
 
 export function GraphView() {
   const t = useT();
+  // The lifecycle funnel lives in SystemView (pipeline metric); this view
+  // keeps the dependency DAG only — no duplicated api.workflow/workspace
+  // fetches (audit N7).
   const tasksApi = useApi(() => api.tasks(500));
-  const wfApi = useApi(() => api.workflow());
-  const wsApi = useApi(() => api.workspace());
-  usePoll(() => { tasksApi.reload(); wsApi.reload(); });
+  usePoll(tasksApi.reload);
 
   const graph = useMemo(() => {
     const tasks = tasksApi.data?.tasks ?? [];
@@ -46,45 +45,29 @@ export function GraphView() {
     return { nodes, edges };
   }, [tasksApi.data]);
 
-  if (tasksApi.loading || wfApi.loading || wsApi.loading) return <ListSkeleton />;
-  if (tasksApi.error) return <ErrorBox error={tasksApi.error} onRetry={tasksApi.reload} />;
-  if (wfApi.error) return <ErrorBox error={wfApi.error} onRetry={wfApi.reload} />;
-  if (wsApi.error) return <ErrorBox error={wsApi.error} onRetry={wsApi.reload} />;
-
-  const counts = wsApi.data?.counts.tasksByState ?? {};
-  const policy = wfApi.data?.workflow;
+  if (tasksApi.loading) {
+    return <ListSkeleton label={t('common.loading')} />;
+  }
+  if (tasksApi.error) {
+    return <ErrorBox error={tasksApi.error} onRetry={tasksApi.reload} />;
+  }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('graph.lifecycle')}</CardTitle>
-          <CardDescription>{t('graph.lifecycleDesc')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {policy && (
-            <LifecycleFunnel workflow={policy} counts={counts}
-              labels={{ pipeline: t('system.pipeline'), side: t('system.side') }} />
-          )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('graph.dag')}</CardTitle>
-          <CardDescription>
-            {t('graph.dagDesc')}
-            {tasksApi.data?.truncated ? t('common.truncatedByApi') : ''}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {graph.nodes.length === 0 ? (
-            <EmptyBox>{t('graph.empty')}</EmptyBox>
-          ) : (
-            <TaskDag nodes={graph.nodes} edges={graph.edges}
-              labels={{ empty: t('graph.empty'), dag: t('graph.dag') }} />
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <ViewSection
+      title={t('graph.dag')}
+      description={t('graph.dagDesc')}
+      refreshing={tasksApi.refreshing}
+      truncated={tasksApi.data?.truncated === true}
+    >
+      {graph.nodes.length === 0 ? (
+        <EmptyBox>{t('graph.empty')}</EmptyBox>
+      ) : (
+        <TaskDag
+          nodes={graph.nodes}
+          edges={graph.edges}
+          labels={{ empty: t('graph.empty'), dag: t('graph.dag') }}
+        />
+      )}
+    </ViewSection>
   );
 }

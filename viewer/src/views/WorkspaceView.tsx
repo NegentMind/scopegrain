@@ -24,7 +24,7 @@ export function WorkspaceView() {
   const t = useT();
   const { data, loading, error, reload } = useApi(() => api.workspace());
 
-  if (loading) return <ListSkeleton rows={4} />;
+  if (loading) return <ListSkeleton rows={4} label={t('common.loading')} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <EmptyBox>{t('workspace.noData')}</EmptyBox>;
 
@@ -35,7 +35,8 @@ export function WorkspaceView() {
         <CardHeader>
           <CardTitle>{project.name}</CardTitle>
           <CardDescription>
-            {project.methodology} · {project.locale} · config {project.configPath}
+            {project.methodology} · {project.locale} · {t('workspace.config')}{' '}
+            {project.configPath}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
@@ -48,11 +49,11 @@ export function WorkspaceView() {
           </div>
           {workspace ? (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 font-mono text-xs">
-              <dt className="text-muted-foreground">workspace</dt>
+              <dt className="text-muted-foreground">{t('workspace.id')}</dt>
               <dd className="break-all">{workspace.workspaceId}</dd>
-              <dt className="text-muted-foreground">revision</dt>
+              <dt className="text-muted-foreground">{t('workspace.revision')}</dt>
               <dd>{workspace.revision}</dd>
-              <dt className="text-muted-foreground">updated</dt>
+              <dt className="text-muted-foreground">{t('common.updated')}</dt>
               <dd>{workspace.updatedAt}</dd>
             </dl>
           ) : (
@@ -69,15 +70,15 @@ export function WorkspaceView() {
         <CardContent className="text-sm">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
             <dt className="text-muted-foreground">{t('workspace.tasks')}</dt>
-            <dd className="font-mono">{counts.tasks}</dd>
+            <dd className="font-mono tabular-nums">{counts.tasks}</dd>
             <dt className="text-muted-foreground">{t('workspace.plansCount')}</dt>
-            <dd className="font-mono">{counts.plans}</dd>
+            <dd className="font-mono tabular-nums">{counts.plans}</dd>
             <dt className="text-muted-foreground">{t('workspace.captures')}</dt>
-            <dd className="font-mono">{counts.captures ?? 'n/a'}</dd>
+            <dd className="font-mono tabular-nums">{counts.captures ?? t('common.none')}</dd>
             <dt className="text-muted-foreground">{t('workspace.journalOps')}</dt>
-            <dd className="font-mono">{counts.journalOperations ?? 'n/a'}</dd>
+            <dd className="font-mono tabular-nums">{counts.journalOperations ?? t('common.none')}</dd>
             <dt className="text-muted-foreground">{t('workspace.malformedTasks')}</dt>
-            <dd className="font-mono">{counts.malformedTasks}</dd>
+            <dd className="font-mono tabular-nums">{counts.malformedTasks}</dd>
           </dl>
         </CardContent>
       </Card>
@@ -103,7 +104,7 @@ export function WorkspaceView() {
                     <TableCell>
                       <StateBadge state={state} />
                     </TableCell>
-                    <TableCell className="text-right font-mono">{n}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{n}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
