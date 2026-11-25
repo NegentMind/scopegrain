@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
 // Right-hand detail panel for master-detail layouts: labelled landmark with
@@ -61,9 +60,9 @@ export function DocPanel({
           </div>
         ) : null}
       </div>
-      <ScrollArea className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="p-4">{children}</div>
-      </ScrollArea>
+      </div>
     </aside>
   );
 }
