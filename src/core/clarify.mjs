@@ -114,3 +114,23 @@ export function listClarifications(ctx, specId) {
       } catch { return null; }
     }).filter(Boolean);
 }
+
+// An open question is resolved when a recorded clarification session
+// answers it verbatim (trimmed match). Specs stay immutable — the
+// sessions are the legal resolution channel the gates consume; a spec
+// whose openQuestions were never clarified keeps blocking.
+export function unresolvedQuestions(ctx, spec) {
+  const open = Array.isArray(spec?.data?.openQuestions)
+    ? spec.data.openQuestions : [];
+  if (open.length === 0) return [];
+  const answered = new Set();
+  for (const session of listClarifications(ctx, spec.id)) {
+    for (const e of session.entries ?? []) {
+      if (typeof e?.question === 'string' && e.question.trim() !== ''
+          && typeof e?.answer === 'string' && e.answer.trim() !== '') {
+        answered.add(e.question.trim());
+      }
+    }
+  }
+  return open.filter((q) => !answered.has(q.trim()));
+}

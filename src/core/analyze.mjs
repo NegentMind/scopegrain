@@ -7,6 +7,7 @@ import { err } from './errors.mjs';
 import { getTask } from './tasks.mjs';
 import { getArtifact } from './artifacts.mjs';
 import { getSpecification } from './specifications.mjs';
+import { unresolvedQuestions } from './clarify.mjs';
 import { getPlan } from './plans.mjs';
 
 function finding(code, severity, detail) {
@@ -87,9 +88,10 @@ export function analyzeTask(ctx, taskId) {
         + 'absent from spec'));
     }
   }
-  if (spec.data.openQuestions.length > 0) {
+  const unresolved = unresolvedQuestions(ctx, spec);
+  if (unresolved.length > 0) {
     findings.push(finding('OPEN_QUESTIONS', 'minor',
-      `${spec.data.openQuestions.length} unresolved open question(s)`));
+      `${unresolved.length} unresolved open question(s)`));
   }
   return Object.freeze({
     taskId: task.id, slug: task.slug ?? null,

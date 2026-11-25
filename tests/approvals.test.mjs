@@ -17,6 +17,7 @@ import {
   prepareApproval, prepareApprovalAnswer,
 } from '../src/core/approvals.mjs';
 import { bootstrappedMiniCtx, cleanup, writeJson } from './helpers.mjs';
+import { recordClarification } from '../src/core/clarify.mjs';
 
 const SPEC = {
   originalRequest: 'verbatim request for approvals tests',
@@ -130,6 +131,27 @@ test('spec openQuestions blocks approve only', () => {
     const rej = answerApproval(ctx, answer(a.id, 0, a.target.digest,
       { answer: 'reject', comment: 'no' }));
     assert.equal(rej.status, 'rejected');
+  } finally { cleanup(dir); }
+});
+
+test('a clarify session answering the question unblocks approve', () => {
+  const { dir, ctx } = bootstrappedMiniCtx();
+  try {
+    const spec = makeSpec(ctx, dir,
+      { openQuestions: ['who owns the migration?', 'scope?'] });
+    const a = makeApproval(ctx, dir, 'artifact', 'spec', spec.id);
+    assert.throws(() => answerApproval(ctx, answer(a.id, 0, a.target.digest)),
+      (e) => e.code === 'APPROVAL_OPEN_QUESTIONS');
+    // Partial clarification still blocks.
+    recordClarification(ctx, { specId: spec.id,
+      entries: [{ question: 'who owns the migration?', answer: 'owner' }] });
+    assert.throws(() => answerApproval(ctx, answer(a.id, 0, a.target.digest)),
+      (e) => e.code === 'APPROVAL_OPEN_QUESTIONS');
+    // All open questions answered verbatim across sessions -> resolved.
+    recordClarification(ctx, { specId: spec.id,
+      entries: [{ question: 'scope?', answer: 'bounded' }] });
+    const next = answerApproval(ctx, answer(a.id, 0, a.target.digest));
+    assert.equal(next.status, 'approved');
   } finally { cleanup(dir); }
 });
 

@@ -23,6 +23,7 @@ import { getArtifact, isCanonicalTime } from './artifacts.mjs';
 import { getTask } from './tasks.mjs';
 import { getPlan } from './plans.mjs';
 import { getSpecification } from './specifications.mjs';
+import { unresolvedQuestions } from './clarify.mjs';
 import {
   applyJournaledRecordCreation, applyJournaledRecordUpdate,
 } from './journal.mjs';
@@ -473,9 +474,10 @@ function assertSpecApproveable(ctx, a, answer) {
   if (answer !== 'approve' || a.target.kind !== 'artifact'
       || a.target.artifactKind !== 'spec') return;
   const spec = getSpecification(ctx, a.target.id);
-  if (spec.data.openQuestions.length > 0) {
+  const unresolved = unresolvedQuestions(ctx, spec);
+  if (unresolved.length > 0) {
     throw err('APPROVAL_OPEN_QUESTIONS',
-      `spec ${a.target.id} has ${spec.data.openQuestions.length} open question(s); approve is blocked`);
+      `spec ${a.target.id} has ${unresolved.length} open question(s); approve is blocked`);
   }
 }
 

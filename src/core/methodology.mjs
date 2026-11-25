@@ -9,6 +9,7 @@ import { collectFormalBindings } from './formal-bindings.mjs';
 import { describeApprovalTarget, getApproval } from './approvals.mjs';
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
 import { getArtifact } from './artifacts.mjs';
+import { unresolvedQuestions } from './clarify.mjs';
 import { getTask } from './tasks.mjs';
 import { validateReview, validateVerification } from './evidence.mjs';
 import { resolveInside } from './paths.mjs';
@@ -254,9 +255,12 @@ export function evaluateMethodology(ctx, task,
   }
   const b = collectFormalBindings(ctx, task);
   issues.push(...b.issues);
-  if (b.spec && b.spec.data.openQuestions.length > 0) {
-    issues.push(issue('APPROVAL_OPEN_QUESTIONS',
-      `spec ${b.spec.id} has unresolved open questions`));
+  if (b.spec) {
+    const unresolved = unresolvedQuestions(ctx, b.spec);
+    if (unresolved.length > 0) {
+      issues.push(issue('APPROVAL_OPEN_QUESTIONS',
+        `spec ${b.spec.id} has ${unresolved.length} unresolved open question(s)`));
+    }
   }
   checkApproval(ctx, { kind: 'artifact', artifactKind: 'spec', id: task.specId },
     b.specDigest, issues);
