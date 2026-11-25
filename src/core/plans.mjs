@@ -62,7 +62,8 @@ const PLAN_V3_KEYS = new Set([
 // PLAN_V3_KEYS and stays frozen.
 const PLAN_V3_EXT_KEYS = new Set([
   'request', 'planType', 'trigger', 'acceptanceCriteria', 'deliverables',
-  'synthesisStrategy', 'replanPolicy',
+  'synthesisStrategy', 'replanPolicy', 'executiveSummary',
+  'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds',
 ]);
 const PLAN_TYPES = new Set(['static', 'dynamic', 'hybrid']);
 const TRIGGER_KINDS = new Set(['manual', 'scheduled', 'event', 'derived']);
@@ -70,6 +71,10 @@ const SYNTHESIS_STRATEGIES = new Set(
   ['last-task', 'aggregate', 'summarizer', 'manual']);
 const REPLAN_POLICIES = new Set(
   ['strict-abort', 'insert-remediation', 'prune-branch', 'manual']);
+const AUTONOMY_POLICIES = new Set(
+  ['full-auto', 'approve-first', 'gate-on-critical']);
+const CONCURRENCY_POLICIES = new Set(
+  ['allow-parallel', 'queue', 'cancel-replace']);
 const PLAN_INPUT_KEYS = new Set(
   ['key', 'title', 'authorContext', 'tasks', 'specId', 'designId',
     ...PLAN_V3_KEYS, ...PLAN_V3_EXT_KEYS]);
@@ -260,6 +265,38 @@ function normalizePlanV3(input, taskKeys, errorFn) {
         'replanPolicy must be strict-abort|insert-remediation|prune-branch|manual or null');
     }
     v3.replanPolicy = input.replanPolicy;
+  }
+  if (has('executiveSummary')) {
+    if (input.executiveSummary !== null
+        && (typeof input.executiveSummary !== 'string'
+          || input.executiveSummary.trim() === '')) {
+      throw errorFn('executiveSummary must be a non-empty string or null');
+    }
+    v3.executiveSummary = input.executiveSummary;
+  }
+  if (has('autonomyPolicy')) {
+    if (input.autonomyPolicy !== null
+        && !AUTONOMY_POLICIES.has(input.autonomyPolicy)) {
+      throw errorFn(
+        'autonomyPolicy must be full-auto|approve-first|gate-on-critical or null');
+    }
+    v3.autonomyPolicy = input.autonomyPolicy;
+  }
+  if (has('concurrencyPolicy')) {
+    if (input.concurrencyPolicy !== null
+        && !CONCURRENCY_POLICIES.has(input.concurrencyPolicy)) {
+      throw errorFn(
+        'concurrencyPolicy must be allow-parallel|queue|cancel-replace or null');
+    }
+    v3.concurrencyPolicy = input.concurrencyPolicy;
+  }
+  if (has('ttlSeconds')) {
+    if (input.ttlSeconds !== null
+        && (!Number.isSafeInteger(input.ttlSeconds)
+          || input.ttlSeconds < 0)) {
+      throw errorFn('ttlSeconds must be an integer >= 0 or null');
+    }
+    v3.ttlSeconds = input.ttlSeconds;
   }
   if (Object.keys(v3).length) {
     for (const k of PLAN_V3_EXT_KEYS) {

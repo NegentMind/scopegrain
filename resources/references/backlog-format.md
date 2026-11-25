@@ -97,6 +97,10 @@ semantic or extension key still requires the full required V3 set above.
 | `deliverables` | `[{path, mustExist?, mustBeNonEmpty?}]` or null | Files the plan promises to leave behind; same entry shape as task `expectedOutputs`, `path` canonicalized. |
 | `synthesisStrategy` | `last-task|aggregate|summarizer|manual` or null | How the final user-facing answer should be assembled from member outputs. Declarative hint for the host. |
 | `replanPolicy` | `strict-abort|insert-remediation|prune-branch|manual` or null | What the host may do when a member fails: kill the plan, inject remediation tasks, prune a branch, or ask a human. The harness stores the policy; hosts execute it. |
+| `executiveSummary` | non-empty string or null | Human-readable one-paragraph summary of what the plan does, for fast approval review. |
+| `autonomyPolicy` | `full-auto|approve-first|gate-on-critical` or null | Human-supervision level for the whole plan. Declarative; enforcement lives in hosts and `preAction` hooks. |
+| `concurrencyPolicy` | `allow-parallel|queue|cancel-replace` or null | What a host should do if the same plan triggers while a prior run is active. |
+| `ttlSeconds` | int >= 0 or null | Declared time-to-live; expiry itself is host-side. |
 
 `plan next` is triage-aware: entries triaged `defer|skip|blocked` report
 status `triaged` instead of `ready`/`blocked`.

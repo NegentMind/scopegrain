@@ -169,6 +169,10 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     ];
     p.synthesisStrategy = 'aggregate';
     p.replanPolicy = 'insert-remediation';
+    p.executiveSummary = 'Release train with docs';
+    p.autonomyPolicy = 'gate-on-critical';
+    p.concurrencyPolicy = 'queue';
+    p.ttlSeconds = 86400;
     const prepared = preparePlan(ctx, p);
     assert.equal(prepared.plan.schemaVersion, 3);
     assert.equal(prepared.plan.request, 'Ship the release with zero known P0s');
@@ -183,6 +187,10 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     ]);
     assert.equal(prepared.plan.synthesisStrategy, 'aggregate');
     assert.equal(prepared.plan.replanPolicy, 'insert-remediation');
+    assert.equal(prepared.plan.executiveSummary, 'Release train with docs');
+    assert.equal(prepared.plan.autonomyPolicy, 'gate-on-critical');
+    assert.equal(prepared.plan.concurrencyPolicy, 'queue');
+    assert.equal(prepared.plan.ttlSeconds, 86400);
     applyPlan(dir, preflightPlan(dir, prepared.files));
     const stored = getPlan(ctx, 'rel-3');
     assert.equal(stored.request, 'Ship the release with zero known P0s');
@@ -191,7 +199,8 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     p2.key = 'rel-4';
     const prepared2 = preparePlan(ctx, p2);
     for (const k of ['request', 'planType', 'trigger', 'acceptanceCriteria',
-      'deliverables', 'synthesisStrategy', 'replanPolicy']) {
+      'deliverables', 'synthesisStrategy', 'replanPolicy', 'executiveSummary',
+      'autonomyPolicy', 'concurrencyPolicy', 'ttlSeconds']) {
       assert.equal(prepared2.plan[k], null);
     }
     // stored V3 records predating the ext keys stay readable
@@ -220,6 +229,11 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
       'UNKNOWN_KEY');
     bad((b) => { b.synthesisStrategy = 'magic'; }, 'INVALID_PLAN');
     bad((b) => { b.replanPolicy = 'yeet'; }, 'INVALID_PLAN');
+    bad((b) => { b.executiveSummary = ''; }, 'INVALID_PLAN');
+    bad((b) => { b.autonomyPolicy = 'yolo'; }, 'INVALID_PLAN');
+    bad((b) => { b.concurrencyPolicy = 'brawl'; }, 'INVALID_PLAN');
+    bad((b) => { b.ttlSeconds = -5; }, 'INVALID_PLAN');
+    bad((b) => { b.ttlSeconds = 1.5; }, 'INVALID_PLAN');
     // ext keys are V3-layer: a V1 record may not carry them
     const f1 = path.join(dir, 'docs/agent/plans/rel-4.json');
     const d1 = JSON.parse(fs.readFileSync(f1, 'utf8'));
