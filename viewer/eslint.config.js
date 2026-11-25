@@ -17,7 +17,7 @@ export default tseslint.config(
     rules: { ...reactHooks.configs.recommended.rules },
   },
   {
-    ...jsxA11y.flatConfigs.recommended,
+    ...jsxA11y.flatConfigs.strict,
     files: ['**/*.{jsx,tsx}'],
   },
   {

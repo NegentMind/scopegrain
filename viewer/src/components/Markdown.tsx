@@ -4,12 +4,44 @@ import remarkGfm from 'remark-gfm';
 // Read-only markdown rendering with theme-consistent element overrides.
 // react-markdown emits React elements (no dangerouslySetInnerHTML) and
 // ignores raw HTML in the source, so untrusted doc content stays inert.
+//
+// Heading levels are remapped +2 (# -> h3 … ####+ -> h6) so rendered docs
+// nest under the app's h1/h2 outline instead of injecting extra h1s.
+
+// Fallback policy when the consumer supplies no onInternalLink: in-doc
+// anchors scroll, repo-relative links are parked in a `#doc-<rel>` hash
+// instead of opening a dead external tab, and real external URLs keep the
+// target=_blank behavior.
+function defaultInternalLink(href: string): boolean {
+  if (href.startsWith('#')) {
+    const reduced =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document
+      .getElementById(decodeURIComponent(href.slice(1)))
+      ?.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' });
+    return true;
+  }
+  // Schemes (https:, mailto:, …) and protocol-relative URLs stay external.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//')) return false;
+  const rel = href
+    .split('#')[0]
+    .split('?')[0]
+    .replace(/\\/g, '/')
+    .replace(/^(\.\.\/)+/, '')
+    .replace(/^\.\//, '');
+  window.location.hash = `doc-${rel}`;
+  return true;
+}
+
 export function Markdown({
   children,
   onInternalLink,
 }: {
   children: string;
-  onInternalLink?: (href: string) => boolean;
+  // Return `false` to let the browser follow the link (e.g. unresolvable
+  // refs); `true` or void means "handled, don't navigate".
+  onInternalLink?: (href: string) => boolean | void;
 }) {
   return (
     <div className="text-sm leading-relaxed">
@@ -17,20 +49,26 @@ export function Markdown({
         remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ children }) => (
-            <h1 className="mb-3 mt-5 border-b pb-1.5 text-xl font-semibold first:mt-0">
+            <h3 className="mb-3 mt-5 border-b pb-1.5 text-xl font-semibold first:mt-0">
               {children}
-            </h1>
+            </h3>
           ),
           h2: ({ children }) => (
-            <h2 className="mb-2 mt-5 border-b pb-1 text-lg font-semibold first:mt-0">
+            <h4 className="mb-2 mt-5 border-b pb-1 text-lg font-semibold first:mt-0">
               {children}
-            </h2>
+            </h4>
           ),
           h3: ({ children }) => (
-            <h3 className="mb-2 mt-4 text-base font-semibold">{children}</h3>
+            <h5 className="mb-2 mt-4 text-base font-semibold">{children}</h5>
           ),
           h4: ({ children }) => (
-            <h4 className="mb-1.5 mt-3 text-sm font-semibold">{children}</h4>
+            <h6 className="mb-1.5 mt-3 text-sm font-semibold">{children}</h6>
+          ),
+          h5: ({ children }) => (
+            <h6 className="mb-1.5 mt-3 text-xs font-semibold">{children}</h6>
+          ),
+          h6: ({ children }) => (
+            <h6 className="mb-1.5 mt-3 text-xs font-semibold">{children}</h6>
           ),
           p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
           a: ({ href, children }) => (
@@ -39,7 +77,9 @@ export function Markdown({
               target="_blank"
               rel="noreferrer"
               onClick={(ev) => {
-                if (href && onInternalLink?.(href)) ev.preventDefault();
+                if (!href) return;
+                const handled = (onInternalLink ?? defaultInternalLink)(href);
+                if (handled !== false) ev.preventDefault();
               }}
               className="font-medium text-primary underline underline-offset-4"
             >
