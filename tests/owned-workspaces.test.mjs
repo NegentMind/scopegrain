@@ -614,7 +614,10 @@ test('an unconfirmed enrollment returns the create receipt and blocks the update
   try {
     const owned = store(f);
     fs.openSync = function (file, flags, ...args) {
-      if (String(file) === f.pointerFile && flags === 'wx') {
+      // applyPlan stages via an exclusive `<dest>.*` temp; both paths fail.
+      if ((String(file) === f.pointerFile
+          || String(file).startsWith(`${f.pointerFile}.`))
+          && flags === 'wx') {
         const error = new Error('fixture enrollment failure');
         error.code = 'EIO';
         throw error;

@@ -365,7 +365,9 @@ test('source failure remains unconfirmed and blocks later writes even if source 
   try {
     const destination = path.join(f.dir, 'records', 'item');
     fs.openSync = function (file, flags, ...args) {
-      if (file === destination && flags === 'wx') {
+      // applyPlan stages via an exclusive `<dest>.*` temp; both paths fail.
+      if ((file === destination || String(file).startsWith(`${destination}.`))
+          && flags === 'wx') {
         const error = new Error('fixture source failure');
         error.code = 'EIO';
         throw error;
@@ -428,7 +430,9 @@ test('unconfirmed history cannot be bypassed by a missing outbox index', () => {
   try {
     const destination = path.join(f.dir, 'records', 'item');
     fs.openSync = function (file, flags, ...args) {
-      if (file === destination && flags === 'wx') {
+      // applyPlan stages via an exclusive `<dest>.*` temp; both paths fail.
+      if ((file === destination || String(file).startsWith(`${destination}.`))
+          && flags === 'wx') {
         const error = new Error('fixture source failure');
         error.code = 'EIO';
         throw error;
@@ -455,7 +459,9 @@ test('active pointer digest disagreement with indexed intent fails listing read-
   try {
     const destination = path.join(f.dir, 'records', 'item');
     fs.openSync = function (file, flags, ...args) {
-      if (file === destination && flags === 'wx') throw new Error('fixture source failure');
+      // applyPlan stages via an exclusive `<dest>.*` temp; both paths fail.
+      if ((file === destination || String(file).startsWith(`${destination}.`))
+          && flags === 'wx') throw new Error('fixture source failure');
       return open.call(this, file, flags, ...args);
     };
     const result = applyJournaledCreation(f.bound, [change([f.a], 'records/item')]);

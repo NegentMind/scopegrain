@@ -3,9 +3,10 @@
 // plan, preflights every destination and creates files exclusively.
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { err } from './errors.mjs';
-import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited, removeIfExists } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited, removeIfExists, writeFileExclusive } from './fsx.mjs';
 import {
   portableKey, resolveInside, toCanonicalRelative,
 } from './paths.mjs';
@@ -281,12 +282,43 @@ function readRegularFile(abs, maxBytes = loadLimits().maxDocumentBytes) {
   return limited.content;
 }
 
+// Writes one planned destination create-only and crash-atomically. The
+// bytes land in an exclusive sibling temp (same volume) and are fsync'd
+// BEFORE the destination name exists, so a mid-write kill can leave at
+// most an owned orphan temp — never a truncated source file.
+//
+// Publication is link(2)+unlink, the atomic rename that cannot
+// overwrite: a foreign file materializing after preflight fails EEXIST,
+// exactly like the direct 'wx' open did, so the "nothing foreign is
+// ever overwritten" invariant keeps its zero-window guarantee. Node
+// exposes no RENAME_NOREPLACE and plain renameSync would clobber such a
+// file. Filesystems without hardlink support (FAT32, some network
+// mounts) degrade to the previous direct exclusive write: identical
+// create-only guarantee, pre-hardening crash semantics there only.
+function writePlanFile(abs, buf) {
+  const tmp = `${abs}.scopegrain-tmp-${process.pid}-${crypto.randomUUID()}.tmp`;
+  try {
+    writeFileExclusive(tmp, buf); // removes its own partial write
+    try {
+      fs.linkSync(tmp, abs);
+      return;
+    } catch (e) {
+      if (!['EPERM', 'ENOTSUP', 'ENOSYS', 'EXDEV'].includes(e?.code)) {
+        throw e;
+      }
+    }
+    writeFileExclusive(abs, buf); // removes its own partial file
+  } finally {
+    removeIfExists(tmp); // our staging temp, or a leftover on failure
+  }
+}
+
 // Applies a preflighted plan. Re-verifies the whole preflight immediately
 // before writing (covering anything changed since the plan was shown).
-// Each file is created with an exclusive descriptor whose ownership is
-// recorded BEFORE content is written, so a mid-write failure still rolls
-// back exactly the files this operation created — never foreign files and
-// never directories.
+// Each file is staged to an fsync'd temp and published atomically;
+// ownership is recorded AFTER the publish succeeds, so a mid-apply
+// failure still rolls back exactly the files this operation created —
+// never foreign files and never directories.
 export function applyPlan(projectRoot, files) {
   const planned = preflightPlan(projectRoot, files);
   const created = [];
@@ -294,24 +326,10 @@ export function applyPlan(projectRoot, files) {
     for (const f of planned) {
       if (f.action === 'noop') continue;
       mkdirpSync(path.dirname(f.abs));
-      const fd = fs.openSync(f.abs, 'wx');
-      created.push(f.abs); // we own this file from the successful open
-      try {
-        const buf = Buffer.isBuffer(f.content) ? f.content : Buffer.from(f.content);
-        let written = 0;
-        while (written < buf.length) {
-          const n = fs.writeSync(fd, buf, written, buf.length - written);
-          if (n <= 0) {
-            throw err('WRITE_FAILED',
-              `write made no progress on ${f.rel}`);
-          }
-          written += n;
-        }
-        // Durability parity with the journal's committed marker.
-        fs.fsyncSync(fd);
-      } finally {
-        fs.closeSync(fd);
-      }
+      const buf = Buffer.isBuffer(f.content)
+        ? f.content : Buffer.from(f.content);
+      writePlanFile(f.abs, buf);
+      created.push(f.abs); // we own this file from the successful publish
     }
   } catch (e) {
     for (const p of created) removeIfExists(p);

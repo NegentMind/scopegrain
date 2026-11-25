@@ -1068,15 +1068,22 @@ export function runDoctor(ctx, opts = {}) {
       const drift = checkDocsCliDrift({
         projectRoot, installRoot, catalog: driftCatalog,
       });
+      // Structured findings alongside the flattened `detail` text, in the
+      // same shape the check emits (empty lists when the check passes or
+      // skips): consumers diff programmatically instead of parsing text.
+      const extra = {
+        stale: drift.stale,
+        undocumented: drift.undocumented,
+        scannedDocs: drift.scannedDocs,
+        flags: drift.flags,
+        counts: drift.counts,
+        parity: drift.parity,
+      };
       if (drift.ok) {
-        push('docs-cli-drift', true, drift.detail);
+        push('docs-cli-drift', true, drift.detail, extra);
       } else {
-        push('docs-cli-drift', false, drift.detail, {
-          severity: 'warning',
-          stale: drift.stale,
-          undocumented: drift.undocumented,
-          scannedDocs: drift.scannedDocs,
-        });
+        push('docs-cli-drift', false, drift.detail,
+          { severity: 'warning', ...extra });
       }
     } catch (e) {
       push('docs-cli-drift', false, `cannot evaluate: ${e.message}`,

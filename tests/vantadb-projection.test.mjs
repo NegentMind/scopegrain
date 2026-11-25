@@ -546,7 +546,9 @@ test('prepared events are blocked without lease, writes or remote calls', async 
   try {
     const destination = path.join(f.dir, 'records', 'a');
     fs.openSync = function (file, flags, ...args) {
-      if (file === destination && flags === 'wx') throw new Error('source failure');
+      // applyPlan stages via an exclusive `<dest>.*` temp; both paths fail.
+      if ((file === destination || String(file).startsWith(`${destination}.`))
+          && flags === 'wx') throw new Error('source failure');
       return open.call(this, file, flags, ...args);
     };
     const r = emit(f, [change([f.a], 'a', 'payload')]);

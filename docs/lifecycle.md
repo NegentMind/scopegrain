@@ -13,8 +13,9 @@ Reglas comunes:
 - Cada `apply` vuelve a ejecutar su `prepare` internamente y reverifica
   bytes, destinos y hashes inmediatamente antes de mutar.
 - Nada existente se sobrescribe ni se fusiona: los destinos ocupados son
-  conflictos reportados, y toda escritura usa `wx` exclusivo via
-  `applyPlan` (preflight completo y rollback de solo lo creado). Dos
+  conflictos reportados, y toda escritura publica via tmp+hardlink
+  create-only en `applyPlan` (con fallback `wx` en filesystems sin
+  hardlinks; preflight completo y rollback de solo lo creado). Dos
   excepciones documentadas y acotadas: la accion `managed` de `update`
   reescribe in-place solo la region `SCOPEGRAIN:BEGIN..END` de un archivo
   que opto por ella, y `update --reconcile` reescribe archivos divergentes

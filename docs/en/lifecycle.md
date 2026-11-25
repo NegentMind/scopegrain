@@ -18,8 +18,10 @@ Common rules:
 - Each `apply` re-runs its `prepare` internally and re-verifies bytes,
   destinations and hashes immediately before mutating.
 - Nothing existing is overwritten or merged: occupied destinations are
-  reported conflicts, and every write uses exclusive `wx` via
-  `applyPlan` (full preflight and rollback of only what was created).
+  reported conflicts, and every write publishes via create-only tmp+hardlink
+  in `applyPlan` (with an exclusive `wx` fallback on filesystems
+  without hardlinks; full preflight and rollback of only what was
+  created).
   Two documented, bounded exceptions: `update`'s `managed` action
   rewrites in place only the `SCOPEGRAIN:BEGIN..END` region of a file
   that opted into it, and `update --reconcile` rewrites provably

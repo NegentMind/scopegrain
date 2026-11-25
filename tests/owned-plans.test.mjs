@@ -422,7 +422,9 @@ test('uncertain receipt: apply failure preserves the prepared operation', () => 
   const planAbs = path.join(f.dir, 'docs', 'agent', 'plans', 'rel-1.json');
   try {
     fs.openSync = function (file, flags, ...args) {
-      if (String(file) === planAbs && flags === 'wx') {
+      // applyPlan stages via an exclusive `<dest>.*` temp; both paths fail.
+      if ((String(file) === planAbs
+          || String(file).startsWith(`${planAbs}.`)) && flags === 'wx') {
         const error = new Error('fixture apply failure');
         error.code = 'EIO';
         throw error;

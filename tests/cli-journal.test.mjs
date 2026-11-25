@@ -39,8 +39,12 @@ function makeOperation(f, prepared) {
   const open = fs.openSync;
   try {
     if (prepared) {
+      const destination = path.join(f.dir, 'records/item');
       fs.openSync = function (file, flags, ...args) {
-        if (file === path.join(f.dir, 'records/item') && flags === 'wx') {
+        // applyPlan stages via an exclusive `<dest>.*` temp; both paths fail.
+        if ((file === destination
+            || String(file).startsWith(`${destination}.`))
+            && flags === 'wx') {
           throw new Error('fixture source failure');
         }
         return open.call(this, file, flags, ...args);

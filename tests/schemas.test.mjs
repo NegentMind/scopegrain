@@ -283,10 +283,13 @@ test('recovery receipts conform to recovery schema on both actions', () => {
       'finalize-committed recovery.json');
     // abandon-prepared: receipt written against a wedged unconfirmed op.
     const open = fs.openSync;
+    const destination = path.join(f.dir, 'records', 'wedged');
     let unconfirmed;
     try {
       fs.openSync = function (file, flags, ...args) {
-        if (String(file).endsWith(`${path.sep}wedged`) && flags === 'wx') {
+        // applyPlan stages via an exclusive `<dest>.*` temp; both paths fail.
+        if ((file === destination || String(file).startsWith(`${destination}.`))
+            && flags === 'wx') {
           const failure = new Error('schema fixture source failure');
           failure.code = 'EIO';
           throw failure;

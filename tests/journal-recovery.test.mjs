@@ -67,8 +67,11 @@ function committedActive(f, changes = [change([f.a], 'item')]) {
 function prepared(f, variant = 'source', name = 'item') {
   const open = fs.openSync;
   try {
+    const destination = path.join(f.dir, 'records', name);
     fs.openSync = function (file, flags, ...args) {
-      if (flags === 'wx' && ((variant === 'source' && file === path.join(f.dir, 'records', name))
+      // applyPlan stages via an exclusive `<dest>.*` temp; both paths fail.
+      if (flags === 'wx' && ((variant === 'source' && (file === destination
+          || String(file).startsWith(`${destination}.`)))
           || (variant === 'marker' && String(file).endsWith(`${path.sep}commit.json`)))) {
         throw new Error(`fixture ${variant} failure`);
       }

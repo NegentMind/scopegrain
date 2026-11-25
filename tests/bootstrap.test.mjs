@@ -299,6 +299,66 @@ test('mid-write failure rolls back only files created by this operation', () => 
   } finally { cleanup(dir); }
 });
 
+test('a foreign file appearing mid-apply is never overwritten by publish', () => {
+  const dir = makeTempDir('init-pubrace');
+  try {
+    const prepared = prepareInit({ projectRoot: dir, answers: VALID_ANSWERS });
+    writeFile(dir, 'keep-me.txt', 'unrelated');
+    const target = path.join(dir, 'AGENTS.md');
+    const link = fs.linkSync;
+    // A foreign file materializes at a planned destination between the
+    // apply-time preflight and the atomic publish. link(2) must fail
+    // EEXIST instead of replacing it (rename would silently overwrite).
+    fs.linkSync = function (from, to) {
+      if (to === target) fs.writeFileSync(target, 'foreign bytes');
+      return link.call(this, from, to);
+    };
+    try {
+      assert.throws(() => applyPlan(dir, prepared.files),
+        (e) => e.code === 'EEXIST');
+    } finally { fs.linkSync = link; }
+    assert.equal(fs.readFileSync(target, 'utf8'), 'foreign bytes');
+    assert.ok(exists(dir, 'keep-me.txt'));
+    // Every file this operation created is rolled back; no staging temps.
+    assert.ok(!exists(dir, '.scopegrain/config.json'));
+    const leftovers = fs.readdirSync(dir)
+      .filter((n) => n.includes('.scopegrain-tmp-'));
+    assert.deepEqual(leftovers, []);
+    assert.deepEqual(fs.readdirSync(path.join(dir, '.scopegrain'))
+      .filter((n) => n.includes('.scopegrain-tmp-')), []);
+  } finally { cleanup(dir); }
+});
+
+test('hardlink-less filesystems fall back to exclusive direct writes', () => {
+  const dir = makeTempDir('init-nolink');
+  try {
+    const prepared = prepareInit({ projectRoot: dir, answers: VALID_ANSWERS });
+    const link = fs.linkSync;
+    fs.linkSync = () => {
+      throw Object.assign(new Error('no links'), { code: 'EPERM' });
+    };
+    try {
+      applyPlan(dir, prepared.files);
+    } finally { fs.linkSync = link; }
+    for (const f of prepared.files) {
+      const expected = Buffer.isBuffer(f.content)
+        ? f.content : Buffer.from(f.content);
+      assert.ok(fs.readFileSync(path.join(dir, ...f.rel.split('/')))
+        .equals(expected), `${f.rel} bytes differ after fallback write`);
+    }
+    const leftovers = [];
+    const walk = (rel) => {
+      for (const name of fs.readdirSync(path.join(dir, rel))) {
+        const r = rel ? `${rel}/${name}` : name;
+        if (fs.statSync(path.join(dir, r)).isDirectory()) walk(r);
+        else if (name.includes('.scopegrain-tmp-')) leftovers.push(r);
+      }
+    };
+    walk('');
+    assert.deepEqual(leftovers, []);
+  } finally { cleanup(dir); }
+});
+
 test('case-insensitive duplicate plan destinations are rejected', () => {
   const dir = makeTempDir('init-case');
   try {
