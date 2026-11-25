@@ -268,3 +268,63 @@ test('block wins over require-gate when multiple hooks match one action', () => 
     assert.deepEqual(r.applied.map((a) => a.id), ['g', 'b']);
   } finally { cleanup(root); }
 });
+
+test('preAction.scopeOverlapIn matches peers in the listed states only', () => {
+  const root = installWithPreAction([
+    { id: 'overlap-act',
+      when: { action: 'edit', scopeOverlapIn: ['ACT'] },
+      then: 'require-gate', reason: 'concurrent write region' },
+    { id: 'overlap-block',
+      when: { action: 'verify', scopeOverlapIn: ['ACT', 'VERIFY'] },
+      then: 'block', reason: 'no verify over a contested region' },
+  ]);
+  try {
+    // TASK: { id: 't', state: 'ACT', scope: ['a', 'b'] }
+    const peers = [
+      { id: 'p-act', state: 'ACT', scope: ['a/x'] }, // inside 'a'
+      { id: 'p-plan', state: 'PLAN', scope: ['b'] }, // wrong state
+      { id: 't', state: 'ACT', scope: ['a', 'b'] }, // self — excluded
+      { id: 'p-empty', state: 'ACT', scope: [] }, // no write region
+      { id: 'p-far', state: 'ACT', scope: ['elsewhere'] },
+    ];
+    const hit = applyPreActionHooks(TASK, ['edit', 'verify'],
+      { installRoot: root, peers });
+    // edit: only p-act qualifies → gated, kept in permitted.
+    assert.deepEqual(hit.permitted, ['edit']);
+    assert.deepEqual(hit.gated, [{ action: 'edit', hook: 'overlap-act',
+      reason: 'concurrent write region' }]);
+    const editEntry = hit.applied.find((a) => a.id === 'overlap-act');
+    assert.deepEqual(editEntry.with, ['p-act']);
+    // verify: p-act qualifies for the block list too.
+    const verifyEntry = hit.applied.find((a) => a.id === 'overlap-block');
+    assert.deepEqual(verifyEntry.with, ['p-act']);
+    // Prefix in the other direction: peer 'a' contains task entry 'a/x'.
+    const up = applyPreActionHooks({ ...TASK, scope: ['a/x'] }, ['edit'],
+      { installRoot: root,
+        peers: [{ id: 'p', state: 'ACT', scope: ['a'] }] });
+    assert.equal(up.gated.length, 1);
+    // No peers supplied → the condition cannot match.
+    const noPeers = applyPreActionHooks(TASK, ['edit'],
+      { installRoot: root });
+    assert.deepEqual(noPeers.gated, []);
+    // Empty task scope declares no write region → no overlap.
+    const emptyScope = applyPreActionHooks({ ...TASK, scope: [] }, ['edit'],
+      { installRoot: root, peers });
+    assert.deepEqual(emptyScope.gated, []);
+  } finally { cleanup(root); }
+});
+
+test('preAction.scopeOverlapIn schema is closed like stateIn', () => {
+  for (const w of [
+    { action: 'edit', scopeOverlapIn: 'ACT' },
+    { action: 'edit', scopeOverlapIn: [] },
+    { action: 'edit', scopeOverlapIn: ['act'] },
+    { action: 'edit', scopeOverlapIn: [42] },
+  ]) {
+    const root = installWithPreAction([{ id: 'x', when: w, then: 'block' }]);
+    try {
+      assert.throws(() => loadHooksPolicy({ installRoot: root }),
+        (e) => e.code === 'POLICY_MALFORMED', JSON.stringify(w));
+    } finally { cleanup(root); }
+  }
+});

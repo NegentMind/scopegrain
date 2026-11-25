@@ -27,7 +27,7 @@ const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const PHASES = new Set(['before', 'after']);
 const PRE_ACTION_EFFECTS = new Set(['block', 'require-gate', 'record']);
 const PRE_ACTION_WHEN_KEYS = new Set(
-  ['action', 'stateIn', 'scopeOver', 'skillsMissing']);
+  ['action', 'stateIn', 'scopeOver', 'skillsMissing', 'scopeOverlapIn']);
 const STATE_RE = /^[A-Z]+$/;
 
 let cached = null;
@@ -153,6 +153,13 @@ export function loadHooksPolicy({ installRoot = INSTALL_ROOT } = {}) {
         throw err('POLICY_MALFORMED',
           `${at}.when.skillsMissing must be a string array`);
       }
+      if (w.scopeOverlapIn !== undefined
+          && (!Array.isArray(w.scopeOverlapIn) || w.scopeOverlapIn.length === 0
+            || !w.scopeOverlapIn.every((s) => typeof s === 'string'
+              && STATE_RE.test(s)))) {
+        throw err('POLICY_MALFORMED',
+          `${at}.when.scopeOverlapIn must be a non-empty task-state array`);
+      }
       preAction.push({ id: h.id, when: w, then: h.then,
         reason: h.reason ?? null });
     }
@@ -172,26 +179,53 @@ export function hooksFor(commandId, { installRoot = INSTALL_ROOT } = {}) {
   return { before: pick('before'), after: pick('after') };
 }
 
-function preActionMatches(w, task, action) {
-  if (w.action !== '*' && w.action !== action) return false;
+// Scope entries are canonical project-relative paths: they overlap when
+// equal or one prefixes the other (directory containment).
+function scopesOverlap(a, b) {
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+
+// Returns null on no-match, or an object with the matched peer ids when
+// the hook is scopeOverlapIn (empty for other conditions). `peers` is the
+// caller-supplied cross-task view — [{id, state, scope}] — resolved where
+// ctx exists (evaluateTaskActions); hooks-policy itself stays pure. A
+// task or peer with an empty scope declares no write region and never
+// overlaps; the task itself is excluded by id.
+function preActionMatches(w, task, action, peers) {
+  if (w.action !== '*' && w.action !== action) return null;
   if (w.stateIn !== undefined && !w.stateIn.includes(task.state)) {
-    return false;
+    return null;
   }
   if (w.scopeOver !== undefined
       && !(Array.isArray(task.scope) && task.scope.length > w.scopeOver)) {
-    return false;
+    return null;
   }
   if (w.skillsMissing !== undefined) {
     const have = new Set(Array.isArray(task.skills) ? task.skills : []);
-    if (!w.skillsMissing.some((s) => !have.has(s))) return false;
+    if (!w.skillsMissing.some((s) => !have.has(s))) return null;
   }
-  return true;
+  let conflicts;
+  if (w.scopeOverlapIn !== undefined) {
+    if (!Array.isArray(peers) || !Array.isArray(task.scope)
+        || task.scope.length === 0) return null;
+    conflicts = peers.filter((p) => p.id !== task.id
+      && w.scopeOverlapIn.includes(p.state)
+      && Array.isArray(p.scope) && p.scope.length > 0
+      && task.scope.some((s) => p.scope.some((q) => scopesOverlap(s, q))))
+      .map((p) => p.id);
+    if (conflicts.length === 0) return null;
+  }
+  return { conflicts };
 }
 
 // Evaluates declarative pre-action hooks over the already-permitted
 // action set. `block` prunes (real enforcement); `require-gate` flags;
 // `record` annotates. Everything lands on the trace — never silent.
-export function applyPreActionHooks(task, permitted, { installRoot } = {}) {
+// `peers` feeds the cross-task `when.scopeOverlapIn` condition; callers
+// without a peer view (no ctx) may omit it — those conditions then never
+// match. Matched peer ids land on the applied entry as `with`.
+export function applyPreActionHooks(task, permitted,
+    { installRoot, peers } = {}) {
   const hooks = loadHooksPolicy({ installRoot }).preAction;
   if (hooks.length === 0) {
     return { permitted: [...permitted], applied: [], gated: [] };
@@ -202,8 +236,10 @@ export function applyPreActionHooks(task, permitted, { installRoot } = {}) {
   for (const action of permitted) {
     let drop = false;
     for (const h of hooks) {
-      if (!preActionMatches(h.when, task, action)) continue;
-      applied.push({ id: h.id, action, effect: h.then, reason: h.reason });
+      const match = preActionMatches(h.when, task, action, peers);
+      if (!match) continue;
+      applied.push({ id: h.id, action, effect: h.then, reason: h.reason,
+        ...(match.conflicts ? { with: match.conflicts } : {}) });
       if (h.then === 'block') drop = true;
       if (h.then === 'require-gate') {
         gated.push({ action, hook: h.id, reason: h.reason });

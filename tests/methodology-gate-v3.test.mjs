@@ -16,7 +16,8 @@ import fs from 'node:fs';
 import {
   approve, assessment, formalFixture, seedState,
 } from './methodology-fixtures.mjs';
-import { bootstrappedMiniCtx, cleanup } from './helpers.mjs';
+import { bootstrappedMiniCtx, cleanup, makeTempDir, writeJson }
+  from './helpers.mjs';
 
 const query = (f, input = {}) =>
   checkMethodology(f.ctx, { taskId: f.task.id, ...input });
@@ -280,4 +281,46 @@ test('V3 plan without formal pair still mismatches a formal member', () => {
       JSON.stringify(b.issues));
     assert.equal(b.planDigest, null);
   } finally { cleanup(f.dir); }
+});
+
+// Cross-task preAction: evaluateTaskActions resolves the peer view lazily
+// from stored task state (the layer that owns ctx) and feeds it to the
+// pure hooks evaluator. The scan runs only when the policy declares
+// when.scopeOverlapIn — verified here by both effects.
+test('evaluateTaskActions feeds peers to when.scopeOverlapIn', () => {
+  const f = bootstrappedMiniCtx();
+  const root = makeTempDir('hooks-peers');
+  try {
+    writeJson(root, 'policy/hooks.json', { schemaVersion: 1, hooks: {},
+      preAction: [{ id: 'overlap-gate',
+        when: { action: 'edit', scopeOverlapIn: ['ACT'] },
+        then: 'require-gate', reason: 'concurrent write region' }] });
+    f.ctx.config.methodology = 'manual';
+    const a = createTask(f.ctx, { title: 'A', contract: 'C',
+      authorContext: 'fixture-author', scope: ['src/shared'], type: 'ops' });
+    const b = createTask(f.ctx, { title: 'B', contract: 'C',
+      authorContext: 'fixture-author',
+      scope: ['src/shared/inner'], type: 'ops' });
+    const far = createTask(f.ctx, { title: 'C', contract: 'C',
+      authorContext: 'fixture-author', scope: ['docs'], type: 'ops' });
+    for (const t of [a, b, far]) {
+      transitionTask(f.ctx, { id: t.id, to: 'ACT', expectedRevision: 0 });
+    }
+    const r = evaluateTaskActions(f.ctx, getTask(f.ctx, a.id),
+      { installRoot: root });
+    // 'edit' stays permitted but is gated; applied trace names the peer.
+    const gate = r.actionHooks.gated.find((g) => g.action === 'edit');
+    assert.equal(gate.hook, 'overlap-gate');
+    const applied = r.actionHooks.applied
+      .find((x) => x.id === 'overlap-gate');
+    assert.deepEqual(applied.with, [b.id]);
+    // Peer in a non-listed state does not count: move B to STALL.
+    transitionTask(f.ctx, { id: b.id, to: 'STALL',
+      expectedRevision: getTask(f.ctx, b.id).revision });
+    const after = evaluateTaskActions(f.ctx, getTask(f.ctx, a.id),
+      { installRoot: root });
+    assert.deepEqual(after.actionHooks.gated, []);
+    // Empty-scope policy dir (no overlap key) performs no peer scan —
+    // implied by the evaluator being unchanged for the shipped policy.
+  } finally { cleanup(f.dir); cleanup(root); }
 });

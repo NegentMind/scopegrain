@@ -708,7 +708,12 @@ anota. Nunca argv ni scripts: condiciones y efectos son datos.
 `when.action` es una accion o `*`; `when.stateIn` lista de estados;
 `when.scopeOver` entero (estricto `>` sobre `task.scope.length`);
 `when.skillsMissing` lista de skills — coincide si la tarea carece de
-alguna. Las entradas que coinciden quedan trazadas en
+alguna; `when.scopeOverlapIn` lista de estados — condicion cross-task:
+coincide cuando otra tarea en uno de esos estados declara un scope que
+solapa con el de esta (igualdad o contencion de directorio). La propia
+tarea se excluye; un scope vacio no declara region de escritura y nunca
+solapa. Los ids de los pares que coinciden quedan trazados como `with`
+en la entrada applied. Las entradas que coinciden quedan trazadas en
 `packet.actionHooks.applied` y `task check-action`/`scopegrain_check_action`
 exponen `actionHooks` + `gate`.
 

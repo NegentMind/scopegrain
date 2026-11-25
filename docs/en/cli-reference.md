@@ -707,7 +707,12 @@ Never argv, never scripts: conditions and effects are data.
 
 `when.action` is an action name or `*`; `when.stateIn` a task-state list;
 `when.scopeOver` an integer (strict `>` over `task.scope.length`);
-`when.skillsMissing` a skill list — matches if the task lacks any.
+`when.skillsMissing` a skill list — matches if the task lacks any;
+`when.scopeOverlapIn` a task-state list — cross-task condition: matches
+when another task in one of those states declares a scope entry that
+overlaps this task's (equal or directory containment). The task itself is
+excluded; an empty scope declares no write region and never overlaps.
+Matched peer ids are traced as `with` on the applied entry.
 Matching entries are traced on `packet.actionHooks.applied` and
 `task check-action`/`scopegrain_check_action` expose `actionHooks` + `gate`.
 

@@ -10,11 +10,11 @@ import { describeApprovalTarget, getApproval } from './approvals.mjs';
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
 import { getArtifact } from './artifacts.mjs';
 import { unresolvedQuestions } from './clarify.mjs';
-import { getTask } from './tasks.mjs';
+import { getTask, listTasks } from './tasks.mjs';
 import { validateReview, validateVerification } from './evidence.mjs';
 import { resolveInside } from './paths.mjs';
 import { actionsFor, loadMethodologyPolicy } from './policy.mjs';
-import { applyPreActionHooks } from './hooks-policy.mjs';
+import { applyPreActionHooks, loadHooksPolicy } from './hooks-policy.mjs';
 
 const INPUT_KEYS = new Set(['taskId', 'to', 'outcomeEvidenceId']);
 const FORWARD_SOURCES = new Set(['STALL', 'PLAN', 'RESEARCH']);
@@ -305,15 +305,25 @@ export function checkMethodology(ctx, input) {
   return evaluateMethodology(ctx, candidate, { to, previousRevision: task.revision });
 }
 
-export function evaluateTaskActions(ctx, task) {
+export function evaluateTaskActions(ctx, task, { installRoot } = {}) {
   const methodology = evaluateMethodology(ctx, task);
   const statePermitted = actionsFor(task.state).filter((action) =>
     action !== 'edit' || (methodology.allowed
       && !(carriesMethodologyMetadata(task) && task.scope.length === 0)));
   // Bounded declarative pre-action hooks (policy/hooks.json `preAction`):
   // `block` prunes, `require-gate` flags, `record` annotates — applied
-  // AFTER the state/methodology floor, never a bypass of it.
-  const hooks = applyPreActionHooks(task, statePermitted);
+  // AFTER the state/methodology floor, never a bypass of it. Cross-task
+  // `when.scopeOverlapIn` conditions resolve their peer view here (the
+  // layer that owns ctx); the full task scan only runs when the policy
+  // actually declares the key.
+  const policy = loadHooksPolicy(
+    installRoot ? { installRoot } : {});
+  const peers = policy.preAction.some((h) => h.when.scopeOverlapIn)
+    ? listTasks(ctx).tasks.map((t) =>
+        ({ id: t.id, state: t.state, scope: t.scope ?? [] }))
+    : undefined;
+  const hooks = applyPreActionHooks(task, statePermitted,
+    { ...(installRoot ? { installRoot } : {}), peers });
   return { permitted: hooks.permitted, methodology,
     actionHooks: { applied: hooks.applied, gated: hooks.gated } };
 }
