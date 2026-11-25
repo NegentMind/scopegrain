@@ -174,8 +174,20 @@ function loadPolicyFile(name, label, dir = POLICY_DIR) {
   return data;
 }
 
+// Operational budget limit keys shared by policy defaults
+// (operation-limits.budgetDefaults) and per-record `budget` overrides on
+// plans and tasks. Names describe what the harness can honestly measure:
+// recorded journal operations and member dispatches, never native tool
+// calls (budgetMeasures:'explicitly-recorded-operations-only').
+export const BUDGET_LIMIT_KEYS = Object.freeze([
+  'maxIterations', 'maxRecordedOperations', 'maxSubAgentDispatches',
+  'maxConsecutiveFails', 'maxDurationMinutes',
+]);
+
 // Authored operation limits (policy/operation-limits.json): document size
-// bounds, plan/session caps and capability flags.
+// bounds, plan/session caps, capability flags and operational budget
+// defaults applied when a plan or task record declares no `budget` of its
+// own. A null inside budgetDefaults means that measure has no cap.
 // Cached per policyDir: production code always reads the canonical dir,
 // while tests injecting fixtures keep isolated caches per temp root.
 const limitsCache = new Map();
@@ -193,6 +205,24 @@ export function loadLimits(opts = {}) {
     'interceptsNativeTools']) {
     if (typeof d[key] !== 'boolean') {
       throw err('POLICY_MALFORMED', `operation-limits.${key} must be boolean`);
+    }
+  }
+  if (d.budgetDefaults !== undefined) {
+    const b = d.budgetDefaults;
+    if (b === null || typeof b !== 'object' || Array.isArray(b)) {
+      throw err('POLICY_MALFORMED',
+        'operation-limits.budgetDefaults must be an object');
+    }
+    for (const k of Object.keys(b)) {
+      if (!BUDGET_LIMIT_KEYS.includes(k)) {
+        throw err('POLICY_MALFORMED',
+          `operation-limits.budgetDefaults received unknown key '${k}'`);
+      }
+      const v = b[k];
+      if (v !== null && (!Number.isSafeInteger(v) || v <= 0)) {
+        throw err('POLICY_MALFORMED',
+          `operation-limits.budgetDefaults.${k} must be a positive integer or null`);
+      }
     }
   }
   const frozen = deepFreeze(d);

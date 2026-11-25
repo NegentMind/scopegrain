@@ -16,8 +16,8 @@ import {
 import { loadPolicy, loadLimits } from './policy.mjs';
 import {
   buildTaskRecord, DATA_CLASSIFICATIONS, getTask, listTasks,
-  nextTaskSlug, normalizeTaskInput, validateSharedContext,
-  validateTaskShape,
+  nextTaskSlug, normalizeTaskInput, validateBudgetShape,
+  validateSharedContext, validateTaskShape,
 } from './tasks.mjs';
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
 import { estimateJson, TOKEN_ESTIMATOR } from './tokens.mjs';
@@ -153,26 +153,6 @@ function validateRiskRegister(value, label) {
   });
 }
 
-function validateBudget(value, label) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw err('INVALID_PLAN', `${label} must be an object or null`);
-  }
-  for (const k of Object.keys(value)) {
-    if (!['turns', 'notes'].includes(k)) {
-      throw err('UNKNOWN_KEY', `${label} received unknown key '${k}'`);
-    }
-  }
-  if (value.turns !== undefined && value.turns !== null
-      && (!Number.isSafeInteger(value.turns) || value.turns < 0)) {
-    throw err('INVALID_PLAN', `${label}.turns must be an integer >= 0`);
-  }
-  if (value.notes !== undefined && value.notes !== null
-      && typeof value.notes !== 'string') {
-    throw err('INVALID_PLAN', `${label}.notes must be a string`);
-  }
-  return { turns: value.turns ?? null, notes: value.notes ?? null };
-}
-
 // Plan-level semantic layer (schemaVersion 3): the legacy plan file's
 // triage gate, appetite, Cynefin classification, risk register, pre-mortem,
 // stop conditions and budget — normalized identically at input and at
@@ -229,7 +209,7 @@ function normalizePlanV3(input, taskKeys, errorFn) {
   }
   if (has('budget')) {
     v3.budget = input.budget === null ? null
-      : validateBudget(input.budget, 'budget');
+      : validateBudgetShape(input.budget, 'budget', 'INVALID_PLAN');
   }
   if (has('request')) {
     if (input.request !== null

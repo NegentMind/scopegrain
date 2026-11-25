@@ -113,6 +113,9 @@ test('input validation: enums, triage keys, budget, risk grades', () => {
     bad((p) => { p.triage.base = { decision: 'maybe' }; }, 'INVALID_PLAN');
     bad((p) => { p.budget = { turns: -1 }; }, 'INVALID_PLAN');
     bad((p) => { p.budget = { extra: 1 }; }, 'UNKNOWN_KEY');
+    bad((p) => { p.budget = { maxIterations: 0 }; }, 'INVALID_PLAN');
+    bad((p) => { p.budget = { maxToolCalls: 5 }; }, 'UNKNOWN_KEY');
+    bad((p) => { p.budget = { maxConsecutiveFails: 'x' }; }, 'INVALID_PLAN');
     bad((p) => { p.riskRegister = [{ risk: 'x', likelihood: 'extreme' }]; },
       'INVALID_PLAN');
     bad((p) => { p.tasks[0].triage = 'hmm'; }, 'INVALID_PLAN');
@@ -127,6 +130,21 @@ test('input validation: enums, triage keys, budget, risk grades', () => {
       delete t.priority; delete t.backlog; delete t.steps; delete t.type;
     }
     assert.equal(preparePlan(ctx, p1).plan.schemaVersion, 1);
+  } finally { cleanup(dir); }
+});
+
+test('budget limit overrides normalize and persist through apply', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    const p = JSON.parse(JSON.stringify(V3_PLAN));
+    p.budget = { maxIterations: 4, maxConsecutiveFails: null,
+      notes: 'tight' };
+    const expected = { turns: null, notes: 'tight',
+      maxIterations: 4, maxConsecutiveFails: null };
+    const prepared = preparePlan(ctx, p);
+    assert.deepEqual(prepared.plan.budget, expected);
+    applyPlan(dir, preflightPlan(dir, prepared.files));
+    assert.deepEqual(getPlan(ctx, 'rel-3').budget, expected);
   } finally { cleanup(dir); }
 });
 

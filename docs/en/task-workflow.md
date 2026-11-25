@@ -117,6 +117,16 @@ to `schemaVersion: 3` (V2 records keep their methodology bundle; V1
 records null it out). Full field table:
 `resources/references/backlog-format.md`.
 
+`budget` (task and plan records) declares per-record operational
+ceilings — `maxIterations`, `maxRecordedOperations`,
+`maxSubAgentDispatches`, `maxConsecutiveFails`, `maxDurationMinutes`
+plus `turns`/`notes`. Any key omitted falls back to `budgetDefaults`
+in `policy/operation-limits.json` (legacy `BUDGET_LIMITS` equivalent);
+an explicit `null` disables that measure. Counts cover recorded
+operations only — transitions, `check_action`, `verify run`, member
+dispatches — never native tool calls
+(`budgetMeasures: explicitly-recorded-operations-only`).
+
 Two deliberately distinct dependency layers: a plan's DAG
 (`tasks[].dependsOn` by keys) is the hard constraint — the ACT gate
 enforces it transitively and `plan next` turns it into readiness

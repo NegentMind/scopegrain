@@ -384,6 +384,43 @@ test('fallback: closed {onFail: stall|abandon|needs-human, note?} or null', () =
   } finally { cleanup(dir); }
 });
 
+test('budget: {turns?,notes?,policy-limit overrides} or null; closed keys', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, {
+      ...BASE, budget: { turns: 3, maxConsecutiveFails: 2,
+        maxIterations: null },
+    });
+    assert.deepEqual(task.budget, { turns: 3, notes: null,
+      maxIterations: null, maxConsecutiveFails: 2 });
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, budget: { maxToolCalls: 5 },
+    }), (e) => e.code === 'UNKNOWN_KEY');
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, budget: { maxIterations: 0 },
+    }), (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, { ...BASE, budget: 'x' }),
+      (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, budget: null });
+    assert.equal(applied.budget, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { budget: { maxConsecutiveFails: 1 } },
+    });
+    assert.deepEqual(next.budget, { turns: null, notes: null,
+      maxConsecutiveFails: 1 });
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.budget = { bogus: 1 };
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.budget;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).budget, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('contextInheritance: enum isolated|summary|full or null', () => {
   const { dir, ctx } = setup();
   try {

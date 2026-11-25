@@ -33,7 +33,7 @@ import {
 } from '../src/core/journal.mjs';
 import { prepareAdopt, prepareRestore } from '../src/core/lifecycle.mjs';
 import { getPlan, preparePlan } from '../src/core/plans.mjs';
-import { loadLimits } from '../src/core/policy.mjs';
+import { loadLimits, resetPolicyCaches } from '../src/core/policy.mjs';
 import {
   getSession, prepareSession, sessionFileAbs,
 } from '../src/core/sessions.mjs';
@@ -392,6 +392,33 @@ test('loadPolicyFile accepts literal U+FFFD in stored strings', () => {
     fs.writeFileSync(path.join(policyDir, 'operation-limits.json'),
       JSON.stringify(doc));
     assert.equal(loadLimits({ policyDir }).note, 'x�x');
+  } finally { cleanup(dir); }
+});
+
+test('operation-limits budgetDefaults: closed keys, positive ints or null', () => {
+  const { dir, policyDir, doc } = limitsFixture();
+  const write = (mut) => {
+    const d = JSON.parse(JSON.stringify(doc));
+    mut(d);
+    fs.writeFileSync(path.join(policyDir, 'operation-limits.json'),
+      JSON.stringify(d));
+    resetPolicyCaches();
+  };
+  try {
+    write((d) => { d.budgetDefaults = { maxIterations: 8,
+      maxConsecutiveFails: null }; });
+    assert.equal(loadLimits({ policyDir }).budgetDefaults.maxIterations, 8);
+    write((d) => { d.budgetDefaults = { maxToolCalls: 5 }; });
+    assert.throws(() => loadLimits({ policyDir }),
+      (e) => e.code === 'POLICY_MALFORMED');
+    write((d) => { d.budgetDefaults = { maxIterations: 0 }; });
+    assert.throws(() => loadLimits({ policyDir }),
+      (e) => e.code === 'POLICY_MALFORMED');
+    write((d) => { d.budgetDefaults = [1, 2]; });
+    assert.throws(() => loadLimits({ policyDir }),
+      (e) => e.code === 'POLICY_MALFORMED');
+    write((d) => { delete d.budgetDefaults; });
+    assert.equal(loadLimits({ policyDir }).budgetDefaults, undefined);
   } finally { cleanup(dir); }
 });
 

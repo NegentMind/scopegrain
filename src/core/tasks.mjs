@@ -8,7 +8,8 @@ import { err } from './errors.mjs';
 import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited, writeFileExclusive } from './fsx.mjs';
 import { assertDestination, isSameOrAncestor, resolveInside }
   from './paths.mjs';
-import { knownStates, loadLimits, loadPolicy } from './policy.mjs';
+import { knownStates, loadLimits, loadPolicy, BUDGET_LIMIT_KEYS }
+  from './policy.mjs';
 import { validateReview, validateVerification } from './evidence.mjs';
 import { canonicalDigest } from './digests.mjs';
 import { getArtifact } from './artifacts.mjs';
@@ -36,7 +37,7 @@ const TASK_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
   'fallback', 'contextInheritance', 'modelTier', 'directives',
-  'sharedContext', 'dataClassification',
+  'sharedContext', 'dataClassification', 'budget',
 ]);
 const V3_KEYS = new Set([
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
@@ -50,7 +51,7 @@ const V3_EXT_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
   'fallback', 'contextInheritance', 'modelTier', 'directives',
-  'sharedContext', 'dataClassification',
+  'sharedContext', 'dataClassification', 'budget',
 ]);
 const TASK_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3', 'backlog']);
 const TASK_SEVERITIES = new Set(['critical', 'high', 'medium', 'low', 'info']);
@@ -99,6 +100,39 @@ export function validateSharedContext(value, label, code = 'INVALID_VALUE') {
   }
   return out;
 }
+// Record `budget` shape shared by task and plan records: optional per-record
+// overrides of the policy budgetDefaults (BUDGET_LIMIT_KEYS) plus the legacy
+// free-form {turns, notes}. Any omitted limit falls back to the policy
+// default at enforcement time; a null disables that measure.
+export function validateBudgetShape(value, label, code = 'INVALID_VALUE') {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw err(code, `${label} must be an object or null`);
+  }
+  for (const k of Object.keys(value)) {
+    if (!['turns', 'notes', ...BUDGET_LIMIT_KEYS].includes(k)) {
+      throw err('UNKNOWN_KEY', `${label} received unknown key '${k}'`);
+    }
+  }
+  if (value.turns !== undefined && value.turns !== null
+      && (!Number.isSafeInteger(value.turns) || value.turns < 0)) {
+    throw err(code, `${label}.turns must be an integer >= 0`);
+  }
+  if (value.notes !== undefined && value.notes !== null
+      && typeof value.notes !== 'string') {
+    throw err(code, `${label}.notes must be a string`);
+  }
+  for (const k of BUDGET_LIMIT_KEYS) {
+    if (value[k] !== undefined && value[k] !== null
+        && (!Number.isSafeInteger(value[k]) || value[k] <= 0)) {
+      throw err(code, `${label}.${k} must be a positive integer or null`);
+    }
+  }
+  const out = { turns: value.turns ?? null, notes: value.notes ?? null };
+  for (const k of BUDGET_LIMIT_KEYS) {
+    if (value[k] !== undefined) out[k] = value[k];
+  }
+  return out;
+}
 export const RELATION_KINDS = new Set(
   ['see', 'supersedes', 'duplicateOf', 'blocks']);
 const STEP_STATUSES = new Set(['pending', 'done', 'skipped']);
@@ -109,7 +143,7 @@ const META_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
   'sideEffects', 'executionType', 'outputContract', 'reviewRubric',
   'fallback', 'contextInheritance', 'modelTier', 'directives',
-  'sharedContext', 'dataClassification',
+  'sharedContext', 'dataClassification', 'budget',
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
@@ -120,6 +154,7 @@ const CREATE_KEYS = new Set([
   'agentRole', 'expectedOutputs', 'sideEffects', 'executionType',
   'outputContract', 'reviewRubric', 'fallback', 'contextInheritance',
   'modelTier', 'directives', 'sharedContext', 'dataClassification',
+  'budget',
 ]);
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
@@ -198,6 +233,9 @@ function validateV3Fields(task, label) {
   }
   if (task.source !== null && typeof task.source !== 'string') {
     throw err('TASK_MALFORMED', `${label}.source must be a string or null`);
+  }
+  if (task.budget !== null && task.budget !== undefined) {
+    validateBudgetShape(task.budget, `${label}.budget`, 'TASK_MALFORMED');
   }
   if (task.relations !== null) {
     const r = task.relations;
@@ -843,6 +881,10 @@ export function normalizeV3Input(input) {
     }
     v3.source = input.source;
   }
+  if (has('budget')) {
+    v3.budget = input.budget === null ? null
+      : validateBudgetShape(input.budget, 'budget');
+  }
   const nonEmptyStr = (k) => {
     if (!has(k)) return;
     if (input[k] !== null
@@ -1032,6 +1074,7 @@ export const V3_DEFAULTS = {
   allowedTools: null, requiredCapabilities: null, agentRole: null,
   expectedOutputs: null, sideEffects: null, executionType: null,
   outputContract: null, reviewRubric: null, fallback: null,
+  budget: null,
   contextInheritance: null, modelTier: null, directives: null,
   sharedContext: null, dataClassification: null,
 };

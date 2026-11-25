@@ -111,6 +111,16 @@ semantico en la creacion, o cualquier escritura `meta`, sube el registro a
 `schemaVersion: 3` (los V2 conservan su bundle de metodologia; los V1 lo
 nulan). Tabla completa de campos: `resources/references/backlog-format.md`.
 
+`budget` (registros de tarea y plan) declara techos operativos por
+registro — `maxIterations`, `maxRecordedOperations`,
+`maxSubAgentDispatches`, `maxConsecutiveFails`, `maxDurationMinutes`,
+ademas de `turns`/`notes`. Cada clave omitida cae al `budgetDefaults` de
+`policy/operation-limits.json` (equivalente a los `BUDGET_LIMITS`
+legacy); un `null` explicito desactiva esa medida. Las medidas cuentan
+solo operaciones registradas — transiciones, `check_action`,
+`verify run`, dispatch de miembros — nunca tool calls nativos
+(`budgetMeasures: explicitly-recorded-operations-only`).
+
 Dos capas de dependencias, deliberadamente distintas: el DAG de un plan
 (`tasks[].dependsOn` por claves) es la restriccion fuerte — el gate ACT la
 exige de forma transitiva y `plan next` la convierte en readiness

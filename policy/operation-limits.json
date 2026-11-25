@@ -4,6 +4,13 @@
   "maxPlanTasks": 100,
   "maxSessionEvents": 10000,
   "sessionBudgetDefault": null,
+  "budgetDefaults": {
+    "maxIterations": 10,
+    "maxRecordedOperations": 40,
+    "maxSubAgentDispatches": 40,
+    "maxConsecutiveFails": 5,
+    "maxDurationMinutes": 120
+  },
   "packetBudgetTokens": 16000,
   "budgetMeasures": "explicitly-recorded-operations-only",
   "tokenMeasures": "self-reported-unverified",

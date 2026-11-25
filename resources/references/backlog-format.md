@@ -46,6 +46,7 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `directives` | `[non-empty string]` or null | Custom instructions the host should inject when executing this task (e.g. "always strict TS, answer in Spanish"). Declarative — the harness carries them, hosts apply them. Additive extension, same read/write rule as `allowedTools`. |
 | `sharedContext` | `{string: string}` or null | Shared key-value variables visible to the task (`repo_url`, `brand_tone`…). Max 32 keys, values ≤1KiB. Declarative; hosts inject them. Additive extension, same read/write rule as `allowedTools`. |
 | `dataClassification` | `public\|internal\|confidential\|pii` or null | Sensitivity level of the data the task handles. Consumable by `preAction` hooks via `when.dataClassificationIn` (e.g. `require-gate` on `pii`). Additive extension, same read/write rule as `allowedTools`. |
+| `budget` | `{turns?: int>=0, notes?: string, <limit overrides>}` or null | Per-record operational budget. Limit override keys: `maxIterations`, `maxRecordedOperations`, `maxSubAgentDispatches`, `maxConsecutiveFails`, `maxDurationMinutes` — each a positive int or null; an omitted limit falls back to `budgetDefaults` in `policy/operation-limits.json`, an explicit null disables that measure. Values count *recorded* operations only (`budgetMeasures: explicitly-recorded-operations-only`): journal-registered transitions, `check_action` calls, `verify run` and member dispatches — never native tool calls, which the harness cannot see. Additive extension, same read/write rule as `allowedTools`. |
 
 `history[]` events carry an optional `runId` (UUID) correlating the
 mutation with the operation that wrote it: for journaled (owned) writes
@@ -84,7 +85,7 @@ viewers) see the same structure the ACT gate enforces.
 | `riskRegister` | `[{risk, likelihood?, impact?, mitigation?}]` or null | likelihood/impact: `low|medium|high`. |
 | `premortem` | string or null | Recorded pre-mortem analysis. |
 | `stopConditions` | `[string]` or null | Conditions that halt execution. |
-| `budget` | `{turns?: int>=0, notes?: string}` or null | Turn ceiling + notes. |
+| `budget` | `{turns?: int>=0, notes?: string, <limit overrides>}` or null | Same shape and override semantics as the task `budget` field: limit keys fall back to `budgetDefaults` in `policy/operation-limits.json`. |
 
 The V3 layer also tolerates additive extension fields on stored plans:
 older V3 records missing them remain valid; whenever a plan is written
