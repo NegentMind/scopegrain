@@ -273,6 +273,131 @@ function applyStatusHeader(meta, head) {
   }
 }
 
+// Segment-wise "may overlap" between two glob patterns — deliberately
+// conservative for an advisory lint: it reports pairs that CAN share a
+// path, and only returns false when the patterns provably share none.
+// A rule without globs is transversal and overlaps everything.
+export function globsMayOverlap(a, b) {
+  if (!a?.length || !b?.length) return true;
+  const literal = (s) => !s.includes('*') && !s.includes('?');
+  const embeddedDD = (p) => p.split('/')
+    .some((s) => s.includes('**') && s !== '**');
+  const allLiteral = (p) => p.split('/').every(literal);
+  for (const pa of a) {
+    for (const pb of b) {
+      // An embedded '**' compiles to '.*' in matchGlob — it crosses
+      // '/', so segmentwise proof is unsound. Decidable only when the
+      // other side is a fully literal path (it either matches or not);
+      // every other combination stays conservative.
+      if (embeddedDD(pa) || embeddedDD(pb)) {
+        if (allLiteral(pa)) {
+          if (matchGlob(pb, pa)) return true;
+        } else if (allLiteral(pb)) {
+          if (matchGlob(pa, pb)) return true;
+        } else {
+          return true;
+        }
+        continue;
+      }
+      const A = pa.split('/'), B = pb.split('/');
+      let i = 0;
+      while (i < A.length && i < B.length) {
+        const sa = A[i], sb = B[i];
+        if (sa === '**' || sb === '**') { i = -1; break; }
+        if (literal(sa) && literal(sb)) {
+          if (sa.toLowerCase() !== sb.toLowerCase()) break;
+        // A literal segment the other side's glob can never produce
+        // makes this position disjoint — decide it instead of
+        // conservatively reporting a pair that shares nothing.
+        } else if (literal(sa) && !matchGlob(sb, sa)) {
+          break;
+        } else if (literal(sb) && !matchGlob(sa, sb)) {
+          break;
+        }
+        i += 1;
+      }
+      // i === -1: a '**' absorbed the rest — possible shared path.
+      // One side exhausted with a shared prefix only overlaps when the
+      // longer side's remainder is reachable, which requires the
+      // shorter pattern's last compared segment to have been '**' —
+      // impossible here (the loop would have flagged it), so plain
+      // exhaustion means lengths provably differ.
+      if (i === -1 || (i === A.length && i === B.length)) return true;
+    }
+  }
+  return false;
+}
+
+// Pure advisory lint over hydrated rule metadata — emits warnings,
+// never throws, never blocks. Input is assembled by callers (doctor,
+// packet): rules carry {id, meta, origin}; commands carry {id, rules}
+// dependency ids as declared in the manifest.
+//  - 'overlap': two ACTIVE rules whose activation.globs may share a
+//    path while their enforcement.level differs (strict vs advisory)
+//  - 'status-pair': a non-active rule whose globs may overlap an active
+//    rule's (stale or draft sibling covering the same files)
+//  - 'dep': a command declares a rule id that resolves to non-active or
+//    to nothing — the packet will ship without it
+//  - 'duplicate': same id on two entries (defensive; merge already
+//    fails closed on true collisions)
+export function lintRules({ rules, commands } = {}) {
+  rules = rules ?? [];
+  commands = commands ?? [];
+  const warnings = [];
+  const byId = new Map();
+  for (const r of rules) {
+    const key = String(r.id).toLowerCase();
+    if (byId.has(key)) {
+      warnings.push(`rule/${r.id} appears on more than one entry`);
+    }
+    byId.set(key, r);
+  }
+  const list = [...byId.values()];
+  for (let i = 0; i < list.length; i += 1) {
+    for (let j = i + 1; j < list.length; j += 1) {
+      const a = list[i], b = list[j];
+      const sa = a.meta?.status ?? 'active';
+      const sb = b.meta?.status ?? 'active';
+      if (!globsMayOverlap(
+        a.meta?.activation?.globs, b.meta?.activation?.globs)) {
+        continue;
+      }
+      if (sa === 'active' && sb === 'active') {
+        const la = a.meta?.enforcement?.level ?? 'advisory';
+        const lb = b.meta?.enforcement?.level ?? 'advisory';
+        if (la !== lb) {
+          warnings.push(
+            `rules ${a.id} and ${b.id} overlap (activation.globs)`
+            + ` but enforce differently (${la} vs ${lb})`);
+        }
+      } else if (sa === 'active' || sb === 'active') {
+        const stale = sa === 'active' ? b : a;
+        const live = sa === 'active' ? a : b;
+        warnings.push(
+          `rule ${stale.id} ('${stale.meta?.status}') overlaps`
+          + ` active rule ${live.id} on the same files`);
+      }
+    }
+  }
+  for (const c of commands) {
+    for (const rid of c.rules ?? []) {
+      const target = byId.get(String(rid).toLowerCase());
+      if (!target) {
+        warnings.push(
+          `command ${c.id} declares unknown rule '${rid}'`);
+        continue;
+      }
+      const st = target.meta?.status ?? 'active';
+      if (st !== 'active') {
+        warnings.push(
+          `command ${c.id} declares rule ${target.id}`
+          + ` with status '${st}' — filtered from packets`);
+      }
+    }
+  }
+  return warnings;
+}
+
 // Body text with any leading frontmatter block removed — for consumers
 // that need the rule's prose, not its metadata (e.g. descriptions).
 export function stripRuleFrontmatter(text) {

@@ -6,8 +6,8 @@ import crypto from 'node:crypto';
 import { err } from './errors.mjs';
 import { decodeUtf8Strict } from './fsx.mjs';
 import {
-  catalogDestRel, getResource, loadWorkspaceCatalog, resolveInvocation,
-  validateProfile,
+  catalogDestRel, getResource, loadWorkspaceCatalog, resolveCatalogEntry,
+  resolveInvocation, validateProfile,
 } from './catalog.mjs';
 import { loadLimits, loadPolicy } from './policy.mjs';
 import { getTask } from './tasks.mjs';
@@ -21,7 +21,7 @@ import { estimateJson, estimateTokens, TOKEN_ESTIMATOR }
 import {
   presetLayers, listRegistry, composeResource,
 } from './distribution.mjs';
-import { ruleMatchesScope } from './rule-meta.mjs';
+import { ruleMatchesScope, lintRules } from './rule-meta.mjs';
 import { listVerifyCommands } from './verify-commands.mjs';
 
 const ALLOWED = new Set([
@@ -252,7 +252,16 @@ export function buildWorkflowPacket(ctx, opts = {}) {
   // an applied layer on an absent resource would be misleading.
   const rulesFiltered = [];
   const rulesKept = [];
+  const resolvedRules = [];
+  const seenResolved = new Set();
   const ruleVerdict = (r) => {
+    // A rule declared AND extension-contributed resolves twice; the
+    // lint needs each canonical id once (origin is noise here).
+    const rk = `rule/${r.id}`.toLowerCase();
+    if (!seenResolved.has(rk)) {
+      seenResolved.add(rk);
+      resolvedRules.push({ id: r.id, meta: r.meta });
+    }
     const status = r.meta?.status ?? 'active';
     if (status !== 'active') return `status '${status}'`;
     if (task !== null && !ruleMatchesScope(r.meta, task.scope)) {
@@ -320,6 +329,32 @@ export function buildWorkflowPacket(ctx, opts = {}) {
   };
   for (const r of rulesKept) projectVerifyRef(r);
   for (const r of contributedResources.rules) projectVerifyRef(r);
+  // Advisory rule lint over the rules this command resolved — filtered
+  // rules keep their meta so dep warnings report the real status.
+  // Deps are declared as written in the manifest — including aliases.
+  // Canonicalize through the catalog so an alias dep is judged by its
+  // target's status instead of misreported as an unknown rule.
+  const canonRuleDep = (rid) =>
+    resolveCatalogEntry(catalog, 'rule', rid).entry?.id ?? rid;
+  const lintDeps = [
+    { id: `command/${inv.canonicalId}`,
+      rules: commandDeps.rules.map(canonRuleDep) },
+  ];
+  const lintPid = profileEntry.canonicalId ?? profileEntry.id;
+  lintDeps.push({ id: `profile/${lintPid}`,
+    rules: (profile.rules ?? []).map(canonRuleDep) });
+  // When the selected profile IS core both lists are identical — a
+  // second entry would only double every dep warning.
+  if (lintPid.toLowerCase() !== 'core') {
+    lintDeps.push({ id: 'profile/core',
+      rules: (core.rules ?? []).map(canonRuleDep) });
+  }
+  packetWarnings.push(...lintRules({
+    rules: resolvedRules,
+    // Attribution honesty: command deps are the command's; profile and
+    // core deps arrive via the profile layer, never the command.
+    commands: lintDeps,
+  }));
   const packet = {
     schemaVersion: 1,
     authority: {

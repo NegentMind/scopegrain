@@ -63,6 +63,12 @@ there would report unverifiable data as verified. The harness never executes com
 the ref is a pointer into a store the owner already vetted, nothing
 more.
 
+Packets also carry an advisory rule lint in `warnings`: pairs whose
+`activation.globs` may share a path while `enforcement.level` differs,
+non-active siblings overlapping an active rule, and declared deps on
+filtered or missing rules. `doctor` reports the same lint as a
+warning-level `rule-lint` check — advisory only, never blocking.
+
 Compatible aliases use the same `workflow` interface, not divergent
 implementations. Declared modes are validated; unknown names or modes
 are rejected. The web/rust/python/database profiles are optional and do

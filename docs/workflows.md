@@ -57,7 +57,14 @@ tanto en reglas declaradas como en las aportadas por extensiones
 desconocido produce un warning del paquete, nunca un fallo; un store
 ilegible degrada a `exists: null` (indeterminado) mas un unico warning
 de store, porque afirmar una ausencia ahi reportaria como verificado
-un dato no verificable. El harness nunca ejecuta comandos descubiertos
+un dato no verificable.
+
+Los paquetes ademas llevan un lint advisory de reglas en `warnings`:
+pares cuyos `activation.globs` pueden compartir rutas con
+`enforcement.level` distinto, hermanas no-activas solapando una regla
+activa, y deps declaradas sobre reglas filtradas o inexistentes.
+`doctor` reporta el mismo lint como check `rule-lint` de nivel
+warning — advisory, nunca bloqueante. El harness nunca ejecuta comandos descubiertos
 en reglas — la referencia solo apunta a un store que el owner ya
 reviso, nada mas.
 

@@ -14,7 +14,9 @@ import { diffInvestigation, investigateProject } from '../discovery/semantic.mjs
 import { buildInitPlan, INSTALL_ROOT } from './bootstrap.mjs';
 import {
   catalogFiles, checkCatalog, loadCatalog, loadWorkspaceCatalog,
+  getResource, validateProfile, resolveCatalogEntry,
 } from './catalog.mjs';
+import { lintRules } from './rule-meta.mjs';
 import { loadLimits } from './policy.mjs';
 import { validateWorkspace, workspaceFileRel } from './workspaces.mjs';
 import { checkDocsCliDrift } from './docs-cli-drift.mjs';
@@ -94,6 +96,9 @@ const CHECK_FIX = {
     + '(fail-closed by design)',
   'user-config': 'fix or delete the malformed global user config at '
     + 'the named path',
+  'rule-lint': 'advisory: narrow the overlapping activation.globs, '
+    + 'align conflicting status/enforcement.level, fix the unreadable '
+    + 'rule meta, or drop the stale manifest dep',
 };
 
 function fixFor(name, detail) {
@@ -209,6 +214,53 @@ export function runDoctor(ctx, opts = {}) {
     // un-pinned by design — report the count so the layer is visible.
     push('rule-overlay', true,
       `${workspace.localRules ?? 0} local overlay rule(s) under rules/local/`);
+    // Advisory rule lint — warnings only, never a failure. Overlapping
+    // activation.globs with differing enforcement, non-active siblings
+    // covering the same files, and manifest deps on filtered rules.
+    // A rule whose meta cannot hydrate (malformed frontmatter, drift)
+    // degrades to a lint warning — it must not misattribute itself as a
+    // workspace-catalog failure or suppress this check.
+    const lintRulesMeta = [];
+    const lint = [];
+    for (const e of workspace.entries.filter((x) => x.kind === 'rule')) {
+      try {
+        const r = getResource('rule', e.id, { catalog: workspace });
+        lintRulesMeta.push({ id: e.id, meta: r.meta,
+          origin: e.overlay === 'local' ? 'local'
+            : e.bundle !== undefined ? 'mounted' : 'canonical' });
+      } catch (le) {
+        lint.push(`rule ${e.id}: meta unreadable (${le.code})`);
+      }
+    }
+    // Deps are declared as written — including aliases. Canonicalize
+    // so an alias dep is judged by its target's status, not reported
+    // as an unknown rule.
+    const canonRuleDep = (rid) =>
+      resolveCatalogEntry(workspace, 'rule', rid).entry?.id ?? rid;
+    const lintDeps = workspace.entries
+      .filter((e) => e.kind === 'command')
+      .map((e) => ({ id: `command/${e.id}`,
+        rules: (e.rules ?? []).map(canonRuleDep) }));
+    for (const e of workspace.entries
+      .filter((x) => x.kind === 'profile')) {
+      try {
+        const p = getResource('profile', e.id, { catalog: workspace });
+        lintDeps.push({ id: `profile/${e.id}`,
+          rules: (validateProfile(e.id, p.content).rules ?? [])
+            .map(canonRuleDep) });
+      } catch (pe) {
+        // Snapshot profiles already fail their own catalog checks, but
+        // a mounted profile's body is not schema-checked at mount —
+        // flag it rather than linting as if it declared nothing.
+        lint.push(`profile ${e.id}: deps unreadable (${pe.code})`);
+      }
+    }
+    lint.push(...lintRules({ rules: lintRulesMeta,
+      commands: lintDeps }));
+    push('rule-lint', lint.length === 0,
+      lint.length === 0 ? 'no rule contradictions or stale deps'
+        : `${lint.length} advisory warning(s): ${lint.join(' | ')}`,
+      lint.length === 0 ? null : { severity: 'warning' });
     if (workspace.snapshotVersion === 1) {
       push('workspace-catalog', false,
         'legacy-unpinned snapshot: no sha256 coverage; upgrade recommended');
