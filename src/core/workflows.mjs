@@ -22,6 +22,7 @@ import {
   presetLayers, listRegistry, composeResource,
 } from './distribution.mjs';
 import { ruleMatchesScope } from './rule-meta.mjs';
+import { listVerifyCommands } from './verify-commands.mjs';
 
 const ALLOWED = new Set([
   'command', 'mode', 'taskId', 'host', 'profile', 'interaction',
@@ -281,6 +282,44 @@ export function buildWorkflowPacket(ctx, opts = {}) {
       if (dropped.has(hitsTarget[i].resource)) hitsTarget.splice(i, 1);
     }
   }
+  // enforcement.verificationRef projection: a rule declaring a
+  // verification.commands id gets it attached as advisory `verifyRef`
+  // data — the harness NEVER executes commands discovered in rules
+  // (safety.md); the ref only points at an owner-curated store record.
+  // Unknown ids warn, never fail: a stale ref must not brick packet
+  // assembly. An unreadable store degrades to the same warning path.
+  const packetWarnings = [];
+  let verifyIndex = null;
+  try {
+    verifyIndex = new Map(listVerifyCommands(ctx).commands
+      .map((c) => [c.id, c]));
+  } catch (e) {
+    packetWarnings.push(
+      `verification.commands store unreadable (${e.code ?? 'ERROR'})`);
+  }
+  // exists:null when the store could not be read — projecting
+  // exists:false there would report unverifiable data as verified.
+  const projectVerifyRef = (r) => {
+    const ref = r.meta?.enforcement?.verificationRef;
+    if (!ref) return;
+    if (verifyIndex === null) {
+      r.verifyRef = { id: ref, exists: null };
+      return;
+    }
+    const rec = verifyIndex.get(ref);
+    r.verifyRef = rec === undefined
+      ? { id: ref, exists: false }
+      : { id: ref, exists: true, approved: rec.approved === true,
+          cwd: rec.cwd };
+    if (rec === undefined) {
+      const via = r.extension ? ` (via ${r.extension})` : '';
+      packetWarnings.push(
+        `rule/${r.id}${via} references unknown`
+        + ` verification.commands id '${ref}'`);
+    }
+  };
+  for (const r of rulesKept) projectVerifyRef(r);
+  for (const r of contributedResources.rules) projectVerifyRef(r);
   const packet = {
     schemaVersion: 1,
     authority: {
@@ -292,7 +331,7 @@ export function buildWorkflowPacket(ctx, opts = {}) {
     },
     // Copied: the catalog's warnings array is shared with the verified
     // cache — packet-level additions must not leak back into it.
-    warnings: [...(catalog.warnings ?? [])],
+    warnings: [...(catalog.warnings ?? []), ...packetWarnings],
     command: {
       id: opts.command,
       requestedMode: inv.requestedMode,

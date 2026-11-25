@@ -7,6 +7,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { buildWorkflowPacket } from '../src/core/workflows.mjs';
 import { installBundle, mountBundle } from '../src/core/distribution.mjs';
+import { applyAddCommand } from '../src/core/verify-commands.mjs';
 import { TOKEN_ESTIMATOR } from '../src/core/tokens.mjs';
 import { createTask } from '../src/core/tasks.mjs';
 import { checkAction, transitionTask } from '../src/core/transition.mjs';
@@ -396,5 +397,66 @@ test('without taskId: status filters always, globs never evaluate', () => {
       { command: 'implement-task', lazy: true });
     assert.ok(lz.resources.rules.some((r) => r.id === 'active-glob'));
     assert.ok(lz.rulesFiltered.some((r) => r.id === 'proposed-rule'));
+  } finally { cleanup(dir); }
+});
+
+test('verificationRef projects advisory verifyRef and warns on miss', () => {
+  const { dir, ctx } = ctxFixture();
+  try {
+    const added = applyAddCommand(ctx,
+      { command: 'npm test', cwd: '.' });
+    assert.equal(added.added, true);
+    seedRuleInSnapshot(ctx, { id: 'verified-rule',
+      fm: `---\nenforcement.verificationRef: ${added.record.id}\n---\n` });
+    seedRuleInSnapshot(ctx, { id: 'stale-ref',
+      fm: '---\nenforcement.verificationRef: vcmissing00\n---\n' });
+    const p = buildWorkflowPacket(ctx, { command: 'implement-task' });
+    const known = p.resources.rules.find((r) => r.id === 'verified-rule');
+    assert.deepEqual(known.verifyRef, { id: added.record.id,
+      exists: true, approved: false, cwd: '.' });
+    const stale = p.resources.rules.find((r) => r.id === 'stale-ref');
+    assert.deepEqual(stale.verifyRef,
+      { id: 'vcmissing00', exists: false });
+    assert.ok(p.warnings.some((w) => w.includes('vcmissing00')));
+    // A rule without a ref carries no key at all.
+    const plain = p.resources.rules.find((r) => !r.verifyRef);
+    assert.ok(plain);
+    // Approved flag flows through; lazy packets project identically.
+    const storePath = path.join(ctx.projectRoot,
+      '.scopegrain/state/verify-commands.json');
+    const store = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+    store.commands[0].approved = true;
+    store.commands[0].approvedAt = new Date().toISOString();
+    fs.writeFileSync(storePath, JSON.stringify(store));
+    const lz = buildWorkflowPacket(ctx,
+      { command: 'implement-task', lazy: true });
+    assert.deepEqual(lz.resources.rules
+      .find((r) => r.id === 'verified-rule').verifyRef,
+      { id: added.record.id, exists: true, approved: true, cwd: '.' });
+    // An unreadable store degrades: exists:null (indeterminate, not
+    // verified-absent), one store warning, and no per-rule warnings.
+    fs.writeFileSync(storePath, 'not json');
+    const p2 = buildWorkflowPacket(ctx, { command: 'implement-task' });
+    assert.ok(p2.warnings.some((w) => w.includes('unreadable')));
+    assert.ok(!p2.warnings.some((w) => w.includes('vcmissing00')));
+    assert.deepEqual(p2.resources.rules
+      .find((r) => r.id === 'verified-rule').verifyRef,
+      { id: added.record.id, exists: null });
+    assert.deepEqual(p2.resources.rules
+      .find((r) => r.id === 'stale-ref').verifyRef,
+      { id: 'vcmissing00', exists: null });
+    // Extension-contributed rules get the same projection — declared,
+    // never silent.
+    fs.writeFileSync(storePath, JSON.stringify(
+      { schemaVersion: 1, commands: [added.record] }));
+    writeJson(dir, '.scopegrain/extensions.json', { schemaVersion: 1,
+      extensions: [{ id: 'testext', state: 'active', lifecycle: {},
+        contributes: ['rule/verified-rule'] }] });
+    const p3 = buildWorkflowPacket(ctx, { command: 'implement-task' });
+    const contributed = p3.contributedResources.rules
+      .find((r) => r.id === 'verified-rule');
+    assert.ok(contributed);
+    assert.deepEqual(contributed.verifyRef, { id: added.record.id,
+      exists: true, approved: false, cwd: '.' });
   } finally { cleanup(dir); }
 });

@@ -52,6 +52,17 @@ do not gate packaging. Without `--task` every declared active rule is
 included. The gate covers extension-contributed rules too, and each
 exclusion lands in `rulesFiltered` with its reason — never silent.
 
+A rule declaring `enforcement.verificationRef` gets an advisory
+`verifyRef` projection: `{id, exists, approved?, cwd?}` resolved
+against the owner-curated `verification.commands` store — declared
+rules and extension-contributed ones alike (`approved`/`cwd` appear
+only when `exists === true`). An unknown id produces a packet warning,
+never a failure; an unreadable store degrades to `exists: null`
+(indeterminate) plus one store-level warning, since claiming a miss
+there would report unverifiable data as verified. The harness never executes commands discovered in rules —
+the ref is a pointer into a store the owner already vetted, nothing
+more.
+
 Compatible aliases use the same `workflow` interface, not divergent
 implementations. Declared modes are validated; unknown names or modes
 are rejected. The web/rust/python/database profiles are optional and do

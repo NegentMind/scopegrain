@@ -49,6 +49,18 @@ empaquetado. Sin `--task` se incluye toda regla declarada activa. La
 compuerta tambien cubre reglas aportadas por extensiones y cada
 exclusion se mueve a `rulesFiltered` con su razon — nunca silenciosa.
 
+Una regla que declara `enforcement.verificationRef` recibe una
+proyeccion `verifyRef` advisory: `{id, exists, approved?, cwd?}`
+resuelta contra el store `verification.commands` curado por el owner —
+tanto en reglas declaradas como en las aportadas por extensiones
+(`approved`/`cwd` solo aparecen cuando `exists === true`). Un id
+desconocido produce un warning del paquete, nunca un fallo; un store
+ilegible degrada a `exists: null` (indeterminado) mas un unico warning
+de store, porque afirmar una ausencia ahi reportaria como verificado
+un dato no verificable. El harness nunca ejecuta comandos descubiertos
+en reglas — la referencia solo apunta a un store que el owner ya
+reviso, nada mas.
+
 Los aliases compatibles usan la misma interfaz `workflow`, no implementaciones
 divergentes. Los modos declarados se validan; nombres o modos desconocidos
 se rechazan. Los perfiles web/rust/python/database son optativos y no
