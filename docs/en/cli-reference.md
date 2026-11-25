@@ -841,6 +841,26 @@ buckets; `activeTasks` lists in-flight members.
 `plans`/`plan` projections now include `derivedStatus` next to the prior
 coarse `status` (unchanged for compatibility).
 
+### plan conclude (closing retrospective)
+
+```text
+scopegrain plan conclude --project PATH KEY [--partial] [--report] [--apply]
+```
+
+Plan closing retrospective. Without `--apply` returns a preview
+(`mode:"preview"`) with the summary and `wouldWrite`. If any member is
+not in a terminal state (CLOSE/ABANDON/terminal disposition) it fails
+with `PLAN_NOT_TERMINAL` unless `--partial` is passed. With `--apply`:
+writes one `outcomes` entry per terminal member not recorded before
+(CLOSE->`ok`, ABANDON->`fail`; members with a `dropped` disposition get
+no outcome — descoped, not failed), an `activity` line
+(`kind:"plan-conclusion"`) with the summary, an optional `report`
+artifact via `--report`, and a bounded record (max 50) at
+`<paths.state>/plan-conclusions/<KEY>.json` under a verified lock.
+Idempotent: a second call with no changes returns `mode:"noop"` with the
+same summary and zero writes; if a member's state changes only the new
+outcomes are written (already-recorded members are never duplicated).
+
 ### structure refresh
 
 ```text

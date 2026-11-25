@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { err } from './errors.mjs';
-import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited,
+  removeIfExists } from './fsx.mjs';
 import { acquireVerifiedLock, releaseVerifiedLock } from './locks.mjs';
 import {
   assertDestination, resolveInside,
@@ -18,7 +19,8 @@ import {
   normalizeTaskInput, validateSharedContext, validateTaskShape,
 } from './tasks.mjs';
 import { canonicalDigest, canonicalJSON } from './digests.mjs';
-import { getArtifact } from './artifacts.mjs';
+import { getArtifact, prepareArtifact } from './artifacts.mjs';
+import { appendWorklog } from './worklog.mjs';
 import { getSpecification } from './specifications.mjs';
 import { allScenarioRefs, planCarriesFormalPair }
   from './methodology-data.mjs';
@@ -1561,6 +1563,223 @@ export function planStatus(ctx, key) {
 }
 
 const MAX_PLAN_RUN_CHECKPOINTS = 50;
+const MAX_PLAN_CONCLUSIONS = 50;
+
+export function planConclusionRel(ctx, key) {
+  if (typeof key !== 'string' || !KEY_RE.test(key)) {
+    throw err('INVALID_VALUE', 'plan key must be a lowercase slug');
+  }
+  return `${ctx.config.paths.state}/plan-conclusions/${key}.json`;
+}
+
+function readPlanConclusionRecord(ctx, key) {
+  const rel = planConclusionRel(ctx, key);
+  const abs = resolveInside(ctx.projectRoot, rel, 'plan conclusion');
+  const st = lstatOrNull(abs);
+  if (!st) return { abs, rel, record: null };
+  if (st.isSymbolicLink() || !st.isFile()) {
+    throw err('PLAN_RUN_MALFORMED',
+      `plan conclusion path is not a regular file: ${rel}`);
+  }
+  const limits = loadLimits();
+  let parsed;
+  try {
+    const limited = readFileLimited(abs, limits.maxDocumentBytes);
+    if (limited.exceeded) {
+      throw err('DOCUMENT_TOO_LARGE',
+        `plan conclusion '${key}' exceeds ${limits.maxDocumentBytes} bytes`);
+    }
+    const text = decodeUtf8Strict(limited.content, 'PLAN_RUN_MALFORMED', rel);
+    parsed = JSON.parse(text);
+  } catch (e) {
+    if (e && e.code) throw e;
+    throw err('PLAN_RUN_MALFORMED',
+      `plan conclusion '${key}' is not valid JSON`);
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)
+      || parsed.schemaVersion !== 1 || parsed.planKey !== key
+      || !Number.isSafeInteger(parsed.revision) || parsed.revision < 0
+      || !Array.isArray(parsed.conclusions)
+      || parsed.conclusions.length > MAX_PLAN_CONCLUSIONS) {
+    throw err('PLAN_RUN_MALFORMED',
+      `plan conclusion record for '${key}' has invalid shape`);
+  }
+  return { abs, rel, record: parsed };
+}
+
+// Terminal member outcomes for the retrospective: CLOSE -> 'ok',
+// ABANDON -> 'fail', terminal disposition -> 'dropped' (descoped, not
+// failed — the outcomes log has no third value, so dropped members get
+// no outcome entry, only a place in the summary/report).
+function memberOutcome(state, disposition) {
+  if (state === 'CLOSE') return 'ok';
+  if (state === 'ABANDON') return 'fail';
+  if (PLAN_STATUS_DROPPED.has(disposition?.kind)) return 'dropped';
+  return null;
+}
+
+// `plan conclude KEY`: retrospective over member outcomes. Read-only
+// without apply; with apply it appends per-member outcomes to the
+// worklog (once per member — earlier conclusions are remembered), a
+// plan-level activity line, an optional report artifact and a bounded
+// conclusion record that makes repeat calls idempotent.
+export function concludePlan(ctx, key,
+    { apply = false, partial = false, report = false, now } = {}) {
+  const plan = getPlan(ctx, key);
+  const members = plan.tasks.map((t) => {
+    let rec = null;
+    let error = null;
+    try { rec = getTask(ctx, t.id); } catch (e) {
+      error = e.code ?? 'ERROR';
+    }
+    const state = rec?.state ?? null;
+    const disposition = rec?.disposition ?? null;
+    const outcome = error !== null ? null
+      : memberOutcome(state, disposition);
+    const created = rec?.createdAt ? Date.parse(rec.createdAt) : null;
+    const updated = rec?.updatedAt ? Date.parse(rec.updatedAt) : null;
+    return {
+      key: t.key, id: t.id, state, disposition, outcome, error,
+      skills: Array.isArray(rec?.skills) ? rec.skills : [],
+      durationMs: created !== null && updated !== null
+        ? Math.max(0, updated - created) : null,
+    };
+  });
+  const pending = members.filter((m) => m.outcome === null);
+  if (pending.length > 0 && !partial) {
+    throw err('PLAN_NOT_TERMINAL',
+      `plan '${key}' has ${pending.length} non-terminal member(s): `
+        + pending.map((m) => m.key).join(', ')
+        + ' — pass --partial to conclude anyway');
+  }
+  const counts = {};
+  for (const m of members) {
+    const bucket = m.error !== null ? 'unreadable' : (m.outcome ?? m.state);
+    counts[bucket] = (counts[bucket] ?? 0) + 1;
+  }
+  const summary = {
+    plan: key,
+    status: derivePlanStatus(members),
+    partial,
+    counts,
+    members: members.map((m) => ({
+      key: m.key, id: m.id, state: m.state, outcome: m.outcome,
+      durationMs: m.durationMs, skills: m.skills,
+      ...(m.disposition ? { disposition: m.disposition } : {}),
+      ...(m.error ? { error: m.error } : {}),
+    })),
+  };
+  // Idempotency digest over the member outcome set.
+  const digest = canonicalDigest({
+    members: members.map((m) => [m.id, m.state, m.disposition?.kind ?? null]),
+    partial,
+  });
+  const { rel, record } = readPlanConclusionRecord(ctx, key);
+  const latest = record?.conclusions[record.conclusions.length - 1] ?? null;
+  const ts = typeof now === 'string' && now ? now : new Date().toISOString();
+
+  const recorded = new Set(
+    (record?.conclusions ?? []).flatMap((c) => c.wroteMembers ?? []));
+  const toWrite = members.filter(
+    (m) => (m.outcome === 'ok' || m.outcome === 'fail')
+      && !recorded.has(m.id));
+
+  if (!apply) {
+    return {
+      mode: 'preview', plan: key, summary, digest,
+      alreadyConcluded: latest !== null && latest.digest === digest,
+      wouldWrite: {
+        outcomes: toWrite.map((m) => m.id),
+        activity: true, report,
+      },
+      path: rel,
+    };
+  }
+  if (latest !== null && latest.digest === digest) {
+    return {
+      mode: 'noop', plan: key, summary: latest.summary, digest,
+      wrote: { outcomes: 0, activity: false, report: false },
+      path: rel,
+    };
+  }
+
+  const abs = resolveInside(ctx.projectRoot, rel, 'plan conclusion');
+  mkdirpSync(path.dirname(abs));
+  const lock = acquireVerifiedLock(
+    `${abs}.lock`, 'PLAN_RUN_LOCKED',
+    `plan conclusion for '${key}' is locked by another writer`);
+  const tmpAbs = `${abs}.tmp.${crypto.randomBytes(8).toString('hex')}`;
+  try {
+    // Worklog side effects happen first; the record only marks them as
+    // written after they actually land, so a crash mid-write leaves no
+    // phantom marks and the next call simply retries.
+    for (const m of toWrite) {
+      appendWorklog(ctx, 'outcomes', {
+        taskId: m.id, outcome: m.outcome, skills: m.skills });
+    }
+    appendWorklog(ctx, 'activity', {
+      taskId: null,
+      title: `plan conclude '${key}'`,
+      summary: `status ${summary.status}; ok ${counts.ok ?? 0}, fail `
+        + `${counts.fail ?? 0}, dropped ${counts.dropped ?? 0}`
+        + (partial ? `, ${pending.length} pending (partial)` : ''),
+      kind: 'plan-conclusion',
+      linked: `plan:${key}`,
+    });
+    let reportRel = null;
+    if (report) {
+      const prepared = prepareArtifact(ctx, 'report', {
+        title: `plan conclusion '${key}'`,
+        body: JSON.stringify(summary, null, 2),
+        references: [],
+      });
+      mkdirpSync(path.dirname(prepared.file.abs));
+      const rtmp = `${prepared.file.abs}.tmp.`
+        + crypto.randomBytes(8).toString('hex');
+      fs.writeFileSync(rtmp, prepared.file.content, { flag: 'wx' });
+      fs.renameSync(rtmp, prepared.file.abs);
+      reportRel = prepared.file.rel;
+    }
+    const conclusion = {
+      at: ts, digest, partial,
+      summary,
+      wroteMembers: toWrite.map((m) => m.id),
+      ...(reportRel !== null ? { report: reportRel } : {}),
+    };
+    const next = {
+      schemaVersion: 1,
+      planKey: key,
+      revision: (record?.revision ?? -1) + 1,
+      createdAt: record?.createdAt ?? ts,
+      updatedAt: ts,
+      conclusions: [...(record?.conclusions ?? []), conclusion]
+        .slice(-MAX_PLAN_CONCLUSIONS),
+    };
+    const payload = JSON.stringify(next, null, 2) + '\n';
+    const limits = loadLimits();
+    if (Buffer.byteLength(payload, 'utf8') > limits.maxDocumentBytes) {
+      throw err('DOCUMENT_TOO_LARGE',
+        `plan conclusion record for '${key}' exceeds ${limits.maxDocumentBytes} bytes`);
+    }
+    fs.writeFileSync(tmpAbs, payload, { flag: 'wx' });
+    fs.renameSync(tmpAbs, abs);
+    return {
+      mode: 'applied', plan: key, summary, digest,
+      wrote: {
+        outcomes: toWrite.length, activity: true,
+        report: reportRel !== null,
+        ...(reportRel !== null ? { reportPath: reportRel } : {}),
+      },
+      path: rel,
+    };
+  } catch (e) {
+    removeIfExists(tmpAbs);
+    throw e;
+  } finally {
+    releaseVerifiedLock(lock);
+  }
+}
+
 
 export function planRunRel(ctx, key) {
   if (typeof key !== 'string' || !KEY_RE.test(key)) {

@@ -602,6 +602,11 @@ const COMMANDS = {
   'plan status': {
     flags: ['--project', '--config'], pos: 1, usage: 'plan status KEY',
   },
+  'plan conclude': {
+    flags: ['--project', '--config', '--partial', '--report', '--apply'],
+    pos: 1,
+    usage: 'plan conclude KEY [--partial] [--report] [--apply]',
+  },
   'artifact add': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 1,
     usage: 'artifact add KIND --input FILE [--apply]',
@@ -1908,8 +1913,8 @@ async function cmdWorkflow(command, flags) {
 async function cmdPlan(sub, positional, flags) {
   const { applyPlan, preflightPlan } = await import('./core/bootstrap.mjs');
   const {
-    getPlan, listPlans, nextPlanTasks, planStatus, preparePlan,
-    recordPlanRun,
+    concludePlan, getPlan, listPlans, nextPlanTasks, planStatus,
+    preparePlan, recordPlanRun,
   } = await import('./core/plans.mjs');
   const ctx = resolveContext({
     project: projectFlag(flags),
@@ -1932,6 +1937,13 @@ async function cmdPlan(sub, positional, flags) {
   if (sub === 'show') return getPlan(ctx, positional[0]);
   if (sub === 'next') return { tasks: nextPlanTasks(ctx, positional[0]) };
   if (sub === 'status') return planStatus(ctx, positional[0]);
+  if (sub === 'conclude') {
+    return concludePlan(ctx, positional[0], {
+      apply: !!flags['--apply'],
+      partial: !!flags['--partial'],
+      report: !!flags['--report'],
+    });
+  }
   if (sub === 'run') {
     return recordPlanRun(ctx, positional[0], { apply: !!flags['--apply'] });
   }

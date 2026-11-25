@@ -844,6 +844,27 @@ declarado), `completed` (todos CLOSE o con disposicion terminal
 proyeccion `plans`/`plan` incluye `derivedStatus` junto al `status`
 grueso previo (sin cambios para compatibilidad).
 
+### plan conclude (retrospectiva de cierre)
+
+```text
+scopegrain plan conclude --project PATH KEY [--partial] [--report] [--apply]
+```
+
+Retrospectiva de cierre del plan. Sin `--apply` devuelve la vista previa
+(`mode:"preview"`) con el resumen y `wouldWrite`. Si algun miembro no esta
+en estado terminal (CLOSE/ABANDON/disposicion terminal) falla con
+`PLAN_NOT_TERMINAL` salvo `--partial`. Con `--apply`: escribe una entrada
+`outcomes` por miembro terminal no registrado antes (CLOSE->`ok`,
+ABANDON->`fail`; los miembros con disposicion `dropped` no generan
+outcome — fueron desechados, no fallaron), una linea `activity`
+(`kind:"plan-conclusion"`) con el resumen, un artifact `report` opcional
+con `--report`, y un registro acotado (max 50) en
+`<paths.state>/plan-conclusions/<KEY>.json` bajo lock verificado.
+Idempotente: una segunda llamada sin cambios devuelve `mode:"noop"` con
+el mismo resumen y cero escrituras; si cambia el estado de algun miembro
+solo se escriben los outcomes nuevos (los miembros ya registrados no se
+duplican).
+
 ### structure refresh
 
 ```text
