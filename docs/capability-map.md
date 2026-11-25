@@ -16,7 +16,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `140` entrad
 | Superficie | Inventario | Acceso |
 |---|---|---|
 | CLI `bin/scopegrain.mjs` | 147 subcomandos registrados, imports perezosos por comando | Humano y agente |
-| MCP `src/mcp/server.mjs` | 38 tools `scopegrain_*`: 24 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawn del binario VantaDB enrolado) + 8 de escritura (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | Hosts MCP (stdio) |
+| MCP `src/mcp/server.mjs` | 39 tools `scopegrain_*`: 25 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawn del binario VantaDB enrolado) + 8 de escritura (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | Hosts MCP (stdio) |
 | API local `src/api/server.mjs` | 30 rutas GET `/api/*` | Loopback-only, GET-only |
 | Visor `viewer/` (`scopegrain view`) | 15 vistas React 19 + TS + Vite + Tailwind | Read-only, humano |
 | Catálogo `resources/manifest.json` | 140 entradas + 32 aliases | Proyectable al proyecto |
@@ -171,12 +171,13 @@ committed+acked.
 
 ---
 
-## 3. MCP — 38 tools `scopegrain_*`
+## 3. MCP — 39 tools `scopegrain_*`
 
-### Read-only locales (24) — `readOnlyHint`, `openWorldHint:false`
+### Read-only locales (25) — `readOnlyHint`, `openWorldHint:false`
 
 `approval_get`, `artifact_get`, `catalog_get`, `catalog_list`, `check_action`,
-`get_task`, `goal_list`, `inspect`, `list_tasks`, `mcp_inventory`, `memory_read`,
+`get_task`, `goal_list`, `inspect`, `list_tasks`, `mcp_inventory`,
+`memory_proposals`, `memory_read`,
 `memory_status`, `methodology_check`, `metrics`, `plan_get`, `plan_next`,
 `plan_preview`,
 `resource_diagnose`, `resource_search`, `session_get`, `specification_get`,

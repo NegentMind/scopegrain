@@ -419,6 +419,35 @@ inmutable y nunca borrado — para que un fichero de log no crezca sin
 limite. La rotacion es best-effort: un fichero ocupado la difiere y el
 append se completa igualmente.
 
+### memory proposals
+
+```text
+scopegrain memory proposals --project PATH [--min N] [--tail N]
+```
+
+Superficie sugestiva de solo lectura — nunca escribe reglas ni memoria.
+Agrupa las entradas de `lessons` por topico normalizado (las sin topico
+agrupan por texto exacto); un grupo recurrente (`--min`, default 2) sin
+regla que lo cubra emite una propuesta `promote` con `suggestedRule`
+(id + contenido listo para guardar y pasar a `rule propose --input`),
+y un grupo que coincide con una regla activa/propuesta emite `merge`
+con las lecciones aun no cubiertas como evidencia. Textos identicos
+deduplican a una sola evidencia con `occurrences`; los mismos textos
+repetidos en grupos distintos se reportan en `duplicates`. Grupos bajo
+el umbral o ya promovidos (todas las entradas referencian la regla)
+aparecen en `suppressed` con la razon. La evidencia se limita a 10
+filas por propuesta (`evidenceTruncated` lo marca; el draft conserva
+todos los textos); un `ref` solo cuenta como cubierto con la forma
+exacta `resources/rules/<id>.md`. Si el id sugerido colisiona con una
+regla no promovible (p. ej. archivada), la propuesta reporta `conflict`
+y sugiere un id alternativo `lesson-<hash>`. Deterministico:
+`proposalId` deriva del contenido; sin fechas — una propuesta
+rechazada reaparece con el mismo id, que el owner puede usar para
+trackear la decision externamente. `source.skipped` cuenta las
+entradas JSON validas pero estructuralmente invalidas (sin `text`),
+separadas del `malformed` de parseo. `scopegrain_memory_proposals`
+expone el mismo resultado via MCP.
+
 ### goal create / goal list / goal show / goal transition
 
 ```text

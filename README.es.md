@@ -27,7 +27,7 @@ los hechos y riesgos declarados.
   `--apply`, los comandos descubiertos nunca se autoejecutan, locks/CAS y el
   journal local evitan corrupcion silenciosa y toda mutacion deja traza.
 - **Visibilidad inmediata:** un visor web local de solo lectura
-  (`scopegrain view`, 15 vistas, ES/EN) y un servidor MCP de 38 tools
+  (`scopegrain view`, 15 vistas, ES/EN) y un servidor MCP de 39 tools
   mantienen alineados a operadores y agentes sin salir del repositorio.
 
 El producto se llama Scopegrain. `scopegrain` es la entrada CLI y el

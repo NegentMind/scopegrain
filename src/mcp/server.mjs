@@ -32,6 +32,7 @@ import { err } from '../core/errors.mjs';
 import { buildWorkflowPacket } from '../core/workflows.mjs';
 import { getPlan, nextPlanTasks, previewPlan }
   from '../core/plans.mjs';
+import { proposeMemoryRules } from '../core/memory-rules.mjs';
 import { getArtifact } from '../core/artifacts.mjs';
 import { getSpecification } from '../core/specifications.mjs';
 import { getApproval } from '../core/approvals.mjs';
@@ -487,6 +488,22 @@ export function createMCPTools(ctx, z) {
         annotations: READ_ONLY,
       },
       handler: wrap(async ({ key }) => previewPlan(ctx, key)),
+    },
+    {
+      name: 'scopegrain_memory_proposals',
+      config: {
+        title: 'Memory Rule Proposals',
+        description: 'Recurrent or duplicated lessons mapped to rule '
+          + 'promotion/merge proposals; suggestive only, read-only',
+        inputSchema: {
+          minCount: z.number().int().min(1).optional()
+            .describe('minimum lesson count per group (default 2)'),
+          tail: z.number().int().min(0).max(1000).optional()
+            .describe('lessons log tail size (default 1000)'),
+        },
+        annotations: READ_ONLY,
+      },
+      handler: wrap(async (args) => proposeMemoryRules(ctx, args ?? {})),
     },
     {
       name: 'scopegrain_artifact_get',

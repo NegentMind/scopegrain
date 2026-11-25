@@ -1,12 +1,13 @@
 # Harness Tool Boundary
 
-MCP queries are bound to the selected project. The server registers 38
+MCP queries are bound to the selected project. The server registers 39
 `scopegrain_*` tools in four annotation classes:
 
-- **Read-only local (24)** — `readOnlyHint:true, openWorldHint:false`:
+- **Read-only local (25)** — `readOnlyHint:true, openWorldHint:false`:
   `approval_get`, `artifact_get`, `catalog_get`, `catalog_list`,
   `check_action`, `get_task`, `goal_list`, `inspect`, `list_tasks`,
-  `mcp_inventory`, `memory_read`, `memory_status`, `methodology_check`,
+  `mcp_inventory`, `memory_proposals`, `memory_read`, `memory_status`,
+  `methodology_check`,
   `metrics`, `plan_get`, `plan_next`, `plan_preview`, `resource_diagnose`,
   `resource_search`, `session_get`, `specification_get`, `status`,
   `task_suggest`, `workflow_packet`.

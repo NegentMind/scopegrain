@@ -418,6 +418,34 @@ cap rotates whole into `paths.memory/archive/` — immutable and never
 deleted — so a single log file does not grow without bound. Rotation is
 best-effort: a busy file defers it and the append still succeeds.
 
+### memory proposals
+
+```text
+scopegrain memory proposals --project PATH [--min N] [--tail N]
+```
+
+Suggestive read-only surface — it never writes rules or memory. It
+groups `lessons` entries by normalized topic (untopiced entries group
+by exact text); a recurrent group (`--min`, default 2) with no covering
+rule emits a `promote` proposal carrying `suggestedRule` (id + content
+ready to save and feed to `rule propose --input`), and a group matching
+an active/proposed rule emits `merge` with the still-uncovered lessons
+as evidence. Identical texts dedupe into one evidence row carrying
+`occurrences`; the same text repeated across different groups is
+reported under `duplicates`. Groups below the threshold or already
+promoted (every entry refs the rule) appear under `suppressed` with the
+reason. Evidence is capped at 10 rows per proposal
+(`evidenceTruncated` flags it; the draft keeps every text); a `ref`
+only counts as covered in the exact `resources/rules/<id>.md` form. If
+the suggested id collides with a non-promotable rule (e.g. archived),
+the proposal reports `conflict` and suggests an alternative
+`lesson-<hash>` id. Deterministic: `proposalId` derives from content;
+no dates — a rejected proposal reappears with the same id, which the
+owner can use to track the decision externally. `source.skipped`
+counts JSON-valid but structurally invalid entries (no `text`),
+separate from parse-level `malformed`. `scopegrain_memory_proposals`
+exposes the same result via MCP.
+
 ### goal create / goal list / goal show / goal transition
 
 ```text
