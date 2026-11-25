@@ -7,7 +7,8 @@
 // separate wave — this test defines the ground truth).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyPreActionHooks, hooksFor, loadHooksPolicy }
+import { applyPreActionHooks, clearPolicyHalt, hooksFor,
+  loadHooksPolicy, setPolicyHalt }
   from '../src/core/hooks-policy.mjs';
 import { cleanup, makeTempDir, writeJson } from './helpers.mjs';
 
@@ -369,4 +370,76 @@ test('preAction.dataClassificationIn schema is closed to the enum', () => {
         (e) => e.code === 'POLICY_MALFORMED', JSON.stringify(w));
     } finally { cleanup(root); }
   }
+});
+
+test('hooks halt: block rule gates every action; resume removes it', () => {
+  const root = makeTempDir('hooks-halt');
+  try {
+    // Missing file -> canonical doc created with the halt rule
+    const r1 = setPolicyHalt({ installRoot: root, apply: true });
+    assert.equal(r1.changed, true);
+    assert.equal(r1.halted, true);
+    assert.equal(r1.entry.when.action, '*');
+    assert.equal(r1.entry.then, 'block');
+    // Every action pruned for every task
+    const blocked = applyPreActionHooks(TASK, ['edit', 'verify', 'read'],
+      { installRoot: root });
+    assert.deepEqual(blocked.permitted, []);
+    // Second halt, identical -> noop
+    const r2 = setPolicyHalt({ installRoot: root, apply: true });
+    assert.equal(r2.changed, false);
+    // Resume removes the rule; actions flow again
+    const r3 = clearPolicyHalt({ installRoot: root, apply: true });
+    assert.equal(r3.changed, true);
+    assert.equal(r3.halted, false);
+    const freed = applyPreActionHooks(TASK, ['edit', 'verify'],
+      { installRoot: root });
+    assert.deepEqual(freed.permitted, ['edit', 'verify']);
+    // Resume again -> noop
+    const r4 = clearPolicyHalt({ installRoot: root, apply: true });
+    assert.equal(r4.changed, false);
+  } finally { cleanup(root); }
+});
+
+test('hooks halt --gate: require-gate soft halt keeps but flags actions', () => {
+  const root = installWithPreAction([
+    { id: 'normal', when: { action: 'edit' }, then: 'record' },
+  ]);
+  try {
+    const r = setPolicyHalt({ installRoot: root, effect: 'require-gate',
+      reason: 'maintenance window', apply: true });
+    assert.equal(r.entry.then, 'require-gate');
+    const hit = applyPreActionHooks(TASK, ['edit', 'verify'],
+      { installRoot: root });
+    assert.deepEqual(hit.permitted, ['edit', 'verify']); // kept, gated
+    assert.deepEqual(hit.gated.map((g) => g.hook), [
+      'scopegrain-halt', 'scopegrain-halt']);
+    // Existing rules are preserved alongside the halt rule
+    const policy = loadHooksPolicy({ installRoot: root });
+    assert.deepEqual(policy.preAction.map((h) => h.id),
+      ['normal', 'scopegrain-halt']);
+    // Re-halt with a different effect replaces the rule
+    const r2 = setPolicyHalt({ installRoot: root, effect: 'block',
+      apply: true });
+    assert.equal(r2.changed, true);
+    assert.equal(r2.entry.then, 'block');
+    assert.equal(loadHooksPolicy({ installRoot: root })
+      .preAction.filter((h) => h.id === 'scopegrain-halt').length, 1);
+  } finally { cleanup(root); }
+});
+
+test('hooks halt validates effect and previews without writing', () => {
+  const root = makeTempDir('hooks-halt-preview');
+  try {
+    assert.throws(() => setPolicyHalt({ installRoot: root, effect: 'record' }),
+      (e) => e.code === 'INVALID_VALUE');
+    const pre = setPolicyHalt({ installRoot: root });
+    assert.equal(pre.mode, 'preview');
+    assert.equal(pre.changed, true);
+    assert.equal(loadHooksPolicy({ installRoot: root }).preAction.length,
+      0); // nothing written
+    const preClear = clearPolicyHalt({ installRoot: root });
+    assert.equal(preClear.mode, 'preview');
+    assert.equal(preClear.halted, false);
+  } finally { cleanup(root); }
 });

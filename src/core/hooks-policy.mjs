@@ -16,10 +16,13 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { err } from './errors.mjs';
 import { DATA_CLASSIFICATIONS } from './tasks.mjs';
-import { decodeUtf8Strict, readFileLimited } from './fsx.mjs';
+import { decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited,
+  removeIfExists } from './fsx.mjs';
+import { acquireVerifiedLock, releaseVerifiedLock } from './locks.mjs';
 
 const INSTALL_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -263,4 +266,118 @@ export function applyPreActionHooks(task, permitted,
     if (!drop) kept.push(action);
   }
   return { permitted: kept, applied, gated };
+}
+
+// ---------------------------------------------------------------------------
+// Declarative kill switch: `hooks halt` inserts a marked preAction rule
+// (`id: scopegrain-halt`, `when:{action:'*'}`) that blocks or gates every
+// action for every task; `hooks resume` removes it. Atomic write under a
+// verified lock, idempotent, and it invalidates the policy cache so the
+// next evaluation sees the change immediately.
+const HALT_ID = 'scopegrain-halt';
+
+// Raw read for the write path — tolerant by design (a kill switch must
+// work even over a shape-invalid policy file; only unparseable JSON or a
+// non-object document blocks it).
+function readPolicyDoc(installRoot) {
+  const abs = path.join(installRoot, POLICY_REL);
+  const st = lstatOrNull(abs);
+  if (!st) return { abs, doc: null };
+  if (st.isSymbolicLink() || !st.isFile()) {
+    throw err('POLICY_MALFORMED', `${POLICY_REL} is not a regular file`);
+  }
+  const l = readFileLimited(abs, 65536);
+  if (l.exceeded) throw err('POLICY_MALFORMED', `${POLICY_REL} too large`);
+  const doc = JSON.parse(
+    decodeUtf8Strict(l.content, 'POLICY_MALFORMED', POLICY_REL));
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) {
+    throw err('POLICY_MALFORMED', `${POLICY_REL} must be an object`);
+  }
+  return { abs, doc };
+}
+
+function writePolicyDoc(abs, doc) {
+  mkdirpSync(path.dirname(abs));
+  const lock = acquireVerifiedLock(`${abs}.lock`, 'POLICY_LOCKED',
+    `${POLICY_REL} is locked by another writer`);
+  const tmpAbs = `${abs}.tmp.${crypto.randomBytes(8).toString('hex')}`;
+  try {
+    const payload = JSON.stringify(doc, null, 2) + '\n';
+    if (Buffer.byteLength(payload, 'utf8') > 65536) {
+      throw err('POLICY_MALFORMED', `${POLICY_REL} exceeds 64KiB`);
+    }
+    fs.writeFileSync(tmpAbs, payload, { flag: 'wx' });
+    fs.renameSync(tmpAbs, abs);
+    cached = null;
+  } catch (e) {
+    removeIfExists(tmpAbs);
+    throw e;
+  } finally {
+    releaseVerifiedLock(lock);
+  }
+}
+
+// effect: 'block' prunes every action (hard kill); 'require-gate' keeps
+// them but flags every one (soft halt). Missing file -> canonical doc
+// created. Idempotent: an identical halt rule is a noop.
+export function setPolicyHalt({ installRoot = INSTALL_ROOT,
+    effect = 'block', reason, apply = false } = {}) {
+  if (!PRE_ACTION_EFFECTS.has(effect) || effect === 'record') {
+    throw err('INVALID_VALUE', "halt effect must be 'block' or 'require-gate'");
+  }
+  const { abs, doc } = readPolicyDoc(installRoot);
+  const preAction = Array.isArray(doc?.preAction) ? doc.preAction : [];
+  const existing = preAction.find((h) => h && h.id === HALT_ID);
+  const entry = {
+    id: HALT_ID,
+    when: { action: '*' },
+    then: effect,
+    reason: reason ?? 'declarative kill switch (hooks halt)',
+  };
+  const identical = existing !== undefined
+    && existing.then === entry.then && existing.reason === entry.reason
+    && existing.when?.action === '*';
+  const halted = existing !== undefined;
+  if (!apply) {
+    return {
+      mode: 'preview', halted, changed: !identical,
+      entry, path: POLICY_REL,
+    };
+  }
+  if (identical) {
+    return {
+      mode: 'applied', halted: true, changed: false,
+      entry: existing, path: POLICY_REL,
+    };
+  }
+  const next = {
+    schemaVersion: 1, hooks: {}, ...doc,
+    preAction: [...preAction.filter((h) => !h || h.id !== HALT_ID), entry],
+  };
+  writePolicyDoc(abs, next);
+  return {
+    mode: 'applied', halted: true, changed: true, entry, path: POLICY_REL,
+  };
+}
+
+export function clearPolicyHalt({ installRoot = INSTALL_ROOT,
+    apply = false } = {}) {
+  const { abs, doc } = readPolicyDoc(installRoot);
+  const preAction = Array.isArray(doc?.preAction) ? doc.preAction : [];
+  const kept = preAction.filter((h) => !h || h.id !== HALT_ID);
+  const changed = kept.length !== preAction.length;
+  if (!apply) {
+    return {
+      mode: 'preview', halted: changed,
+      changed, path: POLICY_REL,
+    };
+  }
+  if (!changed) {
+    return { mode: 'applied', halted: false, changed: false,
+      path: POLICY_REL };
+  }
+  writePolicyDoc(abs, { schemaVersion: 1, hooks: {}, ...doc,
+    preAction: kept });
+  return { mode: 'applied', halted: false, changed: true,
+    path: POLICY_REL };
 }

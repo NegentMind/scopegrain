@@ -512,6 +512,22 @@ invoca `activity record` tras cada commit (auto-registro de commits
 fuera de tarea). Idempotente, nunca sobreescribe hooks de usuario y
 nunca rompe un commit (exit 0 siempre).
 
+### hooks halt / hooks resume (kill switch declarativo)
+
+```text
+scopegrain hooks halt --project PATH [--gate] [--reason TEXT] [--apply]
+scopegrain hooks resume --project PATH [--apply]
+```
+
+Inserta/retira una regla `preAction` marcada (`id:"scopegrain-halt"`,
+`when:{action:"*"}`) en `policy/hooks.json` del install root. `halt`
+bloquea toda accion (`then:"block"` por defecto, `--gate` usa
+`require-gate` para un halt suave); `resume` la remueve. Atomico bajo
+lock verificado, idempotente (regla identica o ausencia -> `changed:false`),
+invalida la cache de politica al escribir, y registra una linea
+`activity` (`kind:"policy-halt"`) en el worklog del proyecto como rastro
+de auditoria. Sin `--apply` devuelve `mode:"preview"`.
+
 ## Ciclo SDD (spec-kit extraction waves)
 
 ### task activate / task active / task deactivate

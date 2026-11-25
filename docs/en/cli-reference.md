@@ -512,6 +512,22 @@ Installs/removes a managed block in `.git/hooks/post-commit` that calls
 commits). Idempotent, never rewrites user hook content and never breaks
 a commit (always exits 0).
 
+### hooks halt / hooks resume (declarative kill switch)
+
+```text
+scopegrain hooks halt --project PATH [--gate] [--reason TEXT] [--apply]
+scopegrain hooks resume --project PATH [--apply]
+```
+
+Inserts/removes a marked `preAction` rule (`id:"scopegrain-halt"`,
+`when:{action:"*"}`) in the install root's `policy/hooks.json`. `halt`
+blocks every action (`then:"block"` by default, `--gate` uses
+`require-gate` for a soft halt); `resume` removes it. Atomic under a
+verified lock, idempotent (identical rule or absence -> `changed:false`),
+invalidates the policy cache on write, and records an `activity` line
+(`kind:"policy-halt"`) in the project's worklog as the audit trail.
+Without `--apply` returns `mode:"preview"`.
+
 ## SDD cycle (spec-kit extraction waves)
 
 ### task activate / task active / task deactivate

@@ -417,6 +417,15 @@ const COMMANDS = {
     flags: ['--project', '--config', '--apply'], pos: 0,
     usage: 'hooks uninstall --project PATH [--apply]',
   },
+  'hooks halt': {
+    flags: ['--project', '--config', '--gate', '--reason', '--apply'],
+    pos: 0,
+    usage: 'hooks halt --project PATH [--gate] [--reason TEXT] [--apply]',
+  },
+  'hooks resume': {
+    flags: ['--project', '--config', '--apply'], pos: 0,
+    usage: 'hooks resume --project PATH [--apply]',
+  },
   'specification create': {
     flags: ['--project', '--config', '--input', '--apply', '--owned'], pos: 0,
     usage: 'specification create --project PATH --input FILE [--owned] [--apply]',
@@ -2255,6 +2264,32 @@ async function cmdHooks(sub, flags) {
       return { mode: 'dry-run', file: plan.file, state: plan.state };
     }
     return { mode: 'applied', ...uninstallHooks(ctx) };
+  }
+  if (sub === 'halt' || sub === 'resume') {
+    const { setPolicyHalt, clearPolicyHalt }
+      = await import('./core/hooks-policy.mjs');
+    const { appendWorklog } = await import('./core/worklog.mjs');
+    const apply = !!flags['--apply'];
+    const result = sub === 'halt'
+      ? setPolicyHalt({
+          effect: flags['--gate'] ? 'require-gate' : 'block',
+          ...(flags['--reason'] ? { reason: flags['--reason'] } : {}),
+          apply })
+      : clearPolicyHalt({ apply });
+    if (apply && result.changed) {
+      // Audit line: the policy file is install-scoped; the activity
+      // record ties the halt to this project's memory log.
+      appendWorklog(ctx, 'activity', {
+        taskId: null,
+        title: `hooks ${sub}`,
+        summary: result.entry
+          ? `preAction ${result.entry.then} on * (${result.entry.reason})`
+          : 'halt rule removed',
+        kind: 'policy-halt',
+        ref: 'policy/hooks.json',
+      });
+    }
+    return result;
   }
   throw err('INVALID_ARGS', `unknown hooks subcommand '${sub}'`);
 }
