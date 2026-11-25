@@ -31,7 +31,8 @@ const USAGES = [
   'approval target --project PATH --input FILE',
   'approval create --project PATH --input FILE [--apply]',
   'approval show --project PATH DIGEST',
-  'approval answer --project PATH --input FILE [--apply]',
+  'approval answer --project PATH --input FILE [--apply]'
+    + '   # single {id,...} or batch {match|ids,...}',
   'methodology check --project PATH UUID [--to ACT|ACCEPT] [--outcome-evidence UUID]',
 ];
 const TASK_USAGE = 'task create --project PATH --input FILE [--apply]';

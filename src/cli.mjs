@@ -2800,7 +2800,12 @@ async function cmdApproval(sub, positional, flags) {
     // Bounded by policy/auto-approve.json — only targets covered by an
     // explicitly enumerated rule are answered; everything else is
     // reported `skipped` with its reason (fail-closed).
-    const isBatch = input.match !== undefined || input.ids !== undefined;
+    // Non-objects must reach the single-answer validator: on a string,
+    // `.match` resolves to String.prototype.match and would misroute;
+    // on null it throws a TypeError that surfaces as INTERNAL.
+    const isBatch = input !== null && typeof input === 'object'
+      && !Array.isArray(input)
+      && (input.match !== undefined || input.ids !== undefined);
     if (isBatch) {
       if (flags['--apply']) {
         const result = answerApprovalBatch(ctx, input);
