@@ -22,7 +22,7 @@ import { useT } from '@/lib/i18n';
 
 export function WorkspaceView() {
   const t = useT();
-  const { data, loading, error, reload } = useApi(() => api.workspace());
+  const { data, loading, error, reload } = useApi(() => api.workspace(), [], 'workspace');
 
   if (loading) return <ListSkeleton rows={4} label={t('common.loading')} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;

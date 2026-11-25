@@ -30,9 +30,9 @@ const ITEM_TONE: Record<ChecklistItemStatus, Tone> = {
 export function StateView() {
   const t = useT();
   const te = useTEnum();
-  const active = useApi(() => api.activeTask());
-  const cons = useApi(() => api.constitution());
-  const chk = useApi(() => api.checklists());
+  const active = useApi(() => api.activeTask(), [], 'active-task');
+  const cons = useApi(() => api.constitution(), [], 'constitution');
+  const chk = useApi(() => api.checklists(), [], 'checklists');
 
   const activeData = active.data;
   const constitution = cons.data?.constitution ?? null;

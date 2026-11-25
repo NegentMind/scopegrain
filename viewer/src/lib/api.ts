@@ -19,6 +19,13 @@ export interface Health {
   api: string;
   schemaVersion: number;
   serverTime: string;
+  // Freshness fields are optional: a server predating the reload
+  // supervisor does not send them, and the banner/restart watcher
+  // degrades silently.
+  startedAt?: string;
+  stamp?: string;
+  stale?: boolean;
+  reloadMode?: 'supervised' | 'manual';
 }
 
 export interface WorkspaceArea {

@@ -37,7 +37,7 @@ function ApprovalDetail({
 }) {
   const t = useT();
   const locale = useLocale();
-  const { data, loading, error, reload } = useApi(() => api.approval(id), [id]);
+  const { data, loading, error, reload } = useApi(() => api.approval(id), [id], `approval:${id}`);
   if (loading) return <ListSkeleton label={t('common.loading')} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const a = data?.approval;
@@ -98,7 +98,7 @@ export function ApprovalsView() {
   const t = useT();
   const te = useTEnum();
   const locale = useLocale();
-  const { data, loading, error, reload, refreshing } = useApi(() => api.approvals());
+  const { data, loading, error, reload, refreshing } = useApi(() => api.approvals(), [], 'approvals');
   const [openId, setOpenId] = useState<string | null>(null);
   usePoll(reload);
 

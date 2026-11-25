@@ -63,8 +63,8 @@ export function ArtifactsView() {
   const locale = useLocale();
   const [kind, setKind] = useState<ArtifactKind>('spec');
   const [sel, setSel] = useState<Selection>(null);
-  const list = useApi(() => api.artifacts(kind), [kind]);
-  const docs = useApi(() => api.artifactDocs(kind), [kind]);
+  const list = useApi(() => api.artifacts(kind), [kind], `artifacts:${kind}`);
+  const docs = useApi(() => api.artifactDocs(kind), [kind], `artifact-docs:${kind}`);
   const detail = useApi<ArtifactSummary | null>(
     () =>
       sel?.type === 'artifact'
@@ -114,10 +114,8 @@ export function ArtifactsView() {
                 <CardTitle className="font-mono">{kind}</CardTitle>
                 <CardDescription>
                   {artifactCount} {t('artifacts.count')}
-                  {/* TODO(i18n): 'chain: spec → design → report' needs a
-                      catalog key (W3). */}
                   {kind === 'spec' || kind === 'design' || kind === 'report'
-                    ? ' · chain: spec → design → report'
+                    ? ' · ' + t('artifacts.chain')
                     : ''}
                   {list.data?.truncated ? t('common.truncatedByApi') : ''}
                 </CardDescription>
@@ -186,7 +184,7 @@ export function ArtifactsView() {
                             subtitle={`${d.dir}/${d.name}`}
                             badge={
                               d.status ? (
-                                <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+                                <Badge variant="outline" className="shrink-0 font-mono text-2xs">
                                   {te('astatus', d.status)}
                                 </Badge>
                               ) : null
@@ -243,7 +241,7 @@ export function ArtifactsView() {
 function ArtifactDocPanel({ kind, name }: { kind: ArtifactKind; name: string }) {
   const t = useT();
   const locale = useLocale();
-  const doc = useApi(() => api.artifactDoc(kind, name), [kind, name]);
+  const doc = useApi(() => api.artifactDoc(kind, name), [kind, name], `artifact-doc:${kind}:${name}`);
   return (
     <DocPanel
       title={name}
@@ -294,13 +292,11 @@ function ArtifactPanel({ artifact }: { artifact: ArtifactSummary }) {
           <h4 className="mb-1 font-medium uppercase text-muted-foreground">
             {t('artifacts.specBinding')}
           </h4>
-          {/* TODO(i18n): 'specId'/'specDigest' field labels need catalog
-              keys (W3). */}
           <p className="break-all font-mono">
-            specId {String(data.specId ?? '—')}
+            {t('artifacts.field.specId')} {String(data.specId ?? '—')}
           </p>
           <p className="break-all font-mono text-muted-foreground">
-            specDigest {shortHash(String(data.specDigest ?? '—'), 24)}…
+            {t('artifacts.field.specDigest')} {shortHash(String(data.specDigest ?? '—'), 24)}…
           </p>
         </section>
       ) : null}

@@ -94,9 +94,9 @@ export function LifecycleFunnel({
                     : 'fill-muted/40 stroke-border'}
                   strokeWidth={1.5} />
                 <text x={x + W / 2} y={34} textAnchor="middle"
-                  className="fill-foreground text-[11px] font-semibold">{s}</text>
+                  className="fill-foreground text-2xs font-semibold">{s}</text>
                 <text x={x + W / 2} y={50} textAnchor="middle"
-                  className="fill-muted-foreground text-[11px]">{c}</text>
+                  className="fill-muted-foreground text-2xs">{c}</text>
                 {i < order.length - 1 && (
                   <line x1={x + W} y1={14 + H / 2} x2={x + W + GAP} y2={14 + H / 2}
                     className="stroke-muted-foreground" strokeWidth={1.5}
@@ -243,9 +243,9 @@ export function TaskDag({
               <rect x={p.x} y={p.y} width={W} height={H} rx={7}
                 className={nodeTone(n)} strokeWidth={1.4} />
               <text x={p.x + W / 2} y={p.y + 17} textAnchor="middle"
-                className="fill-foreground text-[10px] font-medium">{short}</text>
+                className="fill-foreground text-2xs font-medium">{short}</text>
               <text x={p.x + W / 2} y={p.y + 32} textAnchor="middle"
-                className="fill-muted-foreground text-[10px]">{sub}</text>
+                className="fill-muted-foreground text-2xs">{sub}</text>
             </g>
           );
           return nodeHref ? (

@@ -58,7 +58,7 @@ function CountTable({
 
 export function MetricsView() {
   const t = useT();
-  const { data, loading, error, reload } = useApi(() => api.metrics());
+  const { data, loading, error, reload } = useApi(() => api.metrics(), [], 'metrics');
 
   if (loading) return <ListSkeleton label={t('common.loading')} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;

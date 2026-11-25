@@ -117,6 +117,7 @@ function DocPanel({
   const { data, loading, error, reload } = useApi(
     () => api.catalogDoc(kind, id, locale),
     [kind, id, locale],
+    `catalog-doc:${kind}:${id}:${locale}`,
   );
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -307,7 +308,7 @@ const RULE_STATUS_TONE: Record<string, Tone> = {
 // code; the index never fabricates a status for it.
 function RulesPanel({ onOpenDoc }: { onOpenDoc: (id: string) => void }) {
   const t = useT();
-  const { data, loading, error, reload } = useApi(() => api.rulesIndex());
+  const { data, loading, error, reload } = useApi(() => api.rulesIndex(), [], 'rules');
   if (loading) return <ListSkeleton label={t('common.loading')} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const items = data?.rules?.items ?? [];
@@ -456,7 +457,7 @@ function RulesPanel({ onOpenDoc }: { onOpenDoc: (id: string) => void }) {
 export function CatalogView() {
   const t = useT();
   const locale = useLocale();
-  const { data, loading, error, reload } = useApi(() => api.catalog());
+  const { data, loading, error, reload } = useApi(() => api.catalog(), [], 'catalog');
   const [kind, setKind] = useState<string>('command');
   const desc = useMemo(() => {
     if (locale !== 'es') return (e: CatalogEntry) => e.description;

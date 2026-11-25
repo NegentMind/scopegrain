@@ -13,10 +13,10 @@ import { cn } from '@/lib/utils';
 
 export function SystemView() {
   const t = useT();
-  const vdb = useApi(() => api.vantadb());
-  const wf = useApi(() => api.workflow());
-  const vc = useApi(() => api.verify());
-  const ws = useApi(() => api.workspace());
+  const vdb = useApi(() => api.vantadb(), [], 'vantadb');
+  const wf = useApi(() => api.workflow(), [], 'workflow');
+  const vc = useApi(() => api.verify(), [], 'verify');
+  const ws = useApi(() => api.workspace(), [], 'workspace');
   usePoll(() => { vdb.reload(); vc.reload(); ws.reload(); });
 
   if (vdb.loading || wf.loading || vc.loading || ws.loading) {

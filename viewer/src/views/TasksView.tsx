@@ -99,7 +99,7 @@ export function TasksView() {
     const requested = consumeTaskRequest();
     if (requested) setSelected(requested);
   }, []);
-  const list = useApi(() => api.tasks(500));
+  const list = useApi(() => api.tasks(500), [], 'tasks:500');
   usePoll(list.reload);
   const detail = useApi<TaskDetail | null>(
     () => (selected ? api.task(selected).then((r) => r.task) : Promise.resolve(null)),
@@ -214,7 +214,7 @@ export function TasksView() {
                           {task.title}
                         </span>
                         {task.planKey ? (
-                          <Badge variant="secondary" className="mt-0.5 font-mono text-[10px]">
+                          <Badge variant="secondary" className="mt-0.5 font-mono text-2xs">
                             {task.planKey}
                           </Badge>
                         ) : null}

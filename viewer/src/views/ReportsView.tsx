@@ -34,10 +34,11 @@ const STATUS_TONE: Record<string, Tone> = {
 export function ReportsView() {
   const t = useT();
   const [selected, setSelected] = useState<string | null>(null);
-  const { data, loading, error, reload } = useApi(() => api.reports());
+  const { data, loading, error, reload } = useApi(() => api.reports(), [], 'reports');
   const detail = useApi(
     () => (selected ? api.report(selected) : Promise.resolve(null)),
     [selected],
+    `report:${selected}`,
   );
   const roving = useRovingTabindex<HTMLTableSectionElement>();
 

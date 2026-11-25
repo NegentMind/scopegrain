@@ -29,7 +29,7 @@ const STATUS_TONE: Record<string, Tone> = {
 
 export function GoalsView() {
   const t = useT();
-  const { data, loading, error, reload } = useApi(() => api.goals());
+  const { data, loading, error, reload } = useApi(() => api.goals(), [], 'goals');
 
   if (loading) return <ListSkeleton />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
@@ -71,7 +71,7 @@ export function GoalsView() {
                         {t(`goals.horizons.${g.horizon}`)}
                       </Badge>
                     ) : null}
-                    <Badge variant="secondary" className="font-mono text-[10px]">
+                    <Badge variant="secondary" className="font-mono text-2xs">
                       {shortHash(g.id)}
                     </Badge>
                   </div>
@@ -105,12 +105,12 @@ export function GoalsView() {
                         meta={
                           <>
                             {tk.disposition ? (
-                              <Badge variant="outline" className="font-mono text-[10px]">
+                              <Badge variant="outline" className="font-mono text-2xs">
                                 {t(`disp.${tk.disposition.kind}`)}
                               </Badge>
                             ) : null}
                             {tk.priority ? (
-                              <Badge variant="secondary" className="font-mono text-[10px]">
+                              <Badge variant="secondary" className="font-mono text-2xs">
                                 {tk.priority}
                               </Badge>
                             ) : null}

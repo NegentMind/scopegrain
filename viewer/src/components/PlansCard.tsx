@@ -26,7 +26,7 @@ const READINESS_TONE: Record<string, Tone> = {
 
 export function PlansCard() {
   const t = useT();
-  const { data, loading, error, reload } = useApi(() => api.plans());
+  const { data, loading, error, reload } = useApi(() => api.plans(), [], 'plans');
 
   if (loading) return <ListSkeleton rows={2} />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;

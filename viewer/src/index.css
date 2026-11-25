@@ -117,6 +117,9 @@
   --font-mono:
     'Cascadia Code', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
     Consolas, monospace;
+  /* Micro labels (badges, SVG tick text): below text-xs, one rung only. */
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 1rem;
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-err: var(--err);

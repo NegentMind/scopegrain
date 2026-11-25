@@ -68,7 +68,7 @@ interface MethodologyShape {
 function TaskDocSection({ id }: { id: string }) {
   const t = useT();
   const locale = useLocale();
-  const doc = useApi(() => api.taskDoc(id), [id]);
+  const doc = useApi(() => api.taskDoc(id), [id], `task-doc:${id}`);
   if (doc.loading) return <ListSkeleton rows={2} />;
   if (doc.error) return null;
   if (!doc.data?.doc) {
@@ -237,7 +237,7 @@ export function TaskDetailPanel({
           <div className="space-y-1">
             {relEntries.map(([kind, ids]) => (
               <div key={kind} className="flex flex-wrap items-center gap-1">
-                <Badge variant="secondary" className="font-mono text-[10px]">{kind}</Badge>
+                <Badge variant="secondary" className="font-mono text-2xs">{kind}</Badge>
                 {ids.map((id) => (
                   <Button key={id} variant="outline" size="sm"
                     className="h-6 px-1.5 font-mono text-xs"
@@ -278,7 +278,7 @@ export function TaskDetailPanel({
                   </span>
                 </div>
                 {(s.action || s.verify || (s.files?.length ?? 0) > 0) && (
-                  <dl className="ml-4 mt-0.5 space-y-0.5 text-[11px] text-muted-foreground">
+                  <dl className="ml-4 mt-0.5 space-y-0.5 text-2xs text-muted-foreground">
                     {s.action ? <KV k={t('tasks.stepAction')} v={s.action} /> : null}
                     {s.verify ? <KV k={t('tasks.stepVerify')} v={<span className="font-mono">{s.verify}</span>} /> : null}
                     {(s.files?.length ?? 0) > 0 ? (
@@ -301,7 +301,7 @@ export function TaskDetailPanel({
               <li key={i}>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className={cn(
-                    'font-mono text-[10px]',
+                    'font-mono text-2xs',
                     c.status === 'pass'
                       ? toneClasses('ok').badge
                       : toneClasses('err').badge,
@@ -309,7 +309,7 @@ export function TaskDetailPanel({
                   <span className="font-mono">{c.command}</span>
                 </div>
                 {c.evidence ? (
-                  <p className="ml-1 mt-0.5 text-[11px] text-muted-foreground">{c.evidence}</p>
+                  <p className="ml-1 mt-0.5 text-2xs text-muted-foreground">{c.evidence}</p>
                 ) : null}
               </li>
             ))}
@@ -354,7 +354,7 @@ export function TaskDetailPanel({
         <Field label={t('tasks.skills')}>
           <div className="flex flex-wrap gap-1">
             {task.skills!.map((s) => (
-              <Badge key={s} variant="secondary" className="font-mono text-[10px]">{s}</Badge>
+              <Badge key={s} variant="secondary" className="font-mono text-2xs">{s}</Badge>
             ))}
           </div>
         </Field>

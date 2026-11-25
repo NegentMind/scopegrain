@@ -57,8 +57,8 @@ type Selection =
 export function PlansView() {
   const t = useT();
   const [sel, setSel] = useState<Selection>(null);
-  const plans = useApi(() => api.plans());
-  const docs = useApi(() => api.planDocs());
+  const plans = useApi(() => api.plans(), [], 'plans');
+  const docs = useApi(() => api.planDocs(), [], 'plan-docs');
   usePoll(() => {
     plans.reload();
     docs.reload();
@@ -240,7 +240,7 @@ function PlanRow({
 function PlanDetail({ planKey }: { planKey: string }) {
   const t = useT();
   const locale = useLocale();
-  const detail = useApi(() => api.plan(planKey), [planKey]);
+  const detail = useApi(() => api.plan(planKey), [planKey], `plan:${planKey}`);
   if (detail.loading) return <ListSkeleton rows={3} label={t('common.loading')} />;
   if (detail.error) {
     return <ErrorBox error={detail.error} onRetry={detail.reload} />;
@@ -439,7 +439,7 @@ function PlanDetail({ planKey }: { planKey: string }) {
 function PlanDocDetail({ name }: { name: string }) {
   const t = useT();
   const locale = useLocale();
-  const detail = useApi(() => api.planDoc(name), [name]);
+  const detail = useApi(() => api.planDoc(name), [name], `plan-doc:${name}`);
   if (detail.loading) return <ListSkeleton rows={3} label={t('common.loading')} />;
   if (detail.error) {
     return <ErrorBox error={detail.error} onRetry={detail.reload} />;

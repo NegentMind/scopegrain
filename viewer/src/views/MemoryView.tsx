@@ -52,6 +52,7 @@ export function MemoryView() {
   const { data, loading, error, reload } = useApi(
     () => api.memory(log),
     [log],
+    `memory:${log}`,
   );
 
   if (loading) return <ListSkeleton />;

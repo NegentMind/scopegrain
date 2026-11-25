@@ -24,7 +24,7 @@ import { usePoll } from '@/components/viz';
 function SessionDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const t = useT();
   const locale = useLocale();
-  const { data, loading, error, reload } = useApi(() => api.session(id), [id]);
+  const { data, loading, error, reload } = useApi(() => api.session(id), [id], `session:${id}`);
   if (loading) return <ListSkeleton />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   const s = data?.session as SessionRecord | undefined;
@@ -67,11 +67,9 @@ function SessionDetail({ id, onClose }: { id: string; onClose: () => void }) {
                   <StateBadge state={ctx.task.state} />
                   <span className="font-medium text-foreground">{ctx.task.title}</span>
                   <Badge variant="secondary" className="font-mono">rev {ctx.task.revision}</Badge>
-                  {/* TODO(i18n): 'plan:'/'spec:'/'design:' badge prefixes
-                      need catalog keys (W3). */}
-                  {ctx.task.planKey ? <Badge variant="outline" className="font-mono">plan:{ctx.task.planKey}</Badge> : null}
-                  {ctx.task.specId ? <Badge variant="outline" className="font-mono">spec:{shortHash(ctx.task.specId)}</Badge> : null}
-                  {ctx.task.designId ? <Badge variant="outline" className="font-mono">design:{shortHash(ctx.task.designId)}</Badge> : null}
+                  {ctx.task.planKey ? <Badge variant="outline" className="font-mono">{t('sessions.ref.plan')}:{ctx.task.planKey}</Badge> : null}
+                  {ctx.task.specId ? <Badge variant="outline" className="font-mono">{t('sessions.ref.spec')}:{shortHash(ctx.task.specId)}</Badge> : null}
+                  {ctx.task.designId ? <Badge variant="outline" className="font-mono">{t('sessions.ref.design')}:{shortHash(ctx.task.designId)}</Badge> : null}
                 </>
               ) : (
                 <span className="text-muted-foreground">{t('sessions.taskMissing')}</span>
@@ -123,7 +121,7 @@ function SessionDetail({ id, onClose }: { id: string; onClose: () => void }) {
 export function SessionsView() {
   const t = useT();
   const locale = useLocale();
-  const { data, loading, error, refreshing, reload } = useApi(() => api.sessions());
+  const { data, loading, error, refreshing, reload } = useApi(() => api.sessions(), [], 'sessions');
   const [openId, setOpenId] = useState<string | null>(null);
   usePoll(reload);
   const roving = useRovingTabindex<HTMLTableSectionElement>();

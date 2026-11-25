@@ -36,7 +36,7 @@ export function JournalView() {
   const t = useT();
   const locale = useLocale();
   const [selected, setSelected] = useState<string | null>(null);
-  const list = useApi(() => api.journalOperations());
+  const list = useApi(() => api.journalOperations(), [], 'journal-ops');
   const detail = useApi<JournalOperationDetail | null>(
     () =>
       selected
@@ -150,18 +150,16 @@ function OperationPanel({ op }: { op: JournalOperationDetail }) {
     <div className="space-y-3 text-sm">
       <div className="flex items-center gap-2">
         <JournalStateBadge state={op.state} />
-        {/* TODO(i18n): 'digest' label needs a catalog key (W3). */}
         <span className="break-all font-mono text-xs text-muted-foreground">
-          digest {shortHash(op.intentDigest)}…
+          {t('journal.digest')} {shortHash(op.intentDigest)}…
         </span>
       </div>
       <ol className="space-y-2">
         {op.intent.events.map((ev) => (
           <li key={ev.eventId} className="rounded-md border p-2 text-xs">
             <div className="flex flex-wrap items-center gap-2">
-              {/* TODO(i18n): 'seq' label needs a catalog key (W3). */}
               <Badge variant="secondary" className="font-mono tabular-nums">
-                seq {ev.journalSequence}
+                {t('journal.seq')} {ev.journalSequence}
               </Badge>
               <span className="font-medium">
                 {ev.sourceKind}/{shortHash(ev.recordId)}
@@ -171,9 +169,8 @@ function OperationPanel({ op }: { op: JournalOperationDetail }) {
             <p className="mt-1 break-all font-mono text-muted-foreground">
               {ev.sourceRel}
             </p>
-            {/* TODO(i18n): 'sha256' label needs a catalog key (W3). */}
             <p className="break-all font-mono text-muted-foreground">
-              sha256 {shortHash(ev.sourceHash)}…
+              {t('journal.sha256')} {shortHash(ev.sourceHash)}…
             </p>
           </li>
         ))}

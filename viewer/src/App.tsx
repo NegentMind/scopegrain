@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Activity,
   BookMarked,
@@ -39,6 +39,7 @@ import {
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { api } from '@/lib/api';
+import { reloadAllApis } from '@/lib/useApi';
 import {
   adoptProjectLocale,
   setLocale,
@@ -104,6 +105,8 @@ function isNavValue(v: string): v is NavValue {
 
 function useHealthPoll() {
   const [ok, setOk] = useState<boolean | null>(null);
+  const [stale, setStale] = useState(false);
+  const startedAt = useRef<string | null>(null);
   // Deliberately slower than the 10 s view polls (see usePoll in viz.tsx):
   // health is a coarse liveness signal, not store data.
   useEffect(() => {
@@ -111,8 +114,28 @@ function useHealthPoll() {
     const check = () => {
       api
         .health()
-        .then(() => !cancelled && setOk(true))
-        .catch(() => !cancelled && setOk(false));
+        .then((h) => {
+          if (cancelled) return;
+          setOk(true);
+          // A new startedAt means the API respawned (supervised reload or
+          // manual restart): mounted queries may hold payloads shaped by
+          // the old code — revalidate everything without a page reload.
+          if (h.startedAt !== undefined) {
+            if (startedAt.current !== null && startedAt.current !== h.startedAt) {
+              reloadAllApis();
+            }
+            startedAt.current = h.startedAt;
+          }
+          // A supervised server self-heals within ~1s of a src change, so
+          // its transient stale flag would only flash the banner; a manual
+          // (--no-reload) server stays stale until restarted — flag it.
+          setStale(h.stale === true && h.reloadMode !== 'supervised');
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setOk(false);
+          setStale(false);
+        });
     };
     check();
     const timer = setInterval(check, 15000);
@@ -121,7 +144,7 @@ function useHealthPoll() {
       clearInterval(timer);
     };
   }, []);
-  return ok;
+  return { ok, stale };
 }
 
 function LocaleSelect() {
@@ -192,7 +215,7 @@ function HealthBadge({ healthy }: { healthy: boolean | null }) {
 
 export default function App() {
   const route = useHashRoute();
-  const healthy = useHealthPoll();
+  const { ok: healthy, stale } = useHealthPoll();
   const locale = useLocale();
   const t = useT();
   // Unknown or empty hashes resolve to the default view; the hash itself
@@ -262,6 +285,15 @@ export default function App() {
             </div>
           </div>
         </header>
+
+        {stale ? (
+          <div
+            role="status"
+            className="border-b border-warn/40 bg-warn/10 px-4 py-1.5 text-center text-xs text-warn"
+          >
+            {t('app.api.stale')}
+          </div>
+        ) : null}
 
         <Tabs
           orientation="vertical"

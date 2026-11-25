@@ -30,7 +30,7 @@ import { fmtDateTime, fmtRel } from '@/lib/format';
 export function CapturesView() {
   const t = useT();
   const locale = useLocale();
-  const { data, loading, error, reload } = useApi(() => api.captures());
+  const { data, loading, error, reload } = useApi(() => api.captures(), [], 'captures');
 
   if (loading) return <ListSkeleton />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
@@ -84,9 +84,7 @@ export function CapturesView() {
                       <span className="font-medium">{c.record.title}</span>
                     ) : (
                       <span className="font-mono text-xs text-destructive">
-                        {/* TODO(i18n): 'unreadable' fallback needs a catalog
-                            key (W3). */}
-                        {c.error?.code ?? 'unreadable'}
+                        {c.error?.code ?? t('captures.unreadable')}
                       </span>
                     )}
                   </TableCell>
