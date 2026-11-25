@@ -105,6 +105,15 @@ semantic or extension key still requires the full required V3 set above.
 | `version` | int >= 1 (default `1`) | Human-meaningful revision of the planning chain, independent of the storage-layer `revision`. |
 | `createKey` | non-empty string or null | Idempotent-creation key: a second `plan create` carrying a key already held by an existing plan fails with `PLAN_CONFLICT`. Plans have no terminal state, so the key stays reserved while the plan exists. |
 
+Individual `tasks[]` member entries on a V3 plan may also carry
+annotations (optional on input, emitted as null defaults on V3 writes):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `rationale` | non-empty string or null | Why the planner picked this member — distinct from `triageReason`, which justifies the triage decision. |
+| `parameterOverrides` | `{key: string|number|boolean}` or null | Scalar values overriding the member's defaults for this instance (e.g. timeout, input payload). Declarative; hosts resolve them. |
+| `instructionPatches` | `[non-empty string]` or null | Extra instructions appended only to this instance of the member. |
+
 `plan next` is triage-aware: entries triaged `defer|skip|blocked` report
 status `triaged` instead of `ready`/`blocked`.
 

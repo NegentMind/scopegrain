@@ -175,6 +175,9 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     p.ttlSeconds = 86400;
     p.version = 1;
     p.createKey = 'client-req-8842';
+    p.tasks[0].rationale = 'foundation for everything else';
+    p.tasks[0].parameterOverrides = { timeout: 300, strict: true };
+    p.tasks[0].instructionPatches = ['prefer strict TS'];
     const prepared = preparePlan(ctx, p);
     assert.equal(prepared.plan.schemaVersion, 3);
     assert.equal(prepared.plan.request, 'Ship the release with zero known P0s');
@@ -196,6 +199,16 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     assert.equal(prepared.plan.version, 1);
     assert.equal(prepared.plan.supersedes, null);
     assert.equal(prepared.plan.createKey, 'client-req-8842');
+    assert.equal(prepared.plan.tasks[0].rationale,
+      'foundation for everything else');
+    assert.deepEqual(prepared.plan.tasks[0].parameterOverrides,
+      { timeout: 300, strict: true });
+    assert.deepEqual(prepared.plan.tasks[0].instructionPatches,
+      ['prefer strict TS']);
+    // V3 member entries emit ext defaults even when unset
+    assert.equal(prepared.plan.tasks[1].rationale, null);
+    assert.equal(prepared.plan.tasks[1].parameterOverrides, null);
+    assert.equal(prepared.plan.tasks[1].instructionPatches, null);
     applyPlan(dir, preflightPlan(dir, prepared.files));
     const stored = getPlan(ctx, 'rel-3');
     assert.equal(stored.request, 'Ship the release with zero known P0s');
@@ -240,6 +253,11 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     const f = path.join(dir, 'docs/agent/plans/rel-4.json');
     const d = JSON.parse(fs.readFileSync(f, 'utf8'));
     delete d.request; delete d.planType; delete d.trigger;
+    // stored V3 members predating member ext keys stay readable
+    for (const t of d.tasks) {
+      delete t.rationale; delete t.parameterOverrides;
+      delete t.instructionPatches;
+    }
     fs.writeFileSync(f, JSON.stringify(d));
     assert.equal(getPlan(ctx, 'rel-4').key, 'rel-4');
     // validation: bad enum/kind/shape rejected at input
@@ -269,6 +287,10 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     bad((b) => { b.version = 0; }, 'INVALID_PLAN');
     bad((b) => { b.version = 'two'; }, 'INVALID_PLAN');
     bad((b) => { b.createKey = '  '; }, 'INVALID_PLAN');
+    bad((b) => { b.tasks[0].rationale = ''; }, 'INVALID_PLAN');
+    bad((b) => { b.tasks[0].parameterOverrides = { deep: { x: 1 } }; },
+      'INVALID_PLAN');
+    bad((b) => { b.tasks[0].instructionPatches = [42]; }, 'INVALID_PLAN');
     // ext keys are V3-layer: a V1 record may not carry them
     const f1 = path.join(dir, 'docs/agent/plans/rel-4.json');
     const d1 = JSON.parse(fs.readFileSync(f1, 'utf8'));

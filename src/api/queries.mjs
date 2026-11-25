@@ -645,7 +645,7 @@ export function createApiQueries(ctx, options = {}) {
         title: rec?.title ?? null, state: rec?.state ?? null,
         disposition: rec?.disposition ?? null,
         triage: t.triage ?? null, triageReason: t.triageReason ?? null,
-        error,
+        rationale: t.rationale ?? null, error,
       };
     });
     const done = tasks.filter((t) => PLAN_DONE.has(t.state)

@@ -68,6 +68,10 @@ const PLAN_V3_EXT_KEYS = new Set([
 ]);
 // Non-null defaults emitted on write; every other ext key defaults to null.
 const PLAN_V3_EXT_DEFAULTS = { version: 1 };
+// Optional per-member annotations (V3 layer): validated when present on
+// input and stored members, emitted with null defaults on V3 writes.
+const PLAN_MEMBER_EXT_KEYS = new Set(
+  ['rationale', 'parameterOverrides', 'instructionPatches']);
 const PLAN_TYPES = new Set(['static', 'dynamic', 'hybrid']);
 const TRIGGER_KINDS = new Set(['manual', 'scheduled', 'event', 'derived']);
 const SYNTHESIS_STRATEGIES = new Set(
@@ -83,7 +87,8 @@ const PLAN_INPUT_KEYS = new Set(
     ...PLAN_V3_KEYS, ...PLAN_V3_EXT_KEYS]);
 const PLAN_TASK_KEYS = new Set(
   ['key', 'title', 'contract', 'scope', 'dependsOn', 'scenarioRefs',
-    'triage', 'triageReason', 'methodology', ...TASK_V3_FORWARD]);
+    'triage', 'triageReason', 'methodology', ...TASK_V3_FORWARD,
+    ...PLAN_MEMBER_EXT_KEYS]);
 const PLAN_KEYS = new Set([
   'schemaVersion', 'key', 'title', 'authorContext', 'inputDigest',
   'tasks', 'createdAt', 'specId', 'designId', ...PLAN_V3_KEYS,
@@ -352,6 +357,42 @@ function validatePlanTrigger(value, label) {
   return { kind: value.kind, ref: value.ref ?? null };
 }
 
+// Per-member annotation validators shared by input and stored-shape
+// validation. code is INVALID_PLAN at input and PLAN_MALFORMED on disk.
+function validatePlanMemberExt(t, label, code) {
+  const out = {};
+  if (t.rationale !== undefined) {
+    if (t.rationale !== null
+        && (typeof t.rationale !== 'string' || t.rationale.trim() === '')) {
+      throw err(code,
+        `${label}.rationale must be a non-empty string or null`);
+    }
+    out.rationale = t.rationale;
+  }
+  if (t.parameterOverrides !== undefined) {
+    if (t.parameterOverrides !== null
+        && (typeof t.parameterOverrides !== 'object'
+          || Array.isArray(t.parameterOverrides)
+          || !Object.values(t.parameterOverrides).every(
+            (v) => ['string', 'number', 'boolean'].includes(typeof v)))) {
+      throw err(code,
+        `${label}.parameterOverrides must be an object of scalar values or null`);
+    }
+    out.parameterOverrides = t.parameterOverrides;
+  }
+  if (t.instructionPatches !== undefined) {
+    if (t.instructionPatches !== null
+        && (!Array.isArray(t.instructionPatches)
+          || !t.instructionPatches.every(
+            (s) => typeof s === 'string' && s.trim() !== ''))) {
+      throw err(code,
+        `${label}.instructionPatches must be an array of non-empty strings or null`);
+    }
+    out.instructionPatches = t.instructionPatches;
+  }
+  return out;
+}
+
 // Same entry shape as task expectedOutputs: a canonical path the plan
 // promises to leave behind, plus optional existence hints for the host.
 function validatePlanDeliverables(value, label) {
@@ -478,6 +519,8 @@ export function validatePlanInput(ctx, input) {
         && typeof t.triageReason !== 'string') {
       throw err('INVALID_PLAN', `tasks[${i}].triageReason must be a string`);
     }
+    const memberExt = validatePlanMemberExt(t, `tasks[${i}]`,
+      'INVALID_PLAN');
     const v3Forward = {};
     for (const k of TASK_V3_FORWARD) {
       if (t[k] !== undefined) v3Forward[k] = t[k];
@@ -498,7 +541,7 @@ export function validatePlanInput(ctx, input) {
     }
     const deps = dependsOn.map((d) => requireKey(d, `tasks[${i}].dependsOn`));
     return {
-      key: tkey, ...clean, dependsOn: deps,
+      key: tkey, ...clean, dependsOn: deps, ...memberExt,
       ...(t.triage !== undefined || t.triageReason !== undefined
         ? { triage: t.triage ?? null, triageReason: t.triageReason ?? null }
         : {}),
@@ -623,7 +666,10 @@ export function preparePlan(ctx, input) {
       key: p.key, id: p.id, dependsOn: p.deps,
       ...(clean.v3
         ? { triage: p.t.triage ?? null,
-          triageReason: p.t.triageReason ?? null }
+          triageReason: p.t.triageReason ?? null,
+          rationale: p.t.rationale ?? null,
+          parameterOverrides: p.t.parameterOverrides ?? null,
+          instructionPatches: p.t.instructionPatches ?? null }
         : {}),
     });
     const rel = `${ctx.config.paths.tasks}/${p.id}.json`;
@@ -698,14 +744,16 @@ export function validatePlanShape(plan, label = 'plan') {
   }
   const keys = new Set();
   const ids = new Set();
+  const taskEntryRequired = ['key', 'id', 'dependsOn', 'triage',
+    'triageReason'];
   const taskEntryKeys = plan.schemaVersion === 3
-    ? ['key', 'id', 'dependsOn', 'triage', 'triageReason']
+    ? [...taskEntryRequired, ...PLAN_MEMBER_EXT_KEYS]
     : ['key', 'id', 'dependsOn'];
   for (const [i, t] of plan.tasks.entries()) {
     if (t === null || typeof t !== 'object' || Array.isArray(t)) {
       throw err('PLAN_MALFORMED', `${label}.tasks[${i}] is not an object`);
     }
-    for (const k of taskEntryKeys) {
+    for (const k of taskEntryRequired) {
       if (plan.schemaVersion === 3 && t[k] === undefined) {
         throw err('PLAN_MALFORMED', `${label}.tasks[${i}] requires '${k}'`);
       }
@@ -724,6 +772,7 @@ export function validatePlanShape(plan, label = 'plan') {
         throw err('PLAN_MALFORMED',
           `${label}.tasks[${i}].triageReason must be a string or null`);
       }
+      validatePlanMemberExt(t, `${label}.tasks[${i}]`, 'PLAN_MALFORMED');
     }
     requireKey(t.key, `${label}.tasks[${i}].key`);
     if (keys.has(t.key)) {
