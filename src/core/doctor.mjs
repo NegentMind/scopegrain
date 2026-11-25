@@ -126,7 +126,7 @@ function fixFor(name, detail) {
 const POLICY_FILES = [
   'workflow.json', 'operation-limits.json', 'methodology.json',
   'onboarding-defaults.json', 'native-adapters.json',
-  'native-variants.json',
+  'native-variants.json', 'auto-approve.json',
 ];
 
 const REQUIRED_TEMPLATES = [

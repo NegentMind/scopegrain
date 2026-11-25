@@ -144,6 +144,20 @@ rewriting the file. `revoke` is only valid from `approved`, and
 answers on a non-`pending` record (or `custom`) require a non-empty
 `comment`.
 
+Batch mode: when the input carries `match` or `ids` (mutually
+exclusive), it resolves a bounded set of `pending` approvals —
+`{match:{kind?, artifactKind?, status:'pending'}|ids:[sha256...],
+answer, actor, comment?}` with `answer` in
+`approve|reject|decline|custom` (`revoke` stays single-shot). The batch
+only answers what `policy/auto-approve.json` covers: a closed enum
+`{schemaVersion:1, rules:[{id, target:{kind,artifactKind?}}]}` that
+pre-authorizes targets by kind; an absent file or `rules:[]` covers
+nothing (fail-closed). Each item reports `answer|answered`, `skipped`
+(with `reason`: `not-covered-by-policy`, `not-pending:*`, `not-found`)
+or `error`; the answered record stores its source rule in the history
+comment (`rule:<id>`) and every item goes through the same locked CAS
+as a single answer. At most `200` per batch.
+
 ### session show
 
 `session show UUID` (with optional `--project PATH` and `--config REL`)

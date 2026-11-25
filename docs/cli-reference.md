@@ -144,6 +144,20 @@ reescribir el archivo. `revoke` solo es valido desde `approved`, y las
 respuestas sobre un registro no `pending` (o `custom`) exigen
 `comment` no vacio.
 
+Modo lote: si el input lleva `match` o `ids` (excluyentes), resuelve un
+conjunto acotado de aprobaciones `pending` — `{match:{kind?,
+artifactKind?, status:'pending'}|ids:[sha256...], answer, actor,
+comment?}` con `answer` en `approve|reject|decline|custom` (`revoke`
+sigue siendo individual). El lote solo responde lo que cubre
+`policy/auto-approve.json`: una enum cerrada
+`{schemaVersion:1, rules:[{id, target:{kind,artifactKind?}}]}` que
+pre-autoriza targets por kind; un archivo ausente o `rules:[]` no cubre
+nada (fail-closed). Cada item sale como `answer|answered`, `skipped`
+(con `reason`: `not-covered-by-policy`, `not-pending:*`, `not-found`) o
+`error`; el registro respondido guarda la regla origen en el comentario
+de historia (`rule:<id>`) y cada item pasa por el mismo CAS bajo lock
+que la respuesta individual. Maximo `200` por lote.
+
 ### session show
 
 `session show UUID` (con `--project PATH` y `--config REL` opcionales)

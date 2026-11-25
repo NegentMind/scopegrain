@@ -469,7 +469,8 @@ const COMMANDS = {
   },
   'approval answer': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
-    usage: 'approval answer --project PATH --input FILE [--apply]',
+    usage: 'approval answer --project PATH --input FILE [--apply]'
+      + '   # single {id,...} or batch {match|ids,...}',
   },
   'methodology check': {
     flags: ['--project', '--config', '--to', '--outcome-evidence'], pos: 1,
@@ -2776,7 +2777,7 @@ async function cmdConstitution(sub, flags) {
 }
 
 async function cmdApproval(sub, positional, flags) {
-  const { answerApproval, describeApprovalTarget, getApproval, prepareApproval, prepareApprovalAnswer } = await import('./core/approvals.mjs');
+  const { answerApproval, answerApprovalBatch, describeApprovalTarget, getApproval, prepareApproval, prepareApprovalAnswer, prepareApprovalBatch } = await import('./core/approvals.mjs');
   const ctx = resolveContext({
     project: projectFlag(flags), config: flags['--config'],
   });
@@ -2788,6 +2789,24 @@ async function cmdApproval(sub, positional, flags) {
     return await finishCreation(ctx, 'approval', prepared.approval, prepared.file, flags);
   }
   if (sub === 'answer') {
+    // Batch mode: input carries {match|ids, answer, actor, comment}.
+    // Bounded by policy/auto-approve.json — only targets covered by an
+    // explicitly enumerated rule are answered; everything else is
+    // reported `skipped` with its reason (fail-closed).
+    const isBatch = input.match !== undefined || input.ids !== undefined;
+    if (isBatch) {
+      if (flags['--apply']) {
+        const result = answerApprovalBatch(ctx, input);
+        return { mode: 'applied', applied: true, batch: result };
+      }
+      const preview = prepareApprovalBatch(ctx, input);
+      return {
+        mode: 'dry-run', applied: false, batch: preview,
+        files: preview.items
+          .filter((i) => i.disposition === 'answer')
+          .map((i) => ({ path: i.file, action: 'update' })),
+      };
+    }
     if (flags['--apply']) {
       // Core revalidates CAS against current content under its own lock.
       const approval = answerApproval(ctx, input);

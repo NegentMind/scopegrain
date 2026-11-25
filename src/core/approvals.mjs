@@ -8,8 +8,8 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { err } from './errors.mjs';
 import {
-  decodeUtf8Strict, lstatOrNull, mkdirpSync, readFileLimited,
-  removeIfExists, writeFileExclusive,
+  decodeUtf8Strict, lstatOrNull, mkdirpSync, readDirBounded,
+  readFileLimited, removeIfExists, writeFileExclusive,
 } from './fsx.mjs';
 import {
   acquireVerifiedLock, releaseVerifiedLock,
@@ -917,4 +917,358 @@ export function createOwnedApprovalStore(ctx, options) {
   }
 
   return Object.freeze({ prepare, create, get, answer });
+}
+
+// ---------------------------------------------------------------------
+// Batch resolution under a declarative auto-approve policy.
+// policy/auto-approve.json is the ONLY authority for batch answering:
+// a closed enum of low-risk target patterns. An absent file or empty
+// `rules` means nothing is batch-answerable — fail-closed by
+// construction. Only pending approvals are batch targets (re-answers
+// and revoke stay single-shot), every answered record carries its
+// rule origin in the history comment (`rule:<id>`), and each item is
+// answered through the same locked CAS path as a single answer.
+// ---------------------------------------------------------------------
+
+const INSTALL_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)), '../..');
+const AUTO_APPROVE_REL = 'policy/auto-approve.json';
+const AUTO_RULE_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const BATCH_ANSWERS = new Set(['approve', 'reject', 'decline', 'custom']);
+const BATCH_INPUT_KEYS = new Set(
+  ['match', 'ids', 'answer', 'actor', 'comment']);
+const MATCH_KEYS = new Set(['status', 'kind', 'artifactKind']);
+const BATCH_MAX = 200;
+const STORE_SCAN_CAP = 4096;
+
+let cachedAutoApprove = null;
+
+// {schemaVersion:1, rules:[{id, target:{kind[,artifactKind]}}]} — a
+// missing file means no coverage (empty policy, not an error). A
+// symlinked or otherwise non-regular policy file is NOT treated as
+// absent: it fails closed with POLICY_MALFORMED, matching doctor's
+// integrity semantics on the authority boundary.
+export function loadAutoApprovePolicy(
+  { installRoot = INSTALL_ROOT } = {}) {
+  if (cachedAutoApprove && installRoot === INSTALL_ROOT) {
+    return cachedAutoApprove;
+  }
+  const abs = path.join(installRoot, AUTO_APPROVE_REL);
+  let doc = { schemaVersion: 1, rules: [] };
+  const st = lstatOrNull(abs);
+  if (st && (!st.isFile() || st.isSymbolicLink())) {
+    throw err('POLICY_MALFORMED',
+      `${AUTO_APPROVE_REL} is not a regular file`);
+  }
+  if (st) {
+    const l = readFileLimited(abs, 65536);
+    if (l.exceeded) {
+      throw err('POLICY_MALFORMED', `${AUTO_APPROVE_REL} too large`);
+    }
+    doc = JSON.parse(decodeUtf8Strict(
+      l.content, 'POLICY_MALFORMED', AUTO_APPROVE_REL));
+  }
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)
+      || doc.schemaVersion !== 1 || !Array.isArray(doc.rules)) {
+    throw err('POLICY_MALFORMED', `${AUTO_APPROVE_REL} has invalid shape`);
+  }
+  for (const k of Object.keys(doc)) {
+    if (!['schemaVersion', 'rules'].includes(k)) {
+      throw err('POLICY_MALFORMED',
+        `${AUTO_APPROVE_REL} has unknown key '${k}'`);
+    }
+  }
+  const seen = new Set();
+  const rules = doc.rules.map((r, i) => {
+    const label = `${AUTO_APPROVE_REL}.rules[${i}]`;
+    if (r === null || typeof r !== 'object' || Array.isArray(r)
+        || Object.keys(r).length !== 2
+        || typeof r.id !== 'string' || !AUTO_RULE_ID_RE.test(r.id)
+        || seen.has(r.id)) {
+      throw err('POLICY_MALFORMED',
+        `${label} requires a unique slug id and a target`);
+    }
+    seen.add(r.id);
+    const t = r.target;
+    if (t === null || typeof t !== 'object' || Array.isArray(t)) {
+      throw err('POLICY_MALFORMED', `${label}.target must be an object`);
+    }
+    if (t.kind === 'artifact') {
+      if (Object.keys(t).length !== 2
+          || !ARTIFACT_KINDS.has(t.artifactKind)) {
+        throw err('POLICY_MALFORMED',
+          `${label}.target requires {kind:'artifact',artifactKind}`);
+      }
+    } else if (t.kind === 'task' || t.kind === 'plan') {
+      if (Object.keys(t).length !== 1) {
+        throw err('POLICY_MALFORMED',
+          `${label}.target requires {kind:'${t.kind}'} only`);
+      }
+    } else {
+      throw err('POLICY_MALFORMED', `${label}.target kind invalid`);
+    }
+    return { id: r.id, target: { ...t } };
+  });
+  const out = Object.freeze({ schemaVersion: 1,
+    rules: Object.freeze(rules.map((r) => Object.freeze({
+      id: r.id, target: Object.freeze(r.target) }))) });
+  if (installRoot === INSTALL_ROOT) cachedAutoApprove = out;
+  return out;
+}
+
+function autoApproveRuleFor(target, rules) {
+  return rules.find((r) => r.target.kind === target.kind
+    && (target.kind !== 'artifact'
+      || r.target.artifactKind === target.artifactKind)) ?? null;
+}
+
+// Enumerate stored approval records for batch selection. Malformed
+// filenames and unreadable records are reported, never silently
+// skipped — a skipped-without-trace approval would be a coverage lie.
+export function listApprovals(ctx) {
+  const dirAbs = resolveInside(ctx.projectRoot,
+    `${ctx.config.paths.decisions}/approvals`, 'approvals dir');
+  const out = { approvals: [], malformed: [], truncated: false };
+  const st = lstatOrNull(dirAbs);
+  if (!st) return out;
+  if (st.isSymbolicLink() || !st.isDirectory()) {
+    throw err('INVALID_PATH', 'approvals store is not a real directory');
+  }
+  const scanned = readDirBounded(dirAbs, STORE_SCAN_CAP);
+  out.truncated = scanned.truncated;
+  const names = [];
+  for (const e of scanned.entries) {
+    // Non-regular *.json dirents (links, dirs, fifos) are evidence,
+    // not invisible: they can never be answered but must be reported.
+    if (!e.isFile() && e.name.endsWith('.json')) {
+      out.malformed.push({ file: e.name,
+        error: 'not a regular file' });
+      continue;
+    }
+    if (e.isFile() && e.name.endsWith('.json')) names.push(e.name);
+  }
+  names.sort();
+  for (const name of names) {
+    const stem = name.slice(0, -'.json'.length);
+    if (!SHA_RE.test(stem)) {
+      out.malformed.push({ file: name, error: 'invalid approval id' });
+      continue;
+    }
+    try {
+      out.approvals.push(getApproval(ctx, stem));
+    } catch (e) {
+      out.malformed.push({ file: name, error: e.message });
+    }
+  }
+  return out;
+}
+
+function validateBatchInput(input) {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw err('APPROVAL_INVALID', 'batch input must be an object');
+  }
+  for (const k of Object.keys(input)) {
+    if (!BATCH_INPUT_KEYS.has(k)) {
+      throw err('APPROVAL_INVALID', `batch input has unknown key '${k}'`);
+    }
+  }
+  const hasMatch = input.match !== undefined;
+  const hasIds = input.ids !== undefined;
+  if (hasMatch === hasIds) {
+    throw err('APPROVAL_INVALID',
+      'batch input requires exactly one of match|ids');
+  }
+  if (hasMatch) {
+    const m = input.match;
+    if (m === null || typeof m !== 'object' || Array.isArray(m)) {
+      throw err('APPROVAL_INVALID', 'batch.match must be an object');
+    }
+    for (const k of Object.keys(m)) {
+      if (!MATCH_KEYS.has(k)) {
+        throw err('APPROVAL_INVALID', `batch.match has unknown key '${k}'`);
+      }
+    }
+    // Batch resolves pending only; re-answers and revoke stay single-shot.
+    if (m.status !== undefined && m.status !== 'pending') {
+      throw err('APPROVAL_INVALID', `batch.match.status must be 'pending'`);
+    }
+    if (m.kind !== undefined
+        && !['task', 'plan', 'artifact'].includes(m.kind)) {
+      throw err('APPROVAL_INVALID', `batch.match.kind invalid`);
+    }
+    if (m.artifactKind !== undefined
+        && (!ARTIFACT_KINDS.has(m.artifactKind)
+          || (m.kind !== undefined && m.kind !== 'artifact'))) {
+      throw err('APPROVAL_INVALID',
+        `batch.match.artifactKind requires kind 'artifact'`);
+    }
+  } else {
+    if (!Array.isArray(input.ids) || input.ids.length === 0
+        || input.ids.length > BATCH_MAX
+        || !input.ids.every((v) => typeof v === 'string' && SHA_RE.test(v))) {
+      throw err('APPROVAL_INVALID',
+        `batch.ids must be 1..${BATCH_MAX} sha256 digests`);
+    }
+  }
+  if (!BATCH_ANSWERS.has(input.answer)) {
+    throw err('APPROVAL_INVALID',
+      `batch answer must be one of: ${[...BATCH_ANSWERS].join(', ')}`);
+  }
+  if (typeof input.actor !== 'string' || input.actor.trim() === '') {
+    throw err('APPROVAL_INVALID',
+      'actor must be a non-empty string (declared, not authenticated)');
+  }
+  if (input.comment !== undefined && input.comment !== null
+      && typeof input.comment !== 'string') {
+    throw err('APPROVAL_INVALID', 'comment must be a string or null');
+  }
+  // 'custom' needs a real clarification message, not just the rule tag.
+  if (input.answer === 'custom'
+      && (typeof input.comment !== 'string' || input.comment.trim() === '')) {
+    throw err('APPROVAL_INVALID',
+      `batch answer 'custom' requires a non-empty comment`);
+  }
+}
+
+function selectBatchCandidates(ctx, input) {
+  const found = listApprovals(ctx);
+  const pending = found.approvals.filter((a) => a.status === 'pending');
+  if (input.match !== undefined) {
+    const m = input.match;
+    const selected = pending.filter((a) =>
+      (m.kind === undefined || a.target.kind === m.kind)
+      && (m.artifactKind === undefined
+        || a.target.artifactKind === m.artifactKind));
+    return { candidates: selected, malformed: found.malformed,
+      truncated: found.truncated, missing: [] };
+  }
+  const byId = new Map(found.approvals.map((a) => [a.id, a]));
+  const candidates = [];
+  const missing = [];
+  const seen = new Set();
+  for (const id of input.ids) {
+    const key = id.toLowerCase();
+    if (seen.has(key)) {
+      // A duplicate id would error as REVISION_MISMATCH on the second
+      // apply — report it honestly as a skipped duplicate instead.
+      missing.push({ id: key, reason: 'duplicate' });
+      continue;
+    }
+    seen.add(key);
+    if (!byId.has(key)) { missing.push({ id: key, reason: 'not-found' }); continue; }
+    candidates.push(byId.get(key));
+  }
+  return { candidates, malformed: found.malformed,
+    truncated: found.truncated, missing };
+}
+
+// Read-only batch plan: selects candidates, checks each against the
+// auto-approve policy enum and computes fresh CAS pins per answerable
+// item. Everything not covered is `skipped` with an explicit reason —
+// nothing outside the policy enum is ever answered, by construction.
+// Internal: returns the public `preview` plus the per-item prepared
+// answer inputs the apply path consumes.
+function planApprovalBatch(ctx, input, { installRoot }) {
+  validateBatchInput(input);
+  const policy = loadAutoApprovePolicy({ installRoot });
+  const { candidates, malformed, truncated, missing }
+    = selectBatchCandidates(ctx, input);
+  if (candidates.length > BATCH_MAX) {
+    throw err('APPROVAL_INVALID',
+      `batch selects ${candidates.length} approvals (max ${BATCH_MAX})`);
+  }
+  const items = [];
+  const answerInputs = new Map();
+  const targetOf = (a) => ({ kind: a.target.kind,
+    artifactKind: a.target.artifactKind ?? null });
+  for (const m of missing) {
+    items.push({ id: m.id, disposition: 'skipped', reason: m.reason });
+  }
+  for (const a of candidates) {
+    if (a.status !== 'pending') {
+      items.push({ id: a.id, disposition: 'skipped',
+        reason: `not-pending:${a.status}`, target: targetOf(a) });
+      continue;
+    }
+    const rule = autoApproveRuleFor(a.target, policy.rules);
+    if (rule === null) {
+      items.push({ id: a.id, disposition: 'skipped',
+        reason: 'not-covered-by-policy', target: targetOf(a) });
+      continue;
+    }
+    // Audit trail: the history comment carries `rule:<id>`. Like every
+    // comment in the ledger this is declared, not authenticated — a
+    // manual single answer could write the same tag; it is a
+    // convention for humans and queries, not a proof of origin.
+    const answerInput = {
+      id: a.id, answer: input.answer,
+      expectedRevision: a.revision,
+      expectedTargetDigest: a.target.digest,
+      actor: input.actor,
+      comment: [input.comment, `rule:${rule.id}`]
+        .filter((v) => typeof v === 'string' && v.trim() !== '')
+        .join(' | '),
+    };
+    try {
+      const prepared = prepareApprovalAnswer(ctx, answerInput);
+      items.push({ id: a.id, disposition: 'answer', rule: rule.id,
+        revision: prepared.previous.revision, file: prepared.file.rel });
+      answerInputs.set(a.id, answerInput);
+    } catch (e) {
+      items.push({ id: a.id, disposition: 'skipped',
+        reason: e.code ?? 'error' });
+    }
+  }
+  return {
+    preview: {
+      schemaVersion: 1,
+      policy: { file: AUTO_APPROVE_REL, rules: policy.rules.length },
+      items,
+      summary: {
+        candidates: candidates.length + missing.length,
+        answerable: items.filter((i) => i.disposition === 'answer').length,
+        skipped: items.filter((i) => i.disposition === 'skipped').length,
+      },
+      malformed,
+      // Enumeration completeness: a store beyond STORE_SCAN_CAP was
+      // only partially scanned — surfaced, never implied complete.
+      truncated,
+    },
+    answerInputs,
+  };
+}
+
+export function prepareApprovalBatch(ctx, input,
+  { installRoot = INSTALL_ROOT } = {}) {
+  return planApprovalBatch(ctx, input, { installRoot }).preview;
+}
+
+// Locked batch answer: each covered item goes through the same locked
+// CAS path as a single answer. A per-item failure is recorded and the
+// batch continues — partial application is reported honestly per item,
+// never implied as all-or-nothing.
+export function answerApprovalBatch(ctx, input,
+  { installRoot = INSTALL_ROOT } = {}) {
+  const { preview, answerInputs } = planApprovalBatch(
+    ctx, input, { installRoot });
+  const results = preview.items.map((i) => ({ ...i }));
+  for (const item of results) {
+    const answerInput = answerInputs.get(item.id);
+    if (!answerInput) continue;
+    try {
+      const next = answerApproval(ctx, answerInput);
+      item.disposition = 'answered';
+      item.revision = next.revision;
+      item.status = next.status;
+    } catch (e) {
+      item.disposition = 'error';
+      item.reason = e.code ?? 'error';
+    }
+  }
+  preview.summary.answered = results.filter(
+    (i) => i.disposition === 'answered').length;
+  preview.summary.errors = results.filter(
+    (i) => i.disposition === 'error').length;
+  delete preview.summary.answerable;
+  return { ...preview, items: results };
 }
