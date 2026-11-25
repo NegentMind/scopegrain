@@ -24,10 +24,11 @@ record the owner's actual output — never self-report a check.
 3. Bug → `systematic-debugging`. New/complex logic →
    `test-driven-development`. Security-sensitive →
    `doubt-driven-development`.
-4. Read the declared workflow profile for the detected type, if one exists —
-   workflow profiles are guidance for which phases to apply and in what
-   order; enforcement always uses the generic state machine in
-   `policy/workflow.json`. Do not confuse the two sets of states.
+4. Read the workflow profile for the task's declared `type` in
+   `references/workflow-profiles`, if one exists — workflow profiles are
+   guidance for which phases to apply and in what order; enforcement
+   always uses the generic state machine in `policy/workflow.json`.
+   Do not confuse the two sets of states.
 
 ## Step 1 — Read current state
 

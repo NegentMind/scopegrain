@@ -1479,6 +1479,12 @@
       "id": "external-runner-contract",
       "path": "resources/references/external-runner-contract.md",
       "description": "Scheduler-agnostic protocol for resumable external plan runners: plan next -> CAS claim -> brief -> RESULT -> plan-runs checkpoint; advisory gates caveat."
+    },
+    {
+      "kind": "reference",
+      "id": "workflow-profiles",
+      "path": "resources/references/workflow-profiles.md",
+      "description": "Per-type phase guides (bug/feature/refactor/research) consumed by iteration-loop; advisory only — enforcement stays with policy/workflow.json."
     }
   ],
   "aliases": [
