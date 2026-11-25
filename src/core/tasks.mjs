@@ -429,7 +429,8 @@ export function validateTaskShape(task, label = 'task') {
   }
   if (!Array.isArray(task.history) || task.history.length === 0
       || !task.history.every((h) => h !== null && typeof h === 'object'
-        && isCanon(h.at) && typeof h.event === 'string')) {
+        && isCanon(h.at) && typeof h.event === 'string'
+        && (h.runId === undefined || UUID_RE.test(h.runId)))) {
     throw err('TASK_MALFORMED',
       `${label}.history must be a non-empty array of {at,event,...} records`);
   }
@@ -966,7 +967,8 @@ export function buildTaskRecord(input, { id, at, initial, slug }) {
     review: null,
     createdAt: at,
     updatedAt: at,
-    history: [{ at, event: 'created', state: initial, revision: 0 }],
+    history: [{ at, event: 'created', state: initial, revision: 0,
+      runId: crypto.randomUUID() }],
   };
   const v3 = input.v3;
   if (input.schemaVersion === 2 || input.schemaVersion === 3) {

@@ -80,6 +80,30 @@ test('duplicate scope entries are deduplicated at create', () => {
   } finally { cleanup(dir); }
 });
 
+test('history events carry runId; stored events without it stay valid', () => {
+  const { dir, ctx, task } = setup();
+  try {
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    assert.match(task.history[0].runId, UUID);
+    const moved = step(ctx, task.id, 'ACT', 0);
+    const ev = moved.history.at(-1);
+    assert.equal(ev.event, 'transition');
+    assert.match(ev.runId, UUID);
+    assert.notEqual(ev.runId, task.history[0].runId);
+    // Stored records written before the field existed stay readable.
+    const file = taskFilePath(ctx, task.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    for (const h of data.history) delete h.runId;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.ok(getTask(ctx, task.id));
+    // A malformed runId fails the stored shape.
+    data.history[0].runId = 'not-a-uuid';
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, task.id),
+      (e) => e.code === 'TASK_MALFORMED');
+  } finally { cleanup(dir); }
+});
+
 test('valid/invalid transitions, UUID traversal, stale revision', () => {
   const { dir, ctx, task } = setup();
   try {

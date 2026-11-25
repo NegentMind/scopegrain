@@ -118,7 +118,7 @@ function workflowConstraints() {
 // (legacy tmp+rename, or a journaled CAS update). `at` defaults to now;
 // journal-backed callers align it to the operation identity instead.
 export function evaluateTaskTransition(ctx, task, input,
-    at = new Date().toISOString()) {
+    at = new Date().toISOString(), runId = crypto.randomUUID()) {
   const { id, to, expectedRevision } = input;
   if (task.revision !== expectedRevision) {
     throw err('REVISION_MISMATCH',
@@ -205,7 +205,7 @@ export function evaluateTaskTransition(ctx, task, input,
     updatedAt: at,
     history: [...task.history, {
       at, event: 'transition', from: task.state, to,
-      revision: task.revision + 1,
+      revision: task.revision + 1, runId,
     }],
   };
   validateTaskShape(next, `task ${id}`);
@@ -367,7 +367,7 @@ export function validateMetaUpdateInput(input) {
 // Pure meta update: same CAS revision and history discipline as
 // evaluateTaskTransition, restricted to non-lifecycle fields.
 export function evaluateTaskMeta(ctx, task, input,
-    at = new Date().toISOString()) {
+    at = new Date().toISOString(), runId = crypto.randomUUID()) {
   if (task.revision !== input.expectedRevision) {
     throw err('REVISION_MISMATCH',
       `expected revision ${input.expectedRevision} but stored ${task.revision}`);
@@ -437,7 +437,7 @@ export function evaluateTaskMeta(ctx, task, input,
     updatedAt: at,
     history: [...task.history, {
       at, event: 'meta-update', fields,
-      revision: task.revision + 1,
+      revision: task.revision + 1, runId,
     }],
   };
   validateTaskShape(next, `task ${input.id}`);
@@ -512,7 +512,7 @@ export function validateAuthorizeInput(input) {
 }
 
 export function evaluateTaskAuthorization(ctx, task, input,
-    at = new Date().toISOString()) {
+    at = new Date().toISOString(), runId = crypto.randomUUID()) {
   if (task.revision !== input.expectedRevision) {
     throw err('REVISION_MISMATCH',
       `task ${task.id} is at revision ${task.revision}, ` +
@@ -540,7 +540,7 @@ export function evaluateTaskAuthorization(ctx, task, input,
     updatedAt: at,
     history: [...task.history, {
       at, event: 'authorized', actor, reference,
-      revision: task.revision + 1,
+      revision: task.revision + 1, runId,
     }],
   };
   validateTaskShape(next, `task ${input.id}`);
@@ -613,7 +613,7 @@ export function validateReassessInput(input) {
 }
 
 export function evaluateTaskReassessment(ctx, task, input,
-    at = new Date().toISOString()) {
+    at = new Date().toISOString(), runId = crypto.randomUUID()) {
   if (task.revision !== input.expectedRevision) {
     throw err('REVISION_MISMATCH',
       `task ${task.id} is at revision ${task.revision}, ` +
@@ -655,7 +655,7 @@ export function evaluateTaskReassessment(ctx, task, input,
       from: task.methodology == null
         ? null : classifyWork(task.methodology).route,
       to: route,
-      revision: task.revision + 1,
+      revision: task.revision + 1, runId,
     }],
   };
   validateTaskShape(next, `task ${input.id}`);
@@ -945,7 +945,8 @@ export function createOwnedTaskStore(ctx, options) {
         ...prepared.task,
         createdAt: identity.createdAt,
         updatedAt: identity.createdAt,
-        history: [{ ...prepared.task.history[0], at: identity.createdAt }],
+        history: [{ ...prepared.task.history[0], at: identity.createdAt,
+          runId: identity.operationId }],
       }, 'owned task');
       const recordId = record.id;
       const sourceRel = prepared.file.rel;
@@ -1004,7 +1005,7 @@ export function createOwnedTaskStore(ctx, options) {
       }
       journal = applyJournaledRecordUpdate(bound, (identity) => {
         const { next, serialized } = evaluateTaskTransition(privateCtx,
-          proof.record, inner, identity.createdAt);
+          proof.record, inner, identity.createdAt, identity.operationId);
         const sourceBytes = Buffer.from(serialized, 'utf8');
         const nextOwned = ownershipDoc(recordId, sourceRel,
           sha256Hex(sourceBytes), next.revision, identity.operationId,

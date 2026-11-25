@@ -44,6 +44,14 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `contextInheritance` | `isolated\|summary\|full` or null | How much prior context the executor receives when the task (or session) resumes. Declarative guidance for the host that assembles the packet — the harness does not pack context. Additive extension, same read/write rule as `allowedTools`. |
 | `modelTier` | `fast\|standard\|reasoning` or null | Declared model profile the host should route to. The host owns routing and cost; the field only records intent. Additive extension, same read/write rule as `allowedTools`. |
 
+`history[]` events carry an optional `runId` (UUID) correlating the
+mutation with the operation that wrote it: for journaled (owned) writes
+it IS the journal `operationId`; for legacy writes it is a fresh UUID per
+call. Events written before the field existed stay valid — `runId` is
+tolerated when present, never required on read. Transitions do not open
+sessions, so a session cannot inherit a runId; session↔task correlation
+stays on the session's own record.
+
 ## Plan semantic layer (schemaVersion 3)
 
 Plan records may carry the legacy plan-file semantics. Any semantic key

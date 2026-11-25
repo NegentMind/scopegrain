@@ -206,6 +206,8 @@ test('create commits two scoped events; get proves the current task', () => {
     assert.equal(ownership.sourceHash, SHA(sourceBytes));
     assert.equal(ownership.operationId, created.journal.operationId);
     assert.equal(ownership.createdAt, record.createdAt);
+    // The history runId IS the journal operation that wrote the event.
+    assert.equal(record.history[0].runId, created.journal.operationId);
     assert.deepEqual(ownership.scope, scopeOf(f, [f.a, f.b]));
     assert.deepEqual(ownership.chain, [created.journal.operationId]);
     const op = getJournalOperation(f.bound, created.journal.operationId);
@@ -249,6 +251,11 @@ test('transition commits a two-event CAS op; sidecar chain proves revision 1', (
     assert.equal(moved.record.state, 'ACT');
     assert.equal(moved.record.revision, 1);
     assert.equal(moved.ownershipRel, created.ownershipRel);
+    // runId correlation: create and update events name their own
+    // operation ids, so a reader can rebuild the call tree.
+    const trEv = moved.record.history.at(-1);
+    assert.equal(trEv.event, 'transition');
+    assert.equal(trEv.runId, moved.journal.operationId);
     const v1 = readSource(f, created.sourceRel);
     assert.equal(SHA(v1), SHA(Buffer.from(json(moved.record), 'utf8')));
     const updateOp = getJournalOperation(f.bound, moved.journal.operationId);
