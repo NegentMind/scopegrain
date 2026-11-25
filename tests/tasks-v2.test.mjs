@@ -315,14 +315,17 @@ test('stored V2 coherence: null-methodology-no-refs and sdd-classified light', (
     writeJson(dir, rel, m1);
     assert.throws(() => getTask(ctx, task.id),
       (e) => e.code === 'TASK_MALFORMED' && e.message.includes('null'));
-    // noRefs + assessment whose route is sdd -> coherent-V2 violation.
+    // noRefs + assessment whose route is sdd stays readable: the stored
+    // shape guarantees legibility only; the sdd requirement is enforced
+    // by the transition gate (METHODOLOGY_REQUIRED) and the record is
+    // repairable via `task reassess` — a TASK_MALFORMED here would wedge
+    // the record past every verb.
     const m2 = JSON.parse(JSON.stringify(good));
     m2.specId = null; m2.designId = null; m2.scenarioRefs = [];
     m2.methodology = { ...ASSESS, risk: 'named',
       riskCategories: ['security'] };
     writeJson(dir, rel, m2);
-    assert.throws(() => getTask(ctx, task.id),
-      (e) => e.code === 'TASK_MALFORMED');
+    assert.equal(getTask(ctx, task.id).schemaVersion, 2);
     // Light assessment + no refs is the ONLY legal noRefs V2.
     const m3 = JSON.parse(JSON.stringify(m2));
     m3.methodology = ASSESS;

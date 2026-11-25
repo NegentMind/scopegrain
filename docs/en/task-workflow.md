@@ -134,6 +134,11 @@ node .\bin\scopegrain.mjs task step --project P <UUID> --revision 4 --index 0 --
 # 'missing' authorization; CAS with --revision N)
 node .\bin\scopegrain.mjs task authorize --project P <UUID> --revision 1 --actor owner --reference "decision D-7" --apply
 
+# Re-assess the stored methodology (light records; formal spec/design
+# bindings are immutable). --input carries the assessment object;
+# CAS with --revision N
+node .\bin\scopegrain.mjs task reassess --project P <UUID> --revision 1 --input assessment.json --apply
+
 # List a named backlog (no filter = all)
 node .\bin\scopegrain.mjs task list --project P --backlog future
 

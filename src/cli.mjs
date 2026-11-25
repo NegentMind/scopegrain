@@ -244,6 +244,11 @@ const COMMANDS = {
       '--apply'], pos: 1,
     usage: 'task authorize --project PATH ID --revision N --actor NAME --reference REF [--apply]',
   },
+  'task reassess': {
+    flags: ['--project', '--config', '--revision', '--input', '--apply'],
+    pos: 1,
+    usage: 'task reassess --project PATH ID --revision N --input FILE [--apply]',
+  },
   'task disposition': {
     flags: ['--project', '--config', '--revision', '--reason', '--by',
       '--apply'], pos: 2,
@@ -1222,7 +1227,8 @@ async function cmdTask(sub, positional, flags, io) {
     transitionTask, updateTaskMeta, checkAction, evaluateTaskMeta,
     evaluateTaskTransition, validateMetaUpdateInput,
     validateTransitionInput, authorizeTask, evaluateTaskAuthorization,
-    validateAuthorizeInput,
+    validateAuthorizeInput, reassessTask, evaluateTaskReassessment,
+    validateReassessInput,
   } = await import('./core/transition.mjs');
   const { appendWorklog } = await import('./core/worklog.mjs');
   const { writeTaskDoc } = await import('./core/taskdoc.mjs');
@@ -1322,6 +1328,24 @@ async function cmdTask(sub, positional, flags, io) {
       return { mode: 'dry-run', applied: false, task: evaluated.next };
     }
     return authorizeTask(ctx, authInput);
+  }
+  if (sub === 'reassess') {
+    if (flags['--revision'] === undefined) {
+      throw err('INVALID_ARGS', '--revision N is required');
+    }
+    const reassessInput = {
+      id: positional[0],
+      expectedRevision: decimalInt(flags['--revision'], '--revision'),
+      methodology: readInputFile(requireFlag(flags, '--input'),
+        'task reassessment'),
+    };
+    if (!flags['--apply']) {
+      validateReassessInput(reassessInput);
+      const evaluated = evaluateTaskReassessment(
+        ctx, getTask(ctx, reassessInput.id), reassessInput);
+      return { mode: 'dry-run', applied: false, task: evaluated.next };
+    }
+    return reassessTask(ctx, reassessInput);
   }
   if (sub === 'disposition') {
     if (flags['--revision'] === undefined) {

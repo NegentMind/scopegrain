@@ -496,16 +496,15 @@ function validateV2Fields(task, label) {
     if (task.methodology === null) {
       return;
     }
-    let route;
+    // A structurally valid assessment that classifies sdd without formal
+    // refs is a gate problem (METHODOLOGY_REQUIRED at ACT), not malformed
+    // data: the record must stay readable so `task reassess` can repair
+    // it — a TASK_MALFORMED here wedges the record past every verb.
     try {
-      ({ route } = classifyWork(task.methodology));
+      classifyWork(task.methodology);
     } catch (e) {
       throw err('TASK_MALFORMED',
         `${label}.methodology: ${e.message}`);
-    }
-    if (route === 'sdd') {
-      throw err('TASK_MALFORMED',
-        `${label} light assessment classifies sdd but has no formal refs`);
     }
   }
 }

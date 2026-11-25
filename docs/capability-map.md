@@ -15,7 +15,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `140` entrad
 
 | Superficie | Inventario | Acceso |
 |---|---|---|
-| CLI `bin/scopegrain.mjs` | 144 subcomandos registrados, imports perezosos por comando | Humano y agente |
+| CLI `bin/scopegrain.mjs` | 145 subcomandos registrados, imports perezosos por comando | Humano y agente |
 | MCP `src/mcp/server.mjs` | 37 tools `scopegrain_*`: 23 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawn del binario VantaDB enrolado) + 8 de escritura (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | Hosts MCP (stdio) |
 | API local `src/api/server.mjs` | 30 rutas GET `/api/*` | Loopback-only, GET-only |
 | Visor `viewer/` (`scopegrain view`) | 15 vistas React 19 + TS + Vite + Tailwind | Read-only, humano |

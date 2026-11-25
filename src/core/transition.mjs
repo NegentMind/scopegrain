@@ -32,6 +32,9 @@ import {
 } from './tasks.mjs';
 import { validateReview, validateVerification } from './evidence.mjs';
 import { evaluateMethodology, evaluateTaskActions } from './methodology.mjs';
+import {
+  classifyWork, validateMethodologyData,
+} from './methodology-data.mjs';
 import { canonicalJSON } from './digests.mjs';
 import {
   applyJournaledRecordCreation, applyJournaledRecordUpdate,
@@ -557,6 +560,121 @@ export function authorizeTask(ctx, input) {
   try {
     const task = getTask(ctx, input.id);
     const evaluated = evaluateTaskAuthorization(ctx, task, input);
+    mkdirpSync(path.dirname(file));
+    tmpPath = `${file}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
+    writeFileExclusive(tmpPath, evaluated.serialized);
+    tmpOwned = true;
+    fs.renameSync(tmpPath, file);
+    tmpOwned = false;
+    next = evaluated.next;
+  } catch (e) {
+    failure = e;
+  } finally {
+    if (tmpOwned) removeIfExists(tmpPath);
+    try {
+      releaseVerifiedLock(lock);
+    } catch (e) {
+      if (!failure) failure = e;
+    }
+  }
+  if (failure) throw failure;
+  return next;
+}
+
+// Re-assessment: replaces the stored methodology blob on a light record
+// (no formal refs — the spec/design binding is immutable). The legal
+// repair for assessments recorded misclassified (e.g. an sdd-classifying
+// light record) and for V1 records that must gain an assessment to work
+// under a gated mode. CAS + revision + history like authorize.
+const REASSESS_KEYS = new Set(['id', 'expectedRevision', 'methodology']);
+
+export function validateReassessInput(input) {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw err('INVALID_ARGS', 'reassessTask input must be an object');
+  }
+  for (const key of Object.keys(input)) {
+    if (!REASSESS_KEYS.has(key)) {
+      throw err('UNKNOWN_KEY',
+        `reassessTask received unknown key '${key}'`);
+    }
+  }
+  if (!Number.isSafeInteger(input.expectedRevision)
+      || input.expectedRevision < 0) {
+    throw err('REVISION_MISMATCH',
+      'expectedRevision must be a non-negative safe integer');
+  }
+  if (input.methodology === null || typeof input.methodology !== 'object'
+      || Array.isArray(input.methodology)) {
+    throw err('INVALID_VALUE', 'methodology must be an assessment object');
+  }
+}
+
+export function evaluateTaskReassessment(ctx, task, input,
+    at = new Date().toISOString()) {
+  if (task.revision !== input.expectedRevision) {
+    throw err('REVISION_MISMATCH',
+      `task ${task.id} is at revision ${task.revision}, ` +
+      `expected ${input.expectedRevision}`);
+  }
+  if (task.specId != null || task.designId != null || task.planKey != null) {
+    throw err('INVALID_VALUE',
+      'formal bindings are immutable; reassess applies to light records only');
+  }
+  const assessment = validateMethodologyData(
+    input.methodology, 'task reassessment');
+  const { route } = classifyWork(assessment);
+  if (route === 'sdd') {
+    throw err('METHODOLOGY_REQUIRED',
+      'classified sdd requires the specId+designId pair, which '
+      + 're-assessment cannot bind — create a formal task instead');
+  }
+  let next = task;
+  if (next.schemaVersion !== 3) {
+    // Same upgrade semantics as evaluateTaskMeta: V2 keeps its refs
+    // (all null for light records), V1 gains the V3 semantic fields.
+    next = {
+      ...next,
+      schemaVersion: 3,
+      specId: next.schemaVersion === 2 ? next.specId : null,
+      designId: next.schemaVersion === 2 ? next.designId : null,
+      planKey: next.schemaVersion === 2 ? next.planKey : null,
+      scenarioRefs: next.schemaVersion === 2 ? next.scenarioRefs : [],
+      ...V3_DEFAULTS,
+    };
+  }
+  next = {
+    ...next,
+    methodology: assessment,
+    revision: task.revision + 1,
+    updatedAt: at,
+    history: [...task.history, {
+      at, event: 'reassessed',
+      from: task.methodology == null
+        ? null : classifyWork(task.methodology).route,
+      to: route,
+      revision: task.revision + 1,
+    }],
+  };
+  validateTaskShape(next, `task ${input.id}`);
+  const serialized = JSON.stringify(next, null, 2) + '\n';
+  if (Buffer.byteLength(serialized, 'utf8') > loadLimits().maxDocumentBytes) {
+    throw err('DOCUMENT_TOO_LARGE',
+      'task record would exceed document bytes limit');
+  }
+  return { next, serialized };
+}
+
+export function reassessTask(ctx, input) {
+  validateReassessInput(input);
+  const file = taskFilePath(ctx, input.id);
+  const lock = acquireLock(file);
+  let tmpPath = null;
+  let tmpOwned = false;
+  let next;
+  let failure;
+  try {
+    const task = getTask(ctx, input.id);
+    const evaluated = evaluateTaskReassessment(ctx, task, input);
     mkdirpSync(path.dirname(file));
     tmpPath = `${file}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
     writeFileExclusive(tmpPath, evaluated.serialized);
