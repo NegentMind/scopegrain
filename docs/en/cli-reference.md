@@ -820,6 +820,33 @@ without a shell (CVE-2024-27980). Re-declare the command with a real
 executable: `node <script>` (e.g.
 `node node_modules/npm/bin/npm-cli.js test`) or the tool's `.exe`.
 
+### rule * — local overlay rule lifecycle
+
+```text
+scopegrain rule list --project PATH
+scopegrain rule show ID --project PATH
+scopegrain rule propose --project PATH --input FILE [--id ID] [--apply]
+scopegrain rule approve ID --project PATH --revision N [--apply]
+scopegrain rule archive ID --project PATH --revision N [--apply]
+```
+
+`list`/`show` read across layers (canonical, mounted, local) with the
+resolved `status`/`origin`. `propose` stages the input file as
+`rules/local/<id>.md` with `Status: Proposed` — drafts never enter
+packets. `approve`/`archive` flip the lifecycle marker on a LOCAL rule
+only (canonical and mounted rules are pinned), behind a `--revision`
+CAS on the per-rule mutation count reported by `rule show` — a rule
+created outside the store starts at revision 0. `approve` only accepts
+`proposed` (archive is terminal); `archive` accepts anything not
+already archived. When a workspace is bound the journal kernel
+additionally proves `previousHash`; the unbound fallback is a
+single-writer hash-checked write (concurrent processes can race the
+last rename). Every mutation is recorded in
+`state/rules-journal.jsonl`; mutating verbs preview without `--apply`
+like everywhere else. Local rule ids are lowercase slugs — a hand-made
+`Foo.md` lists in `rule list` but its mutations fail `INVALID_ID`
+(the overlay accepts the file, the store does not).
+
 ## Global user config, version, wave progress and VantaDB L3
 
 ### `--version` / `-v` / `-V` / `-h`

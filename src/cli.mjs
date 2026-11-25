@@ -732,6 +732,26 @@ const COMMANDS = {
     flags: ['--project', '--config', '--timeout', '--fail-on-error'], pos: 1,
     usage: 'verify run ID --project PATH [--timeout MS] [--fail-on-error]',
   },
+  'rule list': {
+    flags: ['--project', '--config'], pos: 0,
+    usage: 'rule list --project PATH [--config REL]',
+  },
+  'rule show': {
+    flags: ['--project', '--config'], pos: 1,
+    usage: 'rule show ID --project PATH [--config REL]',
+  },
+  'rule propose': {
+    flags: ['--project', '--config', '--input', '--id', '--apply'], pos: 0,
+    usage: 'rule propose --project PATH --input FILE [--id ID] [--apply]',
+  },
+  'rule approve': {
+    flags: ['--project', '--config', '--revision', '--apply'], pos: 1,
+    usage: 'rule approve ID --project PATH --revision N [--apply]',
+  },
+  'rule archive': {
+    flags: ['--project', '--config', '--revision', '--apply'], pos: 1,
+    usage: 'rule archive ID --project PATH --revision N [--apply]',
+  },
   view: {
     flags: ['--project', '--config', '--port', '--host', '--allow-write'],
     pos: 0,
@@ -792,6 +812,7 @@ const FAMILY_DESCRIPTIONS = {
   host: 'host activation, manifests, parity and gate proposals',
   helper: 'project-local helper script installation',
   verify: 'supervised verification commands (approve, run)',
+  rule: 'local overlay rule lifecycle (propose, approve, archive)',
 };
 
 function describeCommand(name) {
@@ -3120,6 +3141,42 @@ async function cmdVerify(sub, positional, flags, io) {
   throw err('INVALID_ARGS', `unknown verify subcommand '${sub}'`);
 }
 
+// Local rule lifecycle over rules/local/: list/show read across layers;
+// propose/approve/archive preview first and write through the journaled
+// store (kernel CAS when a workspace is bound, hash-checked writes
+// otherwise). Only local overlay rules are mutable — canonical and
+// mounted rules are pinned resources.
+async function cmdRule(sub, positional, flags, io) {
+  const { listRules, showRule, prepareProposeRule, applyProposeRule,
+    prepareFlipRule, applyFlipRule } =
+    await import('./core/rules.mjs');
+  const ctx = resolveContext({
+    project: projectFlag(flags), config: flags['--config'],
+  });
+  if (sub === 'list') return listRules(ctx);
+  if (sub === 'show') return showRule(ctx, positional[0]);
+  if (sub === 'propose') {
+    const options = { input: requireFlag(flags, '--input') };
+    if (flags['--id'] !== undefined) options.id = flags['--id'];
+    if (!flags['--apply']) {
+      return prepareProposeRule(ctx, options);
+    }
+    return applyProposeRule(ctx, options);
+  }
+  if (sub === 'approve' || sub === 'archive') {
+    const target = sub === 'approve' ? 'active' : 'archived';
+    const options = {
+      revision: decimalInt(requireFlag(flags, '--revision'),
+        '--revision'),
+    };
+    if (!flags['--apply']) {
+      return prepareFlipRule(ctx, positional[0], options, target);
+    }
+    return applyFlipRule(ctx, positional[0], options, target);
+  }
+  throw err('INVALID_ARGS', `unknown rule subcommand '${sub}'`);
+}
+
 // Loopback viewer API — read-only unless --allow-write opts in to the
 // bounded catalog-doc edit endpoint. The returned server handle keeps the
 // process alive; the operator stops it with Ctrl+C. The live handle is
@@ -3184,7 +3241,7 @@ export async function run(argv, io) {
       return 0;
     }
     const GROUPED = new Set(['task', 'catalog', 'plan', 'artifact', 'session', 'resource', 'workspace', 'journal', 'capture',
-      'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb',
+      'specification', 'design', 'outcome', 'approval', 'methodology', 'host', 'verify', 'vantadb', 'rule',
       'helper', 'dist',
       'memory', 'goal', 'report', 'activity', 'hooks', 'structure',
       'constitution', 'config']);
@@ -3340,6 +3397,8 @@ export async function run(argv, io) {
       result = await cmdView(flags, io);
     } else if (cmdKey.startsWith('verify ')) {
       result = await cmdVerify(cmdKey.slice(7), rest, flags, io);
+    } else if (cmdKey.startsWith('rule ')) {
+      result = await cmdRule(cmdKey.slice(5), rest, flags, io);
     } else if (cmdKey.startsWith('memory ')) {
       result = await cmdMemory(cmdKey.slice(7), flags);
     } else if (cmdKey.startsWith('goal ')) {

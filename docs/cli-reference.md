@@ -821,6 +821,34 @@ batch sin shell (CVE-2024-27980). Vuelve a declarar el comando con un
 ejecutable real: `node <script>` (p.ej. `node node_modules/npm/bin/npm-cli.js test`)
 o el `.exe` de la herramienta.
 
+### rule * — ciclo de vida de reglas del overlay local
+
+```text
+scopegrain rule list --project PATH
+scopegrain rule show ID --project PATH
+scopegrain rule propose --project PATH --input FILE [--id ID] [--apply]
+scopegrain rule approve ID --project PATH --revision N [--apply]
+scopegrain rule archive ID --project PATH --revision N [--apply]
+```
+
+`list`/`show` leen todas las capas (canonica, montada, local) con el
+`status`/`origin` resuelto. `propose` prepara el archivo de entrada
+como `rules/local/<id>.md` con `Status: Proposed` — los borradores
+nunca entran en paquetes. `approve`/`archive` cambian el marcador de
+ciclo de vida solo en reglas LOCALES (las canonicas y montadas estan
+fijadas), detras de un CAS `--revision` sobre el conteo de mutaciones
+de la regla que reporta `rule show` — una regla creada fuera del store
+arranca en revision 0. `approve` solo acepta `proposed` (archive es
+terminal); `archive` acepta cualquier estado no archivado. Con
+workspace ligado el kernel del journal ademas prueba `previousHash`;
+el fallback sin workspace es una escritura verificada por hash de un
+solo escritor (procesos concurrentes pueden competir por el ultimo
+rename). Toda mutacion queda en `state/rules-journal.jsonl`; los
+verbos mutantes previsualizan sin `--apply` como en el resto. Los ids
+de reglas locales son slugs en minusculas — un `Foo.md` creado a mano
+aparece en `rule list` pero sus mutaciones fallan `INVALID_ID` (el
+overlay acepta el archivo, el store no).
+
 ## Configuracion global, version, progreso de olas y VantaDB L3
 
 ### `--version` / `-v` / `-V` / `-h`
