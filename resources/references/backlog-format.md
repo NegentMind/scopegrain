@@ -36,6 +36,7 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `requiredCapabilities` | `[string]` or null | Capabilities the executor must have for dispatch. Distinct semantics: `skills` = capabilities exercised (historical record), `allowedTools` = permitted boundary, `requiredCapabilities` = required for routing — a declarative hint the host uses to pick an executor. Additive extension, same read/write rule as `allowedTools`. |
 | `agentRole` | string or null | Declarative profile assigned to the task (e.g. a `resources/agents/*` persona). Reference is not resolved at write time: stored records stay readable even if the profile later disappears. Additive extension, same read/write rule as `allowedTools`. |
 | `expectedOutputs` | `[{path, mustExist?, mustBeNonEmpty?}]` or null | Artifacts the task must produce for its definition-of-done. `path` is a canonical relative path inside the project root (same rule as `scope`); existence is not required at write time. VERIFY/EVALUATE consumers may check the files as a deterministic check. Additive extension, same read/write rule as `allowedTools`. |
+| `sideEffects` | `none|reversible|irreversible` or null | Declarative impact classification of the task's effects (e.g. `irreversible` for production deploys or external sends). Consumable by `preAction` hooks and hosts — the classification is data, not enforcement: the harness does not execute the effects. Additive extension, same read/write rule as `allowedTools`. |
 
 ## Plan semantic layer (schemaVersion 3)
 

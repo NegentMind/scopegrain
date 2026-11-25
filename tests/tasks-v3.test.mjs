@@ -228,6 +228,36 @@ test('expectedOutputs: canonical paths, closed item keys, bool flags', () => {
   } finally { cleanup(dir); }
 });
 
+test('sideEffects: enum none|reversible|irreversible or null', () => {
+  const { dir, ctx } = setup();
+  try {
+    for (const v of ['none', 'reversible', 'irreversible']) {
+      const { task } = prepareTask(ctx, { ...BASE, sideEffects: v });
+      assert.equal(task.sideEffects, v);
+    }
+    assert.throws(() => prepareTask(ctx, { ...BASE, sideEffects: 'maybe' }),
+      (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, { ...BASE, sideEffects: 3 }),
+      (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, sideEffects: null });
+    assert.equal(applied.sideEffects, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { sideEffects: 'irreversible' },
+    });
+    assert.equal(next.sideEffects, 'irreversible');
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.sideEffects = 'explosive';
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.sideEffects;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).sideEffects, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

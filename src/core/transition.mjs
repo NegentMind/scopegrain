@@ -286,7 +286,7 @@ const META_SETTABLE = new Set([
   'backlog', 'priority', 'severity', 'type', 'effort', 'estimate', 'source',
   'relations', 'dependsOn', 'goalIds', 'analysis', 'steps', 'notes',
   'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
-  'agentRole', 'expectedOutputs',
+  'agentRole', 'expectedOutputs', 'sideEffects',
 ]);
 // Content fields are NOT meta-settable: the contract is bound into the
 // approval digest and verification attestation, so post-approval edits

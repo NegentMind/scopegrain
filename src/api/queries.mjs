@@ -237,6 +237,7 @@ function taskSummary(task) {
     agentRole: task.agentRole ?? null,
     expectedOutputs: Array.isArray(task.expectedOutputs)
       ? task.expectedOutputs : null,
+    sideEffects: task.sideEffects ?? null,
   };
 }
 
