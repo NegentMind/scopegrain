@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
-import { api } from '@/lib/api';
+import { api, type GraphFiles, type GraphTaskNode } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useT } from '@/lib/i18n';
 import { EmptyBox, ErrorBox, ListSkeleton } from '@/components/StatusBits';
@@ -22,8 +22,10 @@ export function GraphView() {
   //    a plan DAG.
   const tasksApi = useApi(() => api.tasks(500));
   const plansApi = useApi(() => api.plans());
+  const impactApi = useApi(() => api.graphFiles(500));
   usePoll(tasksApi.reload);
   usePoll(plansApi.reload);
+  usePoll(impactApi.reload);
 
   const planDags = useMemo(() => {
     const out: ({ key: string; title: string; done: number; total: number }
@@ -95,7 +97,7 @@ export function GraphView() {
     return { nodes, edges };
   }, [tasksApi.data, planDags]);
 
-  if (tasksApi.loading || plansApi.loading) {
+  if (tasksApi.loading || plansApi.loading || impactApi.loading) {
     return <ListSkeleton label={t('common.loading')} />;
   }
   if (tasksApi.error) {
@@ -103,6 +105,9 @@ export function GraphView() {
   }
   if (plansApi.error) {
     return <ErrorBox error={plansApi.error} onRetry={plansApi.reload} />;
+  }
+  if (impactApi.error) {
+    return <ErrorBox error={impactApi.error} onRetry={impactApi.reload} />;
   }
 
   const totalTasks = tasksApi.data?.tasks.length ?? 0;
@@ -165,6 +170,10 @@ export function GraphView() {
           </div>
         )}
       </ViewSection>
+      <FileImpactSection
+        data={impactApi.data ?? undefined}
+        refreshing={impactApi.refreshing}
+      />
     </div>
   );
 }
@@ -220,5 +229,138 @@ function DagLegend() {
         </Item>
       </span>
     </div>
+  );
+}
+
+// File impact per node: declared (scope regions, step files) and
+// recorded (progress/activity `files`) paths crossed with the structure
+// index. `indexed:null` and `matched:null` are surfaced as absent data —
+// never invented metadata. When the index itself is missing the whole
+// section says so instead of implying zero coverage.
+function FileImpactSection({
+  data, refreshing,
+}: {
+  data: GraphFiles | undefined;
+  refreshing: boolean;
+}) {
+  const t = useT();
+  const nodes = useMemo(
+    () => (data?.tasks ?? [])
+      .filter((n) => n.files.length > 0 || n.scope.length > 0),
+    [data],
+  );
+  const indexPresent = data?.index.present === true;
+  const viaLabel = (v: string) => t(`graph.via.${v}`);
+
+  return (
+    <ViewSection
+      title={t('graph.impact')}
+      description={t('graph.impactDesc')}
+      refreshing={refreshing}
+      truncated={data?.truncated === true}
+    >
+      {!indexPresent && data !== undefined ? (
+        <EmptyBox>{t('graph.indexAbsent')}</EmptyBox>
+      ) : null}
+      {data !== undefined
+      && (data.worklogTail.progress.truncated
+        || data.worklogTail.activity.truncated
+        || data.worklogTail.progress.malformed > 0
+        || data.worklogTail.activity.malformed > 0) ? (
+          <p className="text-xs text-muted-foreground">
+            {t('graph.logTruncated')}
+            {(data.worklogTail.progress.malformed
+              + data.worklogTail.activity.malformed) > 0
+              ? ` ${t('graph.logMalformed').replace('{n}', String(
+                  data.worklogTail.progress.malformed
+                  + data.worklogTail.activity.malformed))}`
+              : ''}
+          </p>
+        ) : null}
+      {nodes.length === 0 ? (
+        <EmptyBox>{t('graph.impactEmpty')}</EmptyBox>
+      ) : (
+        <ul className="space-y-3">
+          {nodes.map((n: GraphTaskNode) => (
+            <li key={n.id} className="rounded-md border p-3">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <a
+                  href={`#/tasks/${encodeURIComponent(n.id)}`}
+                  className="font-medium hover:underline"
+                >
+                  {n.title || n.id.slice(0, 8)}
+                </a>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {n.state}
+                </span>
+                {n.planKey ? (
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {n.planKey}
+                  </span>
+                ) : null}
+              </div>
+              {n.scope.length > 0 ? (
+                <ul className="mt-2 space-y-1">
+                  {n.scope.map((s) => (
+                    <li key={s.region}
+                      className="font-mono text-xs text-muted-foreground">
+                      {s.region}
+                      {s.matched === null ? (
+                        <> · {t('graph.notIndexed')}</>
+                      ) : (
+                        <>
+                          {' · '}
+                          {t('graph.matched')
+                            .replace('{n}', String(s.matched))}
+                        </>
+                      )}
+                      {s.sample.length > 0 ? (
+                        <ul className="ml-4 mt-0.5 space-y-0.5">
+                          {s.sample.map((p) => (
+                            <li key={p}>{p}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {n.files.length > 0 ? (
+                <ul className="mt-2 space-y-1">
+                  {n.files.map((f) => (
+                    <li key={f.path}
+                      className="flex flex-wrap items-baseline gap-x-2 font-mono text-xs">
+                      <span>{f.path}</span>
+                      <span className="text-muted-foreground">
+                        {f.via.map(viaLabel).join(', ')}
+                      </span>
+                      {f.indexed ? (
+                        <span className="text-muted-foreground">
+                          {[
+                            f.indexed.lang !== '-' ? f.indexed.lang : null,
+                            f.indexed.lines >= 0
+                              ? `${f.indexed.lines} L` : null,
+                          ].filter(Boolean).join(' · ')
+                            || t('graph.indexedNoMeta')}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {t('graph.notIndexed')}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {n.filesTruncated ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('graph.filesTruncated')}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </ViewSection>
   );
 }

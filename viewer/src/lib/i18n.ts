@@ -339,6 +339,25 @@ const DICT: Record<Locale, Record<string, string>> = {
     'graph.legend.rel': 'typed relation',
     'graph.legend.blocks': 'blocks',
     'graph.empty': 'No dependencies or relations recorded yet.',
+    'graph.impact': 'File impact',
+    'graph.impactDesc':
+      'Files each node touches or promises to touch — declared scope ' +
+      'regions and step files, plus recorded progress/activity paths, ' +
+      'crossed with the structure index.',
+    'graph.indexAbsent':
+      'No structure index — run `structure refresh --apply` to populate ' +
+      'file metadata. Recorded paths still show, unindexed.',
+    'graph.impactEmpty': 'No declared or recorded file paths yet.',
+    'graph.notIndexed': 'not indexed',
+    'graph.indexedNoMeta': 'indexed',
+    'graph.matched': '{n} indexed',
+    'graph.filesTruncated': 'file list capped — more paths exist',
+    'graph.logTruncated':
+      'Recorded log tail reached — older file paths may be missing.',
+    'graph.logMalformed': '({n} malformed entries skipped)',
+    'graph.via.step': 'step',
+    'graph.via.progress': 'recorded',
+    'graph.via.activity': 'activity',
     'viz.funnel': 'Lifecycle funnel diagram (horizontally scrollable)',
     'viz.dag': 'Task dependency diagram (horizontally scrollable)',
     'viz.dagSummary': '{n} tasks, {m} dependencies',
@@ -834,6 +853,26 @@ const DICT: Record<Locale, Record<string, string>> = {
     'graph.legend.rel': 'relación tipada',
     'graph.legend.blocks': 'bloquea',
     'graph.empty': 'Sin dependencias ni relaciones registradas aún.',
+    'graph.impact': 'Impacto de archivos',
+    'graph.impactDesc':
+      'Archivos que cada nodo toca o promete tocar — regiones de scope ' +
+      'declaradas y archivos de steps, más rutas registradas en ' +
+      'progress/activity, cruzadas con el índice estructural.',
+    'graph.indexAbsent':
+      'Sin índice estructural — ejecuta `structure refresh --apply` ' +
+      'para poblar los metadatos. Las rutas registradas se muestran ' +
+      'igual, sin indexar.',
+    'graph.impactEmpty': 'Aún no hay rutas declaradas ni registradas.',
+    'graph.notIndexed': 'no indexado',
+    'graph.indexedNoMeta': 'indexado',
+    'graph.matched': '{n} indexados',
+    'graph.filesTruncated': 'lista recortada — hay más rutas',
+    'graph.logTruncated':
+      'Cola del registro alcanzada — pueden faltar rutas más antiguas.',
+    'graph.logMalformed': '({n} entradas malformadas omitidas)',
+    'graph.via.step': 'step',
+    'graph.via.progress': 'registrado',
+    'graph.via.activity': 'activity',
     'viz.funnel': 'Diagrama del embudo del ciclo de vida (desplazable horizontalmente)',
     'viz.dag': 'Diagrama de dependencias de tareas (desplazable horizontalmente)',
     'viz.dagSummary': '{n} tareas, {m} dependencias',

@@ -100,6 +100,7 @@ unknown paths 404; unknown query parameters 400.
 | `GET /api/plan-docs` | plan file listing (`<paths.plans>/*.md`: name, bytes, updatedAt) |
 | `GET /api/plan-docs/:name` | plan file contents (`*.md` slug resolved inside the plans dir) |
 | `GET /api/plans/:key` | plan document + readiness + execution `waves` + persisted `runState` |
+| `GET /api/graph/files?limit=&offset=` | Meta→Plan→Task graph crossed with the structure index: per-task declared (`scope`, `steps[].files`) and recorded (progress/activity `files`) paths; `indexed:null`/`matched:null` mark absent data, `index.present:false` when no index |
 | `GET /api/artifact-docs?kind=` | loose `.md` documents per kind (canonical + legacy `.scopegrain/<kind>/` dirs): name, title, status, date, bytes |
 | `GET /api/artifact-docs/:kind/:name` | artifact document contents (`*.md` slug bounded to the kind's dirs) |
 | `GET /api/artifacts?kind=&limit=&offset=` | `kind` required, one of `spec design report research decision lesson handoff review` |

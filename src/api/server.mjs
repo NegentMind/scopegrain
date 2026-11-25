@@ -172,6 +172,8 @@ export const ROUTES = [
     handler: (q) => q.vantadb() },
   { pattern: ['api', 'workflow'], query: [],
     handler: (q) => q.workflow() },
+  { pattern: ['api', 'graph', 'files'], query: ['limit', 'offset'],
+    handler: (q, url) => q.graphFiles(parseListOptions(url)) },
 ];
 
 function matchRoute(segments) {

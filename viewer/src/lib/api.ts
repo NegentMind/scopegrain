@@ -322,6 +322,57 @@ export interface PlanList {
   malformed: MalformedEntry[];
 }
 
+// GET /api/graph/files: Meta -> Plan -> Task crossed with the structure
+// index and recorded file paths. `indexed:null`/`matched:null` means
+// absent data, never invented metadata.
+export interface GraphFileImpact {
+  path: string;
+  // 'scope' is intentionally absent: scope regions are a separate
+  // section, never a `via` source.
+  via: ('step' | 'progress' | 'activity')[];
+  // Index sentinels: lines/bytes may be -1 and lang '-' (not measured).
+  indexed: { lang: string; bytes: number; lines: number } | null;
+}
+
+export interface GraphTaskNode {
+  id: string;
+  title: string | null;
+  state: string;
+  planKey: string | null;
+  goalIds: string[] | null;
+  scope: { region: string; matched: number | null; sample: string[] }[];
+  files: GraphFileImpact[];
+  filesTruncated: boolean;
+}
+
+export interface GraphFiles {
+  schemaVersion: number;
+  index: {
+    present: boolean;
+    generatedAt?: string | null;
+    statOnly?: boolean | null;
+    filesTruncated?: boolean;
+  };
+  goals: {
+    id: string;
+    title: string | null;
+    status: string;
+    linkedPlanKeys: string[] | null;
+  }[];
+  plans: {
+    key: string;
+    title: string;
+    members: { key: string; id: string }[];
+  }[];
+  // Tail window applied to each recorded log; `truncated:true` means
+  // older recorded paths exist beyond this view.
+  worklogTail: Record<'progress' | 'activity',
+    { tail: number; truncated: boolean; malformed: number }>;
+  tasks: GraphTaskNode[];
+  tasksTotal: number;
+  truncated: boolean;
+}
+
 export interface PlanDetail extends PlanBreakdown {
   plan: {
     schemaVersion: number;
@@ -634,6 +685,10 @@ export const api = {
   taskDoc: (id: string) =>
     request<TaskDoc>(`/api/tasks/${encodeURIComponent(id)}/doc`),
   plans: () => request<PlanList>('/api/plans'),
+  graphFiles: (limit = 500, offset = 0) =>
+    request<GraphFiles>(
+      `/api/graph/files?limit=${encodeURIComponent(limit)}` +
+      `&offset=${encodeURIComponent(offset)}`),
   planDocs: () =>
     request<{ docs: PlanDocSummary[]; truncated?: boolean | null }>(
       '/api/plan-docs'),

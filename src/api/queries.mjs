@@ -13,10 +13,11 @@ import {
 } from '../core/fsx.mjs';
 import { loadLimits } from '../core/policy.mjs';
 import {
-  listGoals, readWorklog, taskMetrics,
+  isUUID, listGoals, readWorklog, taskMetrics,
 } from '../core/worklog.mjs';
 import { configRel, resolveInside } from '../core/paths.mjs';
 import { getTask, listTasks } from '../core/tasks.mjs';
+import { readStructureIndex } from '../discovery/structure.mjs';
 import { getChecklist } from '../core/checklists.mjs';
 import { getConstitution } from '../core/constitution.mjs';
 import { getActiveTask } from '../core/active.mjs';
@@ -1351,6 +1352,131 @@ export function createApiQueries(ctx, options = {}) {
     return { workflow: loadPolicy() };
   }
 
+  // `GET /api/graph/files`: the Meta -> Plan -> Task graph crossed with
+  // the structure index and the recorded file paths — what each node
+  // touches or promises to touch. File impact sources are declared
+  // (task.scope regions, steps[].files) and recorded (progress/activity
+  // `files` per taskId). Every path is resolved against the structure
+  // index tuples [rel,lang,bytes,lines,...]; a path absent from the
+  // index reports `indexed: null`, never invented metadata. Without an
+  // index the whole section degrades: `index.present:false` and every
+  // `matched`/`indexed` is null.
+  const FILES_PER_TASK_CAP = 200;
+  const SCOPE_SAMPLE_CAP = 10;
+  function graphFiles({ limit, offset }) {
+    let index = null;
+    try {
+      index = readStructureIndex(ctx);
+    } catch { index = null; }
+    // readStructureIndex validates the envelope, not the `files` tuple
+    // shape — a corrupt cache must degrade to `present:false`, not 500.
+    const rows = new Map();
+    try {
+      for (const t of index?.files ?? []) {
+        if (!Array.isArray(t) || typeof t[0] !== 'string') {
+          throw err('INVALID_PATH', 'malformed structure index tuple');
+        }
+        rows.set(t[0], { lang: t[1], bytes: t[2], lines: t[3] });
+      }
+    } catch { index = null; rows.clear(); }
+    const rels = [...rows.keys()];
+    const indexed = (rel) => rows.get(rel) ?? null;
+
+    // taskId -> path -> via set, from the recorded logs. The tail
+    // bound is surfaced: `worklogTail[log].truncated:true` means older
+    // recorded paths exist that this view did not read. readWorklog's
+    // `truncated` only flags a byte-window overflow; a log that fits
+    // the window but holds >tail lines is dropped by slice(-take)
+    // silently — a full tail of parsed+malformed lines is the honest
+    // conservative signal (upstream gap deliberately not fixed here).
+    const WORKLOG_TAIL = 1000;
+    const recorded = new Map();
+    const worklogTail = {};
+    for (const log of ['progress', 'activity']) {
+      const r = readWorklog(ctx, log, { tail: WORKLOG_TAIL });
+      worklogTail[log] = {
+        tail: WORKLOG_TAIL,
+        truncated: r.truncated
+          || (r.entries.length + r.malformed.length) >= WORKLOG_TAIL,
+        malformed: r.malformed.length,
+      };
+      for (const e of r.entries) {
+        if (!e || typeof e.taskId !== 'string' || !isUUID(e.taskId)
+            || !Array.isArray(e.files)) continue;
+        for (const f of e.files) {
+          if (typeof f !== 'string' || f === '') continue;
+          const key = e.taskId.toLowerCase();
+          if (!recorded.has(key)) recorded.set(key, new Map());
+          const m = recorded.get(key);
+          if (!m.has(f)) m.set(f, new Set());
+          m.get(f).add(log);
+        }
+      }
+    }
+
+    const { tasks: all } = listTasks(ctx);
+    const page = all.slice(offset, offset + limit);
+    const nodes = page.map((task) => {
+      const via = new Map();
+      const addPath = (p, label) => {
+        if (typeof p !== 'string' || p === '') return;
+        if (!via.has(p)) via.set(p, new Set());
+        via.get(p).add(label);
+      };
+      for (const s of task.steps ?? []) {
+        // tasks.mjs validates step keys, not value types — guard.
+        if (!Array.isArray(s.files)) continue;
+        for (const f of s.files) addPath(f, 'step');
+      }
+      for (const [f, vs] of recorded.get(task.id.toLowerCase()) ?? []) {
+        for (const v of vs) addPath(f, v);
+      }
+      const files = [...via.entries()].sort(([a], [b]) => a.localeCompare(b))
+        .slice(0, FILES_PER_TASK_CAP)
+        .map(([p, vs]) => ({
+          path: p, via: [...vs].sort(), indexed: indexed(p),
+        }));
+      const scope = (task.scope ?? []).map((region) => {
+        const matched = index === null ? null
+          : rels.filter((r) => r === region || r.startsWith(`${region}/`))
+            .length;
+        return { region, matched,
+          sample: index === null ? [] : rels
+            .filter((r) => r === region || r.startsWith(`${region}/`))
+            .sort().slice(0, SCOPE_SAMPLE_CAP) };
+      });
+      return {
+        id: task.id, title: task.title, state: task.state,
+        planKey: task.planKey ?? null, goalIds: task.goalIds ?? null,
+        scope, files, filesTruncated: via.size > FILES_PER_TASK_CAP,
+      };
+    });
+
+    const { goals } = listGoals(ctx);
+    const { plans } = listPlans(ctx);
+    return {
+      schemaVersion: 1,
+      index: index === null ? { present: false } : {
+        present: true, generatedAt: index.generatedAt,
+        statOnly: index.statOnly ?? null,
+        filesTruncated: index.filesTruncated ?? false,
+      },
+      goals: goals.map((g) => ({
+        id: g.id, title: g.title, status: g.status,
+        linkedPlanKeys: Array.isArray(g.linkedPlanKeys)
+          ? g.linkedPlanKeys : null,
+      })),
+      plans: plans.map((p) => ({
+        key: p.key, title: p.title,
+        members: p.tasks.map((t) => ({ key: t.key, id: t.id })),
+      })),
+      worklogTail,
+      tasks: nodes,
+      tasksTotal: all.length,
+      truncated: offset + nodes.length < all.length,
+    };
+  }
+
   // `GET /api/plans/:key/status`: the derived lifecycle view — richer
   // taxonomy than the coarse `status` field, plus per-state counts,
   // in-flight members and the bounded run-state checkpoints.
@@ -1371,5 +1497,6 @@ export function createApiQueries(ctx, options = {}) {
     sessions, session, approvals, approval, catalog, catalogDoc,
     catalogDocWrite, verifyCommands,
     vantadb, workflow, checklists, constitution, activeTask,
+    graphFiles,
   });
 }
