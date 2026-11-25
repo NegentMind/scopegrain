@@ -89,7 +89,7 @@ Implementados sobre `owned-store.mjs` (factory) + `owned-chain.mjs` (primitivas)
 | Specifications | `specification create/show [--owned]` |
 | Designs | `design create/show --owned` (vinculados a spec por digest) |
 | Outcomes | `outcome create/show --owned` (report V2 con 9 campos computados) |
-| Captures | `capture create/show`, `capture proposals` (desde journal), `capture review` (HITL) |
+| Captures | `capture create/show`, `capture proposals` (desde journal + lessons), `capture review` (HITL; `rule` ademas escribe borrador en overlay) |
 | Artifacts | `artifact add/list/show KIND` |
 | Approvals | `approval target/create/show/answer` (pendientes/respondidas/revocadas) |
 

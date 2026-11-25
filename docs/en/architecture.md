@@ -31,7 +31,7 @@ src/core/journal.mjs      Internal create/update journal with CAS under lock and
 src/core/record-history.mjs Pure validators for update changes and create/update chain coherence
 src/core/capture-data.mjs Pure capture note/ownership contracts
 src/core/captures.mjs     Typed capture store with journal proof
-src/core/capture-proposals.mjs Deterministic capture proposals from journal and init answers
+src/core/capture-proposals.mjs Deterministic capture proposals from journal, init answers and lessons (memory-rules)
 src/core/record-ownership-data.mjs Pure sidecar primitives (capture/spec/design/report rev0)
 src/core/record-ownership.mjs Shared proof of committed two-event creation
 src/core/owned-specifications.mjs Typed store of V2 specs with proven ownership

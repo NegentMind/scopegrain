@@ -91,12 +91,12 @@ test('store is frozen with only prepare/create/get; options and ctx mutations ca
   } finally { cleanup(f.dir); }
 });
 
-test('all nine categories create exact two-event proof and get returns the proven current record', () => {
+test('all ten categories create exact two-event proof and get returns the proven current record', () => {
   const f = fixture();
   try {
     const store = f.make();
     for (const category of ['decision', 'event', 'attempt', 'discard', 'preference',
-      'tool', 'skill', 'stack', 'lesson']) {
+      'tool', 'skill', 'stack', 'lesson', 'rule']) {
       const in_ = input({ areaIds: [f.b, f.a], title: '  literal title  ' });
       in_.category = category;
       if (category === 'preference') in_.subjectId = 'subject-1';

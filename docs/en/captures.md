@@ -69,7 +69,7 @@ available through the journal's known APIs, without scanning.
 ## Fields and limits
 
 - Categories: `decision`, `event`, `attempt`, `discard`, `preference`,
-  `tool`, `skill`, `stack`, `lesson`. They are memory notes, not formal
+  `tool`, `skill`, `stack`, `lesson`, `rule`. They are memory notes, not formal
   approvals or ADRs.
 - `basis: declared` is an assertion supplied by the caller, NOT
   authenticated human input. `basis: inferred` is never promoted to a
@@ -125,12 +125,23 @@ or command-line selection of destination, namespace, hash or own ID;
 note.
 
 `capture proposals` is read-only: it lists review proposals derived from
-the journal's committed operations (optional `--since-sequence N` cursor)
-and from the persisted init answers. `capture review --input review.json`
+the journal's committed operations (optional `--since-sequence N` cursor),
+from the persisted init answers, and from recurrent lessons in
+`memory/lessons.jsonl` via the `memory-rules` producer (category `rule`).
+`capture review --input review.json`
 evaluates a closed decision `{proposal, action, reason?, changes?}` with
 `reviewProposal`; without `--apply` it returns the review as a dry run and
 with `--apply` it creates an owned capture only if the decision ended
 `approved`. A rejected decision or an incomplete proposal never writes.
+
+`rule`-category proposals carry the candidate markdown draft in the
+statement; on approval the gate additionally writes that draft as
+`rules/local/<id>.md` normalized to `Status: Proposed` (journaled
+trail, `origin` resolves to `local` by overlay placement) — the rule
+stays dormant until a separate `rule approve`, never activated by the
+review itself. Only `promote`
+proposals enter the gate: `merge` suggestions target pinned rules and
+remain advisory on `memory proposals`.
 
 Minimal input (`capture.json`):
 

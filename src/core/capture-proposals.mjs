@@ -38,8 +38,8 @@ const KIND = /^[a-z][a-z0-9-]{0,63}$/;
 // accepts both forms.
 const RECORD_ID = /^[a-z0-9][a-z0-9-]{0,127}$/;
 const CATEGORIES = ['decision', 'event', 'attempt', 'discard', 'preference',
-  'tool', 'skill', 'stack', 'lesson'];
-const PRODUCERS = ['journal', 'init-answers'];
+  'tool', 'skill', 'stack', 'lesson', 'rule'];
+const PRODUCERS = ['journal', 'init-answers', 'memory-rules'];
 const PROPOSAL_KEYS = ['schemaVersion', 'proposalId', 'category', 'statement',
   'provenance', 'suggestedAreaIds', 'suggestedSubjectId', 'evidence'];
 const STATEMENT_KEYS = ['kind', 'title', 'text', 'inference'];
@@ -374,6 +374,54 @@ export function proposeFromInitAnswers(answers, options = {}) {
       DEFAULT_INFERENCE);
   }
   return proposals;
+}
+
+// --- memory-rules bridge -----------------------------------------------------
+// Pure mapper: promote-kind proposals from memory-rules.proposeMemoryRules
+// become 'rule' capture proposals for the shared review gate (approve /
+// reject / edit + decisions log). 'merge' suggestions stay advisory on
+// the `memory proposals` surface — approving one would require editing a
+// pinned canonical file, which the gate must never do. The memory
+// proposalId is reused verbatim: one memory proposal = one gate
+// proposal, so reject/edit decisions suppress the same recurring signal.
+
+const MEMORY_OPTION_KEYS = ['areaIds'];
+
+export function ruleProposalsFromMemory(memoryResult, options = {}) {
+  assertRecordObject(options, MEMORY_OPTION_KEYS, [], CODE,
+    'memory rule proposal options');
+  const areaIds = Object.hasOwn(options, 'areaIds')
+    ? idArray(options.areaIds, CODE, 'memory rule options.areaIds') : [];
+  const source = memoryResult === null || typeof memoryResult !== 'object'
+    || Array.isArray(memoryResult)
+    ? null : memoryResult;
+  if (source === null || !Array.isArray(source.proposals)) {
+    throw err(CODE, 'memory result must be a proposals result object');
+  }
+  const out = [];
+  for (const mp of source.proposals) {
+    if (mp === null || typeof mp !== 'object' || mp.kind !== 'promote'
+        || mp.suggestedRule === null
+        || typeof mp.suggestedRule !== 'object') continue;
+    const { id, content } = mp.suggestedRule;
+    if (typeof id !== 'string' || !RECORD_ID.test(id)
+        || !nonblank(content)) continue;
+    const base = proposal(`memory-rules:${mp.proposalId}`, 'rule',
+      { kind: 'inferred',
+        title: `rule candidate: ${id}`,
+        text: content,
+        inference: `recurrent-lessons:${mp.count}` },
+      { producer: 'memory-rules', operationId: null, eventId: null,
+        sourceKind: 'lessons', recordId: id },
+      areaIds, id,
+      [`memory-proposal:${mp.proposalId}`,
+        `lessons-count:${mp.count}`,
+        ...(mp.topic ? [`lesson-topic:${mp.topic}`] : [])]);
+    // Reuse the memory proposalId verbatim so the gate's decision log
+    // addresses the same deterministic signal the surface emitted.
+    out.push(validateProposal({ ...base, proposalId: mp.proposalId }));
+  }
+  return out;
 }
 
 function reviewChanges(changes) {

@@ -41,9 +41,9 @@ function ownership(overrides = {}) {
   };
 }
 
-test('all nine categories normalize with defaults, sorted unique areas and clones', () => {
+test('all ten categories normalize with defaults, sorted unique areas and clones', () => {
   const categories = ['decision', 'event', 'attempt', 'discard', 'preference',
-    'tool', 'skill', 'stack', 'lesson'];
+    'tool', 'skill', 'stack', 'lesson', 'rule'];
   for (const category of categories) {
     const input = { category, title: '  spaced title  ', summary: 'S',
       areaIds: [B, A] };
@@ -132,7 +132,7 @@ test('store options are a closed {areaIds,origin} object', () => {
 
 test('stored note accepts every category and returns an independent clone', () => {
   for (const category of ['decision', 'event', 'attempt', 'discard', 'preference',
-    'tool', 'skill', 'stack', 'lesson']) {
+    'tool', 'skill', 'stack', 'lesson', 'rule']) {
     const value = note({ category, subjectId: category === 'preference' ? 's' : null });
     const checked = validateCaptureNote(value);
     assert.deepEqual(checked, value);
@@ -213,7 +213,7 @@ test('schema files encode the closed contracts literally', () => {
   assert.equal(noteSchema.properties.kind.const, 'scopegrain.capture');
   assert.deepEqual(noteSchema.properties.category.enum.sort(), [
     'attempt', 'decision', 'discard', 'event', 'lesson', 'preference',
-    'skill', 'stack', 'tool']);
+    'rule', 'skill', 'stack', 'tool']);
   assert.deepEqual(noteSchema.required, ['schemaVersion', 'kind', 'id', 'revision',
     'category', 'title', 'summary', 'scope', 'provenance', 'subjectId',
     'supersedes', 'capturedAt']);

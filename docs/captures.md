@@ -63,7 +63,7 @@ por las APIs conocidas del journal, sin escaneo.
 ## Campos y limites
 
 - Categorias: `decision`, `event`, `attempt`, `discard`, `preference`,
-  `tool`, `skill`, `stack`, `lesson`. Son notas de memoria, no aprobaciones
+  `tool`, `skill`, `stack`, `lesson`, `rule`. Son notas de memoria, no aprobaciones
   formales ni ADRs.
 - `basis: declared` es una afirmacion aportada por quien llama, NO entrada
   humana autenticada. `basis: inferred` nunca se promueve a preferencia
@@ -120,12 +120,23 @@ referencia una nota previa.
 
 `capture proposals` es solo lectura: lista propuestas de revision derivadas
 de las operaciones committed del journal (cursor opcional
-`--since-sequence N`) y de las respuestas de init persistidas. `capture
+`--since-sequence N`), de las respuestas de init persistidas y de las
+lecciones recurrentes en `memory/lessons.jsonl` via el producer
+`memory-rules` (categoria `rule`). `capture
 review --input review.json` evalua una decision cerrada `{proposal, action,
 reason?, changes?}` con `reviewProposal`; sin `--apply` devuelve la
 revision en modo dry-run y con `--apply` crea una captura con ownership
 solo si la decision quedo `approved`. Una decision rechazada o una
 propuesta incompleta nunca escribe.
+
+Las propuestas de categoria `rule` llevan en el statement el borrador
+markdown candidato; al aprobar, la compuerta ademas escribe ese borrador
+como `rules/local/<id>.md` normalizado a `Status: Proposed` (trail
+journaled, `origin` resuelto a `local` por la capa overlay) — la regla
+queda dormida hasta un `rule approve` separado, nunca activa por la
+revision. Solo las propuestas
+`promote` entran a la compuerta: los `merge` apuntan a reglas fijadas
+y siguen siendo advisory en `memory proposals`.
 
 Entrada minima (`capture.json`):
 

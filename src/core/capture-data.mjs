@@ -12,7 +12,7 @@ import {
 
 const ORIGIN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const CATEGORIES = ['decision', 'event', 'attempt', 'discard', 'preference',
-  'tool', 'skill', 'stack', 'lesson'];
+  'tool', 'skill', 'stack', 'lesson', 'rule'];
 const INPUT_KEYS = ['category', 'title', 'summary', 'areaIds', 'basis',
   'subjectId', 'supersedes'];
 const OPTION_KEYS = ['areaIds', 'origin'];

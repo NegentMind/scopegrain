@@ -23,6 +23,7 @@ import {
   applyJournaledCreation, applyJournaledRecordUpdate,
 } from './journal.mjs';
 import { loadWorkspaceCatalog, getResource } from './catalog.mjs';
+import { slugifyTitle } from './tasks.mjs';
 import { parseRuleMeta, RULE_STATUSES } from './rule-meta.mjs';
 
 const RULES_JOURNAL_REL = 'rules-journal.jsonl';
@@ -317,23 +318,52 @@ function proposeStem(options) {
 // propose: stage a draft as rules/local/<id>.md with Status:Proposed.
 // The id comes from --id or the input filename stem; lifecycle markers
 // are normalized to proposed so the draft never enters packets.
-function planPropose(ctx, options) {
-  const stem = proposeStem(options);
+function planProposeBytes(ctx, stem, input, label) {
   const rel = localRuleRel(ctx, stem);
-  const input = readInputFile(ctx, options.input);
   const bytes = setRuleStatus(input, 'proposed');
   // The product must parse as a rule AND land proposed: a malformed
   // input (unclosed fence, bad keys) or a rewrite that would not flip
   // the effective status fails here, never on disk.
   if (statusOf(bytes) !== 'proposed') {
     throw err('RULE_META_MALFORMED',
-      `input cannot be normalized to Status:Proposed: ${options.input}`);
+      `input cannot be normalized to Status:Proposed: ${label}`);
   }
   if (lstatOrNull(resolveInside(ctx.projectRoot, rel, 'local rule'))) {
     throw err('RULE_ALREADY_EXISTS', `local rule exists: ${rel}`);
   }
   assertNoCatalogCollision(loadWorkspaceCatalog(ctx), stem);
   return { stem, rel, bytes };
+}
+
+function planPropose(ctx, options) {
+  const stem = proposeStem(options);
+  // Validate the stem before touching the input path — a hostile id
+  // (device name, bad slug) must fail as itself, never masked by an
+  // input-read error.
+  localRuleRel(ctx, stem);
+  const input = readInputFile(ctx, options.input);
+  return planProposeBytes(ctx, stem, input, options.input);
+}
+
+function commitProposed(ctx, stem, rel, bytes) {
+  const state = rulesJournalState(ctx, stem);
+  const abs = resolveInside(ctx.projectRoot, rel, 'local rule');
+  // Propose is creation semantics: an existing overlay file is a
+  // conflict, never an adoption or overwrite.
+  if (lstatOrNull(abs)) {
+    throw err('RULE_ALREADY_EXISTS', `local rule exists: ${rel}`);
+  }
+  const { journaled } = commitRuleFile(ctx,
+    { id: stem, rel, bytes, prevSha: null, perRule: state.perRule });
+  return { state, journaled };
+}
+
+function appendProposeTrail(ctx, stem, rel, bytes, state, journaled,
+    op = 'propose') {
+  rulesJournalAppend(ctx, { at: new Date().toISOString(), op,
+    id: stem, rel, previousSha256: null,
+    newSha256: sha256Buf(bytes), perRule: state.perRule + 1, journaled },
+    state);
 }
 
 export function prepareProposeRule(ctx, options) {
@@ -344,20 +374,25 @@ export function prepareProposeRule(ctx, options) {
 
 export function applyProposeRule(ctx, options) {
   const { stem, rel, bytes } = planPropose(ctx, options);
-  const state = rulesJournalState(ctx, stem);
-  const abs = resolveInside(ctx.projectRoot, rel, 'local rule');
-  // Propose is creation semantics: an existing overlay file is a
-  // conflict, never an adoption or overwrite.
-  if (lstatOrNull(abs)) {
-    throw err('RULE_ALREADY_EXISTS', `local rule exists: ${rel}`);
-  }
-  const { journaled } = commitRuleFile(ctx,
-    { id: stem, rel, bytes, prevSha: null, perRule: state.perRule });
-  rulesJournalAppend(ctx, { at: new Date().toISOString(),
-    op: 'propose', id: stem, rel, previousSha256: null,
-    newSha256: sha256Buf(bytes), perRule: state.perRule + 1, journaled },
-    state);
+  const { state, journaled } = commitProposed(ctx, stem, rel, bytes);
+  appendProposeTrail(ctx, stem, rel, bytes, state, journaled);
   return { mode: 'applied', applied: true, id: stem, rel,
+    status: 'proposed', revision: state.perRule + 1, journaled };
+}
+
+// applyRuleProposalDraft: the review-gated variant — content arrives as
+// a string produced by a proposal producer or an edited review summary,
+// is normalized to Status:Proposed exactly like `propose`, and commits
+// through the same journaled creation path. Used by the capture review
+// gate when a 'rule'-category proposal is approved.
+export function applyRuleProposalDraft(ctx, { id, content }) {
+  const stem = typeof id === 'string' && ID_RE.test(id)
+    ? id : slugifyTitle(String(id ?? 'imported'));
+  const { stem: s, rel, bytes } = planProposeBytes(ctx, stem,
+    Buffer.from(String(content), 'utf8'), `proposal draft ${id}`);
+  const { state, journaled } = commitProposed(ctx, s, rel, bytes);
+  appendProposeTrail(ctx, s, rel, bytes, state, journaled);
+  return { mode: 'applied', applied: true, id: s, rel,
     status: 'proposed', revision: state.perRule + 1, journaled };
 }
 

@@ -90,7 +90,7 @@ Each kind is a hash chain: genesis + chained updates, scope binding
 | Specifications | `specification create/show [--owned]` |
 | Designs | `design create/show --owned` (bound to spec by digest) |
 | Outcomes | `outcome create/show --owned` (V2 report with 9 computed fields) |
-| Captures | `capture create/show`, `capture proposals` (from journal), `capture review` (HITL) |
+| Captures | `capture create/show`, `capture proposals` (from journal + lessons), `capture review` (HITL; `rule` also writes an overlay draft) |
 | Artifacts | `artifact add/list/show KIND` |
 | Approvals | `approval target/create/show/answer` (pending/answered/revoked) |
 

@@ -26,7 +26,7 @@ src/core/journal.mjs      Journal interno create/update con CAS bajo lock y outb
 src/core/record-history.mjs Validadores puros de update changes y coherencia de cadena create/update
 src/core/capture-data.mjs Contratos puros de notas/ownership de captura
 src/core/captures.mjs     Store tipado de capturas con prueba journal
-src/core/capture-proposals.mjs Propuestas deterministicas de captura desde journal e init answers
+src/core/capture-proposals.mjs Propuestas deterministicas de captura desde journal, init answers y lecciones (memory-rules)
 src/core/record-ownership-data.mjs Primitivas puras del sidecar (capture/spec/design/report rev0)
 src/core/record-ownership.mjs Prueba compartida de creacion committed de dos eventos
 src/core/owned-specifications.mjs Store tipado de specs V2 con ownership probado

@@ -2162,7 +2162,8 @@ async function cmdCapture(sub, positional, flags) {
 // capture CLI paths.
 async function cmdCaptureProposals(project, flags) {
   const { getWorkspace } = await import('./core/workspaces.mjs');
-  const { filterRejectedProposals, listProposalDecisions, proposeFromInitAnswers, proposeFromJournal } = await import('./core/capture-proposals.mjs');
+  const { filterRejectedProposals, listProposalDecisions, proposeFromInitAnswers, proposeFromJournal, ruleProposalsFromMemory } = await import('./core/capture-proposals.mjs');
+  const { proposeMemoryRules } = await import('./core/memory-rules.mjs');
   const options = {};
   if (Object.hasOwn(flags, '--since-sequence')) {
     options.sinceSequence = decimalInt(
@@ -2185,6 +2186,9 @@ async function cmdCaptureProposals(project, flags) {
       ...proposeFromJournal(ctx, options),
       ...filterRejectedProposals(
         proposeFromInitAnswers(answers, { areaIds }), decisions),
+      ...filterRejectedProposals(
+        ruleProposalsFromMemory(proposeMemoryRules(ctx), { areaIds }),
+        decisions),
     ],
   };
 }
@@ -2410,6 +2414,18 @@ async function cmdCaptureReview(project, flags) {
   });
   const created = store.create(
     { ...persisted.review.input.capture, areaIds: persisted.review.input.areaIds });
+  // A 'rule'-category approval additionally writes the proposed draft
+  // into the local overlay — status:proposed, journaled, never active
+  // without a separate `rule approve`.
+  if (persisted.review.input.capture.category === 'rule') {
+    const { applyRuleProposalDraft } =
+      await import('./core/rules.mjs');
+    const cap = persisted.review.input.capture;
+    const draft = applyRuleProposalDraft(ctx,
+      { id: cap.subjectId ?? cap.title, content: cap.summary });
+    return { ...created, draft, review: { status: persisted.review.status },
+      decision: persisted.decision };
+  }
   return { ...created, review: { status: persisted.review.status },
     decision: persisted.decision };
 }

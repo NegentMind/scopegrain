@@ -9,7 +9,7 @@
     "kind": {"const": "scopegrain.capture"},
     "id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
     "revision": {"const": 0},
-    "category": {"enum": ["decision", "event", "attempt", "discard", "preference", "tool", "skill", "stack", "lesson"]},
+    "category": {"enum": ["decision", "event", "attempt", "discard", "preference", "tool", "skill", "stack", "lesson", "rule"]},
     "title": {"type": "string", "pattern": "\\S"},
     "summary": {"type": "string", "pattern": "\\S"},
     "scope": {"$ref": "#/$defs/scope"},
