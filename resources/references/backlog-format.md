@@ -33,6 +33,7 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `skills` | `[string]` or null | Capability names exercised. |
 | `uncertainty` | `{uphill: int, downhill: int}` or null | Known-unknown vs settled work split. |
 | `allowedTools` | `[string]` or null | Per-task least-privilege tool list. Declarative only: the record carries the intent, hosts and `preAction` hooks enforce it — the harness never executes or intercepts tools itself. Optional on stored V3 records (additive extension); always emitted on new writes. |
+| `requiredCapabilities` | `[string]` or null | Capabilities the executor must have for dispatch. Distinct semantics: `skills` = capabilities exercised (historical record), `allowedTools` = permitted boundary, `requiredCapabilities` = required for routing — a declarative hint the host uses to pick an executor. Additive extension, same read/write rule as `allowedTools`. |
 
 ## Plan semantic layer (schemaVersion 3)
 

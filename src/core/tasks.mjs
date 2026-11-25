@@ -33,7 +33,7 @@ const TASK_KEYS = new Set([
   'estimate', 'source', 'relations', 'dependsOn', 'goalIds', 'analysis',
   'steps', 'notes', 'skills', 'uncertainty',
   // V3 extension fields (optional on read, emitted on write)
-  'allowedTools',
+  'allowedTools', 'requiredCapabilities',
 ]);
 const V3_KEYS = new Set([
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
@@ -43,7 +43,7 @@ const V3_KEYS = new Set([
 // Additive fields introduced after V3 shipped. Stored V3 records may omit
 // them entirely (same rule as slug): validated when present, never
 // required on read, and always emitted by new writes via V3_DEFAULTS.
-const V3_EXT_KEYS = new Set(['allowedTools']);
+const V3_EXT_KEYS = new Set(['allowedTools', 'requiredCapabilities']);
 const TASK_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3', 'backlog']);
 const TASK_SEVERITIES = new Set(['critical', 'high', 'medium', 'low', 'info']);
 const TASK_TYPES = new Set([
@@ -59,14 +59,14 @@ const BACKLOG_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const META_KEYS = new Set([
   'priority', 'severity', 'type', 'effort', 'estimate', 'source',
   'relations', 'dependsOn', 'goalIds', 'analysis', 'skills', 'backlog',
-  'allowedTools',
+  'allowedTools', 'requiredCapabilities',
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
   'specId', 'designId', 'planKey', 'scenarioRefs',
   'backlog', 'priority', 'severity', 'type', 'effort', 'estimate',
   'source', 'relations', 'dependsOn', 'goalIds', 'analysis', 'steps',
-  'notes', 'skills', 'uncertainty', 'allowedTools',
+  'notes', 'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
 ]);
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
@@ -204,6 +204,14 @@ function validateV3Fields(task, label) {
         || !task.allowedTools.every((v) => typeof v === 'string' && v.trim() !== ''))) {
     throw err('TASK_MALFORMED',
       `${label}.allowedTools must be an array of tool names or null`);
+  }
+  if (task.requiredCapabilities !== undefined
+      && task.requiredCapabilities !== null
+      && (!Array.isArray(task.requiredCapabilities)
+        || !task.requiredCapabilities.every(
+          (v) => typeof v === 'string' && v.trim() !== ''))) {
+    throw err('TASK_MALFORMED',
+      `${label}.requiredCapabilities must be an array of capability names or null`);
   }
   if (task.uncertainty !== null) {
     const u = task.uncertainty;
@@ -713,6 +721,7 @@ export function normalizeV3Input(input) {
   idArray('goalIds');
   idArray('skills');
   idArray('allowedTools', 'tool names');
+  idArray('requiredCapabilities', 'capability names');
   if (has('analysis')) {
     if (input.analysis !== null
         && (typeof input.analysis !== 'object' || Array.isArray(input.analysis))) {
@@ -776,7 +785,7 @@ export const V3_DEFAULTS = {
   type: null, effort: null, estimate: null, source: null, relations: null,
   dependsOn: null, goalIds: null, analysis: null, steps: null, notes: null,
   skills: null, uncertainty: null,
-  allowedTools: null,
+  allowedTools: null, requiredCapabilities: null,
 };
 
 // Pure task record factory: no I/O, no side effects. V2 records carry the

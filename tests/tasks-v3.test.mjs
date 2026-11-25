@@ -102,6 +102,45 @@ test('allowedTools: accept null/string-array, reject non-string items', () => {
   } finally { cleanup(dir); }
 });
 
+test('requiredCapabilities: distinct from skills/allowedTools, same shape', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, {
+      ...BASE,
+      skills: ['systematic-debugging'],
+      allowedTools: ['shell.exec'],
+      requiredCapabilities: ['python_exec', 'sql_read'],
+    });
+    assert.equal(task.schemaVersion, 3);
+    assert.deepEqual(task.skills, ['systematic-debugging']);
+    assert.deepEqual(task.allowedTools, ['shell.exec']);
+    assert.deepEqual(task.requiredCapabilities, ['python_exec', 'sql_read']);
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, requiredCapabilities: 'python_exec',
+    }), (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, requiredCapabilities: ['ok', {}],
+    }), (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, requiredCapabilities: null });
+    assert.equal(applied.requiredCapabilities, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { requiredCapabilities: ['sql_read'] },
+    });
+    assert.deepEqual(next.requiredCapabilities, ['sql_read']);
+    // Stored-shape: malformed value rejected; absent key stays readable.
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.requiredCapabilities = 'sql';
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.requiredCapabilities;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).requiredCapabilities, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

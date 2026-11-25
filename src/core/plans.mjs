@@ -47,7 +47,7 @@ const APPETITES = new Set(['hours', 'day', 'days', 'weeks']);
 const TASK_V3_FORWARD = [
   'backlog', 'priority', 'severity', 'type', 'effort', 'estimate',
   'source', 'relations', 'goalIds', 'analysis', 'steps', 'notes',
-  'skills', 'uncertainty', 'allowedTools',
+  'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
 ];
 const PLAN_V3_KEYS = new Set([
   'triage', 'appetite', 'cynefin', 'riskRegister', 'premortem',

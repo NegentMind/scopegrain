@@ -79,6 +79,11 @@ test('V3 plan: stored semantics + forwarded task semantics', () => {
     assert.equal(base.steps[0].name, 'design');
     const api = getTask(ctx, plan.tasks[1].id);
     assert.equal(api.type, 'feature');
+    // The plan DAG (keys) propagates into the record layer as resolved
+    // task ids, so task-level consumers (ordering, viewers) see the same
+    // dependency structure the ACT gate enforces.
+    assert.deepEqual(api.dependsOn, [plan.tasks[0].id]);
+    assert.equal(base.dependsOn, null);
   } finally { cleanup(dir); }
 });
 

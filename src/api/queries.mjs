@@ -232,6 +232,8 @@ function taskSummary(task) {
       ? task.steps.filter((s) => s.status === 'done').length : 0,
     uncertainty: task.uncertainty ?? null,
     allowedTools: Array.isArray(task.allowedTools) ? task.allowedTools : null,
+    requiredCapabilities: Array.isArray(task.requiredCapabilities)
+      ? task.requiredCapabilities : null,
   };
 }
 
