@@ -11,6 +11,7 @@ import { buildWorkflowPacket } from '../src/core/workflows.mjs';
 import { assembleContextPacket } from '../src/core/context-packet.mjs';
 import { loadWorkspaceCatalog } from '../src/core/catalog.mjs';
 import { createTask } from '../src/core/tasks.mjs';
+import { transitionTask } from '../src/core/transition.mjs';
 import { prepareWorkspace } from '../src/core/workspaces.mjs';
 import { estimateJson, TOKEN_ESTIMATOR } from '../src/core/tokens.mjs';
 import { appendWorklog, readWorklog } from '../src/core/worklog.mjs';
@@ -50,6 +51,25 @@ test('context packet warnings field exists; under budget it stays empty', async 
     const out = await assembleContextPacket(ctx, { noVantadb: true });
     assert.ok(Array.isArray(out.warnings));
     assert.equal(out.warnings.length, 0);
+  } finally { cleanup(dir); }
+});
+
+test('context tasks.open excludes terminal states, not just CLOSE', async () => {
+  const { dir, ctx } = ctxWithWorkspace();
+  try {
+    createTask(ctx, { title: 'alive', contract: 'c',
+      authorContext: 'a', scope: [] });
+    createTask(ctx, { title: 'alive-2', contract: 'c',
+      authorContext: 'a', scope: [] });
+    const dead = createTask(ctx, { title: 'dead', contract: 'c',
+      authorContext: 'a', scope: [] });
+    // Reported bug: ABANDON counted as open. terminalStates() derives
+    // terminality from the transition graph, so CLOSE is covered too.
+    transitionTask(ctx, { id: dead.id, expectedRevision: 0, to: 'ABANDON' });
+    const out = await assembleContextPacket(ctx, { noVantadb: true });
+    assert.equal(out.tasks.total, 3);
+    assert.equal(out.tasks.open, 2);
+    assert.equal(out.tasks.byState.ABANDON, 1);
   } finally { cleanup(dir); }
 });
 

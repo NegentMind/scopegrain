@@ -23,13 +23,15 @@ export async function assembleContextPacket(ctx, opts = {}) {
   const { getSession, sessionsDirAbs } = await import('./sessions.mjs');
   const { bindWorkspace, getWorkspace } = await import('./workspaces.mjs');
   const { countJournalPending } = await import('./journal.mjs');
+  const { terminalStates } = await import('./policy.mjs');
   const { structureStatus, storedStructureStatus } =
     await import('../discovery/structure.mjs');
   const workspace = getWorkspace(ctx);
   const { tasks } = listTasks(ctx);
   const byState = {};
   for (const t of tasks) byState[t.state] = (byState[t.state] ?? 0) + 1;
-  const open = tasks.filter((t) => t.state !== 'CLOSE');
+  const terminal = new Set(terminalStates());
+  const open = tasks.filter((t) => !terminal.has(t.state));
   const tail = opts.tail ?? 5;
   let pendingJournal = 0;
   try {

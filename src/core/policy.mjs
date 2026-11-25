@@ -127,6 +127,16 @@ export function isTransitionAllowed(from, to) {
   return Array.isArray(next) && next.includes(to);
 }
 
+// States with no outgoing transitions are terminal (CLOSE, ABANDON and
+// any future terminal state the authored graph may add) — metrics and
+// readiness counts must exclude them rather than name them one by one.
+export function terminalStates() {
+  const { transitions } = loadPolicy();
+  return Object.keys(transitions)
+    .filter((s) => Array.isArray(transitions[s])
+      && transitions[s].length === 0);
+}
+
 export function knownActions() {
   const all = new Set();
   for (const list of Object.values(loadPolicy().actions)) {
