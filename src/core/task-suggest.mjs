@@ -106,3 +106,69 @@ export function suggestCapabilities(ctx, task, { limit = 5 } = {}) {
       + ' (task meta) to route a suggestion into packets',
   };
 }
+
+// Lifecycle states of policy/workflow.json — the canonical machine is
+// the phase taxonomy; no second invented vocabulary.
+const LIFECYCLE_STATES = new Set([
+  'PLAN', 'ACT', 'VERIFY', 'COLLATERAL', 'RESEARCH', 'EVALUATE',
+  'REVIEW', 'ACCEPT', 'CLOSE', 'STALL', 'ABANDON',
+]);
+
+const MAX_RECORD_SKILLS = 8;
+
+// Persistence route for the suggestive heuristic: plans ONE meta update
+// that declares the explicitly selected skills on task.skills and
+// appends an auditable SKILLS_CARGADAS note carrying the justification
+// per skill (heuristic reasons when ranked, an explicit honest marker
+// otherwise). The caller never self-records a heuristic ranking — the
+// skill ids are an operator/agent selection, the heuristic only
+// supplies justification evidence.
+export function planSkillRecord(ctx, task, { skillIds, phase } = {}) {
+  if (!Array.isArray(skillIds) || skillIds.length === 0
+      || skillIds.length > MAX_RECORD_SKILLS) {
+    throw err('INVALID_ARGS',
+      `skillIds must be an array of 1..${MAX_RECORD_SKILLS} skill ids`);
+  }
+  for (const id of skillIds) {
+    if (typeof id !== 'string' || id.trim() === '') {
+      throw err('INVALID_ARGS', 'skillIds entries must be non-empty strings');
+    }
+  }
+  const deduped = [...new Set(skillIds)];
+  const resolvedPhase = phase === undefined ? task.state : phase;
+  if (!LIFECYCLE_STATES.has(resolvedPhase)) {
+    throw err('INVALID_ARGS',
+      `phase must be one of: ${[...LIFECYCLE_STATES].join(', ')}`);
+  }
+  const catalog = loadWorkspaceCatalog(ctx, { verifyResources: false });
+  const known = new Set(catalog.entries
+    .filter((e) => e.kind === 'skill').map((e) => e.id));
+  const unknown = deduped.filter((id) => !known.has(id));
+  if (unknown.length > 0) {
+    throw err('INVALID_ARGS',
+      `unknown skill id(s) not in the catalog: ${unknown.join(', ')}`);
+  }
+  const { declared, suggestions } = suggestCapabilities(ctx, task,
+    { limit: 50 });
+  const ranked = new Map(suggestions.map((s) => [s.id, s.reasons]));
+  const justifications = deduped.map((id) => {
+    if (ranked.has(id)) {
+      return { id, justification: `heuristic: ${ranked.get(id).join(', ')}` };
+    }
+    if (declared.includes(id)) {
+      return { id, justification: 'already-declared: reaffirmed selection' };
+    }
+    return { id,
+      justification: 'manual-selection: no heuristic signal matched' };
+  });
+  const merged = [...new Set([...declared, ...deduped])];
+  const note = `SKILLS_CARGADAS[${resolvedPhase}]: ` + justifications
+    .map((j) => `${j.id} — ${j.justification}`).join(' | ');
+  return {
+    taskId: task.id,
+    phase: resolvedPhase,
+    justifications,
+    set: { skills: merged },
+    addNote: note,
+  };
+}

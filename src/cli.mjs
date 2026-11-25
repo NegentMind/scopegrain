@@ -84,6 +84,7 @@ const VALUE_FLAGS = new Set([
   '--token-limit', '--hosts', '--structure-debounce', '--fields',
   '--actor', '--reference', '--expect-digest', '--kind', '--baseline',
   '--min', '--expect-exit', '--expect-stdout', '--expect-stderr',
+  '--skills', '--phase',
 ]);
 const BOOL_FLAGS = new Set([
   '--apply', '--approve', '--help', '--owned', '--save', '--fail-on-error',
@@ -368,8 +369,9 @@ const COMMANDS = {
     usage: 'task check-action --project PATH ID ACTION',
   },
   'task suggest': {
-    flags: ['--project', '--config', '--limit'], pos: 1,
-    usage: 'task suggest --project PATH ID|SLUG [--limit N]  (suggestive only — never mutates task.skills)',
+    flags: ['--project', '--config', '--limit', '--record', '--skills',
+      '--phase', '--apply'], pos: 1,
+    usage: 'task suggest --project PATH ID|SLUG [--limit N] [--record --skills a,b [--phase STATE] [--apply]]  (suggestive by default — --record requires an explicit --skills selection)',
   },
   'task gate': {
     flags: ['--project', '--config'], pos: 2,
@@ -1669,12 +1671,47 @@ async function cmdTask(sub, positional, flags, io) {
   }
   if (sub === 'suggest') {
     const { resolveTaskRef } = await import('./core/active.mjs');
-    const { suggestCapabilities } = await import('./core/task-suggest.mjs');
+    const { suggestCapabilities, planSkillRecord } =
+      await import('./core/task-suggest.mjs');
     const task = resolveTaskRef(ctx, positional[0]);
-    return suggestCapabilities(ctx, task, {
+    const result = suggestCapabilities(ctx, task, {
       limit: flags['--limit'] === undefined ? 5
         : decimalInt(flags['--limit'], '--limit'),
     });
+    if (flags['--record'] !== true) {
+      if (flags['--apply']) {
+        throw err('INVALID_ARGS',
+          '--apply only applies to task suggest --record');
+      }
+      return result;
+    }
+    // Persistence route: an explicit --skills selection is mandatory —
+    // a heuristic ranking never self-records. Preview by default, CAS
+    // write through updateTaskMeta on --apply.
+    if (flags['--skills'] === undefined) {
+      throw err('INVALID_ARGS',
+        'task suggest --record requires --skills a,b — an explicit '
+        + 'selection; the heuristic never self-records');
+    }
+    const skillIds = flags['--skills'].split(',')
+      .map((s) => s.trim()).filter((s) => s !== '');
+    const planned = planSkillRecord(ctx, task, {
+      skillIds,
+      phase: flags['--phase'],
+    });
+    const metaInput = {
+      id: task.id,
+      expectedRevision: task.revision,
+      set: planned.set,
+      addNote: planned.addNote,
+    };
+    if (!flags['--apply']) {
+      return { ...result, record: { mode: 'dry-run', applied: false,
+        ...planned, preview: previewMeta(metaInput) } };
+    }
+    return { ...result, record: { mode: 'applied', applied: true,
+      ...planned,
+      result: updateTaskMeta(ctx, metaInput) } };
   }
   if (sub === 'gate') {
     if (positional.length !== 2) {

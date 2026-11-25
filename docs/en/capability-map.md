@@ -53,7 +53,7 @@ recorded in [verification](verification.md) (it changes with every run).
 | `task check-action` | Gate: may ACTION run against the task now? (abstract actions read/edit/propose/…; `interceptsNativeTools:false`) |
 | `task gate` | Decision endpoint for host hooks: same check plus exit contract 0/2/3/1 (fail-closed) |
 | `host gate` | Read-only merge proposal wiring the host's documented surface to the gate; `documented-only` when no verified surface exists |
-| `task suggest` | Suggestive task-type → capability heuristic: ranked candidates with declared `reasons`; never injects into `task.skills` or the packet |
+| `task suggest` | Suggestive task-type → capability heuristic: ranked candidates with declared `reasons`; never injects into the packet. `--record --skills` persists an explicit selection to `task.skills` + an auditable `SKILLS_CARGADAS[phase]` note |
 | `methodology check` | Task readiness toward `ACT`/`ACCEPT` per methodological mode; `--outcome-evidence` simulates the report |
 
 ### 2.3 Tasks, plans, sessions

@@ -607,6 +607,7 @@ methodology; `pass` y `na` nunca bloquean.
 
 ```text
 scopegrain task suggest --project PATH ID|SLUG [--limit N]
+scopegrain task suggest --project PATH ID|SLUG --record --skills a,b [--phase STATE] [--apply]
 ```
 
 Heuristico sugerente tipo-tarea → capacidades (`scopegrain_task_suggest`
@@ -614,8 +615,17 @@ en MCP): puntua skills del catalogo contra `type`/`title`/`contract`/
 `scope` del registro y devuelve candidatas rankeadas con `reasons`
 declaradas (`type:bug~debug`, `title:…`, `scope:…`). Las skills ya
 declaradas en `task.skills` se excluyen y se repiten en `declared`.
-Es solo lectura: nunca escribe `task.skills` ni inyecta al packet —
-la declaracion sigue siendo explicita via `task meta`/`create`.
+Por defecto es solo lectura: nunca escribe `task.skills` ni inyecta al
+packet — la declaracion sigue siendo explicita.
+
+La ruta de persistencia `--record` requiere `--skills` con una seleccion
+explicita (el heuristico nunca se auto-registra) y escribe via
+`task meta` en una sola mutacion CAS: union de `task.skills` mas una
+nota auditable `SKILLS_CARGADAS[<fase>]` con la justificacion por skill
+(`heuristic: <reasons>` si el ranking la puntuo, `manual-selection`
+honesto si no). `--phase` es un estado del ciclo de vida de
+policy/workflow.json; por defecto el estado actual de la tarea. Previa
+por defecto; `--apply` persiste.
 
 ### plan stories / specification clarify / constitution
 

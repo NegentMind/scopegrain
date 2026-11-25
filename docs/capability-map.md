@@ -48,7 +48,7 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `142` entrad
 | `task check-action` | Gate: ¿puedo ejecutar ACTION sobre la tarea ahora? (acciones abstractas read/edit/propose/…; `interceptsNativeTools:false`) |
 | `task gate` | Endpoint de decisión para hooks de host: mismo chequeo + contrato de salida 0/2/3/1 (fail-closed) |
 | `host gate` | Propuesta de merge read-only que cablea la superficie documentada del host al gate; `documented-only` si no hay superficie verificada |
-| `task suggest` | Heurístico sugerente tipo-tarea → capacidades: candidatas rankeadas con `reasons` declaradas; nunca inyecta en `task.skills` ni en el packet |
+| `task suggest` | Heurístico sugerente tipo-tarea → capacidades: candidatas rankeadas con `reasons` declaradas; nunca inyecta en el packet. `--record --skills` persiste una selección explícita en `task.skills` + nota auditable `SKILLS_CARGADAS[fase]` |
 | `methodology check` | Readiness de tarea hacia `ACT`/`ACCEPT` según modo metodológico; `--outcome-evidence` simula el report |
 
 ### 2.3 Tareas, planes, sesiones

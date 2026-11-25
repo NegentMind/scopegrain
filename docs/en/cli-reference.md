@@ -606,15 +606,25 @@ methodology mode; `pass` and `na` never block.
 
 ```text
 scopegrain task suggest --project PATH ID|SLUG [--limit N]
+scopegrain task suggest --project PATH ID|SLUG --record --skills a,b [--phase STATE] [--apply]
 ```
 
 Suggestive task-type -> capability heuristic (`scopegrain_task_suggest`
 in MCP): scores catalog skills against the record's `type`/`title`/
 `contract`/`scope` and returns ranked candidates with declared `reasons`
 (`type:bug~debug`, `title:…`, `scope:…`). Skills already declared on
-`task.skills` are excluded and echoed under `declared`. Read-only: it
-never writes `task.skills` or injects into packets — declaration stays
-explicit via `task meta`/`create`.
+`task.skills` are excluded and echoed under `declared`. By default it is
+read-only: it never writes `task.skills` or injects into packets —
+declaration stays explicit.
+
+The `--record` persistence route requires `--skills` with an explicit
+selection (the heuristic never self-records) and writes through
+`task meta` in a single CAS mutation: the union of `task.skills` plus an
+auditable `SKILLS_CARGADAS[<phase>]` note carrying the per-skill
+justification (`heuristic: <reasons>` when the ranking scored it, an
+honest `manual-selection` marker otherwise). `--phase` is a lifecycle
+state of policy/workflow.json; it defaults to the task's current state.
+Previews by default; `--apply` persists.
 
 ### plan stories / specification clarify / constitution
 
