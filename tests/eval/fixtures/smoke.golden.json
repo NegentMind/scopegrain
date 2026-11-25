@@ -324,7 +324,7 @@
           "written": ".scopegrain/state/cache/structure-index.json",
           "files": 3
         },
-        "created": 245,
+        "created": 246,
         "files": [
           ".scopegrain/config.json",
           ".scopegrain/instructions.md",
@@ -431,6 +431,7 @@
           ".scopegrain/rules/evidence.md",
           ".scopegrain/rules/review.md",
           ".scopegrain/rules/api-contract.md",
+          ".scopegrain/rules/clean-code.md",
           ".scopegrain/rules/concurrency-async.md",
           ".scopegrain/rules/core-engine.md",
           ".scopegrain/rules/durability.md",
@@ -574,7 +575,7 @@
         ],
         "noop": [],
         "counts": {
-          "create": 245,
+          "create": 246,
           "noop": 0,
           "conflict": 0
         }
@@ -653,7 +654,7 @@
         "userContext": null,
         "sessions": [],
         "project": {
-          "name": null,
+          "name": "eval-smoke",
           "root": "<ROOT>"
         },
         "workspace": {
@@ -747,7 +748,8 @@
               "at": "<TS>",
               "event": "created",
               "state": "PLAN",
-              "revision": 0
+              "revision": 0,
+              "runId": "<UUID>"
             }
           ]
         },
@@ -793,14 +795,16 @@
               "at": "<TS>",
               "event": "created",
               "state": "PLAN",
-              "revision": 0
+              "revision": 0,
+              "runId": "<UUID>"
             },
             {
               "at": "<TS>",
               "event": "transition",
               "from": "PLAN",
               "to": "ACT",
-              "revision": 1
+              "revision": 1,
+              "runId": "<UUID>"
             }
           ]
         }
@@ -839,14 +843,16 @@
             "at": "<TS>",
             "event": "created",
             "state": "PLAN",
-            "revision": 0
+            "revision": 0,
+            "runId": "<UUID>"
           },
           {
             "at": "<TS>",
             "event": "transition",
             "from": "PLAN",
             "to": "ACT",
-            "revision": 1
+            "revision": 1,
+            "runId": "<UUID>"
           }
         ]
       },
@@ -903,14 +909,16 @@
                 "at": "<TS>",
                 "event": "created",
                 "state": "PLAN",
-                "revision": 0
+                "revision": 0,
+                "runId": "<UUID>"
               },
               {
                 "at": "<TS>",
                 "event": "transition",
                 "from": "PLAN",
                 "to": "ACT",
-                "revision": 1
+                "revision": 1,
+                "runId": "<UUID>"
               }
             ]
           }
@@ -947,14 +955,16 @@
             "at": "<TS>",
             "event": "created",
             "state": "PLAN",
-            "revision": 0
+            "revision": 0,
+            "runId": "<UUID>"
           },
           {
             "at": "<TS>",
             "event": "transition",
             "from": "PLAN",
             "to": "ACT",
-            "revision": 1
+            "revision": 1,
+            "runId": "<UUID>"
           }
         ]
       },
@@ -985,7 +995,7 @@
         "schemaVersion": 1,
         "status": "ready",
         "summary": {
-          "ok": 33,
+          "ok": 35,
           "warnings": 0,
           "failures": 0
         },
@@ -1001,12 +1011,22 @@
           {
             "name": "catalog",
             "ok": true,
-            "detail": "140 catalog entries validated"
+            "detail": "141 catalog entries validated"
           },
           {
             "name": "workspace-catalog",
             "ok": true,
-            "detail": "snapshot integrity hash-verified (140 entries)"
+            "detail": "snapshot integrity hash-verified (141 entries)"
+          },
+          {
+            "name": "rule-overlay",
+            "ok": true,
+            "detail": "0 local overlay rule(s) under rules/local/"
+          },
+          {
+            "name": "rule-lint",
+            "ok": true,
+            "detail": "no rule contradictions or stale deps"
           },
           {
             "name": "templates",
@@ -1145,7 +1165,13 @@
           {
             "name": "docs-cli-drift",
             "ok": true,
-            "detail": "skipped: no README/docs markdown found"
+            "detail": "skipped: no README/docs markdown found",
+            "stale": [],
+            "undocumented": [],
+            "scannedDocs": 0,
+            "flags": [],
+            "counts": [],
+            "parity": []
           },
           {
             "name": "mcp-deps",
@@ -1184,5 +1210,5 @@
       "stderr": ""
     }
   ],
-  "storeHash": "6d4e8a3741062389e411595462d39a1f3068584814360b1bb679dc86056fce13"
+  "storeHash": "472b37846614fbb4137f8b2db1d3831f9eff901c3ae43f67079a3564f84c4f5d"
 }
