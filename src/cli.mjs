@@ -378,6 +378,10 @@ const COMMANDS = {
     flags: ['--project', '--config', '--log', '--tail'], pos: 0,
     usage: 'memory list --project PATH --log lessons|outcomes|progress|goals|activity [--tail N]',
   },
+  'memory proposals': {
+    flags: ['--project', '--config', '--min', '--tail'], pos: 0,
+    usage: 'memory proposals --project PATH [--min N] [--tail N]  (suggestive only — never writes rules or memory)',
+  },
   'goal create': {
     flags: ['--project', '--config', '--input', '--apply'], pos: 0,
     usage: 'goal create --project PATH --input FILE [--apply]',
@@ -756,6 +760,10 @@ const COMMANDS = {
     flags: ['--project', '--config', '--revision', '--apply'], pos: 1,
     usage: 'rule archive ID --project PATH --revision N [--apply]',
   },
+  'rule import': {
+    flags: ['--project', '--config', '--from', '--apply'], pos: 0,
+    usage: 'rule import --project PATH --from FILE [--apply]',
+  },
   view: {
     flags: ['--project', '--config', '--port', '--host', '--allow-write'],
     pos: 0,
@@ -816,7 +824,7 @@ const FAMILY_DESCRIPTIONS = {
   host: 'host activation, manifests, parity and gate proposals',
   helper: 'project-local helper script installation',
   verify: 'supervised verification commands (approve, run)',
-  rule: 'local overlay rule lifecycle (propose, approve, archive)',
+  rule: 'local overlay rule lifecycle (propose, approve, archive, import)',
 };
 
 function describeCommand(name) {
@@ -2242,6 +2250,16 @@ async function cmdMemory(sub, flags) {
       ? decimalInt(flags['--tail'], '--tail') : 50;
     return readWorklog(ctx, requireFlag(flags, '--log'), { tail });
   }
+  if (sub === 'proposals') {
+    const { proposeMemoryRules } =
+      await import('./core/memory-rules.mjs');
+    return proposeMemoryRules(ctx, {
+      ...(flags['--min'] !== undefined
+        ? { minCount: decimalInt(flags['--min'], '--min') } : {}),
+      ...(flags['--tail'] !== undefined
+        ? { tail: decimalInt(flags['--tail'], '--tail') } : {}),
+    });
+  }
   throw err('INVALID_ARGS', `unknown memory subcommand '${sub}'`);
 }
 
@@ -3154,7 +3172,8 @@ async function cmdVerify(sub, positional, flags, io) {
 // mounted rules are pinned resources.
 async function cmdRule(sub, positional, flags, io) {
   const { listRules, showRule, prepareProposeRule, applyProposeRule,
-    prepareFlipRule, applyFlipRule } =
+    prepareFlipRule, applyFlipRule,
+    prepareImportRules, applyImportRules } =
     await import('./core/rules.mjs');
   const ctx = resolveContext({
     project: projectFlag(flags), config: flags['--config'],
@@ -3179,6 +3198,13 @@ async function cmdRule(sub, positional, flags, io) {
       return prepareFlipRule(ctx, positional[0], options, target);
     }
     return applyFlipRule(ctx, positional[0], options, target);
+  }
+  if (sub === 'import') {
+    const options = { from: requireFlag(flags, '--from') };
+    if (!flags['--apply']) {
+      return prepareImportRules(ctx, options);
+    }
+    return applyImportRules(ctx, options);
   }
   throw err('INVALID_ARGS', `unknown rule subcommand '${sub}'`);
 }

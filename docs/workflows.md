@@ -64,7 +64,14 @@ pares cuyos `activation.globs` pueden compartir rutas con
 `enforcement.level` distinto, hermanas no-activas solapando una regla
 activa, y deps declaradas sobre reglas filtradas o inexistentes.
 `doctor` reporta el mismo lint como check `rule-lint` de nivel
-warning — advisory, nunca bloqueante. El harness nunca ejecuta comandos descubiertos
+warning — advisory, nunca bloqueante.
+
+Las reglas locales ademas pueden importarse desde archivos de
+instrucciones existentes (`scopegrain rule import --from AGENTS.md`):
+el archivo se segmenta por encabezados y cada seccion queda como
+borrador `Status: Proposed` con `origin.source: imported` —
+unidireccional, deduplicado por hash, nunca ejecuta ni reescribe el
+origen. El harness nunca ejecuta comandos descubiertos
 en reglas — la referencia solo apunta a un store que el owner ya
 reviso, nada mas.
 

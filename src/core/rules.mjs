@@ -421,3 +421,191 @@ export function applyFlipRule(ctx, id, options, target) {
     rel: plan.rel, from: plan.current, to: plan.target,
     revision: plan.state.perRule + 1, journaled };
 }
+
+// --- import: external instruction files -> local Proposed drafts ----
+// Unidirectional by contract: reads a source file inside the project
+// (AGENTS.md, .cursorrules, ...), segments it on markdown headings and
+// stages each section as a Status:Proposed draft under rules/local/.
+// Imported text is data — never executed, never written back to the
+// source. Re-import is idempotent: identical bytes are deduped by
+// sha256 against existing local rules.
+
+const IMPORT_MAX_SECTIONS = 32;
+const IMPORT_HEADING_RE = /^(#{1,4})\s+(.+?)\s*$/;
+const IMPORT_FENCE_RE = /^```/;
+
+function importSlug(title, fallbackStem) {
+  // NFKD strips accents to ascii so 'Estándares' -> 'estandares'.
+  let s = (title ?? fallbackStem).normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 58)
+    .replace(/-+$/g, '');
+  if (!ID_RE.test(s)) s = `rule-${s}`.replace(/-+$/, '');
+  if (!ID_RE.test(s)) s = 'rule-imported';
+  try {
+    assertSafeId(s, 'rule id');
+  } catch {
+    // A device-name stem (con, aux, ...) gets a safe prefix instead of
+    // aborting the whole import.
+    s = `rule-${s}`;
+  }
+  return s;
+}
+
+function segmentImportSource(text) {
+  const sections = [];
+  let cur = null;
+  const flush = () => {
+    if (cur === null) return;
+    const body = cur.lines.join('\n').trim();
+    if (body !== '') sections.push({ title: cur.title, body });
+    cur = null;
+  };
+  let inFence = false;
+  for (const raw of text.split('\n')) {
+    const ln = raw.replace(/\r$/, '');
+    // A '# comment' inside a fenced block is code, not a heading.
+    if (IMPORT_FENCE_RE.test(ln)) inFence = !inFence;
+    const m = inFence ? null : IMPORT_HEADING_RE.exec(ln);
+    if (m) {
+      flush();
+      cur = { title: m[2].replace(/#+\s*$/, '').trim() || null,
+        lines: [ln] };
+    } else if (cur !== null) {
+      cur.lines.push(ln);
+    } else if (ln.trim() !== '') {
+      cur = { title: null, lines: [ln] };
+    }
+  }
+  flush();
+  if (sections.length === 0) {
+    throw err('INVALID_VALUE', 'import source has no content');
+  }
+  if (sections.length > IMPORT_MAX_SECTIONS) {
+    throw err('INVALID_VALUE',
+      `import segments into ${sections.length} sections`
+      + ` — the cap is ${IMPORT_MAX_SECTIONS}`);
+  }
+  return sections;
+}
+
+function localRuleHashes(ctx) {
+  const dir = resolveInside(ctx.projectRoot, localDirRel(ctx),
+    'local rules');
+  const st = lstatOrNull(dir);
+  const hashes = new Map(); // sha256 -> rule id (for skip reporting)
+  if (!st || !st.isDirectory()) return hashes;
+  for (const name of fs.readdirSync(dir)) {
+    if (!name.toLowerCase().endsWith('.md')) continue;
+    const f = lstatOrNull(path.join(dir, name));
+    if (!f || !f.isFile() || f.isSymbolicLink()) continue;
+    try {
+      hashes.set(sha256Buf(readBounded(path.join(dir, name), name)),
+        name.replace(/\.md$/i, ''));
+    } catch { /* unreadable overlay files never dedupe imports */ }
+  }
+  return hashes;
+}
+
+// planImport resolves sections -> {create, skipped} without writing.
+// 'unchanged' means byte-identical content already lives in the
+// overlay; 'conflict' means the id is taken by different content or
+// collides with a catalog id — imports never overwrite.
+function planImport(ctx, options) {
+  const text = decodeUtf8Strict(readInputFile(ctx, options.from))
+    .replace(/^\uFEFF/, ''); // BOM would hide a first-line heading
+  // path.parse keeps dotfile stems: '.cursorrules' -> '.cursorrules'
+  // (basename+regex would strip the whole name as an 'extension').
+  const fallbackStem = path.parse(options.from).name.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'imported';
+  const sections = segmentImportSource(text);
+  const cat = loadWorkspaceCatalog(ctx);
+  const hashes = localRuleHashes(ctx);
+  const taken = new Set();
+  const create = [];
+  const skipped = [];
+  for (const sec of sections) {
+    const bytes = Buffer.concat([
+      Buffer.from('---\nstatus: proposed\norigin.source: imported\n'
+        + '---\n\n', 'utf8'),
+      Buffer.from(`${sec.body}\n`, 'utf8'),
+    ]);
+    const hash = sha256Buf(bytes);
+    if (hashes.has(hash)) {
+      skipped.push({ id: hashes.get(hash), reason: 'unchanged' });
+      continue;
+    }
+    // Suffix on the captured base — 'x-2-3' compounds and can overflow
+    // the id cap; 'x-2', 'x-3' stays bounded and readable.
+    const base = importSlug(sec.title, fallbackStem);
+    let id = base;
+    for (let n = 2; taken.has(id); n += 1) {
+      id = `${base.slice(0, 58)}-${n}`;
+    }
+    taken.add(id);
+    let rel;
+    try {
+      rel = localRuleRel(ctx, id);
+    } catch {
+      skipped.push({ id, reason: 'id not writable' });
+      continue;
+    }
+    const exists =
+      lstatOrNull(resolveInside(ctx.projectRoot, rel, 'local rule'))
+        !== null;
+    if (exists) {
+      skipped.push({ id, reason: 'conflict' });
+      continue;
+    }
+    try {
+      assertNoCatalogCollision(cat, id);
+    } catch {
+      skipped.push({ id, reason: 'collides with catalog id' });
+      continue;
+    }
+    if (statusOf(bytes) !== 'proposed') {
+      skipped.push({ id, reason: 'cannot normalize to proposed' });
+      continue;
+    }
+    create.push({ id, rel, bytes, hash, title: sec.title });
+    hashes.set(hash, id);
+  }
+  return { from: options.from, sections: sections.length,
+    create, skipped };
+}
+
+export function prepareImportRules(ctx, options) {
+  const plan = planImport(ctx, options);
+  return { mode: 'dry-run', applied: false, from: plan.from,
+    sections: plan.sections,
+    create: plan.create.map((c) => ({ id: c.id, rel: c.rel })),
+    skipped: plan.skipped };
+}
+
+export function applyImportRules(ctx, options) {
+  const plan = planImport(ctx, options);
+  const created = [];
+  for (const c of plan.create) {
+    // The slot may have filled between plan and apply — skip it
+    // rather than overwrite.
+    if (lstatOrNull(
+      resolveInside(ctx.projectRoot, c.rel, 'local rule')) !== null) {
+      plan.skipped.push({ id: c.id, reason: 'conflict' });
+      continue;
+    }
+    const state = rulesJournalState(ctx, c.id);
+    const { journaled } = commitRuleFile(ctx,
+      { id: c.id, rel: c.rel, bytes: c.bytes,
+        prevSha: null, perRule: state.perRule });
+    rulesJournalAppend(ctx, { at: new Date().toISOString(), op: 'import',
+      id: c.id, rel: c.rel, previousSha256: null,
+      newSha256: c.hash, perRule: state.perRule + 1, journaled }, state);
+    created.push({ id: c.id, rel: c.rel,
+      revision: state.perRule + 1, journaled });
+  }
+  return { mode: 'applied', applied: true, from: plan.from,
+    sections: plan.sections, created, skipped: plan.skipped };
+}

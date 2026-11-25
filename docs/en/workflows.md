@@ -69,6 +69,12 @@ non-active siblings overlapping an active rule, and declared deps on
 filtered or missing rules. `doctor` reports the same lint as a
 warning-level `rule-lint` check — advisory only, never blocking.
 
+Local rules can also be imported from existing instruction files
+(`scopegrain rule import --from AGENTS.md`): the file is segmented on
+headings and each section lands as a `Status: Proposed` draft with
+`origin.source: imported` — one-way, hash-deduped, never executing or
+rewriting the source.
+
 Compatible aliases use the same `workflow` interface, not divergent
 implementations. Declared modes are validated; unknown names or modes
 are rejected. The web/rust/python/database profiles are optional and do
