@@ -15,6 +15,7 @@ import { validateReview, validateVerification } from './evidence.mjs';
 import { resolveInside } from './paths.mjs';
 import { actionsFor, loadMethodologyPolicy } from './policy.mjs';
 import { applyPreActionHooks, loadHooksPolicy } from './hooks-policy.mjs';
+import { checklistFindings } from './checklists.mjs';
 
 const INPUT_KEYS = new Set(['taskId', 'to', 'outcomeEvidenceId']);
 const FORWARD_SOURCES = new Set(['STALL', 'PLAN', 'RESEARCH']);
@@ -86,6 +87,16 @@ function checkDependencies(task, b, issues) {
     }
     // Even a closed direct dependency cannot hide an unfinished ancestor.
     pending.push(...ref.dependsOn);
+  }
+}
+
+// Advisory mirror of the ACCEPT gate in evaluateTaskTransition: bound
+// checklist items still pending/failed make the methodology evaluation
+// report not-allowed, so converge/check surfaces see the same block the
+// transition enforces.
+function checkChecklist(ctx, task, issues) {
+  for (const f of checklistFindings(ctx, task.id)) {
+    issues.push(issue(f.code, f.detail));
   }
 }
 
@@ -250,7 +261,10 @@ export function evaluateMethodology(ctx, task,
       try { resolveInside(ctx.projectRoot, s, 'task.scope'); }
       catch (e) { issues.push(issue(e.code, `task scope '${s}': ${e.message}`)); }
     }
-    if (to === 'ACCEPT') checkAcceptance(task, issues);
+    if (to === 'ACCEPT') {
+      checkAcceptance(task, issues);
+      checkChecklist(ctx, task, issues);
+    }
     return result(route);
   }
   const b = collectFormalBindings(ctx, task);
@@ -273,6 +287,7 @@ export function evaluateMethodology(ctx, task,
   if (to === 'ACCEPT') {
     const verification = checkAcceptance(task, issues);
     checkOutcome(ctx, task, b, verification, previousRevision, issues);
+    checkChecklist(ctx, task, issues);
   }
   return result(route);
 }

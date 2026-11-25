@@ -512,7 +512,10 @@ scopegrain task checklist --project PATH [ID] (--input FILE [--apply] |
 emits typed findings with a verdict; `--record` persists a create-only
 convergence record. `analyze` produces the cross-artifact report with
 severities and coverage. `checklist` manages reviewer-owned `CHK###`
-artifacts (create-only, CAS, gated in converge).
+artifacts (create-only, CAS, gated in converge). Checklist items still
+`pending` or `fail` also block `REVIEW -> ACCEPT` directly
+(`ACCEPT_CHECKLIST_OPEN`) — the gate is universal, independent of
+methodology mode; `pass` and `na` never block.
 
 ### task suggest
 

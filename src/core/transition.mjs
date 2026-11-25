@@ -31,6 +31,7 @@ import {
   normalizeV3Input, V3_DEFAULTS,
 } from './tasks.mjs';
 import { validateReview, validateVerification } from './evidence.mjs';
+import { checklistFindings } from './checklists.mjs';
 import { evaluateMethodology, evaluateTaskActions } from './methodology.mjs';
 import {
   classifyWork, validateMethodologyData,
@@ -193,6 +194,17 @@ export function evaluateTaskTransition(ctx, task, input,
     if (review.verdict !== acceptance.reviewVerdict) {
       throw err('ACCEPT_REQUIRES_REVIEW',
         `ACCEPT requires verdict '${acceptance.reviewVerdict}'`);
+    }
+    // Checklists bound to the task are reviewer-owned gates, not just
+    // converge findings: pending/failed items block ACCEPT universally —
+    // independent of methodology mode. Tasks without checklists are
+    // unaffected; 'na' and 'pass' never block.
+    const open = checklistFindings(ctx, id).filter((f) =>
+      f.code === 'CHECKLIST_FAIL' || f.code === 'CHECKLIST_OPEN');
+    if (open.length > 0) {
+      throw err('ACCEPT_CHECKLIST_OPEN',
+        `ACCEPT blocked by ${open.length} open/failed checklist item(s); ` +
+        `first: ${open[0].detail}`);
     }
   }
 

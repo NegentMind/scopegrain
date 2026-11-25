@@ -11,6 +11,8 @@ import {
 } from '../src/core/tasks.mjs';
 import { checkAction, transitionTask, updateTaskMeta }
   from '../src/core/transition.mjs';
+import { createChecklist, markChecklistItem }
+  from '../src/core/checklists.mjs';
 import {
   VALID_ANSWERS, cleanup, makeTempDir, trySymlink, writeJson,
 } from './helpers.mjs';
@@ -282,6 +284,33 @@ test('ACCEPT requires valid evidence; failures leave state unchanged', () => {
     });
     assert.equal(accepted.state, 'ACCEPT');
     assert.equal(accepted.revision, 5);
+  } finally { cleanup(dir); }
+});
+
+test('open or failed checklist items block REVIEW -> ACCEPT', () => {
+  const { dir, ctx, task } = setup();
+  try {
+    const evidence = { verification: VERIFY_OK, review: FRESH_REVIEW };
+    // pending blocks.
+    const chk = createChecklist(ctx, { taskId: task.id,
+      title: 'Reviewer gate',
+      items: [{ text: 'docs updated' }, { text: 'owner sign-off' }] });
+    toReview(ctx, task);
+    assert.throws(() => step(ctx, task.id, 'ACCEPT', 4, evidence),
+      (e) => e.code === 'ACCEPT_CHECKLIST_OPEN');
+    assert.equal(getTask(ctx, task.id).state, 'REVIEW');
+    // 'na' does not block but 'fail' does.
+    markChecklistItem(ctx, chk.id, 'CHK001', { status: 'na' });
+    assert.throws(() => step(ctx, task.id, 'ACCEPT', 4, evidence),
+      (e) => e.code === 'ACCEPT_CHECKLIST_OPEN');
+    markChecklistItem(ctx, chk.id, 'CHK002', { status: 'fail' });
+    assert.throws(() => step(ctx, task.id, 'ACCEPT', 4, evidence),
+      (e) => e.code === 'ACCEPT_CHECKLIST_OPEN');
+    // All resolved -> ACCEPT proceeds.
+    markChecklistItem(ctx, chk.id, 'CHK002', { status: 'pass' });
+    assert.equal(step(ctx, task.id, 'ACCEPT', 4, evidence).state, 'ACCEPT');
+    // A task without checklists is unaffected (same evidence path as the
+    // existing ACCEPT test).
   } finally { cleanup(dir); }
 });
 
