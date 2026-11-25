@@ -109,7 +109,7 @@ export function lifecycleInstallRoot() {
   writeJson(dir, 'policy/native-adapters.json', {
     ...real,
     readOnlyAgentIds: ['reviewer'],
-    hosts: { claude: real.hosts.claude },
+    hosts: { claude: real.hosts.claude, generic: real.hosts.generic },
   });
 
   miniRoot = dir;

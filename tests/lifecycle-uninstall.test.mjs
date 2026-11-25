@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import {
   applyUninstall, prepareUninstall,
 } from '../src/core/lifecycle.mjs';
+import { resolveContext } from '../src/core/context.mjs';
 import {
   cleanup, exists, readJson, writeFile, writeJson,
 } from './helpers.mjs';
@@ -120,6 +121,24 @@ test('applyUninstall on minimal config removes config-dir subtree only', () => {
     assert.ok(!exists(dir, 'CLAUDE.md'));
     assert.ok(fs.statSync(dir).isDirectory());
     assert.ok(Array.isArray(res.removedDirs));
+  } finally { cleanup(dir); }
+});
+
+test('applyUninstall removes destinations of hosts retired from config', () => {
+  const { dir, ctx, installRoot } = bootstrappedMiniCtx();
+  try {
+    // Bootstrap created claude destinations (CLAUDE.md at root). Retire
+    // claude from the config -- installRoot plans for known hosts so the
+    // retired host's files are still discovered by uninstall.
+    const config = readJson(dir, '.scopegrain/config.json');
+    config.hosts = ['generic'];
+    writeJson(dir, '.scopegrain/config.json', config);
+    const narrowed = resolveContext({ project: dir });
+    const preview = prepareUninstall(narrowed, { installRoot });
+    assert.ok(preview.candidates.some((c) => c.rel === 'CLAUDE.md'));
+    const res = applyUninstall(narrowed, { installRoot });
+    assert.ok(res.deleted.includes('CLAUDE.md'));
+    assert.ok(!exists(dir, 'CLAUDE.md'));
   } finally { cleanup(dir); }
 });
 
