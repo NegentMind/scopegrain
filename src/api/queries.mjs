@@ -238,6 +238,7 @@ function taskSummary(task) {
     expectedOutputs: Array.isArray(task.expectedOutputs)
       ? task.expectedOutputs : null,
     sideEffects: task.sideEffects ?? null,
+    executionType: task.executionType ?? null,
   };
 }
 

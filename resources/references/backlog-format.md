@@ -37,6 +37,7 @@ remain valid forever; the layer is orthogonal to the lifecycle
 | `agentRole` | string or null | Declarative profile assigned to the task (e.g. a `resources/agents/*` persona). Reference is not resolved at write time: stored records stay readable even if the profile later disappears. Additive extension, same read/write rule as `allowedTools`. |
 | `expectedOutputs` | `[{path, mustExist?, mustBeNonEmpty?}]` or null | Artifacts the task must produce for its definition-of-done. `path` is a canonical relative path inside the project root (same rule as `scope`); existence is not required at write time. VERIFY/EVALUATE consumers may check the files as a deterministic check. Additive extension, same read/write rule as `allowedTools`. |
 | `sideEffects` | `none|reversible|irreversible` or null | Declarative impact classification of the task's effects (e.g. `irreversible` for production deploys or external sends). Consumable by `preAction` hooks and hosts — the classification is data, not enforcement: the harness does not execute the effects. Additive extension, same read/write rule as `allowedTools`. |
+| `executionType` | `atomic|delegated|hitl` or null | Declarative execution pattern for the host's routing. `consensus`/debate is deliberately excluded: personas do not invoke personas (`resources/references/orchestration-patterns.md`). Additive extension, same read/write rule as `allowedTools`. |
 
 ## Plan semantic layer (schemaVersion 3)
 

@@ -258,6 +258,35 @@ test('sideEffects: enum none|reversible|irreversible or null', () => {
   } finally { cleanup(dir); }
 });
 
+test('executionType: atomic|delegated|hitl; consensus excluded by design', () => {
+  const { dir, ctx } = setup();
+  try {
+    for (const v of ['atomic', 'delegated', 'hitl']) {
+      const { task } = prepareTask(ctx, { ...BASE, executionType: v });
+      assert.equal(task.executionType, v);
+    }
+    // 'consensus' is a documented anti-pattern, not a valid value.
+    assert.throws(() => prepareTask(ctx, { ...BASE, executionType: 'consensus' }),
+      (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, executionType: null });
+    assert.equal(applied.executionType, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { executionType: 'hitl' },
+    });
+    assert.equal(next.executionType, 'hitl');
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.executionType = 'consensus';
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.executionType;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).executionType, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

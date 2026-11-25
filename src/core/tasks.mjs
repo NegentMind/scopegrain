@@ -34,7 +34,7 @@ const TASK_KEYS = new Set([
   'steps', 'notes', 'skills', 'uncertainty',
   // V3 extension fields (optional on read, emitted on write)
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
-  'sideEffects',
+  'sideEffects', 'executionType',
 ]);
 const V3_KEYS = new Set([
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
@@ -46,7 +46,7 @@ const V3_KEYS = new Set([
 // required on read, and always emitted by new writes via V3_DEFAULTS.
 const V3_EXT_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
-  'sideEffects',
+  'sideEffects', 'executionType',
 ]);
 const TASK_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3', 'backlog']);
 const TASK_SEVERITIES = new Set(['critical', 'high', 'medium', 'low', 'info']);
@@ -58,6 +58,9 @@ const TASK_DISPOSITIONS = new Set([
   'deferred', 'icebox', 'future', 'discarded', 'cancelled',
 ]);
 const TASK_SIDE_EFFECTS = new Set(['none', 'reversible', 'irreversible']);
+// 'consensus' (multi-agent debate) is deliberately absent: personas do
+// not invoke personas per resources/references/orchestration-patterns.md.
+const TASK_EXECUTION_TYPES = new Set(['atomic', 'delegated', 'hitl']);
 export const RELATION_KINDS = new Set(
   ['see', 'supersedes', 'duplicateOf', 'blocks']);
 const STEP_STATUSES = new Set(['pending', 'done', 'skipped']);
@@ -66,7 +69,7 @@ const META_KEYS = new Set([
   'priority', 'severity', 'type', 'effort', 'estimate', 'source',
   'relations', 'dependsOn', 'goalIds', 'analysis', 'skills', 'backlog',
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
-  'sideEffects',
+  'sideEffects', 'executionType',
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
@@ -74,7 +77,7 @@ const CREATE_KEYS = new Set([
   'backlog', 'priority', 'severity', 'type', 'effort', 'estimate',
   'source', 'relations', 'dependsOn', 'goalIds', 'analysis', 'steps',
   'notes', 'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
-  'agentRole', 'expectedOutputs', 'sideEffects',
+  'agentRole', 'expectedOutputs', 'sideEffects', 'executionType',
 ]);
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
@@ -252,6 +255,11 @@ function validateV3Fields(task, label) {
       && !TASK_SIDE_EFFECTS.has(task.sideEffects)) {
     throw err('TASK_MALFORMED',
       `${label}.sideEffects must be none|reversible|irreversible or null`);
+  }
+  if (task.executionType !== undefined && task.executionType !== null
+      && !TASK_EXECUTION_TYPES.has(task.executionType)) {
+    throw err('TASK_MALFORMED',
+      `${label}.executionType must be atomic|delegated|hitl or null`);
   }
   if (task.uncertainty !== null) {
     const u = task.uncertainty;
@@ -705,6 +713,7 @@ export function normalizeV3Input(input) {
   enumField('type', TASK_TYPES, 'type');
   enumField('effort', TASK_EFFORTS, 'effort');
   enumField('sideEffects', TASK_SIDE_EFFECTS, 'sideEffects');
+  enumField('executionType', TASK_EXECUTION_TYPES, 'executionType');
   if (has('estimate')) {
     v3.estimate = input.estimate === null ? null : (() => {
       const e = input.estimate;
@@ -870,7 +879,7 @@ export const V3_DEFAULTS = {
   dependsOn: null, goalIds: null, analysis: null, steps: null, notes: null,
   skills: null, uncertainty: null,
   allowedTools: null, requiredCapabilities: null, agentRole: null,
-  expectedOutputs: null, sideEffects: null,
+  expectedOutputs: null, sideEffects: null, executionType: null,
 };
 
 // Pure task record factory: no I/O, no side effects. V2 records carry the
