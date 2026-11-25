@@ -53,22 +53,13 @@ genéricos.
 
 ### Lista de comprobación
 
-| # | Regla | Qué detectar | Severidad por defecto |
-|---|---|---|---|
-| N1 | Nombres que revelan la intención | Nombres mentirosos o desinformativos (`data`, `info`, `tmp`, nombres de una letra fuera de bucles cortos) | medium |
-| N2 | Sin contexto gratuito | Nombres padre→hijo redundantes (`Store::store_get`, `Pool.pool_saturated`) | medium |
-| N3 | Convenciones idiomáticas | Convenciones de casing/nomenclatura del lenguaje violadas | medium |
-| F1 | Pequeña, propósito único, único nivel de abstracción | Funciones largas mezclando orquestación + formateo + E/S | medium |
-| F2 | ≤3 args, sin parámetros flag | ≥4 parámetros sin un objeto/builder; `bool` que cambia el comportamiento | medium |
-| F3 | Sin efectos laterales ocultos, CQS | `get*` que muta; un comando que consulta y cambia estado | medium |
-| E1 | Manejo explícito de errores | unwrap/panic sin comprobar en rutas de producción; throws sin tipar; catch-all silencioso | high |
-| C1 | Comentarios que compensan un fallo | Comentarios redundantes, código comentado | low/medium |
-| S1–S5 | SOLID | Múltiples razones de cambio; editar en lugar de extender; interfaces gordas; concreto sobre abstracción (high cuando el dominio depende de infraestructura) | medium |
-| A1 | Regla de dependencias | Capa interna nombrando tecnología de capa externa (tipos SQL/HTTP/UI/framework en lógica de dominio) | high |
-| A2 | Humble object + DTOs | Lógica de negocio en controladores/handlers; modelos de almacenamiento cruzando al dominio | high/medium |
-| A3 | Dependencias acíclicas | Ciclos de dependencia entre módulos | high |
-| G1–G7 | Design smells | Rigidez, fragilidad, inmovilidad, opacidad, envidia de funcionalidad, cadenas train-wreck, obsesión por primitivas | medium |
-| T1 | Calidad de tests | Tests lentos/acoplados/no repetibles; tests sin estructura arrange-act-assert | medium |
+Aplica la lista de comprobación y la escala de severidad de
+`references/clean-code-clean-architecture` — §2 micro-arquitectura
+(nomenclatura, SLAP, manejo de errores, catálogo de smells), §3 idiomas
+del lenguaje, §4 SOLID y gobernanza de componentes, §5 fronteras de
+arquitectura limpia, §10 escala de severidad (🔴/🟡/🟢). Etiqueta cada
+hallazgo con la sección de la referencia que viola; no reportes
+preferencias como defectos.
 
 ### Impacto por hallazgo (medium/high, obligatorio)
 

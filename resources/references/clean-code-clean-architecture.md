@@ -341,62 +341,22 @@ controllers.
 
 ## 9. Injectable agent directives
 
-Imperative lines suitable for an agent instruction file (AGENTS.md /
-rules file / system prompt). MUST/NEVER phrasing is deliberate.
+The normative directive set is the catalog rule `rules/clean-code`,
+declared in `profiles/core` so it enters every workflow packet —
+always-on rather than audit-only. To embed the directives in a project
+instruction file (AGENTS.md / system prompt), copy that rule's
+Must/Must-not lines; this compendium does not keep a second copy.
 
-### All languages
+### Project appendices
 
-```
-CLEAN ARCHITECTURE & CLEAN CODE — MANDATORY RULES
-1. ARCHITECTURE & DEPENDENCIES
-* Organize the project by functional domains (screaming architecture),
-  not technical components.
-* Dependencies point inward only: Infrastructure → Adapters → Application → Domain.
-* NEVER import web frameworks, ORMs or I/O libraries into Domain or Use Cases.
-* Boundary objects are Humble: controllers/CLI/consumers only receive,
-  translate DTOs and invoke use cases.
-2. MICRO-ARCHITECTURE
-* Apply SLAP: one abstraction level per function.
-* Keep functions small (~≤20 lines default) and ≤3 arguments; more → config object.
-* NEVER use boolean flag parameters; split into separate methods.
-* No comments describing WHAT code does; names carry intent.
-3. BOUNDARIES & DTOs
-* Flat DTOs for all data crossing use-case boundaries.
-* NEVER return Domain entities to infrastructure or controllers.
-4. MODIFICATION
-* Surgical edits only; never rewrite a whole file when a bounded edit suffices.
-* Every change ships with AAA-structured unit tests.
-```
-
-### Rust
-
-```
-* Newtype for primitives carrying validation or domain semantics.
-* Domain errors: typed enums via thiserror; never String/Box<dyn Error> in Domain.
-* NEVER unwrap()/expect() in production; propagate with ?.
-* Application ports as traits (async_trait or native).
-* Borrow (&str, &[T]) in signatures; avoid forced .clone().
-* NEVER hold a std::sync::MutexGuard across .await.
-```
-
-### Python
-
-```
-* 100% strict type hints on all functions/methods.
-* typing.Protocol for port abstractions; no forced inheritance.
-* @dataclass(frozen=True) or frozen Pydantic for Value Objects/DTOs.
-* NEVER bare/passive except Exception: — catch specific domain/infra exceptions only.
-* Domain entities are pure classes: no ORM base classes or decorators.
-```
-
-### TypeScript
-
-```
-* NEVER use any; external input is unknown + schema-validated at the boundary.
-* readonly on domain interface props; ReadonlyArray for collections.
-* Discriminated unions / Result<T,E> for fallible domain operations.
-* Small focused repository interfaces, not monolithic ones.
-```
+The audit checklist in this compendium is generic. A project records
+its own layer map, naming exceptions and local severities as an
+**appendix** composed over this reference — never by editing it.
+Mechanism: register a preset (`dist preset-register`) whose override
+targets `reference/clean-code-clean-architecture` with `op: append`
+and the appendix as `content`. The packet composer applies it whenever
+this reference enters a packet, so project appendices override the
+generic examples during audits.
 
 ## 10. Audit severity scale
 

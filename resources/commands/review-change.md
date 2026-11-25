@@ -48,22 +48,12 @@ appendices there override generic examples.
 
 ### Checklist
 
-| # | Rule | What to detect | Default severity |
-|---|---|---|---|
-| N1 | Intention-revealing names | Lying or disinformative names (`data`, `info`, `tmp`, one-letter names outside short loops) | medium |
-| N2 | No gratuitous context | Stuttering parent→child names (`Store::store_get`, `Pool.pool_saturated`) | medium |
-| N3 | Idiomatic conventions | Language casing/naming conventions violated | medium |
-| F1 | Small, single-purpose, single abstraction level | Long functions mixing orchestration + formatting + I/O | medium |
-| F2 | ≤3 args, no flag params | ≥4 params without an object/builder; `bool` that switches behavior | medium |
-| F3 | No hidden side effects, CQS | `get*` that mutates; a command that queries and changes state | medium |
-| E1 | Explicit error handling | Unchecked unwrap/panic in production paths; untyped throws; silent catch-all | high |
-| C1 | Comments compensating failure | Redundant comments, commented-out code | low/medium |
-| S1–S5 | SOLID | Multiple change reasons; edit-instead-of-extend; fat interfaces; concrete-over-abstraction (high when domain depends on infrastructure) | medium |
-| A1 | Dependency rule | Inner layer naming outer-layer tech (SQL/HTTP/UI/framework types in domain logic) | high |
-| A2 | Humble object + DTOs | Business logic in controllers/handlers; storage models crossing into domain | high/medium |
-| A3 | Acyclic dependencies | Dependency cycles between modules | high |
-| G1–G7 | Design smells | Rigidity, fragility, immobility, opacity, feature envy, train-wreck chains, primitive obsession | medium |
-| T1 | Test quality | Slow/coupled/non-repeatable tests; tests without arrange-act-assert structure | medium |
+Apply the checklist and severity scale in
+`references/clean-code-clean-architecture` — §2 micro-architecture
+(naming, SLAP, error handling, smell catalog), §3 language idioms,
+§4 SOLID and component governance, §5 clean-architecture boundaries,
+§10 severity scale (🔴/🟡/🟢). Tag each finding with the reference
+section it violates; do not report preferences as defects.
 
 ### Impact per finding (medium/high, mandatory)
 

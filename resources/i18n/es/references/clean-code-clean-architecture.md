@@ -355,63 +355,25 @@ argumentos flag, reglas de negocio viviendo en controllers.
 
 ## 9. Directivas inyectables para agentes
 
-Líneas imperativas aptas para un archivo de instrucciones de agente
-(AGENTS.md / archivo de rules / system prompt). La redacción MUST/NEVER es
-deliberada.
+El conjunto normativo de directivas es la regla de catálogo
+`rules/clean-code`, declarada en `profiles/core` para entrar en cada
+paquete de trabajo — lectura constante, no solo en auditorías. Para
+incrustar las directivas en un archivo de instrucciones del proyecto
+(AGENTS.md / system prompt), copiar las líneas Debe/No debe de esa
+regla; este compendio no mantiene una segunda copia.
 
-### Todos los lenguajes
+### Apéndices de proyecto
 
-```
-CLEAN ARCHITECTURE & CLEAN CODE — MANDATORY RULES
-1. ARCHITECTURE & DEPENDENCIES
-* Organize the project by functional domains (screaming architecture),
-  not technical components.
-* Dependencies point inward only: Infrastructure → Adapters → Application → Domain.
-* NEVER import web frameworks, ORMs or I/O libraries into Domain or Use Cases.
-* Boundary objects are Humble: controllers/CLI/consumers only receive,
-  translate DTOs and invoke use cases.
-2. MICRO-ARCHITECTURE
-* Apply SLAP: one abstraction level per function.
-* Keep functions small (~≤20 lines default) and ≤3 arguments; more → config object.
-* NEVER use boolean flag parameters; split into separate methods.
-* No comments describing WHAT code does; names carry intent.
-3. BOUNDARIES & DTOs
-* Flat DTOs for all data crossing use-case boundaries.
-* NEVER return Domain entities to infrastructure or controllers.
-4. MODIFICATION
-* Surgical edits only; never rewrite a whole file when a bounded edit suffices.
-* Every change ships with AAA-structured unit tests.
-```
-
-### Rust
-
-```
-* Newtype for primitives carrying validation or domain semantics.
-* Domain errors: typed enums via thiserror; never String/Box<dyn Error> in Domain.
-* NEVER unwrap()/expect() in production; propagate with ?.
-* Application ports as traits (async_trait or native).
-* Borrow (&str, &[T]) in signatures; avoid forced .clone().
-* NEVER hold a std::sync::MutexGuard across .await.
-```
-
-### Python
-
-```
-* 100% strict type hints on all functions/methods.
-* typing.Protocol for port abstractions; no forced inheritance.
-* @dataclass(frozen=True) or frozen Pydantic for Value Objects/DTOs.
-* NEVER bare/passive except Exception: — catch specific domain/infra exceptions only.
-* Domain entities are pure classes: no ORM base classes or decorators.
-```
-
-### TypeScript
-
-```
-* NEVER use any; external input is unknown + schema-validated at the boundary.
-* readonly on domain interface props; ReadonlyArray for collections.
-* Discriminated unions / Result<T,E> for fallible domain operations.
-* Small focused repository interfaces, not monolithic ones.
-```
+La checklist de auditoría de este compendio es genérica. Un proyecto
+registra su propio mapa de capas, excepciones de nomenclatura y
+severidades locales como un **apéndice** compuesto sobre esta
+referencia — nunca editándola. Mecanismo: registrar un preset
+(`dist preset-register`) cuyo override apunte a
+`reference/clean-code-clean-architecture` con `op: append` y el
+apéndice como `content`. El compositor de paquetes lo aplica cada vez
+que esta referencia entra en un paquete, así que los apéndices de
+proyecto prevalecen sobre los ejemplos genéricos durante las
+auditorías.
 
 ## 10. Escala de severidad de auditoría
 

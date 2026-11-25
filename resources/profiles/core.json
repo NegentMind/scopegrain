@@ -16,7 +16,8 @@
     "human-decisions",
     "resource-integrity",
     "research-escalation",
-    "methodology"
+    "methodology",
+    "clean-code"
   ],
   "references": [
     "definition-of-done",

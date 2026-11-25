@@ -1193,6 +1193,12 @@
     },
     {
       "kind": "rule",
+      "id": "clean-code",
+      "path": "resources/rules/clean-code.md",
+      "description": "Always-on clean-code and clean-architecture directives for every code change."
+    },
+    {
+      "kind": "rule",
       "id": "concurrency-async",
       "path": "resources/rules/concurrency-async.md",
       "description": "Bound concurrency and avoid blocking asynchronous runtimes."
