@@ -162,12 +162,27 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     p.request = 'Ship the release with zero known P0s';
     p.planType = 'hybrid';
     p.trigger = { kind: 'scheduled', ref: 'weekly-release' };
+    p.acceptanceCriteria = ['all tasks CLOSED', 'report written'];
+    p.deliverables = [
+      { path: 'docs/report.md', mustExist: true },
+      { path: 'src/index.mjs' },
+    ];
+    p.synthesisStrategy = 'aggregate';
+    p.replanPolicy = 'insert-remediation';
     const prepared = preparePlan(ctx, p);
     assert.equal(prepared.plan.schemaVersion, 3);
     assert.equal(prepared.plan.request, 'Ship the release with zero known P0s');
     assert.equal(prepared.plan.planType, 'hybrid');
     assert.deepEqual(prepared.plan.trigger,
       { kind: 'scheduled', ref: 'weekly-release' });
+    assert.deepEqual(prepared.plan.acceptanceCriteria,
+      ['all tasks CLOSED', 'report written']);
+    assert.deepEqual(prepared.plan.deliverables, [
+      { path: 'docs/report.md', mustExist: true },
+      { path: 'src/index.mjs' },
+    ]);
+    assert.equal(prepared.plan.synthesisStrategy, 'aggregate');
+    assert.equal(prepared.plan.replanPolicy, 'insert-remediation');
     applyPlan(dir, preflightPlan(dir, prepared.files));
     const stored = getPlan(ctx, 'rel-3');
     assert.equal(stored.request, 'Ship the release with zero known P0s');
@@ -175,9 +190,10 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     const p2 = JSON.parse(JSON.stringify(V3_PLAN));
     p2.key = 'rel-4';
     const prepared2 = preparePlan(ctx, p2);
-    assert.equal(prepared2.plan.request, null);
-    assert.equal(prepared2.plan.planType, null);
-    assert.equal(prepared2.plan.trigger, null);
+    for (const k of ['request', 'planType', 'trigger', 'acceptanceCriteria',
+      'deliverables', 'synthesisStrategy', 'replanPolicy']) {
+      assert.equal(prepared2.plan[k], null);
+    }
     // stored V3 records predating the ext keys stay readable
     const prepared3 = preparePlan(ctx, p2);
     applyPlan(dir, preflightPlan(dir, prepared3.files));
@@ -197,6 +213,13 @@ test('V3 ext: request, planType and trigger persist with defaults', () => {
     bad((b) => { b.trigger = { kind: 'psychic' }; }, 'INVALID_PLAN');
     bad((b) => { b.trigger = { kind: 'manual', extra: 1 }; },
       'UNKNOWN_KEY');
+    bad((b) => { b.acceptanceCriteria = ['']; }, 'INVALID_PLAN');
+    bad((b) => { b.acceptanceCriteria = 'done'; }, 'INVALID_PLAN');
+    bad((b) => { b.deliverables = [{ path: '../evil' }]; }, 'INVALID_PATH');
+    bad((b) => { b.deliverables = [{ path: 'a', extra: 1 }]; },
+      'UNKNOWN_KEY');
+    bad((b) => { b.synthesisStrategy = 'magic'; }, 'INVALID_PLAN');
+    bad((b) => { b.replanPolicy = 'yeet'; }, 'INVALID_PLAN');
     // ext keys are V3-layer: a V1 record may not carry them
     const f1 = path.join(dir, 'docs/agent/plans/rel-4.json');
     const d1 = JSON.parse(fs.readFileSync(f1, 'utf8'));

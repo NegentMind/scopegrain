@@ -61,10 +61,15 @@ const PLAN_V3_KEYS = new Set([
 // written as V3. Never required by the stored shape — the required set is
 // PLAN_V3_KEYS and stays frozen.
 const PLAN_V3_EXT_KEYS = new Set([
-  'request', 'planType', 'trigger',
+  'request', 'planType', 'trigger', 'acceptanceCriteria', 'deliverables',
+  'synthesisStrategy', 'replanPolicy',
 ]);
 const PLAN_TYPES = new Set(['static', 'dynamic', 'hybrid']);
 const TRIGGER_KINDS = new Set(['manual', 'scheduled', 'event', 'derived']);
+const SYNTHESIS_STRATEGIES = new Set(
+  ['last-task', 'aggregate', 'summarizer', 'manual']);
+const REPLAN_POLICIES = new Set(
+  ['strict-abort', 'insert-remediation', 'prune-branch', 'manual']);
 const PLAN_INPUT_KEYS = new Set(
   ['key', 'title', 'authorContext', 'tasks', 'specId', 'designId',
     ...PLAN_V3_KEYS, ...PLAN_V3_EXT_KEYS]);
@@ -226,6 +231,36 @@ function normalizePlanV3(input, taskKeys, errorFn) {
     v3.trigger = input.trigger === null ? null
       : validatePlanTrigger(input.trigger, 'trigger');
   }
+  if (has('acceptanceCriteria')) {
+    if (input.acceptanceCriteria !== null
+        && (!Array.isArray(input.acceptanceCriteria)
+          || !input.acceptanceCriteria.every(
+            (s) => typeof s === 'string' && s.trim() !== ''))) {
+      throw errorFn(
+        'acceptanceCriteria must be an array of non-empty strings or null');
+    }
+    v3.acceptanceCriteria = input.acceptanceCriteria;
+  }
+  if (has('deliverables')) {
+    v3.deliverables = input.deliverables === null ? null
+      : validatePlanDeliverables(input.deliverables, 'deliverables');
+  }
+  if (has('synthesisStrategy')) {
+    if (input.synthesisStrategy !== null
+        && !SYNTHESIS_STRATEGIES.has(input.synthesisStrategy)) {
+      throw errorFn(
+        'synthesisStrategy must be last-task|aggregate|summarizer|manual or null');
+    }
+    v3.synthesisStrategy = input.synthesisStrategy;
+  }
+  if (has('replanPolicy')) {
+    if (input.replanPolicy !== null
+        && !REPLAN_POLICIES.has(input.replanPolicy)) {
+      throw errorFn(
+        'replanPolicy must be strict-abort|insert-remediation|prune-branch|manual or null');
+    }
+    v3.replanPolicy = input.replanPolicy;
+  }
   if (Object.keys(v3).length) {
     for (const k of PLAN_V3_EXT_KEYS) {
       if (v3[k] === undefined) v3[k] = null;
@@ -252,6 +287,42 @@ function validatePlanTrigger(value, label) {
     throw err('INVALID_PLAN', `${label}.ref must be a string or null`);
   }
   return { kind: value.kind, ref: value.ref ?? null };
+}
+
+// Same entry shape as task expectedOutputs: a canonical path the plan
+// promises to leave behind, plus optional existence hints for the host.
+function validatePlanDeliverables(value, label) {
+  if (!Array.isArray(value)) {
+    throw err('INVALID_PLAN',
+      `${label} must be an array of deliverable entries or null`);
+  }
+  return value.map((o, i) => {
+    const ol = `${label}[${i}]`;
+    if (o === null || typeof o !== 'object' || Array.isArray(o)) {
+      throw err('INVALID_PLAN', `${ol} must be an object`);
+    }
+    for (const k of Object.keys(o)) {
+      if (!['path', 'mustExist', 'mustBeNonEmpty'].includes(k)) {
+        throw err('UNKNOWN_KEY', `${ol} received unknown key '${k}'`);
+      }
+    }
+    if (typeof o.path !== 'string' || o.path.trim() === '') {
+      throw err('INVALID_PLAN', `${ol}.path must be a non-empty string`);
+    }
+    for (const k of ['mustExist', 'mustBeNonEmpty']) {
+      if (o[k] !== undefined && typeof o[k] !== 'boolean') {
+        throw err('INVALID_PLAN', `${ol}.${k} must be a boolean`);
+      }
+    }
+    const item = {
+      path: assertDestination(o.path, `${ol}.path`),
+    };
+    if (o.mustExist !== undefined) item.mustExist = o.mustExist;
+    if (o.mustBeNonEmpty !== undefined) {
+      item.mustBeNonEmpty = o.mustBeNonEmpty;
+    }
+    return item;
+  });
 }
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

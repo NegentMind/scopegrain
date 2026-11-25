@@ -93,6 +93,10 @@ semantic or extension key still requires the full required V3 set above.
 | `request` | non-empty string or null | The user's verbatim intent for the plan — the shared "north" every member task should remember. Declarative; hosts may inject it into member packets. |
 | `planType` | `static|dynamic|hybrid` or null | How the plan was assembled: from a fixed template, generated at runtime, or template plus injected items. Declarative. |
 | `trigger` | `{kind: manual|scheduled|event|derived, ref?: string}` or null | What originated the plan. The harness records provenance only — it never executes schedules or consumes webhooks. |
+| `acceptanceCriteria` | `[non-empty string]` or null | Plan-level success conditions — distinct from `stopConditions` (abort) and per-task contracts. Declarative; hosts evaluate them. |
+| `deliverables` | `[{path, mustExist?, mustBeNonEmpty?}]` or null | Files the plan promises to leave behind; same entry shape as task `expectedOutputs`, `path` canonicalized. |
+| `synthesisStrategy` | `last-task|aggregate|summarizer|manual` or null | How the final user-facing answer should be assembled from member outputs. Declarative hint for the host. |
+| `replanPolicy` | `strict-abort|insert-remediation|prune-branch|manual` or null | What the host may do when a member fails: kill the plan, inject remediation tasks, prune a branch, or ask a human. The harness stores the policy; hosts execute it. |
 
 `plan next` is triage-aware: entries triaged `defer|skip|blocked` report
 status `triaged` instead of `ready`/`blocked`.
