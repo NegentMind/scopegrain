@@ -67,7 +67,8 @@ export function renderTaskDoc(task, locale = 'en') {
       ['agentRole', task.agentRole],
       ['expectedOutputs', task.expectedOutputs],
       ['sideEffects', task.sideEffects],
-      ['executionType', task.executionType]]) {
+      ['executionType', task.executionType],
+      ['outputContract', task.outputContract]]) {
     if (v !== undefined && v !== null) L.push(`${k}: ${JSON.stringify(v)}`);
   }
   L.push(`createdAt: "${task.createdAt}"`);

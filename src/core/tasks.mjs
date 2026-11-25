@@ -34,7 +34,7 @@ const TASK_KEYS = new Set([
   'steps', 'notes', 'skills', 'uncertainty',
   // V3 extension fields (optional on read, emitted on write)
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
-  'sideEffects', 'executionType',
+  'sideEffects', 'executionType', 'outputContract',
 ]);
 const V3_KEYS = new Set([
   'backlog', 'disposition', 'priority', 'severity', 'type', 'effort',
@@ -46,7 +46,7 @@ const V3_KEYS = new Set([
 // required on read, and always emitted by new writes via V3_DEFAULTS.
 const V3_EXT_KEYS = new Set([
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
-  'sideEffects', 'executionType',
+  'sideEffects', 'executionType', 'outputContract',
 ]);
 const TASK_PRIORITIES = new Set(['p0', 'p1', 'p2', 'p3', 'backlog']);
 const TASK_SEVERITIES = new Set(['critical', 'high', 'medium', 'low', 'info']);
@@ -69,7 +69,7 @@ const META_KEYS = new Set([
   'priority', 'severity', 'type', 'effort', 'estimate', 'source',
   'relations', 'dependsOn', 'goalIds', 'analysis', 'skills', 'backlog',
   'allowedTools', 'requiredCapabilities', 'agentRole', 'expectedOutputs',
-  'sideEffects', 'executionType',
+  'sideEffects', 'executionType', 'outputContract',
 ]);
 const CREATE_KEYS = new Set([
   'title', 'contract', 'authorContext', 'scope', 'methodology',
@@ -78,6 +78,7 @@ const CREATE_KEYS = new Set([
   'source', 'relations', 'dependsOn', 'goalIds', 'analysis', 'steps',
   'notes', 'skills', 'uncertainty', 'allowedTools', 'requiredCapabilities',
   'agentRole', 'expectedOutputs', 'sideEffects', 'executionType',
+  'outputContract',
 ]);
 const V2_KEYS = new Set(
   ['methodology', 'specId', 'designId', 'planKey', 'scenarioRefs']);
@@ -260,6 +261,12 @@ function validateV3Fields(task, label) {
       && !TASK_EXECUTION_TYPES.has(task.executionType)) {
     throw err('TASK_MALFORMED',
       `${label}.executionType must be atomic|delegated|hitl or null`);
+  }
+  if (task.outputContract !== undefined && task.outputContract !== null
+      && (typeof task.outputContract !== 'string'
+        || task.outputContract.trim() === '')) {
+    throw err('TASK_MALFORMED',
+      `${label}.outputContract must be a non-empty string or null`);
   }
   if (task.uncertainty !== null) {
     const u = task.uncertainty;
@@ -738,14 +745,16 @@ export function normalizeV3Input(input) {
     }
     v3.source = input.source;
   }
-  if (has('agentRole')) {
-    if (input.agentRole !== null
-        && (typeof input.agentRole !== 'string' || input.agentRole.trim() === '')) {
-      throw err('INVALID_VALUE',
-        'agentRole must be a non-empty string or null');
+  const nonEmptyStr = (k) => {
+    if (!has(k)) return;
+    if (input[k] !== null
+        && (typeof input[k] !== 'string' || input[k].trim() === '')) {
+      throw err('INVALID_VALUE', `${k} must be a non-empty string or null`);
     }
-    v3.agentRole = input.agentRole;
-  }
+    v3[k] = input[k];
+  };
+  nonEmptyStr('agentRole');
+  nonEmptyStr('outputContract');
   if (has('expectedOutputs')) {
     v3.expectedOutputs = input.expectedOutputs === null ? null : (() => {
       const arr = input.expectedOutputs;
@@ -880,6 +889,7 @@ export const V3_DEFAULTS = {
   skills: null, uncertainty: null,
   allowedTools: null, requiredCapabilities: null, agentRole: null,
   expectedOutputs: null, sideEffects: null, executionType: null,
+  outputContract: null,
 };
 
 // Pure task record factory: no I/O, no side effects. V2 records carry the

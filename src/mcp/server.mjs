@@ -843,6 +843,9 @@ export function createMCPTools(ctx, z) {
             .describe('methodology assessment (organic-sdd)'),
           dependsOn: z.array(z.string().max(MAX_ARG_CHARS)).max(256)
             .optional().describe('task UUIDs this task depends on'),
+          relations: z.record(
+            z.array(z.string().max(MAX_ARG_CHARS)).max(256))
+            .optional().describe('typed edges: see|supersedes|duplicateOf|blocks'),
           goalIds: z.array(z.string().max(MAX_ARG_CHARS)).max(256)
             .optional(),
           apply: z.boolean().optional()
@@ -853,7 +856,7 @@ export function createMCPTools(ctx, z) {
       handler: wrap(async (a) => {
         const FLAT = ['title', 'contract', 'authorContext', 'scope',
           'specId', 'designId', 'planKey', 'scenarioRefs', 'methodology',
-          'dependsOn', 'goalIds'];
+          'dependsOn', 'relations', 'goalIds'];
         if (a.input !== undefined
             && FLAT.some((k) => a[k] !== undefined)) {
           throw err('INVALID_ARGS',
@@ -882,6 +885,8 @@ export function createMCPTools(ctx, z) {
             ? { methodology: a.methodology } : {}),
           ...(a.dependsOn !== undefined
             ? { dependsOn: a.dependsOn } : {}),
+          ...(a.relations !== undefined
+            ? { relations: a.relations } : {}),
           ...(a.goalIds !== undefined ? { goalIds: a.goalIds } : {}),
         };
         if (a.apply === true) {

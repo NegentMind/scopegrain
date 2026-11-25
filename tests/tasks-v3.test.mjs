@@ -287,6 +287,36 @@ test('executionType: atomic|delegated|hitl; consensus excluded by design', () =>
   } finally { cleanup(dir); }
 });
 
+test('outputContract: non-empty string or null', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, {
+      ...BASE, outputContract: 'schemas/report.schema.json',
+    });
+    assert.equal(task.outputContract, 'schemas/report.schema.json');
+    assert.throws(() => prepareTask(ctx, { ...BASE, outputContract: '' }),
+      (e) => e.code === 'INVALID_VALUE');
+    assert.throws(() => prepareTask(ctx, { ...BASE, outputContract: {} }),
+      (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, outputContract: null });
+    assert.equal(applied.outputContract, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { outputContract: 'templates/handoff.md' },
+    });
+    assert.equal(next.outputContract, 'templates/handoff.md');
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.outputContract = 7;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.outputContract;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).outputContract, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

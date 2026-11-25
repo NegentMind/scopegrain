@@ -239,6 +239,7 @@ function taskSummary(task) {
       ? task.expectedOutputs : null,
     sideEffects: task.sideEffects ?? null,
     executionType: task.executionType ?? null,
+    outputContract: task.outputContract ?? null,
   };
 }
 
