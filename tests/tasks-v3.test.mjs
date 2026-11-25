@@ -384,6 +384,33 @@ test('fallback: closed {onFail: stall|abandon|needs-human, note?} or null', () =
   } finally { cleanup(dir); }
 });
 
+test('contextInheritance: enum isolated|summary|full or null', () => {
+  const { dir, ctx } = setup();
+  try {
+    const { task } = prepareTask(ctx, { ...BASE, contextInheritance: 'summary' });
+    assert.equal(task.contextInheritance, 'summary');
+    assert.throws(() => prepareTask(ctx, {
+      ...BASE, contextInheritance: 'everything',
+    }), (e) => e.code === 'INVALID_VALUE');
+    const applied = createTask(ctx, { ...BASE, contextInheritance: null });
+    assert.equal(applied.contextInheritance, null);
+    const next = updateTaskMeta(ctx, {
+      id: applied.id, expectedRevision: 0,
+      set: { contextInheritance: 'full' },
+    });
+    assert.equal(next.contextInheritance, 'full');
+    const file = taskFilePath(ctx, applied.id);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.contextInheritance = 'partial';
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(() => getTask(ctx, applied.id),
+      (e) => e.code === 'TASK_MALFORMED');
+    delete data.contextInheritance;
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.equal(getTask(ctx, applied.id).contextInheritance, undefined);
+  } finally { cleanup(dir); }
+});
+
 test('no V3 fields keeps natural version; invalid enums rejected', () => {
   const { dir, ctx } = setup();
   try {

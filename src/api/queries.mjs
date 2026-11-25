@@ -242,6 +242,7 @@ function taskSummary(task) {
     outputContract: task.outputContract ?? null,
     reviewRubric: task.reviewRubric ?? null,
     fallback: task.fallback ?? null,
+    contextInheritance: task.contextInheritance ?? null,
   };
 }
 
