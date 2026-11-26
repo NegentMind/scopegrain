@@ -86,7 +86,7 @@ Ninguna fila afirma que ya esten activados dentro de un anfitrion.
 | `/spec` | Especificar antes de implementar | Investigar primero y preguntar solo lo que no responde el repositorio |
 | `/backlog` | Consultar trabajo activo y recomendar prioridad | No asumir `docs/dev/Backlog.md` ni taxonomias de VantaDB |
 | `/status` | Estado consolidado de trabajo y verificaciones | Leer los artefactos configurados; no archivos historicos de otro proyecto |
-| `/audit` | Quick, certify, review y full | Un procedimiento comun con verificaciones aprobadas por proyecto; no imponer Cargo |
+| `/audit` | Quick, certify (etiqueta historica), review y full | Un procedimiento comun con verificaciones aprobadas por proyecto; no imponer Cargo |
 | `/harness` | Auditar la salud del propio sistema de agentes | Validar catalogos, enlaces, roles, perfiles y adaptadores; doctor actual es mas limitado |
 | `/research` | Investigacion por area y sintesis de decisiones | Descubrir areas del proyecto y registrar fuentes; red requiere permiso |
 | `/ship` | Preflight y decision de entrega con recuperacion prevista | Separar evaluar de publicar; aprobar cada operacion con efectos externos |
@@ -198,9 +198,10 @@ El nucleo permite el flujo vertical especificar -> planificar -> implementar
 con el anfitrion -> verificar -> revisar -> cerrar -> recuperar contexto.
 La evidencia ejecutada y sus huecos estan en [verificacion](verification.md).
 No se declara equivalencia integral con plugins, sandbox o especialidades
-que siguen archivados, ni certificacion real en los seis anfitriones: solo
-Devin Local (sesion real, 2026-11-17) y Antigravity App/CLI (sesion real,
-2026-11-19) tienen pilotos nativos certificados.
+que siguen archivados, ni validacion real de todos los anfitriones. Solo
+Devin Local (2026-11-17), Antigravity App/CLI (2026-11-19) y OpenCode V2
+(2026-11-23) tienen pilotos nativos validados en sesiones reales (self-run);
+los demas hosts y superficies siguen sin esa validacion.
 
 Una pieza solo cambia de pendiente a activa cuando sus referencias y
 permisos son coherentes, no impone un dominio, conserva su procedencia y

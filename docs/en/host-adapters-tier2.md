@@ -12,7 +12,9 @@ Analysis of the remaining candidates for `policy/native-adapters.json`
 after `copilot` and `cursor` landed. This is an evaluation document, not an
 implementation plan: nothing here is certified; each candidate would require
 the same verified-sources, declarative-policy and native-pilot cycle as the
-existing adapters.
+existing adapters. Adapter scaffolding does not declare product support: the
+README matrix classifies `copilot` and `cursor` as `absent` unless a
+`supported` or `experimental` integration is declared.
 
 ## Current tier status
 

@@ -94,7 +94,7 @@ No row claims they are already activated inside a host.
 | `/spec` | Specify before implementing | Investigate first and ask only what the repository does not answer |
 | `/backlog` | Consult active work and recommend priority | Do not assume `docs/dev/Backlog.md` or VantaDB taxonomies |
 | `/status` | Consolidated status of work and verifications | Read the configured artifacts; not another project's historical files |
-| `/audit` | Quick, certify, review and full | A common procedure with project-approved verifications; do not impose Cargo |
+| `/audit` | Quick, certify (inherited label), review and full | A common procedure with project-approved verifications; do not impose Cargo |
 | `/harness` | Audit the health of the agent system itself | Validate catalogs, links, roles, profiles and adapters; current doctor is more limited |
 | `/research` | Per-area investigation and decision synthesis | Discover project areas and record sources; network requires permission |
 | `/ship` | Preflight and delivery decision with planned recovery | Separate evaluating from publishing; approve every operation with external effects |
@@ -220,9 +220,10 @@ the host -> verify -> review -> close -> recover context. The
 executed evidence and its gaps are in
 [verification](verification.md). Full equivalence with plugins,
 sandbox or specialties that remain archived is not claimed, nor real
-certification in the six hosts: only Devin Local (real session,
-2026-11-17) and Antigravity App/CLI (real session, 2026-11-19) have
-certified native pilots.
+validation of every host. Only Devin Local (2026-11-17), Antigravity
+App/CLI (2026-11-19) and OpenCode V2 (2026-11-23) have native pilots
+validated in real sessions (self-run); the other hosts and surfaces
+still lack that validation.
 
 A piece only changes from pending to active when its references and
 permissions are coherent, it does not impose a domain, it preserves

@@ -166,11 +166,11 @@ tipo de carpeta ni una certificacion de los archivos citados.
 La suite cuenta actualmente 1540 pruebas (conteo verificado en la
 auditoria del 2026-11-24; la ultima integral registrada, del
 2026-11-23, reporto 1440 pruebas: 1435 pass y 5 fail). El piloto de
-Devin Local quedo certificado en una sesion real; el piloto nativo de
-Antigravity App/CLI quedo certificado el
-2026-11-19; el piloto nativo de OpenCode V2 quedo certificado el
-2026-11-23; Claude, Codex, la superficie IDE de Antigravity y
-Hermes siguen pendientes. Ver los resultados y limites
+Devin Local quedo validado en una sesion real (self-run); el piloto
+nativo de Antigravity App/CLI quedo validado en una sesion real
+(self-run) el 2026-11-19; el piloto nativo de OpenCode V2 quedo validado
+en una sesion real (self-run) el 2026-11-23; los demas hosts y
+superficies proyectadas siguen pendientes. Ver los resultados y limites
 en [verificacion](verification.md).
 
 Las operaciones `approval target/create/show/answer` separan identificacion

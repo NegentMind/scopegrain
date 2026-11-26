@@ -26,7 +26,15 @@ previous full run (`npm test`, commit `ca27e26`, 2026-11-22) finished
 390×844, 30 EN/ES screens) at 0 errors; both are kept as references. Do
 not sum scoped runs or historic results.
 
-### OpenCode V2 native pilot (2026-11-23) — certified
+No product evaluation establishes that Scopegrain improves agent outputs.
+The recorded evidence covers internal harness mechanics and scoped
+verification checks; it does not measure output quality, productivity,
+correctness or end-user outcomes.
+
+On this page, `(self-run)` means executed by the project team; it is not
+independent validation or an endorsement by the host vendor.
+
+### OpenCode V2 native pilot (2026-11-23) — validated in a real session (self-run)
 
 Run against a real `opencode v2.3.2` (`@opencode/cli` distribution,
 node v26.8.1, Windows 10.0.26200) in this project at commit `fd347dd`, plus
@@ -112,7 +120,7 @@ test:smoke` → 215 pass, 0 fail. `doctor` keeps 438 failures: 436
 | First CI run | GitHub Actions `verify.yml` manual, run 44391417084, 2026-11-18 | Exit 0: ~3.6 minutes per job |
 | VantaDB FIND-681..684 + model + env hardening verification | `vantadb-server 0.9.0` (sha256 `2d1d2e87…`), 2026-11-23 | Exit 0: `--probe` with `model_present:true`, `fallback:false`, `status:Ready`, `vector_search:true`, provider `ollama`, runtime `Performance`; `vantadb recall --scope agent` returned 3 real `l1/scopegrain` worklogs (keyword mode); VB-6 verified on the frozen gate (`passed-functional-embeddings`: strict `embed_texts` rejects -32603, `memory_put` persists `fallback:true`+`warning` with no vector); code audit confirmed published `dedup_policy` (-32602 on invalid values), `VANTADB_MCP_STRICT_PROFILE`/`VANTADB_MCP_ALLOW_TOOLS` allowlists (-32601 pre-effects) and fail-closed provider routing with 0 egress; pinned spawn env (8-tool `ALLOW_TOOLS`, `DEDUP_POLICY=off`, `STRICT_EMBEDDINGS=true`, `INJECT_NAMESPACES=l1/,l3/`) covered by `vantadb-runtime.test.mjs` (54/54) |
 | OpenCode V2 native pilot (this repo + fixture) | Fresh `opencode v2.3.2` session, 2026-11-23 | 15 subagents and 44 skills from `.opencode/` (74 visible IDs after de-duplicating against `.agents/skills`, with `.opencode/skills` winning precedence); `/scopegrain-status` expanded in the TUI composer; `scopegrain` MCP with 33 tools (27 read-only, 6 local-write) and `scopegrain_status`/`catalog_list`/`list_tasks` invoked live; the read-only role blocked `edit`/`shell` by tool absence and left external MCP writers reachable; interruption/resumption repeated no effects and duplicated no counter (session file byte-identical); cleanup left no global traces (sha256 of `~/.config/opencode/opencode.json` unchanged) |
-| Remaining host pilots | Pending | Claude, Codex, the Antigravity IDE surface and Hermes not certified |
+| Remaining host/surface pilots | Pending | No other surface in the support matrix has a native real-session pilot |
 
 Local logs preserved under `.scopegrain/verification/organic-sdd/`:
 `c2d1-green-final.log`, `c2d2-green-final.log`, their causal REDs and
@@ -504,9 +512,10 @@ edited files. They were normalized with no behavior changes and are
 checked separately; that adjustment is not presented as another suite
 run.
 
-The Devin Local, Antigravity App/CLI and OpenCode V2 pilots were certified
-in real sessions (skills + MCP + read-only invocation); no real Claude
-Code, Codex, Antigravity IDE or Hermes sessions were run. The
+The Devin Local, Antigravity App/CLI and OpenCode V2 pilots were validated
+in real sessions (self-run); that validation covered skills + MCP +
+read-only invocation. No real Claude Code, Codex, Antigravity IDE, Hermes
+or other projected-surface sessions were run. The
 197 archived original skills, external plugins, native isolation,
 Node.js 22 and other operating systems are not certified. Logs,
 fixtures and operational reviews remain private and ignored; they do

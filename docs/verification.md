@@ -24,7 +24,15 @@ resourceCost, sesiones v2) pasan 36/36 en su gate focalizado y el visor
 con 0 errores; ambos se conservan como referencias. No sumar tandas
 acotadas ni resultados historicos.
 
-### Piloto nativo de OpenCode V2 (2026-11-23) — certificado
+No existe una evaluacion de producto que demuestre que Scopegrain mejora los
+outputs de agentes. La evidencia registrada cubre mecanismos internos del
+harness y verificaciones acotadas; no mide calidad de outputs, productividad,
+correccion ni resultados para usuarios finales.
+
+En esta pagina, `(self-run)` significa ejecutado por el equipo del proyecto;
+no es validacion independiente ni aval del proveedor del anfitrion.
+
+### Piloto nativo de OpenCode V2 (2026-11-23) — validado en una sesion real (self-run)
 
 Ejecucion sobre `opencode v2.3.2` real (distribucion `@opencode/cli`,
 node v26.8.1, Windows 10.0.26200) en este proyecto, commit `fd347dd`, mas
@@ -111,7 +119,7 @@ deriva `0.1.0 -> 0.1.1` de `.devin`/`.agents`; `opencode:v2` queda en
 | Piloto nativo OpenCode V2 (este repo + fixture) | Sesion fresca `opencode v2.3.2`, 2026-11-23 | 15 subagentes y 44 skills desde `.opencode/` (74 IDs visibles tras deduplicar contra `.agents/skills`, con `.opencode/skills` ganando precedencia); `/scopegrain-status` expandio en el composer TUI; MCP `scopegrain` con 33 tools (27 read-only, 6 local-write) y `scopegrain_status`/`catalog_list`/`list_tasks` invocados en vivo; el rol read-only bloqueo `edit`/`shell` por ausencia de tool y dejo alcanzables los escritores MCP externos; interrupcion/reanudacion sin repetir efectos ni duplicar contador (archivo de sesion byte-identico); limpieza sin rastros globales (sha256 de `~/.config/opencode/opencode.json` sin cambios) |
 | Primera ejecucion CI | GitHub Actions `verify.yml` manual, run 44391417084, 2026-11-18 | Exit 0: ~3.6 minutos por job |
 | Verificacion VantaDB FIND-681..684 + modelo + hardening env | `vantadb-server 0.9.0` (sha256 `2d1d2e87…`), 2026-11-23 | Exit 0: probe `--probe` con `model_present:true`, `fallback:false`, `status:Ready`, `vector_search:true`, provider `ollama`, runtime `Performance`; `vantadb recall --scope agent` devolvio 3 worklogs reales de `l1/scopegrain` (modo `keyword`); VB-6 verificado en el gate congelado (`passed-functional-embeddings`: `embed_texts` estricto rechaza -32603, `memory_put` persiste `fallback:true`+`warning` sin vector); auditoria de codigo confirmo `dedup_policy` publicado (-32602 en valor invalido), allowlists `VANTADB_MCP_STRICT_PROFILE`/`VANTADB_MCP_ALLOW_TOOLS` (-32601 pre-efectos) y provider fail-closed con 0 egress; hardening spawn-env pineado (`ALLOW_TOOLS` de 8 tools, `DEDUP_POLICY=off`, `STRICT_EMBEDDINGS=true`, `INJECT_NAMESPACES=l1/,l3/`) cubierto por `vantadb-runtime.test.mjs` (54/54) |
-| Pilotos en anfitriones restantes | Pendientes | Claude, Codex, la superficie IDE de Antigravity y Hermes no certificados |
+| Pilotos en anfitriones/superficies restantes | Pendientes | Ninguna otra superficie de la matriz de soporte tiene piloto nativo en sesion real |
 
 Logs locales conservados en `.scopegrain/verification/organic-sdd/`:
 `c2d1-green-final.log`, `c2d2-green-final.log`, sus RED causales y diffs
@@ -492,7 +500,7 @@ Ejecucion registrada el 2026-11-07 (UTC). Evidencia local:
 | Siete tipos de artefactos | Bajo `.scopegrain/`, reviews en reports/reviews; no se crea docs/ |
 | Catalogo y proyecciones | 111 recursos y fuentes de propuestas existentes en disco |
 | Preferencias Git del fixture | Ignore anidado segun seleccion; `.gitignore` de raiz intacto |
-| MCP con transporte real stdio | 25 de 39 herramientas read-only; consultas de catalogo, workflow, plan, artefacto y sesion |
+| MCP con transporte real stdio | 26 de 40 herramientas read-only; consultas de catalogo, workflow, plan, artefacto y sesion |
 
 Archivos de evidencia:
 
@@ -514,10 +522,11 @@ El gate de whitespace detecto terminadores/espacios finales en archivos
 editados. Se normalizaron sin cambios de comportamiento y se comprueba
 por separado; ese ajuste no se presenta como otra ejecucion de la suite.
 
-Los pilotos de Devin Local, Antigravity App/CLI y OpenCode V2 quedaron
-certificados en sesiones reales (skills + MCP + invocacion read-only); no
-se ejecutaron sesiones reales de Claude Code, Codex, la superficie IDE de
-Antigravity ni Hermes.
+Los pilotos de Devin Local, Antigravity App/CLI y OpenCode V2 fueron
+validados en sesiones reales (self-run); esa validacion cubrio skills + MCP +
+invocacion read-only. No se ejecutaron sesiones reales de Claude Code, Codex,
+la superficie IDE de Antigravity, Hermes ni las demas superficies
+proyectadas.
 No se certifican las 197 skills originales archivadas, plugins externos,
 aislamiento nativo, Node.js 22 ni otros sistemas operativos.
 Los logs, fixtures y reviews operativos permanecen privados e ignorados;

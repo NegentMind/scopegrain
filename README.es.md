@@ -17,9 +17,10 @@ los hechos y riesgos declarados.
 
 ### Por que Scopegrain
 
-- **Portable entre agentes de codigo:** alterna entre Devin, Antigravity,
-  Claude Code, Codex, OpenCode o hosts MCP genericos sin reescribir reglas
-  del proyecto, historial de tareas ni contratos de verificacion.
+- **Portable entre agentes de codigo:** mantiene reglas del proyecto,
+  historial de tareas y contratos de verificacion neutrales respecto del
+  anfitrion; las integraciones reales quedan acotadas por la matriz de
+  soporte inferior.
 - **Rigor proporcional (ODD):** los cambios acotados siguen una ruta ligera;
   los cambios riesgosos o ambiguos exigen automaticamente especificacion,
   diseno, aprobaciones HITL e informe de resultado.
@@ -27,7 +28,7 @@ los hechos y riesgos declarados.
   `--apply`, los comandos descubiertos nunca se autoejecutan, locks/CAS y el
   journal local evitan corrupcion silenciosa y toda mutacion deja traza.
 - **Visibilidad inmediata:** un visor web local de solo lectura
-  (`scopegrain view`, 15 vistas, ES/EN) y un servidor MCP de 39 tools
+  (`scopegrain view`, 15 vistas, ES/EN) y un servidor MCP de 40 tools
   mantienen alineados a operadores y agentes sin salir del repositorio.
 
 El producto se llama Scopegrain. `scopegrain` es la entrada CLI y el
@@ -256,15 +257,40 @@ corresponden a `manual`; el ejemplo de respuestas incluido selecciona
 
 ## Anfitriones y limites de confianza
 
-Se generan propuestas para Claude Code, Codex, OpenCode V2, Devin Local/CLI,
-Google Antigravity y Hermes Agent (provisional, formato sin verificar). Los
-puentes nativos
-y fragmentos MCP son propuestas para revision y activacion manual, no
-integraciones certificadas — salvo los pilotos reales certificados de Devin
-Local (2026-11-17), Antigravity App/CLI (2026-11-19) y OpenCode V2
-(2026-11-23) — ni una garantia de
-equivalencia de permisos o comportamiento. Devin Cloud no se considera
-equivalente a Local/CLI. Ver [formatos nativos](docs/native-hosts.md).
+El soporte de anfitriones es mas estrecho que la cobertura de proyecciones.
+Esta matriz declara soporte de producto, no la mera existencia de codigo de
+proyeccion. `supported` significa solo que la superficie/version nombrada fue
+validada en una sesion real (self-run); no es certificacion independiente,
+aval del proveedor ni garantia de equivalencia de permisos o comportamiento.
+`self-run` significa que el equipo del proyecto ejecuto el piloto, no un
+revisor independiente ni el proveedor del anfitrion. `experimental` significa
+que las proyecciones se exponen para evaluacion del owner sin piloto nativo
+en sesion real. `absent` significa que no se declara integracion `supported`
+ni `experimental`, aunque exista scaffolding de adaptador en el repositorio;
+ningun scaffold o proyeccion borrador debe tratarse como soporte disponible.
+
+| Anfitrion/superficie | Estado | Evidencia y limite |
+|---|---|---|
+| Devin Local/CLI | `supported` | Validado en una sesion real (self-run) el 2026-11-17; Devin Cloud no es equivalente |
+| Antigravity App/CLI | `supported` | Validado en una sesion real (self-run) el 2026-11-19 |
+| OpenCode V2 | `supported` | Validado en una sesion real (self-run) el 2026-11-23 contra `opencode v2.3.2` |
+| Claude Code | `experimental` | Solo proyecciones/propuestas; sin piloto nativo en sesion real |
+| Codex | `experimental` | Solo proyecciones/propuestas; sin piloto nativo en sesion real |
+| Antigravity IDE | `experimental` | Propuesta solo de skills; sin piloto nativo en sesion real ni agentes personalizados asumidos |
+| Hermes Agent | `experimental` | Solo artefactos provisionales de revision; formato sin verificar y sin piloto nativo en sesion real |
+| scaffold MCP `generic` | `experimental` | Solo scaffold local de proyecto; ningun binario de anfitrion validado |
+| Cline | `experimental` | Solo proyecciones de adaptador; sin piloto nativo en sesion real |
+| Roo Code | `experimental` | Solo proyecciones de adaptador; sin piloto nativo en sesion real |
+| Kilo Code | `experimental` | Solo proyecciones de adaptador; sin piloto nativo en sesion real |
+| Gemini CLI | `experimental` | Solo proyecciones de adaptador; sin piloto nativo en sesion real |
+| Windsurf (Cascade legacy) | `experimental` | Solo proyecciones de adaptador; sin piloto nativo en sesion real |
+| GitHub Copilot | `absent` | No se declara integracion soportada; el scaffolding de adaptador en el repositorio no es soporte de producto validado |
+| Cursor | `absent` | No se declara integracion soportada; el scaffolding de adaptador en el repositorio no es soporte de producto validado |
+
+Los puentes nativos y fragmentos MCP siguen siendo propuestas para revision y
+activacion manual, no una garantia de equivalencia de permisos o
+comportamiento. Devin Cloud no se considera equivalente a Local/CLI. Ver
+[formatos nativos](docs/native-hosts.md).
 
 - No hay ejecutor de modelos ni ejecucion automatica de agentes o SDK de
   anfitriones. Las instrucciones no son un sandbox ni interceptan todas las
@@ -286,6 +312,11 @@ equivalente a Local/CLI. Ver [formatos nativos](docs/native-hosts.md).
 
 ## Verificacion
 
+No existe una evaluacion de producto que demuestre que Scopegrain mejora los
+outputs de agentes. La evidencia siguiente cubre mecanismos internos del
+harness y verificaciones acotadas; no mide calidad de outputs, productividad,
+correccion ni resultados para usuarios finales.
+
 La ultima ejecucion integral local (`npm test`, serial por archivo,
 2026-11-23) reporto **1440 pruebas: 1435 aprobadas y 5 fallidas** en
 Windows, Node.js v26.8.1 y npm 11.6.0 — de los 5 fallos, 4 son
@@ -293,23 +324,23 @@ inestables de la tanda larga (pasan aislados) y 1 es un fallo
 pre-existente de `host-variants` reproducible en un worktree limpio de
 `HEAD`. Los commits posteriores ampliaron la suite sin una nueva
 integral registrada — la auditoria del 2026-11-24 cuenta **1540
-pruebas**. La integral certificada previa (commit `ca27e26`, 2026-11-22)
+pruebas**. La integral registrada previa (commit `ca27e26`, 2026-11-22)
 termino 1411/1411 junto con el carril del visor (**17/17 pruebas
 Vitest**, 0 errores de lint/typecheck, build Vite en verde y auditoria
 visual Playwright de 30 pantallas EN/ES con 0 errores y 0 overflow). Las integrales
 intermedias y las tandas anteriores son ejecuciones separadas; su alcance
 y resultados historicos estan en [verificacion](docs/verification.md).
-El piloto nativo de Devin Local quedo certificado en una sesion fresca
-real el 2026-11-17 (42 skills `scopegrain-*` y 15 subagentes auto-cargados,
+El piloto nativo de Devin Local quedo validado en una sesion fresca
+real (self-run) el 2026-11-17 (42 skills `scopegrain-*` y 15 subagentes auto-cargados,
 MCP `scopegrain` activo desde `.devin/mcp_config.json`); Antigravity se
 piloto primero el 2026-11-18 (activacion `.agents/` aplicada y consumida
 por su sesion de agente) y su superficie App/CLI completo el piloto
-nativo certificado en una sesion fresca real el 2026-11-19 (72 skills
+nativo validado en una sesion fresca real (self-run) el 2026-11-19 (72 skills
 `scopegrain-*` y 15 subagentes auto-descubiertos, MCP `scopegrain`
 activo desde `.agents/mcp_config.json`, con invocaciones en vivo de
 `scopegrain_status` y `scopegrain_catalog_list`). El piloto nativo de
-OpenCode V2 quedo certificado en una sesion
-fresca real el 2026-11-23 contra `opencode v2.3.2`: 15/15 subagentes
+OpenCode V2 quedo validado en una sesion
+fresca real (self-run) el 2026-11-23 contra `opencode v2.3.2`: 15/15 subagentes
 `scopegrain-*` resueltos, 74 IDs de skill `scopegrain-*` deduplicados con
 `.opencode/skills` ganando precedencia sobre `.agents/skills`,
 `/scopegrain-status` expandiendo en el composer TUI, el MCP `scopegrain`
@@ -319,10 +350,10 @@ anotacion) con
 `scopegrain_status`/`catalog_list`/`list_tasks` invocados en vivo, el rol
 read-only bloqueando `edit`/`shell` por ausencia de tool, la
 interrupcion/reanudacion sin repetir efectos y la limpieza sin rastros en
-la configuracion global de OpenCode. Claude, Codex, la superficie IDE de
-Antigravity y el provisional Hermes siguen sin piloto nativo. Las pruebas
-no certifican los seis anfitriones ni una ejecucion real del trabajo
-declarado.
+la configuracion global de OpenCode. Todas las demas integraciones de
+anfitrion permanecen `experimental` o `absent` segun la matriz de soporte.
+Las pruebas no validan todos los anfitriones ni una ejecucion real del
+trabajo declarado.
 El [workflow de GitHub Actions](.github/workflows/verify.yml) se activa
 por despacho manual, por pushes a `develop`/`main` y por PRs hacia
 `develop`; su primera ejecucion remota completo con exito el 2026-11-18.

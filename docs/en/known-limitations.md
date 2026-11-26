@@ -27,6 +27,7 @@
 | 12 | **Tokens are declared, not measured**: per-event `tokens` and `tokenLimit` are caller attestations (`tokenMeasures:self-reported-unverified`); the harness does not observe the host's real consumption | `declared` | `docs/security.md` ("Declared, not measured tokens") |
 | 13 | **Journal CAS is cooperative, not OS isolation**: writers bypassing the journal can interleave in the check→rename window; locks do not stop foreign processes | `declared` | `docs/journal-recovery.md` (CAS section), `src/core/journal.mjs:1201-1207` |
 | 14 | **`memory_recall` with explicit scope leaves per-project isolation** (`agent`/`team` are machine-global pools): hits can include memories from OTHER projects — marked `untrusted` in the tool | `declared` | `src/mcp/server.mjs:534-560` (explicit WARNING in description), audit P1-17 |
+| 15 | **No product evaluation exists for improvement of agent outputs.** Current verification covers internal harness mechanics; it does not measure output quality, productivity, correctness or end-user outcomes | `declared` | `README.md`/`README.es.md` ("Verification"), `docs/en/verification.md` |
 
 ## Maintenance notes
 

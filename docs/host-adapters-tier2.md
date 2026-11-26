@@ -8,7 +8,10 @@ Analisis de candidatos restantes para `policy/native-adapters.json` tras la
 incorporacion de `copilot` y `cursor`. Es un documento de evaluacion, no un
 plan de implementacion: ningun formato aqui esta certificado; cada uno exigiria
 el mismo ciclo de fuentes verificadas, policy declarativa y piloto nativo que
-los adaptadores existentes.
+los adaptadores existentes. La existencia de scaffolding de adaptador no
+declara soporte de producto: la matriz de README clasifica `copilot` y
+`cursor` como `absent` mientras no se declare una integracion `supported` o
+`experimental`.
 
 ## Estado de la tier actual
 

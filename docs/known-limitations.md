@@ -24,6 +24,7 @@
 | 12 | **Los tokens son declarados, no medidos**: `tokens` por evento y `tokenLimit` son attestations del llamador (`tokenMeasures:self-reported-unverified`); el harness no observa el consumo real del host | `declarado` | `docs/security.md` («Tokens declarados, no medidos») |
 | 13 | **El CAS del journal es cooperativo, no aislamiento OS**: escritores que no pasan por el journal pueden intercalarse en la ventana verificación→rename; los locks no detienen a procesos ajenos | `declarado` | `docs/journal-recovery.md` (sección CAS), `src/core/journal.mjs:1201-1207` |
 | 14 | **`memory_recall` con scope explícito sale del aislamiento por proyecto** (`agent`/`team` son pools machine-global): los hits pueden incluir memorias de OTROS proyectos — marcado como `untrusted` en la tool | `declarado` | `src/mcp/server.mjs:534-560` (descripción con WARNING explícito), auditoría P1-17 |
+| 15 | **No existe evaluación de producto sobre mejora de outputs de agentes.** Las verificaciones actuales cubren mecanismos internos del harness; no miden calidad de outputs, productividad, corrección ni resultados de usuario final | `declarado` | `README.es.md`/`README.md` («Verificación»), `docs/verification.md` |
 
 ## Notas de mantenimiento
 

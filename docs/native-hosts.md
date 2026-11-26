@@ -14,23 +14,26 @@ forma independiente. El namespace `scopegrain-` evita reemplazar built-ins.
 ## Estado
 
 Los formatos documentados y las pruebas locales con fixtures no son
-certificacion nativa. Las comprobaciones estructurales de parseo sobre
+validacion nativa. Las comprobaciones estructurales de parseo sobre
 fixtures aplicados verifican solo que los archivos generados son
 sintacticamente bien formados, nunca que un binario de host real los
-acepta, descubre o hace cumplir. Tres pilotos nativos estan certificados:
-una sesion fresca real de Devin Local el 2026-11-17 auto-cargo las 42
-skills `scopegrain-*` y 15 subagentes, activo el MCP `scopegrain` desde
-`.devin/mcp_config.json` e invoco `scopegrain_status` (solo lectura, 16
-checks de doctor, catalogo de 130 entradas verificado por hash); y una
-sesion fresca real de Antigravity App/CLI el 2026-11-19 auto-descubrio
-las 72 skills `scopegrain-*` y 15 subagentes bajo `.agents/`, activo el
-MCP `scopegrain` desde `.agents/mcp_config.json` (22 herramientas de solo
-lectura) e invoco `scopegrain_status` y `scopegrain_catalog_list` en
-vivo. Los demas hosts y superficies — Claude, Codex, la
-superficie IDE de Antigravity, el provisional Hermes y la tier 2b
-(Cline, Roo Code, Kilo Code, Gemini CLI, Windsurf) — aun carecen de
-piloto nativo. La suite de fundacion completo localmente con un archivo
-de test a la vez; ver
+acepta, descubre o hace cumplir. Tres pilotos nativos fueron validados en
+sesiones reales (self-run): una sesion fresca real de Devin Local el
+2026-11-17 auto-cargo las 42 skills `scopegrain-*` y 15 subagentes, activo
+el MCP `scopegrain` desde `.devin/mcp_config.json` e invoco
+`scopegrain_status` (solo lectura, 16 checks de doctor, catalogo de 130
+entradas verificado por hash); una sesion fresca real de Antigravity
+App/CLI el 2026-11-19 auto-descubrio las 72 skills `scopegrain-*` y 15
+subagentes bajo `.agents/`, activo el MCP `scopegrain` desde
+`.agents/mcp_config.json` (22 herramientas de solo lectura) e invoco
+`scopegrain_status` y `scopegrain_catalog_list` en vivo; y OpenCode V2
+completo su piloto el 2026-11-23 contra `opencode v2.3.2` como se detalla
+abajo. Los demas hosts y superficies — Claude, Codex, la superficie IDE de
+Antigravity, el provisional Hermes, GitHub Copilot, Cursor y la tier 2b
+(Cline, Roo Code, Kilo Code, Gemini CLI, Windsurf) — aun carecen de piloto
+nativo. `self-run` significa ejecutado por el equipo del proyecto, no una
+validacion independiente ni un aval del proveedor del anfitrion. La suite de
+fundacion completo localmente con un archivo de test a la vez; ver
 [verificacion](verification.md) para su alcance y ejecuciones anteriores
 separadas.
 
@@ -39,8 +42,9 @@ OpenCode V2 completo su piloto el 2026-11-23 sobre una instalacion real de
 (limpieza) en un fixture temporal aislado: ver
 [Limites de superficie de OpenCode V2](#limites-de-superficie-de-opencode-v2)
 y [verificacion](verification.md). Los siete pasos del procedimiento
-quedaron ejecutados con evidencia, asi que OpenCode V2 es el tercer host
-certificado. El autocompletado de `/` quedo topado por la TUI, de modo que
+quedaron ejecutados con evidencia, asi que OpenCode V2 es la tercera
+superficie validada en una sesion real (self-run). El autocompletado de `/`
+quedo topado por la TUI, de modo que
 el conteo de los 30 comandos no se enumero en pantalla; lo verificado es el
 despacho real de `/scopegrain-status` desde el composer.
 Ningun host fue activado por estos cambios. La inicializacion crea
@@ -233,9 +237,10 @@ facturacion dependen del host.
 
 Medido contra una instalacion real de `opencode v2.3.2` (node v26.8.1,
 Windows 10.0.26200) el 2026-11-23, con los puentes aplicados en un
-proyecto fixture aislado. Son observaciones de adaptador, no un piloto:
-ninguna sesion interactiva fresca ha certificado todavia descubrimiento,
-invocacion y denegaciones de extremo a extremo. Se uso OpenCode V2 segun
+proyecto fixture aislado. Son observaciones de adaptador complementarias al
+piloto interactivo registrado arriba: por si solas no validan descubrimiento,
+invocacion y denegaciones de extremo a extremo en otras versiones o
+superficies. Se uso OpenCode V2 segun
 su documentacion en [opencode.ai/docs](https://opencode.ai/docs/): skills,
 agents, commands y servidores MCP.
 
@@ -472,9 +477,9 @@ roles y denegaciones de escritura, efectos MCP/red no aprobados,
 delegacion, interrupcion/reanudacion, recuperacion sin repetir efectos y
 limpieza solo de la configuracion propia aprobada. Conservar transcripts,
 versiones reales, logs y diffs completos. El exito en un host o superficie
-no certifica a otro.
+no valida a otro.
 
-### Procedimiento de certificacion de piloto
+### Procedimiento de validacion de piloto
 
 Procedimiento manual por host/superficie. Es una accion del owner: la
 ejecucion requiere un host real instalado y aprobacion explicita de
@@ -502,12 +507,12 @@ cualquier herramienta, modelo, red o costo asociado.
    fixture; verificar que no quedan rastros en config global del host.
 7. **Evidencia.** Conservar transcript completo, diffs de archivos
    escritos, versiones y logs. Registrar el resultado en este documento
-   (Estado) con fecha — un host/superficie certificado no implica
-   ningun otro.
+   (Estado) con fecha — un host/superficie validado en una sesion real
+   (self-run) no implica ningun otro.
 
-Criterio de certificado: los 7 pasos ejecutados con evidencia archivada.
+Criterio de validacion: los 7 pasos ejecutados con evidencia archivada.
 Criterio de fallo: cualquier paso sin verificar deja el host/superficie
-como "sin piloto" — nunca "certificado parcial".
+como "sin piloto" — nunca "validado parcial".
 
 ## Fuentes
 

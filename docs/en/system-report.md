@@ -335,18 +335,18 @@ historical results are in [verification](verification.md). Historical
 batches must not be summed as if they were a single suite of the
 current state.
 
-The Devin Local native pilot was certified in a fresh real session on
-2026-11-17: 42 `scopegrain-*` skills and 15 subagents auto-loaded, the
+The Devin Local native pilot was validated in a fresh real session
+(self-run) on 2026-11-17: 42 `scopegrain-*` skills and 15 subagents auto-loaded, the
 `scopegrain` MCP active from `.devin/mcp_config.json` and
 `scopegrain_status` invoked (doctor with 16 checks and a 130-entry
 catalog hash-verified).
 Antigravity was first piloted on 2026-11-18 (`.agents/` activation
 applied and consumed by its agent session), and its App/CLI surface
-completed the certified native pilot in a fresh real session on
+completed the native pilot validated in a fresh real session (self-run) on
 2026-11-19: 72 `scopegrain-*` skills and 15 subagents auto-discovered,
 the `scopegrain` MCP active from `.agents/mcp_config.json` and live
 `scopegrain_status` and `scopegrain_catalog_list` invocations. The
-OpenCode V2 native pilot was certified in a fresh real session on
+OpenCode V2 native pilot was validated in a fresh real session (self-run) on
 2026-11-23 against `opencode v2.3.2`: 15/15 `scopegrain-*` subagents
 resolved, 74 de-duplicated skill IDs with `.opencode/skills` winning
 precedence over `.agents/skills`, the `scopegrain` MCP active with live
@@ -380,9 +380,9 @@ lockfile guaranteeing exact reproducibility of transitive dependencies.
 1. Run isolated, authorized pilots per native version and surface;
    fixtures do not replace real permission and recovery testing.
    Devin Local, Antigravity App/CLI and OpenCode V2 already have their
-   certified pilots (real sessions, 2026-11-17, 2026-11-19 and
-   2026-11-23); Claude, Codex, the Antigravity IDE surface and Hermes
-   remain pending.
+   pilots validated in real sessions (self-run) (2026-11-17, 2026-11-19
+   and 2026-11-23); every other host or surface remains without native
+   real-session validation.
 2. Resolve licensing and provenance before granting redistribution.
    `package.json` already declares the Apache-2.0 license, the
    `scopegrain` binary, a bounded `files` list and repository metadata;

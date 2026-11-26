@@ -227,7 +227,7 @@ Ver [onboarding](onboarding.md) y [workflows](workflows.md).
 
 ## 11. MCP opcional
 
-El servidor MCP ofrece 39 herramientas estrictamente vinculadas al
+El servidor MCP ofrece 40 herramientas estrictamente vinculadas al
 proyecto y configuracion seleccionados al iniciar: 23 de solo lectura
 (`READ_ONLY`), 4 que escriben estado local bajo la misma disciplina
 CAS/lock que el CLI (`WRITE_LOCAL`: `scopegrain_next_task` con
@@ -325,17 +325,17 @@ no cifras sumables; su alcance y resultados historicos estan en
 [verificacion](verification.md). No se deben sumar tandas historicas
 como si fueran una sola suite del estado actual.
 
-El piloto nativo de Devin Local quedo certificado en una sesion fresca real
-el 2026-11-17: 42 skills `scopegrain-*` y 15 subagentes auto-cargados, MCP
+El piloto nativo de Devin Local quedo validado en una sesion fresca real
+(self-run) el 2026-11-17: 42 skills `scopegrain-*` y 15 subagentes auto-cargados, MCP
 `scopegrain` activo desde `.devin/mcp_config.json` y `scopegrain_status`
 invocado (doctor con 16 checks y catalogo de 130 entradas integro por
 hash). Antigravity se piloto primero el 2026-11-18 (activacion `.agents/`
 aplicada y consumida por su sesion de agente) y su superficie App/CLI
-completo el piloto nativo certificado en una sesion fresca real el
+completo el piloto nativo validado en una sesion fresca real (self-run) el
 2026-11-19: 72 skills `scopegrain-*` y 15 subagentes auto-descubiertos,
 MCP `scopegrain` activo desde `.agents/mcp_config.json` e invocaciones
 en vivo de `scopegrain_status` y `scopegrain_catalog_list`. El piloto
-nativo de OpenCode V2 quedo certificado en una sesion fresca real el
+nativo de OpenCode V2 quedo validado en una sesion fresca real (self-run) el
 2026-11-23 contra `opencode v2.3.2`: 15/15 subagentes `scopegrain-*`
 resueltos, 74 IDs de skill deduplicados con `.opencode/skills` ganando
 precedencia sobre `.agents/skills`, el MCP `scopegrain` activo con
@@ -371,9 +371,9 @@ dependencias transitivas.
 1. Realizar pilotos aislados y autorizados por version y superficie nativa;
    los fixtures no sustituyen pruebas reales de permisos y recuperacion.
    Devin Local, Antigravity App/CLI y OpenCode V2 ya tienen su piloto
-   certificado (sesiones reales, 2026-11-17, 2026-11-19 y 2026-11-23);
-   quedan pendientes Claude, Codex, la superficie IDE de Antigravity y
-   Hermes.
+   validado en sesiones reales (self-run) (2026-11-17, 2026-11-19 y
+   2026-11-23); todo otro host o superficie permanece sin validacion nativa
+   en sesion real.
 2. Resolver licencia y procedencia antes de conceder redistribucion.
    `package.json` ya declara licencia Apache-2.0, binario `scopegrain`,
    lista acotada de `files` y metadatos de repositorio; la publicacion

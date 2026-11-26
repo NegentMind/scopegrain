@@ -15,7 +15,7 @@
 |---|---|---|
 | Transport | Single `StdioServerTransport`; importing the module starts nothing | `src/mcp/server.mjs:805-812` |
 | Server/transport split | `createMCPServer({project,config})` returns `{server, ctx}` **without connecting a transport** — the injection seam already exists | `src/mcp/server.mjs:787-803` |
-| Tools | 39 tools with handlers closing over a single `ctx` (one project, one config); strict input via `strictify` + zod `.strict()`; honest annotations (`readOnlyHint`, `openWorldHint`) | `src/mcp/server.mjs:139-166, 169-779` |
+| Tools | 40 tools with handlers closing over a single `ctx` (one project, one config); strict input via `strictify` + zod `.strict()`; honest annotations (`readOnlyHint`, `openWorldHint`) | `src/mcp/server.mjs:139-166, 169-779` |
 | SDK | `@modelcontextprotocol/sdk@1.32.2` ships `server/streamableHttp.js` (`StreamableHTTPServerTransport`) and auth middleware (`server/auth/`) | `node_modules/@modelcontextprotocol/sdk/dist/esm/server/` |
 | Reusable pattern | `src/api/server.mjs`: literal-loopback bind only (`LOOPBACK_HOSTS`), anti-DNS-rebinding guard `requestOriginAllowed` (Host must be a loopback literal/`localhost`; Origin, when present, likewise), whitelisted routes, bounded body | `src/api/server.mjs:28-32, 222-262, 276-303` |
 
@@ -48,7 +48,7 @@ touches in `cli.mjs`. The brief's estimate (150-300) is right in
 magnitude, perhaps optimistic if full stateful session lifecycle is
 included.
 
-What does NOT change: the 39 tools, `strictify`, zod,
+What does NOT change: the 40 tools, `strictify`, zod,
 `createMCPServer` — all transport-agnostic by SDK design.
 
 ## 4. Added risks (FMEA)
@@ -68,8 +68,8 @@ What does NOT change: the 39 tools, `strictify`, zod,
   container, a web IDE, a gateway multiplexing several projects, access
   from another LAN machine (which would additionally demand TLS + real
   auth — outside the local-first scope).
-- **Not now**: the five supported hosts (`devin`, `claude`, `codex`,
-  `antigravity`, `opencode`) consume MCP over stdio; `server.json`
+- **Not now**: the five hosts with stdio MCP proposals (`devin`, `claude`,
+  `codex`, `antigravity`, `opencode`) consume MCP over stdio; `server.json`
   already declares stdio for the registry. No real consumer asks for
   HTTP today.
 
