@@ -22,7 +22,6 @@ import {
 import { resolveInside } from './paths.mjs';
 import { loadLimits } from './policy.mjs';
 
-const COMMANDS_MARKER = 'const COMMANDS';
 const MAX_DOC_FILES = 64;
 const MAX_DIR_ENTRIES = 256;
 
@@ -64,62 +63,265 @@ function skipWs(src, i) {
   return i;
 }
 
-// Extracts the top-level keys of `const COMMANDS = { ... };` from the
-// cli.mjs source. Returns null when the marker or a balanced object
-// cannot be found — the caller treats that as "surface unavailable".
-export function extractCliVerbs(source) {
-  const marker = source.indexOf(COMMANDS_MARKER);
-  if (marker < 0) return null;
-  const open = source.indexOf('{', marker);
-  if (open < 0) return null;
-  const verbs = [];
-  let i = open + 1;
-  let depth = 1;
-  let expectKey = true;
-  while (i < source.length && depth > 0) {
-    const c = source[i];
+// Bounded source-scanning helpers. They are deliberately not a JavaScript
+// parser: unsupported or malformed syntax makes the caller surface unavailable
+// instead of producing a confident but wrong count.
+function skipWsAndComments(src, i) {
+  for (;;) {
+    const before = i;
+    i = skipWs(src, i);
+    if (src[i] === '/' && src[i + 1] === '/') {
+      const e = src.indexOf('\n', i);
+      i = e < 0 ? src.length : e;
+      continue;
+    }
+    if (src[i] === '/' && src[i + 1] === '*') {
+      const e = src.indexOf('*/', i + 2);
+      i = e < 0 ? src.length : e + 2;
+      continue;
+    }
+    if (i === before) return i;
+  }
+}
+
+// Returns the index just after the balanced close for openChar at `open`,
+// skipping quoted strings, template interpolations and comments. -1 means the
+// literal could not be balanced within the bounded source.
+function balancedEnd(src, open, openChar, closeChar) {
+  if (src[open] !== openChar) return -1;
+  let depth = 0;
+  let i = open;
+  while (i < src.length) {
+    const c = src[i];
     if (c === "'" || c === '"' || c === '`') {
-      if (expectKey && depth === 1 && c !== '`') {
-        const end = skipQuoted(source, i);
-        const j = skipWs(source, end);
-        if (source[j] === ':') {
-          verbs.push(source.slice(i + 1, end - 1));
-          i = j + 1;
-          expectKey = false;
-          continue;
-        }
-      }
-      i = skipQuoted(source, i);
+      i = skipQuoted(src, i);
       continue;
     }
-    if (c === '/' && source[i + 1] === '/') {
-      const e = source.indexOf('\n', i);
-      i = e < 0 ? source.length : e;
+    if (c === '/' && src[i + 1] === '/') {
+      const e = src.indexOf('\n', i);
+      i = e < 0 ? src.length : e;
       continue;
     }
-    if (c === '/' && source[i + 1] === '*') {
-      const e = source.indexOf('*/', i + 2);
-      i = e < 0 ? source.length : e + 2;
+    if (c === '/' && src[i + 1] === '*') {
+      const e = src.indexOf('*/', i + 2);
+      i = e < 0 ? src.length : e + 2;
       continue;
     }
-    if (c === '{') { depth += 1; expectKey = false; i += 1; continue; }
-    if (c === '}') { depth -= 1; i += 1; continue; }
-    if (depth === 1) {
-      if (c === ',') { expectKey = true; i += 1; continue; }
-      if (expectKey && /[A-Za-z_$]/.test(c)) {
-        const m = /^[A-Za-z_$][\w$]*/.exec(source.slice(i));
-        const j = skipWs(source, i + m[0].length);
-        if (source[j] === ':') {
-          verbs.push(m[0]);
-          i = j + 1;
-          expectKey = false;
-          continue;
-        }
-      }
+    if (c === openChar) depth += 1;
+    else if (c === closeChar) {
+      depth -= 1;
+      if (depth === 0) return i + 1;
     }
     i += 1;
   }
-  return depth === 0 && verbs.length > 0 ? verbs : null;
+  return -1;
+}
+
+// Skips one JavaScript value until its top-level comma (or the containing
+// object's closing brace). Nested arrays/objects/call parentheses are balanced;
+// strings and comments never count as delimiters.
+function skipValue(src, i) {
+  let curly = 0;
+  let square = 0;
+  let paren = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === "'" || c === '"' || c === '`') {
+      i = skipQuoted(src, i);
+      continue;
+    }
+    if (c === '/' && src[i + 1] === '/') {
+      const e = src.indexOf('\n', i);
+      i = e < 0 ? src.length : e;
+      continue;
+    }
+    if (c === '/' && src[i + 1] === '*') {
+      const e = src.indexOf('*/', i + 2);
+      i = e < 0 ? src.length : e + 2;
+      continue;
+    }
+    if (c === ',' && curly === 0 && square === 0 && paren === 0) return i;
+    if ((c === '}' || c === ')' || c === ']')
+        && curly === 0 && square === 0 && paren === 0) return i;
+    if (c === '{') curly += 1;
+    else if (c === '[') square += 1;
+    else if (c === '(') paren += 1;
+    else if (c === '}') curly -= 1;
+    else if (c === ']') square -= 1;
+    else if (c === ')') paren -= 1;
+    i += 1;
+  }
+  return i;
+}
+
+function readPropertyKey(src, i) {
+  i = skipWsAndComments(src, i);
+  const c = src[i];
+  if (c === "'" || c === '"') {
+    const end = skipQuoted(src, i);
+    if (end > src.length || src[end - 1] !== c) return null;
+    return { name: src.slice(i + 1, end - 1), end };
+  }
+  const m = /^[A-Za-z_$][\w$]*/.exec(src.slice(i));
+  if (!m) return null;
+  return { name: m[0], end: i + m[0].length };
+}
+
+// Finds a top-level `const NAME` outside comments and strings. A textual
+// indexOf would accept decoys in examples or nested test fixtures before the
+// real declaration.
+function findConstDeclaration(src, name) {
+  let i = 0;
+  let depth = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === "'" || c === '"' || c === '`') {
+      i = skipQuoted(src, i);
+      continue;
+    }
+    if (c === '/' && src[i + 1] === '/') {
+      const e = src.indexOf('\n', i);
+      i = e < 0 ? src.length : e;
+      continue;
+    }
+    if (c === '/' && src[i + 1] === '*') {
+      const e = src.indexOf('*/', i + 2);
+      i = e < 0 ? src.length : e + 2;
+      continue;
+    }
+    if (c === '{') { depth += 1; i += 1; continue; }
+    if (c === '}') { depth = Math.max(0, depth - 1); i += 1; continue; }
+    if (/[A-Za-z_$]/.test(c)) {
+      const m = /^[A-Za-z_$][\w$]*/.exec(src.slice(i));
+      if (depth === 0 && m[0] === 'const') {
+        const declarator = skipWsAndComments(src, i + m[0].length);
+        const after = src[declarator + name.length];
+        if (src.startsWith(name, declarator)
+            && (after === undefined || !/[\w$]/.test(after))) {
+          return i;
+        }
+      }
+      i += m[0].length;
+      continue;
+    }
+    i += 1;
+  }
+  return -1;
+}
+
+// Returns the first character of the initializer for `const NAME = ...`.
+function constInitializerStart(src, name) {
+  const marker = findConstDeclaration(src, name);
+  if (marker < 0) return -1;
+  const declarator = skipWsAndComments(src, marker + 'const'.length);
+  if (!src.startsWith(name, declarator)) return -1;
+  const cursor = skipWsAndComments(src, declarator + name.length);
+  if (src[cursor] !== '=') return -1;
+  return skipWsAndComments(src, cursor + 1);
+}
+
+// Reads the top-level properties of one balanced object literal. Spread,
+// shorthand, methods or malformed properties return null: callers report the
+// surface as unavailable rather than guessing a count.
+function objectPropertyEntries(objectSrc) {
+  const entries = [];
+  let i = 1;
+  while (i < objectSrc.length) {
+    i = skipWsAndComments(objectSrc, i);
+    if (i >= objectSrc.length) return null;
+    if (objectSrc[i] === '}') return entries;
+    if (objectSrc[i] === ',') { i += 1; continue; }
+    const key = readPropertyKey(objectSrc, i);
+    if (key === null) return null;
+    const colon = skipWsAndComments(objectSrc, key.end);
+    if (objectSrc[colon] !== ':') return null;
+    const valueStart = skipWsAndComments(objectSrc, colon + 1);
+    const valueEnd = skipValue(objectSrc, valueStart);
+    if (valueEnd <= valueStart) return null;
+    entries.push({ name: key.name, start: valueStart, end: valueEnd });
+    i = valueEnd;
+    if (objectSrc[i] === ',') i += 1;
+  }
+  return null;
+}
+
+function objectPropertyValueStart(objectSrc, wanted) {
+  const entries = objectPropertyEntries(objectSrc);
+  if (entries === null) return -1;
+  return entries.find((entry) => entry.name === wanted)?.start ?? -1;
+}
+
+// Parses a simple string-literal array (`['api', 'tasks', ':id']`). The raw
+// literal contents are sufficient for route display/counting; escapes are not
+// evaluated because the extractor never executes the scanned source.
+function parseStringArray(src, open) {
+  const end = balancedEnd(src, open, '[', ']');
+  if (end < 0) return null;
+  const parts = [];
+  let i = open + 1;
+  while (i < end - 1) {
+    i = skipWsAndComments(src, i);
+    if (i >= end - 1) break;
+    if (src[i] === ',') { i += 1; continue; }
+    const q = src[i];
+    if (q !== "'" && q !== '"') return null;
+    const qEnd = skipQuoted(src, i);
+    if (qEnd > end || src[qEnd - 1] !== q) return null;
+    parts.push(src.slice(i + 1, qEnd - 1));
+    i = skipWsAndComments(src, qEnd);
+    if (src[i] === ',') { i += 1; continue; }
+    if (i >= end - 1) break;
+    return null;
+  }
+  return { parts, end };
+}
+
+function routePatternFromObject(objectSrc) {
+  const start = objectPropertyValueStart(objectSrc, 'pattern');
+  if (start < 0 || objectSrc[start] !== '[') return null;
+  const parsed = parseStringArray(objectSrc, start);
+  if (parsed === null || parsed.parts.length === 0) return null;
+  return `/${parsed.parts.join('/')}`;
+}
+
+// Extracts the literal route patterns from `export const ROUTES = [ ... ]`
+// in src/api/server.mjs. Core scans the source text instead of importing the
+// API module: importing would reverse the core/API dependency direction and
+// could eventually pull a server-side effect into doctor.
+export function extractApiRoutes(source) {
+  const open = constInitializerStart(source, 'ROUTES');
+  if (open < 0) return null;
+  if (source[open] !== '[') return null;
+  const end = balancedEnd(source, open, '[', ']');
+  if (end < 0) return null;
+  const routes = [];
+  let i = open + 1;
+  while (i < end - 1) {
+    i = skipWsAndComments(source, i);
+    if (i >= end - 1) break;
+    if (source[i] === ',') { i += 1; continue; }
+    if (source[i] !== '{') return null;
+    const objectEnd = balancedEnd(source, i, '{', '}');
+    if (objectEnd < 0 || objectEnd > end) return null;
+    const pattern = routePatternFromObject(source.slice(i, objectEnd));
+    if (pattern === null) return null;
+    routes.push(pattern);
+    i = objectEnd;
+  }
+  return routes.length > 0 ? routes : null;
+}
+
+// Extracts the top-level keys of `const COMMANDS = { ... };` from the
+// cli.mjs source. Returns null when the declaration or a balanced object
+// cannot be found — the caller treats that as "surface unavailable".
+export function extractCliVerbs(source) {
+  const open = constInitializerStart(source, 'COMMANDS');
+  if (open < 0 || source[open] !== '{') return null;
+  const end = balancedEnd(source, open, '{', '}');
+  if (end < 0) return null;
+  const entries = objectPropertyEntries(source.slice(open, end));
+  return entries !== null && entries.length > 0
+    ? entries.map((entry) => entry.name) : null;
 }
 
 const FLAG_TOKEN_RE = /--[A-Za-z][\w-]*/g;
@@ -323,20 +525,59 @@ export function scanDocText(text, verbs) {
 }
 
 const COUNT_RE = /\b(\d{1,3})[ \t]+(tools?|herramientas?|verbos?|verbs?|comandos?|commands?|skills?|reglas?|rules?|agentes?|agents?|referencias?|references?)\b/gi;
+// capability-map.md is the project's surface inventory: unlike dated audits
+// or migration notes, its counts claim the current CLI/MCP/API/catalog shape.
+// This extended unit set is therefore scanned only for that document pair.
+const CAPABILITY_COUNT_RE = new RegExp(
+  '\\b(\\d{1,3})[ \\t]+(?:[A-Za-z-]+[ \\t]+)?('
+  + 'tools?|herramientas?|verbos?|verbs?|comandos?|commands?|'
+  + 'subcomandos?|subcommands?|skills?|reglas?|rules?|agentes?|agents?|'
+  + 'referencias?|references?|prompts?|perfil(?:es)?|profiles?|mcp|'
+  + 'rutas?|routes?|entradas?|entries|entry|alias(?:es)?'
+  + ')\\b', 'gi');
 const FOREIGN_CLI_RE = /\b(npm|npx|pnpm|yarn|bun|git|node|deno|docker|kubectl|cargo|pipx?|python3?|vantadb|ollama)\b/i;
 const CATALOG_LINE_RE = /resources|cat[aá]log/i;
+// capability-map wraps its resource inventory across two lines; the second
+// line is anchored by `manifest.json` rather than repeating `resources/`.
+const CAPABILITY_CATALOG_LINE_RE = /resources|cat[aá]log|manifest\.json/i;
 const CLI_LINE_RE = /\bcli\b|scopegrain|superficie|surface/i;
 const MCP_LINE_RE = /\bmcp\b|scopegrain_/i;
+const API_LINE_RE = /\bapi\b|\/api\//i;
 const RESOURCE_UNIT = {
   skill: 'skill', skills: 'skill',
   regla: 'rule', reglas: 'rule', rule: 'rule', rules: 'rule',
   agente: 'agent', agentes: 'agent', agent: 'agent', agents: 'agent',
   referencia: 'reference', referencias: 'reference',
   reference: 'reference', references: 'reference',
+  prompt: 'prompt', prompts: 'prompt',
+  perfil: 'profile', perfiles: 'profile',
+  profile: 'profile', profiles: 'profile',
+  mcp: 'mcp',
 };
 const TOOL_UNIT = new Set(['tool', 'tools', 'herramienta', 'herramientas']);
 const VERB_UNIT = new Set(['verbo', 'verbos', 'verb', 'verbs']);
 const COMMAND_UNIT = new Set(['comando', 'comandos', 'command', 'commands']);
+const SUBCOMMAND_UNIT = new Set([
+  'subcomando', 'subcomandos', 'subcommand', 'subcommands',
+]);
+const ROUTE_UNIT = new Set(['ruta', 'rutas', 'route', 'routes']);
+const ENTRY_UNIT = new Set(['entrada', 'entradas', 'entry', 'entries']);
+const ALIAS_UNIT = new Set(['alias', 'aliases']);
+
+// Numeric surface claims in capability-map use markdown both around numbers
+// (`142` entries, **142 entries**) and between a number and its unit
+// (40 `scopegrain_*` tools). For counting only, preserve numeric inline-code
+// contents and drop non-numeric inline-code spans/emphasis markers. Context
+// classification still uses the original line.
+function countNormalizedLine(line) {
+  return line
+    .replace(/`([^`\n]*)`/g, (_m, inner) => {
+      const trimmed = inner.trim();
+      return /^\d{1,3}$/.test(trimmed) ? ` ${trimmed} ` : ' ';
+    })
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1');
+}
 
 function flagNameOf(token) {
   const m = /^--[\w-]+/.exec(token);
@@ -345,10 +586,17 @@ function flagNameOf(token) {
 
 const DATE_RE = /\b\d{4}-\d{2}-\d{2}\b/;
 
-export function scanDocSurface(text) {
+export function scanDocSurface(text, { capabilityMap = false } = {}) {
   const flags = new Map();
   const counts = [];
   const invocations = [];
+  const seenCounts = new Set();
+  const noteCount = (n, unit, line, dated, lineIndex) => {
+    const key = `${lineIndex}|${n}|${unit}|${line}`;
+    if (seenCounts.has(key)) return;
+    seenCounts.add(key);
+    counts.push({ n, unit, line, dated });
+  };
   const noteFlag = (flag, via) => {
     if (flag === null) return;
     if (!flags.has(flag)) flags.set(flag, new Set());
@@ -401,10 +649,15 @@ export function scanDocSurface(text) {
       if (bare) invocations.push(bare[1]);
     }
     for (const m of line.matchAll(COUNT_RE)) {
-      counts.push({
-        n: Number(m[1]), unit: m[2].toLowerCase(), line: trimmed,
-        dated: datedLines[lineIndex],
-      });
+      noteCount(Number(m[1]), m[2].toLowerCase(), trimmed,
+        datedLines[lineIndex], lineIndex);
+    }
+    if (capabilityMap) {
+      const normalized = countNormalizedLine(trimmed);
+      for (const m of normalized.matchAll(CAPABILITY_COUNT_RE)) {
+        noteCount(Number(m[1]), m[2].toLowerCase(), trimmed,
+          datedLines[lineIndex], lineIndex);
+      }
     }
   }
   for (const args of invocations) {
@@ -475,20 +728,45 @@ function catalogKindCounts(catalog) {
   return counts;
 }
 
+// Derives every catalog count from the loaded manifest projection, never
+// from prose memory. A partial hand-built catalog degrades individual
+// surfaces to null (claim ignored) instead of inventing zeroes.
+function catalogCountSurface(catalog) {
+  const kinds = catalogKindCounts(catalog);
+  if (kinds === null) return null;
+  return {
+    entries: Array.isArray(catalog.entries)
+      ? catalog.entries.length : catalog.byKey.size,
+    aliases: Array.isArray(catalog.aliases) ? catalog.aliases.length : null,
+    kinds,
+  };
+}
+
 function expectedFor(claim, surfaces) {
   const { unit, line } = claim;
   if (TOOL_UNIT.has(unit)) {
     return MCP_LINE_RE.test(line) ? surfaces.mcpTools : null;
   }
-  if (VERB_UNIT.has(unit)) {
+  if (VERB_UNIT.has(unit) || SUBCOMMAND_UNIT.has(unit)) {
     return CLI_LINE_RE.test(line) ? surfaces.cliVerbs : null;
+  }
+  if (ROUTE_UNIT.has(unit)) {
+    return API_LINE_RE.test(line) ? surfaces.apiRoutes : null;
+  }
+  if (ENTRY_UNIT.has(unit)) {
+    return CAPABILITY_CATALOG_LINE_RE.test(line) ? surfaces.catalogEntries : null;
+  }
+  if (ALIAS_UNIT.has(unit)) {
+    return CAPABILITY_CATALOG_LINE_RE.test(line) ? surfaces.catalogAliases : null;
   }
   if (COMMAND_UNIT.has(unit)) {
     if (CATALOG_LINE_RE.test(line)) return surfaces.catalogCommands;
     return CLI_LINE_RE.test(line) ? surfaces.cliVerbs : null;
   }
   const kind = RESOURCE_UNIT[unit];
-  if (kind && CATALOG_LINE_RE.test(line)) {
+  const kindLineRe = kind === 'prompt' || kind === 'profile' || kind === 'mcp'
+    ? CAPABILITY_CATALOG_LINE_RE : CATALOG_LINE_RE;
+  if (kind && kindLineRe.test(line)) {
     return surfaces.resourceKinds ? surfaces.resourceKinds[kind] ?? null : null;
   }
   return null;
@@ -532,6 +810,21 @@ export function checkDocsCliDrift({ projectRoot, installRoot, catalog = null }) 
   } catch {
     mcpTools = null;
   }
+  let apiRoutes = null;
+  try {
+    const apiAbs = path.join(installRoot, 'src', 'api', 'server.mjs');
+    const apiSt = lstatOrNull(apiAbs);
+    if (apiSt && apiSt.isFile() && !apiSt.isSymbolicLink()) {
+      const limited = readFileLimited(apiAbs, loadLimits().maxDocumentBytes);
+      if (!limited.exceeded) {
+        const routes = extractApiRoutes(decodeUtf8Strict(
+          limited.content, 'MALFORMED_JSON', 'src/api/server.mjs'));
+        apiRoutes = routes === null ? null : routes.length;
+      }
+    }
+  } catch {
+    apiRoutes = null;
+  }
   const skipped = (detail) => ({
     ok: true, skipped: true, detail, stale: [], undocumented: [],
     scannedDocs: 0, flags: [], counts: [], parity: [],
@@ -545,12 +838,16 @@ export function checkDocsCliDrift({ projectRoot, installRoot, catalog = null }) 
   if (docs.length === 0) {
     return skipped('skipped: no README/docs markdown found');
   }
-  const kindCounts = catalogKindCounts(catalog);
+  const catalogCounts = catalogCountSurface(catalog);
   const surfaces = {
     cliVerbs: verbs.length,
     mcpTools,
-    catalogCommands: kindCounts ? kindCounts.command ?? 0 : null,
-    resourceKinds: kindCounts,
+    apiRoutes,
+    catalogCommands: catalogCounts?.kinds
+      ? catalogCounts.kinds.command ?? 0 : null,
+    catalogEntries: catalogCounts ? catalogCounts.entries : null,
+    catalogAliases: catalogCounts ? catalogCounts.aliases : null,
+    resourceKinds: catalogCounts ? catalogCounts.kinds : null,
   };
   const referenced = new Set();
   const stale = new Set();
@@ -572,7 +869,9 @@ export function checkDocsCliDrift({ projectRoot, installRoot, catalog = null }) 
     const r = scanDocText(text, verbSet);
     for (const v of r.referenced) referenced.add(v);
     for (const v of r.stale) stale.add(v);
-    const s = scanDocSurface(text);
+    const s = scanDocSurface(text, {
+      capabilityMap: /^docs\/(?:en\/)?capability-map\.md$/.test(rel),
+    });
     for (const [flag, via] of s.flags) {
       if (cliFlags.has(flag)) continue;
       if (!badFlags.has(flag)) badFlags.set(flag, new Set());

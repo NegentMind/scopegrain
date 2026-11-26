@@ -1,7 +1,7 @@
 # Scopegrain — Mapa completo de capacidades
 
 Catálogo detallado de superficies, subsistemas, comandos y garantías del harness.
-Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `142` entradas
+Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `144` entradas
 (`manifest.json` v`0.1.4`); la cifra vigente de la suite de tests se registra en
 [verification](verification.md) (cambia con cada ejecución).
 
@@ -15,11 +15,11 @@ Estado de referencia: rama `develop`, `scopegrain@0.1.1`, catálogo `142` entrad
 
 | Superficie | Inventario | Acceso |
 |---|---|---|
-| CLI `bin/scopegrain.mjs` | 148 subcomandos registrados, imports perezosos por comando | Humano y agente |
+| CLI `bin/scopegrain.mjs` | 162 subcomandos registrados, imports perezosos por comando | Humano y agente |
 | MCP `src/mcp/server.mjs` | 40 tools `scopegrain_*`: 26 `READ_ONLY` + 6 `READ_BACKEND` (`openWorldHint`, spawn del binario VantaDB enrolado) + 8 de escritura (6 `WRITE_LOCAL` + 2 `WRITE_DISCARD`) | Hosts MCP (stdio) |
 | API local `src/api/server.mjs` | 38 rutas GET `/api/*` | Loopback-only, GET-only |
 | Visor `viewer/` (`scopegrain view`) | 15 vistas React 19 + TS + Vite + Tailwind | Read-only, humano |
-| Catálogo `resources/manifest.json` | 142 entradas + 32 aliases | Proyectable al proyecto |
+| Catálogo `resources/manifest.json` | 144 entradas + 32 aliases | Proyectable al proyecto |
 
 ---
 
@@ -171,9 +171,9 @@ committed+acked.
 
 ---
 
-## 3. MCP — 39 tools `scopegrain_*`
+## 3. MCP — 40 tools `scopegrain_*`
 
-### Read-only locales (25) — `readOnlyHint`, `openWorldHint:false`
+### Read-only locales (26) — `readOnlyHint`, `openWorldHint:false`
 
 `approval_get`, `artifact_get`, `catalog_get`, `catalog_list`, `check_action`,
 `get_task`, `goal_list`, `inspect`, `list_tasks`, `mcp_inventory`,
@@ -181,7 +181,7 @@ committed+acked.
 `memory_status`, `methodology_check`, `metrics`, `plan_get`, `plan_next`,
 `plan_preview`,
 `resource_diagnose`, `resource_search`, `session_get`, `specification_get`,
-`status`, `task_suggest`, `workflow_packet`
+`status`, `task_link_suggest`, `task_suggest`, `workflow_packet`
 
 ### Read-only con backend (6) — `readOnlyHint` + `openWorldHint:true`
 
@@ -285,8 +285,8 @@ más `RESEARCH`, `STALL`, `ABANDON` (terminal). Reglas:
 
 ## 9. Recursos canónicos (proyectables)
 
-`resources/` — 44 skills · 23 rules · 18 commands · 15 agents · 25 references ·
-11 prompts · 5 profiles · 1 mcp = **142 entradas** + 32 aliases. `manifest.json`
+`resources/` — 44 skills · 23 rules · 18 commands · 15 agents · 27 references ·
+11 prompts · 5 profiles · 1 mcp = **144 entradas** + 32 aliases. `manifest.json`
 es el catálogo con snapshots SHA (`catalog check` verifica drift; byte-determinista,
 sin `generatedAt`); instalación via `init`/`update`, versionado
 opt-in por categoría. Las claves de perfil requeridas son `skills`/`rules`/
