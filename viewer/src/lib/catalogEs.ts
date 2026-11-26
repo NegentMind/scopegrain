@@ -136,6 +136,8 @@ export const CATALOG_DESC_ES: Record<string, string> = {
   'reference:accessibility-checklist': 'Nombres accesibles, semántica, operación y evidencia verificada.',
   'reference:reference-maintenance': 'Cómo mantener material de referencia respaldado por evidencia.',
   'reference:rules-format': 'Contrato de archivos de regla: frontmatter acotado, activation, ciclo de vida y prohibición de comandos inline.',
+  'reference:external-runner-contract': 'Contrato acotado para ejecutores externos: autorización, evidencia y límites de side effects.',
+  'reference:workflow-profiles': 'Perfiles de workflow por tipo de tarea para seleccionar capacidades sin asumir stack.',
   'profile:core': 'Ingeniería general; sin stack asumido ni herramienta externa.',
   'profile:web': 'Inspección de interfaz web y rendimiento, opt-in.',
   'profile:rust': 'Ownership de Rust y aspectos de runtime asíncrono, opt-in.',

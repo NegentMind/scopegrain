@@ -14,7 +14,7 @@ const EXPECTED_TOOLS = [
   'scopegrain_inspect', 'scopegrain_status', 'scopegrain_context',
   'scopegrain_list_tasks',
   'scopegrain_get_task', 'scopegrain_check_action',
-  'scopegrain_task_suggest',
+  'scopegrain_task_suggest', 'scopegrain_task_link_suggest',
   'scopegrain_catalog_list', 'scopegrain_catalog_get',
   'scopegrain_workflow_packet', 'scopegrain_plan_get',
   'scopegrain_plan_next', 'scopegrain_plan_preview',
